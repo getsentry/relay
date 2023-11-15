@@ -292,10 +292,12 @@ pub unsafe extern "C" fn relay_compare_versions(a: *const RelayStr, b: *const Re
     }
 }
 
-/// Validate a sampling rule condition.
+/// Validate a dynamic rule condition.
+///
+/// Used by dynamic sampling, metric extraction, and metric tagging.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_validate_sampling_condition(value: *const RelayStr) -> RelayStr {
+pub unsafe extern "C" fn relay_validate_rule_condition(value: *const RelayStr) -> RelayStr {
     let ret_val = match serde_json::from_str::<RuleCondition>((*value).as_str()) {
         Ok(condition) => {
             if condition.supported() {

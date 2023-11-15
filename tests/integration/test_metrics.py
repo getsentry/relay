@@ -279,7 +279,8 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     upstream_config = {
         "aggregator": {
             "bucket_interval": 1,
-            "initial_delay": 2,  # Give upstream some time to process downstream entries:
+            # Give upstream some time to process downstream entries:
+            "initial_delay": 2,
             "debounce_delay": 0,
         }
     }
@@ -1219,9 +1220,11 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 2
+    assert len(span_metrics) == 3
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
+        if metric["name"] == "c:spans/count_per_op@none":
+            continue
         assert metric["tags"]["span.description"] == expected_description
         assert metric["tags"]["span.group"] == expected_group
 

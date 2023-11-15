@@ -43,6 +43,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "ui.react",
+            "span.op": "ui.react.render",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -83,6 +95,18 @@ expression: metrics
             "span.op": "http.client",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
         },
     },
     Bucket {
@@ -133,6 +157,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -178,6 +214,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -216,6 +264,18 @@ expression: metrics
             "span.op": "http.client",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
         },
     },
     Bucket {
@@ -268,6 +328,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -312,6 +384,18 @@ expression: metrics
             "span.status_code": "200",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
         },
     },
     Bucket {
@@ -366,6 +450,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -415,50 +511,13 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            [
-                2000.0,
-            ],
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
         ),
         tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
             "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
         },
     },
     Bucket {
@@ -508,6 +567,79 @@ expression: metrics
             "span.status_code": "200",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.action": "POST",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status": "ok",
+            "span.status_code": "200",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.action": "POST",
+            "span.category": "http",
+            "span.description": "POST http://*.domain.tld:1234",
+            "span.domain": "*.domain.tld:1234",
+            "span.group": "86818d1c74ecfc66",
+            "span.op": "http.client",
+            "span.status": "ok",
+            "span.status_code": "200",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
         },
     },
     Bucket {
@@ -562,6 +694,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -609,6 +753,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -649,6 +805,18 @@ expression: metrics
             "span.system": "postgresql",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
         },
     },
     Bucket {
@@ -703,6 +871,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -741,6 +921,18 @@ expression: metrics
             "span.status": "ok",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
         },
     },
     Bucket {
@@ -795,6 +987,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -839,6 +1043,18 @@ expression: metrics
             "span.system": "postgresql",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
         },
     },
     Bucket {
@@ -889,6 +1105,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -929,6 +1157,18 @@ expression: metrics
             "span.system": "mydatabase",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
         },
     },
     Bucket {
@@ -981,6 +1221,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1024,46 +1276,13 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            [
-                2000.0,
-            ],
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
         ),
         tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
-            "span.status": "ok",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            [
-                2000.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.op": "db.redis",
-            "span.status": "ok",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
+            "span.category": "cache",
+            "span.op": "cache.get_item",
         },
     },
     Bucket {
@@ -1109,6 +1328,75 @@ expression: metrics
             "span.status": "ok",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+            "span.status": "ok",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.action": "GET",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.op": "db.redis",
+            "span.status": "ok",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
         },
     },
     Bucket {
@@ -1159,6 +1447,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1204,6 +1504,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1244,6 +1556,18 @@ expression: metrics
             "span.status": "ok",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
         },
     },
     Bucket {
@@ -1351,6 +1675,18 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.css",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1387,6 +1723,18 @@ expression: metrics
             "span.op": "resource.script",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
         },
     },
 ]

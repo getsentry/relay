@@ -31,11 +31,12 @@ use crate::normalize::utils::validate_span;
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
-use crate::utils::MAX_DURATION_MOBILE_MS;
+use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, end_all_spans, normalize_transaction_name, schema, set_default_transaction_source,
     span, trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
-    DynamicMeasurementsConfig, GeoIpLookup, RawUserAgentInfo, TransactionNameConfig,
+    DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig, RawUserAgentInfo,
+    TransactionNameConfig,
 };
 
 use crate::LightNormalizationConfig;
@@ -199,6 +200,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             config.measurements.clone(),
             config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
+        normalize_performance_score(event, config.performance_score);
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
@@ -655,6 +657,76 @@ fn normalize_measurements(
     }
 }
 
+/// Computes performance score measurements.
+///
+/// This computes score from vital measurements, using config options to define how it is
+/// calculated.
+fn normalize_performance_score(
+    event: &mut Event,
+    performance_score: Option<&PerformanceScoreConfig>,
+) {
+    let Some(performance_score) = performance_score else {
+        return;
+    };
+    for profile in &performance_score.profiles {
+        if let Some(condition) = &profile.condition {
+            if !condition.matches(event) {
+                continue;
+            }
+            if let Some(measurements) = event.measurements.value_mut() {
+                let mut should_add_total = false;
+                if !profile
+                    .score_components
+                    .iter()
+                    .all(|c| measurements.contains_key(c.measurement.as_str()))
+                {
+                    // Check all measurements exist, otherwise don't add any score components.
+                    break;
+                }
+                let mut score_total = 0.0;
+                for component in &profile.score_components {
+                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                        let subscore =
+                            utils::calculate_cdf_score(value, component.p10, component.p50)
+                                * component.weight;
+                        score_total += subscore;
+                        should_add_total = true;
+
+                        measurements.insert(
+                            format!("score.{}", component.measurement),
+                            Measurement {
+                                value: subscore.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                        measurements.insert(
+                            format!("score.weight.{}", component.measurement),
+                            Measurement {
+                                value: component.weight.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                    }
+                }
+
+                if should_add_total {
+                    measurements.insert(
+                        "score.total".to_owned(),
+                        Measurement {
+                            value: score_total.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
+                }
+                break; // Measurements have successfully been added, skip any other profiles.
+            }
+        }
+    }
+}
+
 /// Compute additional measurements derived from existing ones.
 ///
 /// The added measurements are:
@@ -947,10 +1019,14 @@ mod tests {
 
     use crate::normalize::processor::{
         filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
-        normalize_dist, normalize_measurements, normalize_security_report, normalize_units,
-        remove_invalid_measurements, NormalizeProcessor, NormalizeProcessorConfig,
+        normalize_dist, normalize_measurements, normalize_performance_score,
+        normalize_security_report, normalize_units, remove_invalid_measurements,
+        NormalizeProcessor, NormalizeProcessorConfig,
     };
-    use crate::{ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, RawUserAgentInfo};
+    use crate::{
+        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
+        RawUserAgentInfo,
+    };
 
     #[test]
     fn test_normalize_dist_none() {
@@ -1814,5 +1890,215 @@ mod tests {
             Ok(())
         })
         .unwrap();
+    }
+
+    #[test]
+    fn test_computed_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_missing_measurement() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
     }
 }
