@@ -268,27 +268,8 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
     public_key = mini_sentry.get_dsn_public_key(project_key)
 
     # Config is broken and will produce the invalid project state.
-    config = mini_sentry.project_configs[project_key]["config"]
-    ds = config.setdefault("sampling", {})
-    ds.setdefault("version", 2)
-    ds.setdefault("rules", []).append(
-        {
-            "condition": {
-                "op": "and",
-                "inner": [
-                    {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
-                ],
-            },
-            "samplingValue": {"strategy": "sampleRate", "value": 0.7},
-            "type": "trace",
-            "id": 1,
-            "timeRange": {
-                "start": "2022-10-10T00:00:00.000000Z",
-                "end": "2022-10-20T00:00:00.000000Z",
-            },
-            "decayingFn": {"function": "linear", "decayedSampleRate": 0.9},
-        }
-    )
+    config = mini_sentry.project_configs[project_key]
+    config["slug"] = 99  # ERROR: Number not allowed
 
     body = {"publicKeys": [public_key]}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
@@ -318,32 +299,14 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         relay.send_event(project_key)
         assert mini_sentry.captured_events.empty()
         assert {str(e) for _, e in mini_sentry.test_failures} == {
-            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
+            f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
         }
     finally:
         mini_sentry.test_failures.clear()
 
     # Fix the config.
-    config = mini_sentry.project_configs[project_key]["config"]
-    config["sampling"]["version"] = 2
-    config["sampling"]["rules"] = [
-        {
-            "condition": {
-                "op": "and",
-                "inner": [
-                    {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
-                ],
-            },
-            "samplingValue": {"type": "sampleRate", "value": 0.7},
-            "type": "trace",
-            "id": 1,
-            "timeRange": {
-                "start": "2022-10-10T00:00:00.000000Z",
-                "end": "2022-10-20T00:00:00.000000Z",
-            },
-            "decayingFn": {"type": "linear", "decayedValue": 0.9},
-        }
-    ]
+    config = mini_sentry.project_configs[project_key]
+    config["slug"] = "some-slug"
 
     try:
         relay.send_event(project_key)
@@ -353,7 +316,7 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         assert not mini_sentry.test_failures or {
             str(e) for _, e in mini_sentry.test_failures
         } == {
-            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
+            f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
         }
     finally:
         mini_sentry.test_failures.clear()
@@ -402,27 +365,8 @@ def test_cached_project_config(mini_sentry, relay):
     assert not data["configs"][public_key]["disabled"]
 
     # Introduce unparsable config.
-    config = mini_sentry.project_configs[project_key]["config"]
-    ds = config.setdefault("sampling", {})
-    ds.setdefault("version", 2)
-    ds.setdefault("rules", []).append(
-        {
-            "condition": {
-                "op": "and",
-                "inner": [
-                    {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
-                ],
-            },
-            "samplingValue": {"type": "sampleRate", "value": 0.7},
-            "type": "trace",
-            "id": 1,
-            "timeRange": {
-                "start": "2022-10-10T00:00:00.000000Z",
-                "end": "2022-10-20T00:00:00.000000Z",
-            },
-            "decayingFn": {"function": "linear", "decayedSampleRate": 0.9},
-        }
-    )
+    config = mini_sentry.project_configs[project_key]
+    config["slug"] = 99  # ERROR: Number not allowed
 
     # Give it a bit time for update to go through.
     time.sleep(1)
@@ -437,7 +381,7 @@ def test_cached_project_config(mini_sentry, relay):
         relay.send_event(project_key)
         time.sleep(0.5)
         assert {str(e) for _, e in mini_sentry.test_failures} == {
-            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
+            f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
         }
     finally:
         mini_sentry.test_failures.clear()
