@@ -231,7 +231,7 @@ static PATH_REGEX: Lazy<Regex> = Lazy::new(|| {
                 )
             )
             (
-                [^/\\]+
+                [A–Za-z0–9'\._!\#^~-]+
             )
         ",
     )
