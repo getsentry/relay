@@ -324,7 +324,7 @@ expression: SerializableAnnotated(&event)
         "type": "default",
         "category": "Microsoft.AspNetCore.Hosting.Internal.WebHost",
         "level": "info",
-        "message": "Request starting HTTP/1.1 POST http://localhost:62919/Home/[user] application/json; charset=UTF-8 65",
+        "message": "Request starting HTTP/1.1 POST http://localhost:62919/Home/[user]/json; charset=UTF-8 65",
         "data": {
           "eventId": "1"
         }
