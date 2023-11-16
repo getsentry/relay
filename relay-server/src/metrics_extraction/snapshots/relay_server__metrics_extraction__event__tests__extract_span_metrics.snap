@@ -1252,6 +1252,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "extension": "js",
             "http.status_code": "500",
             "span.category": "resource",
             "span.description": "http://domain/*/myscript-*.js",
@@ -1275,6 +1276,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "extension": "js",
             "http.status_code": "500",
             "span.category": "resource",
             "span.description": "http://domain/*/myscript-*.js",
@@ -1568,6 +1570,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "extension": "css",
             "http.status_code": "500",
             "resource.render_blocking_status": "blocking",
             "span.category": "resource",
@@ -1591,6 +1594,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "extension": "css",
             "http.status_code": "500",
             "resource.render_blocking_status": "blocking",
             "span.category": "resource",
