@@ -46,8 +46,8 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub quotas: Vec<Quota>,
     /// Configuration for sampling traces, if not present there will be no sampling.
-    #[serde(alias = "dynamicSampling", skip_serializing_if = "Option::is_none")]
-    pub sampling: Option<ErrorBoundary<SamplingConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for measurements.
     /// NOTE: do not access directly, use [`relay_event_normalization::DynamicMeasurementsConfig`].
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,10 +97,6 @@ impl ProjectConfig {
 
         metrics::convert_conditional_tagging(self);
         defaults::add_span_metrics(self);
-
-        if let Some(ErrorBoundary::Ok(ref mut sampling_config)) = self.sampling {
-            sampling_config.normalize();
-        }
     }
 }
 
@@ -115,7 +111,7 @@ impl Default for ProjectConfig {
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: None,
             quotas: Vec::new(),
-            sampling: None,
+            dynamic_sampling: None,
             measurements: None,
             breakdowns_v2: None,
             performance_score: Default::default(),
@@ -154,7 +150,7 @@ pub struct LimitedProjectConfig {
     #[serde(skip_serializing_if = "DataScrubbingConfig::is_disabled")]
     pub datascrubbing_settings: DataScrubbingConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sampling: Option<ErrorBoundary<SamplingConfig>>,
+    pub dynamic_sampling: Option<SamplingConfig>,
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
