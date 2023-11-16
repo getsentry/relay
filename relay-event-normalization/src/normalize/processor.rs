@@ -1612,48 +1612,21 @@ mod tests {
     }
 
     #[test]
-    fn test_defaults_transaction_event_with_span_with_missing_op() {
-        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
-
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
-            timestamp: Annotated::new(end.into()),
-            start_timestamp: Annotated::new(start.into()),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
-                ),
-                start_timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
+    fn test_span_default_op_when_missing() {
+        let json = r#"{
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+}"#;
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
 
         process_value(
-            &mut event,
+            &mut span,
             &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
-
-        let span = get_value!(event.spans).unwrap().first().unwrap();
         assert_eq!(get_value!(span.op).unwrap(), &"default".to_owned());
     }
 
