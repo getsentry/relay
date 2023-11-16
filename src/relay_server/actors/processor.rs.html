@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/processor.rs`."><title>processor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-cb6f1f67f1bcd037.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.73.0 (cc66ad468 2023-10-03)" data-channel="1.73.0" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-1596385f77d47ef2.css" data-theme-dark-css="dark-0a43001d3fc2282c.css" data-theme-ayu-css="ayu-fd19013d6ce078bf.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-1596385f77d47ef2.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-0a43001d3fc2282c.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/actors/processor.rs`."><title>processor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0 (79e9716c9 2023-11-13)" data-channel="1.74.0" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_server/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -4438,16 +4438,6 @@
 <a href="#4438" id="4438">4438</a>
 <a href="#4439" id="4439">4439</a>
 <a href="#4440" id="4440">4440</a>
-<a href="#4441" id="4441">4441</a>
-<a href="#4442" id="4442">4442</a>
-<a href="#4443" id="4443">4443</a>
-<a href="#4444" id="4444">4444</a>
-<a href="#4445" id="4445">4445</a>
-<a href="#4446" id="4446">4446</a>
-<a href="#4447" id="4447">4447</a>
-<a href="#4448" id="4448">4448</a>
-<a href="#4449" id="4449">4449</a>
-<a href="#4450" id="4450">4450</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4481,8 +4471,8 @@
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
-    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
+    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
     Timestamp, TraceContext, UserReport, Values,
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
@@ -4508,7 +4498,7 @@
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::Span,
+    relay_event_schema::protocol::{ProfileContext, Span},
     relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -5546,15 +5536,15 @@
             .items()
             .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction)
             .count();
-        <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>found_profile = <span class="bool-val">false</span>;
         state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             <span class="comment">// Drop profile without a transaction in the same envelope.
             </span>ItemType::Profile <span class="kw">if </span>transaction_count == <span class="number">0 </span>=&gt; ItemAction::DropSilently,
             <span class="comment">// First profile found in the envelope, we&#39;ll keep it if metadata are valid.
-            </span>ItemType::Profile <span class="kw">if </span>profile_id.is_none() =&gt; {
+            </span>ItemType::Profile <span class="kw">if </span>!found_profile =&gt; {
                 <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload(), state.project_id) {
-                    <span class="prelude-val">Ok</span>(id) =&gt; {
-                        profile_id = <span class="prelude-val">Some</span>(id);
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+                        found_profile = <span class="bool-val">true</span>;
                         ItemAction::Keep
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -5568,22 +5558,7 @@
             ))),
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
-        state.has_profile = profile_id.is_some();
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
-            <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-                <span class="comment">// If we found a profile, add its ID to the profile context on the transaction.
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(profile_id) = profile_id {
-                    contexts.add(ProfileContext {
-                        profile_id: Annotated::new(profile_id),
-                    });
-                <span class="comment">// If not, we delete the profile context.
-                </span>} <span class="kw">else </span>{
-                    contexts.remove::&lt;ProfileContext&gt;();
-                }
-            }
-        }
+        state.has_profile = found_profile;
     }
 
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
@@ -5647,13 +5622,17 @@
             }
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
-        <span class="kw">if </span>found_profile_id.is_none() {
-            <span class="comment">// Remove profile context from event.
-            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
-                <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value_mut() {
-                        contexts.remove::&lt;ProfileContext&gt;();
-                    }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
+            <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+                <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
+                <span class="comment">// If we found a profile, add its ID to the profile context on the transaction.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(profile_id) = found_profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                <span class="comment">// If not, we delete the profile context.
+                </span>} <span class="kw">else </span>{
+                    contexts.remove::&lt;ProfileContext&gt;();
                 }
             }
         }
@@ -7244,7 +7223,8 @@
 
         <span class="macro">if_processing!</span>({
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
-            <span class="self">self</span>.process_profiles(state);
+            <span class="comment">// We need the event parsed in order to set the profile context on it
+            </span><span class="self">self</span>.process_profiles(state);
             <span class="self">self</span>.process_check_ins(state);
         });
 

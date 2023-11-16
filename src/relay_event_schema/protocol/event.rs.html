@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-cb6f1f67f1bcd037.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.73.0 (cc66ad468 2023-10-03)" data-channel="1.73.0" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-1596385f77d47ef2.css" data-theme-dark-css="dark-0a43001d3fc2282c.css" data-theme-ayu-css="ayu-fd19013d6ce078bf.css" ><script src="../../../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-1596385f77d47ef2.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-0a43001d3fc2282c.css"><link rel="stylesheet" href="../../../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-schema/src/protocol/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_schema" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0 (79e9716c9 2023-11-13)" data-channel="1.74.0" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_schema/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1210,21 +1210,6 @@
 <a href="#1210" id="1210">1210</a>
 <a href="#1211" id="1211">1211</a>
 <a href="#1212" id="1212">1212</a>
-<a href="#1213" id="1213">1213</a>
-<a href="#1214" id="1214">1214</a>
-<a href="#1215" id="1215">1215</a>
-<a href="#1216" id="1216">1216</a>
-<a href="#1217" id="1217">1217</a>
-<a href="#1218" id="1218">1218</a>
-<a href="#1219" id="1219">1219</a>
-<a href="#1220" id="1220">1220</a>
-<a href="#1221" id="1221">1221</a>
-<a href="#1222" id="1222">1222</a>
-<a href="#1223" id="1223">1223</a>
-<a href="#1224" id="1224">1224</a>
-<a href="#1225" id="1225">1225</a>
-<a href="#1226" id="1226">1226</a>
-<a href="#1227" id="1227">1227</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1241,9 +1226,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, ProfileContext, RelayInfo,
-    Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
-    TraceContext, TransactionInfo, User, Values,
+    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, RelayInfo, Request,
+    ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext,
+    TransactionInfo, User, Values,
 };
 
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
@@ -1936,12 +1921,6 @@
             <span class="string">&quot;contexts.browser.version&quot; </span>=&gt; {
                 <span class="self">self</span>.context::&lt;BrowserContext&gt;()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into()
             }
-            <span class="string">&quot;contexts.profile.profile_id&quot; </span>=&gt; <span class="self">self
-                </span>.context::&lt;ProfileContext&gt;()<span class="question-mark">?
-                </span>.profile_id
-                .value()<span class="question-mark">?
-                </span>.<span class="number">0
-                </span>.into(),
             <span class="string">&quot;contexts.device.uuid&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.uuid.value()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;contexts.trace.status&quot; </span>=&gt; <span class="self">self
                 </span>.context::&lt;TraceContext&gt;()<span class="question-mark">?
@@ -2336,11 +2315,6 @@
                     kernel_version: Annotated::new(<span class="string">&quot;17.4.0&quot;</span>.to_string()),
                     ..OsContext::default()
                 });
-                contexts.add(ProfileContext {
-                    profile_id: Annotated::new(EventId(<span class="macro">uuid!</span>(
-                        <span class="string">&quot;abadcade-feed-dead-beef-8addadfeedaa&quot;
-                    </span>))),
-                });
                 contexts
             }),
             ..Default::default()
@@ -2424,10 +2398,6 @@
             <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;https://sentry.io&quot;</span>)),
             event.get_value(<span class="string">&quot;event.request.url&quot;</span>)
         );
-        <span class="macro">assert_eq!</span>(
-            <span class="prelude-val">Some</span>(Val::Uuid(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-8addadfeedaa&quot;</span>))),
-            event.get_value(<span class="string">&quot;event.contexts.profile.profile_id&quot;</span>)
-        )
     }
 
     <span class="attr">#[test]
