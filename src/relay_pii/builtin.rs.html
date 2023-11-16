@@ -1310,6 +1310,24 @@
 <a href="#1310" id="1310">1310</a>
 <a href="#1311" id="1311">1311</a>
 <a href="#1312" id="1312">1312</a>
+<a href="#1313" id="1313">1313</a>
+<a href="#1314" id="1314">1314</a>
+<a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
+<a href="#1321" id="1321">1321</a>
+<a href="#1322" id="1322">1322</a>
+<a href="#1323" id="1323">1323</a>
+<a href="#1324" id="1324">1324</a>
+<a href="#1325" id="1325">1325</a>
+<a href="#1326" id="1326">1326</a>
+<a href="#1327" id="1327">1327</a>
+<a href="#1328" id="1328">1328</a>
+<a href="#1329" id="1329">1329</a>
+<a href="#1330" id="1330">1330</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(clippy::needless_update)]
 </span><span class="kw">use </span>std::collections::BTreeMap;
 
@@ -2565,6 +2583,24 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             output = <span class="string">&quot;C:\\Users\\[user]\\Desktop&quot;</span>;
             remarks = <span class="macro">vec!</span>[
                 Remark::with_range(RemarkType::Substituted, <span class="string">&quot;@userpath&quot;</span>, (<span class="number">9</span>, <span class="number">15</span>)),
+            ];
+        );
+        <span class="macro">assert_text_rule!</span>(
+            rule = <span class="string">&quot;@userpath&quot;</span>;
+            input = <span class="string">r#&quot;make
+            export PATH=$PATH:$HOME/collectd_exporter
+            log
+            log
+            log
+            &quot;#</span>;
+            output = <span class="string">r#&quot;make
+            export PATH=$PATH:$HOME/[user]
+            log
+            log
+            log
+            &quot;#</span>;
+            remarks = <span class="macro">vec!</span>[
+                Remark::with_range(RemarkType::Substituted, <span class="string">&quot;@userpath&quot;</span>, (<span class="number">41</span>, <span class="number">47</span>)),
             ];
         );
         <span class="macro">assert_text_rule!</span>(
