@@ -564,6 +564,37 @@
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
 <a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling rule configuration.
 
 </span><span class="kw">use </span>std::fmt;
@@ -573,22 +604,36 @@
 
 <span class="kw">use </span>relay_protocol::RuleCondition;
 
+<span class="doccomment">/// Maximum supported version of dynamic sampling.
+///
+/// The version is an integer scalar, incremented by one on each new version:
+///  - 1: Initial version that uses `rules_v2`.
+///  - 2: Moves back to `rules` and adds support for `RuleConfigs` with string comparisons.
+</span><span class="kw">const </span>SAMPLING_CONFIG_VERSION: u16 = <span class="number">2</span>;
+
 <span class="doccomment">/// Represents the dynamic sampling configuration available to a project.
 ///
 /// Note: This comes from the organization data
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>SamplingConfig {
-    <span class="doccomment">/// The ordered sampling rules for the project.
+    <span class="doccomment">/// The required version to run dynamic sampling.
     ///
-    /// This field will remain here to serve only for old customer Relays to which we will
-    /// forward the sampling config. The idea is that those Relays will get the old rules as
-    /// empty array, which will result in them not sampling and forwarding sampling decisions to
-    /// upstream Relays.
-    </span><span class="attr">#[serde(default, skip_deserializing)]
+    /// Defaults to legacy version (`1`) when missing.
+    </span><span class="attr">#[serde(default = <span class="string">&quot;SamplingConfig::legacy_version&quot;</span>)]
+    </span><span class="kw">pub </span>version: u16,
+
+    <span class="doccomment">/// The ordered sampling rules for the project.
+    </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>rules: Vec&lt;SamplingRule&gt;,
 
-    <span class="doccomment">/// The ordered sampling rules v2 for the project.
+    <span class="doccomment">/// **Deprecated**. The ordered sampling rules for the project in legacy format.
+    ///
+    /// Removed in favor of `Self::rules` in version `2`. This field remains here to parse rules
+    /// from old Sentry instances and convert them into the new format. The legacy format contained
+    /// both an empty `rules` as well as the actual rules in `rules_v2`. During normalization, these
+    /// two arrays are merged together.
+    </span><span class="attr">#[serde(default, skip_serializing)]
     </span><span class="kw">pub </span>rules_v2: Vec&lt;SamplingRule&gt;,
 
     <span class="doccomment">/// Defines which population of items a dynamic sample rate applies to.
@@ -597,16 +642,43 @@
 }
 
 <span class="kw">impl </span>SamplingConfig {
+    <span class="doccomment">/// Creates an enabled configuration with empty defaults and the latest version.
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::default()
+    }
+
     <span class="doccomment">/// Returns `true` if any of the rules in this configuration is unsupported.
     </span><span class="kw">pub fn </span>unsupported(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.rules_v2.iter().all(SamplingRule::supported)
+        <span class="macro">debug_assert!</span>(<span class="self">self</span>.version &gt; <span class="number">1</span>, <span class="string">&quot;SamplingConfig not normalized&quot;</span>);
+        <span class="self">self</span>.version &gt; SAMPLING_CONFIG_VERSION || !<span class="self">self</span>.rules.iter().all(SamplingRule::supported)
     }
 
     <span class="doccomment">/// Filters the sampling rules by the given [`RuleType`].
     </span><span class="kw">pub fn </span>filter_rules(<span class="kw-2">&amp;</span><span class="self">self</span>, rule_type: RuleType) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>SamplingRule&gt; {
-        <span class="self">self</span>.rules_v2
-            .iter()
-            .filter(<span class="kw">move </span>|rule| rule.ty == rule_type)
+        <span class="self">self</span>.rules.iter().filter(<span class="kw">move </span>|rule| rule.ty == rule_type)
+    }
+
+    <span class="doccomment">/// Upgrades legacy sampling configs into the latest format.
+    </span><span class="kw">pub fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if </span><span class="self">self</span>.version == <span class="self">Self</span>::legacy_version() {
+            <span class="self">self</span>.rules.append(<span class="kw-2">&amp;mut </span><span class="self">self</span>.rules_v2);
+            <span class="self">self</span>.version = SAMPLING_CONFIG_VERSION;
+        }
+    }
+
+    <span class="kw">const fn </span>legacy_version() -&gt; u16 {
+        <span class="number">1
+    </span>}
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>SamplingConfig {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            version: SAMPLING_CONFIG_VERSION,
+            rules: <span class="macro">vec!</span>[],
+            rules_v2: <span class="macro">vec!</span>[],
+            mode: SamplingMode::default(),
+        }
     }
 }
 
@@ -988,20 +1060,9 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_sampling_config_with_rules_and_rules_v2_deserialization() {
+    </span><span class="kw">fn </span>test_legacy_deserialization() {
         <span class="kw">let </span>serialized_rule = <span class="string">r#&quot;{
-               &quot;rules&quot;: [
-                  {
-                     &quot;sampleRate&quot;: 0.5,
-                     &quot;type&quot;: &quot;trace&quot;,
-                     &quot;active&quot;: true,
-                     &quot;condition&quot;: {
-                        &quot;op&quot;: &quot;and&quot;,
-                        &quot;inner&quot;: []
-                     },
-                     &quot;id&quot;: 1000
-                 }
-               ],
+               &quot;rules&quot;: [],
                &quot;rulesV2&quot;: [
                   {
                      &quot;samplingValue&quot;:{
@@ -1019,22 +1080,23 @@
                ],
                &quot;mode&quot;: &quot;received&quot;
         }&quot;#</span>;
-        <span class="kw">let </span>config: SamplingConfig = serde_json::from_str(serialized_rule).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>config: SamplingConfig = serde_json::from_str(serialized_rule).unwrap();
+        config.normalize();
 
         <span class="comment">// We want to make sure that we serialize an empty array of rule, irrespectively of the
         // received payload.
-        </span><span class="macro">assert!</span>(config.rules.is_empty());
+        </span><span class="macro">assert_eq!</span>(config.version, SAMPLING_CONFIG_VERSION);
         <span class="macro">assert_eq!</span>(
-            config.rules_v2[<span class="number">0</span>].sampling_value,
+            config.rules[<span class="number">0</span>].sampling_value,
             SamplingValue::SampleRate { value: <span class="number">0.5 </span>}
         );
+        <span class="macro">assert!</span>(config.rules_v2.is_empty());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sampling_config_with_rules_and_rules_v2_serialization() {
         <span class="kw">let </span>config = SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[SamplingRule {
+            rules: <span class="macro">vec!</span>[SamplingRule {
                 condition: RuleCondition::all(),
                 sampling_value: SamplingValue::Factor { value: <span class="number">2.0 </span>},
                 ty: RuleType::Transaction,
@@ -1042,13 +1104,13 @@
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
             }],
-            mode: SamplingMode::Received,
+            ..SamplingConfig::new()
         };
 
         <span class="kw">let </span>serialized_config = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>config).unwrap();
         <span class="kw">let </span>expected_serialized_config = <span class="string">r#&quot;{
-  &quot;rules&quot;: [],
-  &quot;rulesV2&quot;: [
+  &quot;version&quot;: 2,
+  &quot;rules&quot;: [
     {
       &quot;condition&quot;: {
         &quot;op&quot;: &quot;and&quot;,
