@@ -1224,6 +1224,7 @@
 <a href="#1224" id="1224">1224</a>
 <a href="#1225" id="1225">1225</a>
 <a href="#1226" id="1226">1226</a>
+<a href="#1227" id="1227">1227</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1895,6 +1896,7 @@
             <span class="string">&quot;contexts.device.brand&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.brand.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;contexts.device.charging&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.charging.value()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;contexts.device.family&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.family.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">&quot;contexts.device.model&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.model.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;contexts.device.locale&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.locale.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;contexts.device.online&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.online.value()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;contexts.device.orientation&quot; </span>=&gt; <span class="self">self
