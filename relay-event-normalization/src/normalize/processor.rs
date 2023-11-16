@@ -84,7 +84,7 @@ pub struct NormalizeProcessorConfig<'a> {
 
     /// Configuration for measurement normalization in transaction events.
     ///
-    /// Has an optional [`MeasurementsConfig`] from both the project and the global level.
+    /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
     pub measurements: Option<DynamicMeasurementsConfig<'a>>,
