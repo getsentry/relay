@@ -47,8 +47,8 @@ able to sample all the transactions of the same trace, even though some exceptio
 <p>In order to perform deterministic sampling, Relay uses teh trace ID or event ID as the seed for
 the random number generator.</p>
 <h2 id="examples"><a href="#examples">Examples</a></h2><h3 id="samplingconfig"><a href="#samplingconfig"><code>SamplingConfig</code></a></h3><div class="example-wrap"><pre class="language-json"><code>{
-  &quot;version&quot;: 2,
-  &quot;rules&quot;: [
+  &quot;rules&quot;: [],
+  &quot;rulesV2&quot;: [
     {
       &quot;condition&quot;: {
         &quot;op&quot;: &quot;and&quot;,

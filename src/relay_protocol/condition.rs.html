@@ -1091,16 +1091,13 @@
 <a href="#1091" id="1091">1091</a>
 <a href="#1092" id="1092">1092</a>
 <a href="#1093" id="1093">1093</a>
-<a href="#1094" id="1094">1094</a>
-<a href="#1095" id="1095">1095</a>
-<a href="#1096" id="1096">1096</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types to specify conditions on data.
 //!
 //! The root type is [`RuleCondition`].
 
 </span><span class="kw">use </span>relay_common::glob3::GlobPatterns;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>serde_json::Value;
+<span class="kw">use </span>serde_json::{Number, Value};
 
 <span class="kw">use crate</span>::{Getter, Val};
 
@@ -1202,12 +1199,12 @@
             <span class="doccomment">/// Path of the field that should match the value.
             </span><span class="kw">pub </span>name: String,
             <span class="doccomment">/// The numeric value to check against.
-            </span><span class="kw">pub </span>value: Value,
+            </span><span class="kw">pub </span>value: Number,
         }
 
         <span class="kw">impl </span><span class="macro-nonterminal">$struct_name </span>{
             <span class="doccomment">/// Creates a new condition that comparison condition.
-            </span><span class="kw">pub fn </span>new(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+            </span><span class="kw">pub fn </span>new(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Number&gt;) -&gt; <span class="self">Self </span>{
                 <span class="self">Self </span>{
                     name: field.into(),
                     value: value.into(),
@@ -1231,8 +1228,6 @@
                 } <span class="kw">else if let </span>(<span class="prelude-val">Some</span>(a), <span class="prelude-val">Some</span>(b)) = (value.as_u64(), <span class="self">self</span>.value.as_u64()) {
                     a <span class="macro-nonterminal">$operator </span>b
                 } <span class="kw">else if let </span>(<span class="prelude-val">Some</span>(a), <span class="prelude-val">Some</span>(b)) = (value.as_f64(), <span class="self">self</span>.value.as_f64()) {
-                    a <span class="macro-nonterminal">$operator </span>b
-                } <span class="kw">else if let </span>(<span class="prelude-val">Some</span>(a), <span class="prelude-val">Some</span>(b)) = (value.as_str(), <span class="self">self</span>.value.as_str()) {
                     a <span class="macro-nonterminal">$operator </span>b
                 } <span class="kw">else </span>{
                     <span class="bool-val">false
@@ -1625,7 +1620,7 @@
     ///
     /// let condition = RuleCondition::gt(&quot;obj.length&quot;, 10);
     /// ```
-    </span><span class="kw">pub fn </span>gt(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>gt(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Number&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Gt(GtCondition::new(field, value))
     }
 
@@ -1638,7 +1633,7 @@
     ///
     /// let condition = RuleCondition::gte(&quot;obj.length&quot;, 10);
     /// ```
-    </span><span class="kw">pub fn </span>gte(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>gte(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Number&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Gte(GteCondition::new(field, value))
     }
 
@@ -1651,7 +1646,7 @@
     ///
     /// let condition = RuleCondition::lt(&quot;obj.length&quot;, 10);
     /// ```
-    </span><span class="kw">pub fn </span>lt(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>lt(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Number&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Lt(LtCondition::new(field, value))
     }
 
@@ -1664,7 +1659,7 @@
     ///
     /// let condition = RuleCondition::lte(&quot;obj.length&quot;, 10);
     /// ```
-    </span><span class="kw">pub fn </span>lte(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Value&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>lte(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>Into&lt;Number&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Lte(LteCondition::new(field, value))
     }
 
@@ -2032,7 +2027,6 @@
                     &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
             ),
             (<span class="string">&quot;match no conditions&quot;</span>, RuleCondition::all()),
-            (<span class="string">&quot;string cmp&quot;</span>, RuleCondition::gt(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;t&quot;</span>)),
         ];
 
         <span class="kw">let </span>dsc = mock_dsc();
