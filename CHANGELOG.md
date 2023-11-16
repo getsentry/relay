@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Support `device.model` in dynamic sampling and metric extraction. ([#2728](https://github.com/getsentry/relay/pull/2728))
+
+## 23.11.0
+
 **Features**:
 
 - Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))

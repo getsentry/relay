@@ -11,9 +11,11 @@ use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::ops::Range;
 
 use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
@@ -29,26 +31,44 @@ use crate::normalize::utils::validate_span;
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
-use crate::utils::MAX_DURATION_MOBILE_MS;
+use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, schema, span, transactions, trimming, user_agent, BreakdownsConfig,
-    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, RawUserAgentInfo,
+    breakdowns, end_all_spans, normalize_transaction_name, schema, set_default_transaction_source,
+    span, trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
+    DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig, RawUserAgentInfo,
+    TransactionNameConfig,
 };
 
 use crate::LightNormalizationConfig;
 
 /// Configuration for [`NormalizeProcessor`].
 #[derive(Clone, Debug, Default)]
-pub struct NormalizeProcessorConfig<'a> {
+pub(crate) struct NormalizeProcessorConfig<'a> {
     /// Light normalization config.
     // XXX(iker): we should split this config appropriately.
-    light_config: LightNormalizationConfig<'a>,
+    pub light_config: LightNormalizationConfig<'a>,
+
+    /// Configuration to apply to transaction names, especially around sanitizing.
+    pub transaction_name_config: TransactionNameConfig<'a>,
+
+    /// Timestamp range in which a transaction must end.
+    ///
+    /// Transactions that finish outside of this range are considered invalid.
+    /// This check is skipped if no range is provided.
+    pub transaction_range: Option<Range<UnixTimestamp>>,
 }
 
 impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
-    fn from(config: LightNormalizationConfig<'a>) -> Self {
+    fn from(mut config: LightNormalizationConfig<'a>) -> Self {
+        // HACK(iker): workaround to avoid cloning of config items. We'll get
+        // rid of this when we remove light normalization in the next step.
+        let transaction_name_config = std::mem::take(&mut config.transaction_name_config);
+        let transaction_range = config.transaction_range.take();
+
         Self {
             light_config: config,
+            transaction_name_config,
+            transaction_range,
         }
     }
 }
@@ -61,7 +81,7 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
 #[derive(Debug, Default)]
-pub struct NormalizeProcessor<'a> {
+pub(crate) struct NormalizeProcessor<'a> {
     /// Configuration for the normalization steps.
     config: NormalizeProcessorConfig<'a>,
 }
@@ -79,22 +99,39 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if event.ty.value() == Some(&EventType::Transaction) {
+            // TODO: Parts of this processor should probably be a filter so we
+            // can revert some changes to ProcessingAction)
+
+            validate_transaction(event, self.config.transaction_range.as_ref())?;
+
+            if let Some(trace_context) = event.context_mut::<TraceContext>() {
+                trace_context.op.get_or_insert_with(|| "default".to_owned());
+            }
+
+            // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
+            // Relay doesn't reject events missing the transaction name. Instead, a default transaction
+            // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
+            // SDKs should avoid sending empty transaction names, setting a more contextual default
+            // value when possible.
+            if event.transaction.value().map_or(true, |s| s.is_empty()) {
+                event
+                    .transaction
+                    .set_value(Some("<unlabeled transaction>".to_owned()))
+            }
+            set_default_transaction_source(event);
+            normalize_transaction_name(event, &self.config.transaction_name_config)?;
+            end_all_spans(event)?;
+        }
+
+        // XXX(iker): processing child values should be the last step. The logic
+        // below this call is being moved (WIP) to the processor appropriately.
         event.process_child_values(self, state)?;
 
         let config = &self.config.light_config;
         if config.is_renormalize {
             return Ok(());
         }
-
-        // Validate and normalize transaction
-        // (internally noops for non-transaction events).
-        // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction)
-        let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.transaction_name_config.clone(),
-            config.transaction_range.clone(),
-        );
-        transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
@@ -163,6 +200,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             config.measurements.clone(),
             config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
+        normalize_performance_score(event, config.performance_score);
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
@@ -619,6 +657,76 @@ fn normalize_measurements(
     }
 }
 
+/// Computes performance score measurements.
+///
+/// This computes score from vital measurements, using config options to define how it is
+/// calculated.
+fn normalize_performance_score(
+    event: &mut Event,
+    performance_score: Option<&PerformanceScoreConfig>,
+) {
+    let Some(performance_score) = performance_score else {
+        return;
+    };
+    for profile in &performance_score.profiles {
+        if let Some(condition) = &profile.condition {
+            if !condition.matches(event) {
+                continue;
+            }
+            if let Some(measurements) = event.measurements.value_mut() {
+                let mut should_add_total = false;
+                if !profile
+                    .score_components
+                    .iter()
+                    .all(|c| measurements.contains_key(c.measurement.as_str()))
+                {
+                    // Check all measurements exist, otherwise don't add any score components.
+                    break;
+                }
+                let mut score_total = 0.0;
+                for component in &profile.score_components {
+                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                        let subscore =
+                            utils::calculate_cdf_score(value, component.p10, component.p50)
+                                * component.weight;
+                        score_total += subscore;
+                        should_add_total = true;
+
+                        measurements.insert(
+                            format!("score.{}", component.measurement),
+                            Measurement {
+                                value: subscore.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                        measurements.insert(
+                            format!("score.weight.{}", component.measurement),
+                            Measurement {
+                                value: component.weight.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                    }
+                }
+
+                if should_add_total {
+                    measurements.insert(
+                        "score.total".to_owned(),
+                        Measurement {
+                            value: score_total.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
+                }
+                break; // Measurements have successfully been added, skip any other profiles.
+            }
+        }
+    }
+}
+
 /// Compute additional measurements derived from existing ones.
 ///
 /// The added measurements are:
@@ -901,7 +1009,7 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_base_schema::events::EventType;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
-    use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
+    use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
     use relay_event_schema::protocol::{
         Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement, Measurements, Request,
         Span, SpanId, Tags, TraceContext, TraceId,
@@ -911,10 +1019,14 @@ mod tests {
 
     use crate::normalize::processor::{
         filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
-        normalize_dist, normalize_measurements, normalize_security_report, normalize_units,
-        remove_invalid_measurements, NormalizeProcessor, NormalizeProcessorConfig,
+        normalize_dist, normalize_measurements, normalize_performance_score,
+        normalize_security_report, normalize_units, remove_invalid_measurements,
+        NormalizeProcessor, NormalizeProcessorConfig,
     };
-    use crate::{ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, RawUserAgentInfo};
+    use crate::{
+        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
+        RawUserAgentInfo,
+    };
 
     #[test]
     fn test_normalize_dist_none() {
@@ -1536,48 +1648,21 @@ mod tests {
     }
 
     #[test]
-    fn test_defaults_transaction_event_with_span_with_missing_op() {
-        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
-
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
-            timestamp: Annotated::new(end.into()),
-            start_timestamp: Annotated::new(start.into()),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
-                ),
-                start_timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
+    fn test_span_default_op_when_missing() {
+        let json = r#"{
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+}"#;
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
 
         process_value(
-            &mut event,
+            &mut span,
             &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
-
-        let span = get_value!(event.spans).unwrap().first().unwrap();
         assert_eq!(get_value!(span.op).unwrap(), &"default".to_owned());
     }
 
@@ -1706,7 +1791,7 @@ mod tests {
     }
 
     #[test]
-    fn test_renormalize_is_idempotent() {
+    fn test_renormalize_spans_is_idempotent() {
         let json = r#"{
   "start_timestamp": 1,
   "timestamp": 2,
@@ -1731,5 +1816,262 @@ mod tests {
         let mut reprocessed2 = reprocessed.clone();
         process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
         assert_eq!(reprocessed, reprocessed2);
+    }
+
+    #[test]
+    fn test_renormalize_transactions_is_idempotent() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "test-transaction",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  }
+}"#;
+
+        let mut processed = Annotated::<Event>::from_json(json).unwrap();
+        let processor_config = NormalizeProcessorConfig::default();
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+        process_value(&mut processed, &mut processor, ProcessingState::root()).unwrap();
+        remove_received_from_event(&mut processed);
+        let trace_context = get_value!(processed!).context::<TraceContext>().unwrap();
+        assert_eq!(trace_context.op.value().unwrap(), "default");
+
+        let mut reprocess_config = processor_config.clone();
+        reprocess_config.light_config.is_renormalize = true;
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+
+        let mut reprocessed = processed.clone();
+        process_value(&mut reprocessed, &mut processor, ProcessingState::root()).unwrap();
+        remove_received_from_event(&mut reprocessed);
+        assert_eq!(processed, reprocessed);
+
+        let mut reprocessed2 = reprocessed.clone();
+        process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
+        remove_received_from_event(&mut reprocessed2);
+        assert_eq!(reprocessed, reprocessed2);
+    }
+
+    fn remove_received_from_event(event: &mut Annotated<Event>) {
+        processor::apply(event, |e, _| {
+            e.received = Annotated::empty();
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn test_computed_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_missing_measurement() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
     }
 }
