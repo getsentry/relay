@@ -30,7 +30,6 @@ use crate::{
 
 pub mod breakdowns;
 pub mod nel;
-pub(crate) mod processor;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
@@ -38,6 +37,7 @@ pub mod utils;
 mod contexts;
 mod logentry;
 mod mechanism;
+mod processor;
 mod request;
 mod stacktrace;
 
