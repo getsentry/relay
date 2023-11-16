@@ -1969,19 +1969,19 @@ mod tests {
               "unit": "millisecond",
             },
             "score.cls": {
-              "value": 0.21864170607444863,
+              "value": 0.8745668242977945,
               "unit": "ratio",
             },
             "score.fcp": {
-              "value": 0.10750855443790831,
+              "value": 0.7167236962527221,
               "unit": "ratio",
             },
             "score.fid": {
-              "value": 0.19657361348282545,
+              "value": 0.6552453782760849,
               "unit": "ratio",
             },
             "score.lcp": {
-              "value": 0.009238896571386584,
+              "value": 0.03079632190462195,
               "unit": "ratio",
             },
             "score.total": {
