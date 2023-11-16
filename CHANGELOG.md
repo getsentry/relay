@@ -5,6 +5,7 @@
 **Internal**:
 
 - Support `device.model` in dynamic sampling and metric extraction. ([#2728](https://github.com/getsentry/relay/pull/2728))
+- Support comparison operators (`>`, `>=`, `<`, `<=`) for strings in dynamic sampling and metric extraction rules. Previously, these comparisons were only possible on numbers. ([#2730](https://github.com/getsentry/relay/pull/2730))
 
 ## 23.11.0
 
@@ -39,7 +40,6 @@
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
 - Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
 - Emit error on continued project config fetch failures after a time interval. ([#2700](https://github.com/getsentry/relay/pull/2700))
-- Support comparison operators (`>`, `>=`, `<`, `<=`) for strings in dynamic sampling and metric extraction rules. Previously, these comparisons were only possible on numbers. ([#2721](https://github.com/getsentry/relay/pull/2721))
 
 ## 23.10.1
 
