@@ -483,13 +483,13 @@ impl Project {
             return;
         };
 
-        let Some(config) = state.config.dynamic_sampling.as_ref() else {
+        let Some(ErrorBoundary::Ok(config)) = state.config.sampling.as_ref() else {
             return;
         };
 
         // Using try_lock to not slow down the project cache service.
         if let Ok(mut guard) = self.reservoir_counters.try_lock() {
-            guard.retain(|key, _| config.rules_v2.iter().any(|rule| rule.id == *key));
+            guard.retain(|key, _| config.rules.iter().any(|rule| rule.id == *key));
         }
     }
 
