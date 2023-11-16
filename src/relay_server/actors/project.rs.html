@@ -1793,13 +1793,13 @@
             <span class="kw">return</span>;
         };
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(config) = state.config.dynamic_sampling.as_ref() <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(ErrorBoundary::Ok(config)) = state.config.sampling.as_ref() <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
 
         <span class="comment">// Using try_lock to not slow down the project cache service.
         </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>guard) = <span class="self">self</span>.reservoir_counters.try_lock() {
-            guard.retain(|key, <span class="kw">_</span>| config.rules_v2.iter().any(|rule| rule.id == <span class="kw-2">*</span>key));
+            guard.retain(|key, <span class="kw">_</span>| config.rules.iter().any(|rule| rule.id == <span class="kw-2">*</span>key));
         }
     }
 

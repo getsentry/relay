@@ -4440,6 +4440,14 @@
 <a href="#4440" id="4440">4440</a>
 <a href="#4441" id="4441">4441</a>
 <a href="#4442" id="4442">4442</a>
+<a href="#4443" id="4443">4443</a>
+<a href="#4444" id="4444">4444</a>
+<a href="#4445" id="4445">4445</a>
+<a href="#4446" id="4446">4446</a>
+<a href="#4447" id="4447">4447</a>
+<a href="#4448" id="4448">4448</a>
+<a href="#4449" id="4449">4449</a>
+<a href="#4450" id="4450">4450</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6950,27 +6958,35 @@
         // - Tagging whether an incoming error has a sampled trace connected to it.
         // - Computing the actual sampling decision on an incoming transaction.
         </span><span class="kw">match </span>state.event_type().unwrap_or_default() {
-            EventType::Default | EventType::Error =&gt; <span class="self">self</span>.tag_error_with_sampling_decision(state),
-            EventType::Transaction =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(ErrorBoundary::Ok(config)) =
-                    <span class="kw-2">&amp;</span>state.project_state.config.transaction_metrics
-                {
-                    <span class="kw">if </span>config.is_enabled() {
-                        state.sampling_result = <span class="self">Self</span>::compute_sampling_decision(
-                            <span class="self">self</span>.inner.config.processing_enabled(),
-                            <span class="kw-2">&amp;</span>state.reservoir,
-                            state.project_state.config.dynamic_sampling.as_ref(),
-                            state.event.value(),
-                            state
-                                .sampling_project_state
-                                .as_ref()
-                                .and_then(|state| state.config.dynamic_sampling.as_ref()),
-                            state.envelope().dsc(),
-                        );
-                    }
-                }
+            EventType::Default | EventType::Error =&gt; {
+                <span class="self">self</span>.tag_error_with_sampling_decision(state);
             }
+            EventType::Transaction =&gt; {
+                <span class="kw">match </span>state.project_state.config.transaction_metrics {
+                    <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.is_enabled() =&gt; (),
+                    <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
+                }
 
+                <span class="kw">let </span>sampling_config = <span class="kw">match </span>state.project_state.config.sampling {
+                    <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+                };
+
+                <span class="kw">let </span>root_state = state.sampling_project_state.as_ref();
+                <span class="kw">let </span>root_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
+                    <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+                };
+
+                state.sampling_result = <span class="self">Self</span>::compute_sampling_decision(
+                    <span class="self">self</span>.inner.config.processing_enabled(),
+                    <span class="kw-2">&amp;</span>state.reservoir,
+                    sampling_config,
+                    state.event.value(),
+                    root_config,
+                    state.envelope().dsc(),
+                );
+            }
             <span class="kw">_ </span>=&gt; {}
         }
     }
@@ -7048,24 +7064,28 @@
     /// This execution of dynamic sampling is technically a &quot;simulation&quot; since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     </span><span class="kw">fn </span>tag_error_with_sampling_decision(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">if </span>state.event.is_empty() {
-            <span class="kw">return</span>;
-        }
-
-        <span class="kw">let </span>(<span class="prelude-val">Some</span>(config), <span class="prelude-val">Some</span>(dsc)) = (
-            state
-                .sampling_project_state
-                .as_deref()
-                .and_then(|state| state.config.dynamic_sampling.as_ref()),
-            state.envelope().dsc(),
+        <span class="kw">let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(event)) = (
+            state.managed_envelope.envelope().dsc(),
+            state.event.value_mut(),
         ) <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
 
-        <span class="kw">let </span>sampled =
-            utils::is_trace_fully_sampled(<span class="self">self</span>.inner.config.processing_enabled(), config, dsc);
+        <span class="kw">let </span>root_state = state.sampling_project_state.as_ref();
+        <span class="kw">let </span>config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) =&gt; config,
+            <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
+        };
 
-        <span class="kw">let </span>(<span class="prelude-val">Some</span>(event), <span class="prelude-val">Some</span>(sampled)) = (state.event.value_mut(), sampled) <span class="kw">else </span>{
+        <span class="kw">if </span>config.unsupported() {
+            <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;found unsupported rules even as processing relay&quot;</span>);
+            }
+
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(sampled) = utils::is_trace_fully_sampled(config, dsc) <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
 
@@ -7843,8 +7863,7 @@
 
         <span class="kw">for </span>(sample_rate, should_keep) <span class="kw">in </span>[(<span class="number">0.0</span>, <span class="bool-val">false</span>), (<span class="number">1.0</span>, <span class="bool-val">true</span>)] {
             <span class="kw">let </span>sampling_config = SamplingConfig {
-                rules: <span class="macro">vec!</span>[],
-                rules_v2: <span class="macro">vec!</span>[SamplingRule {
+                rules: <span class="macro">vec!</span>[SamplingRule {
                     condition: RuleCondition::all(),
                     sampling_value: SamplingValue::SampleRate { value: sample_rate },
                     ty: RuleType::Transaction,
@@ -7852,7 +7871,7 @@
                     time_range: Default::default(),
                     decaying_fn: DecayingFunction::Constant,
                 }],
-                mode: SamplingMode::Received,
+                ..SamplingConfig::new()
             };
 
             <span class="comment">// TODO: This does not test if the sampling decision is actually applied. This should be
@@ -8110,8 +8129,7 @@
 
     <span class="kw">fn </span>project_state_with_single_rule(sample_rate: f64) -&gt; ProjectState {
         <span class="kw">let </span>sampling_config = SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[SamplingRule {
+            rules: <span class="macro">vec!</span>[SamplingRule {
                 condition: RuleCondition::all(),
                 sampling_value: SamplingValue::SampleRate { value: sample_rate },
                 ty: RuleType::Trace,
@@ -8119,10 +8137,11 @@
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
             }],
-            mode: SamplingMode::Received,
+            ..SamplingConfig::new()
         };
+
         <span class="kw">let </span><span class="kw-2">mut </span>sampling_project_state = ProjectState::allowed();
-        sampling_project_state.config.dynamic_sampling = <span class="prelude-val">Some</span>(sampling_config);
+        sampling_project_state.config.sampling = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(sampling_config));
         sampling_project_state
     }
 
@@ -8761,9 +8780,8 @@
         };
 
         <span class="kw">let </span>sampling_config = SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[rule],
-            mode: SamplingMode::Received,
+            rules: <span class="macro">vec!</span>[rule],
+            ..SamplingConfig::new()
         };
 
         <span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
@@ -8799,9 +8817,8 @@
         };
 
         <span class="kw">let </span>sampling_config = SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[rule, unsupported_rule],
-            mode: SamplingMode::Received,
+            rules: <span class="macro">vec!</span>[rule, unsupported_rule],
+            ..SamplingConfig::new()
         };
 
         <span class="comment">// Unsupported rule should result in no match if processing is not enabled.
@@ -8852,9 +8869,8 @@
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>sampling_config = SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[rule],
-            mode: SamplingMode::Received,
+            rules: <span class="macro">vec!</span>[rule],
+            ..SamplingConfig::new()
         };
 
         <span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
