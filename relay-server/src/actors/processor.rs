@@ -24,11 +24,11 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
-    MeasurementsConfig, TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
+    NormalizeProcessorConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
@@ -2676,7 +2676,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = LightNormalizationConfig {
+            let config = NormalizeProcessorConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -2722,8 +2722,12 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                relay_event_normalization::light_normalize_event(event, config)
-                    .map_err(|_| ProcessingError::InvalidTransaction)
+                process_value(
+                    event,
+                    &mut relay_event_normalization::NormalizeProcessor::new(config),
+                    ProcessingState::root(),
+                )
+                .map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
 
@@ -3127,7 +3131,9 @@ mod tests {
     use chrono::{DateTime, TimeZone, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
-    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
+    use relay_event_normalization::{
+        MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
+    };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
     use relay_protocol::RuleCondition;
@@ -4163,7 +4169,7 @@ mod tests {
 
         relay_statsd::with_capturing_test_client(|| {
             utils::log_transaction_name_metrics(&mut event, |event| {
-                let config = LightNormalizationConfig {
+                let config = NormalizeProcessorConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
@@ -4175,7 +4181,11 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                relay_event_normalization::light_normalize_event(event, config)
+                process_value(
+                    event,
+                    &mut NormalizeProcessor::new(config),
+                    ProcessingState::root(),
+                )
             })
             .unwrap();
         })

@@ -1,16 +1,12 @@
 use std::hash::Hash;
-use std::ops::Range;
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_base_schema::metrics::MetricUnit;
-use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
-    process_value, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
-    Processor,
+    MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
@@ -23,10 +19,7 @@ use relay_protocol::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    BreakdownsConfig, GeoIpLookup, RawUserAgentInfo, SpanDescriptionRule, StoreConfig,
-    TransactionNameConfig,
-};
+use crate::{GeoIpLookup, StoreConfig};
 
 pub mod breakdowns;
 pub mod nel;
@@ -40,6 +33,8 @@ mod mechanism;
 mod processor;
 mod request;
 mod stacktrace;
+
+pub use processor::{NormalizeProcessor, NormalizeProcessorConfig};
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
@@ -718,7 +713,7 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 #[cfg(test)]
 mod tests {
 
-    use chrono::TimeZone;
+    use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::DurationUnit;
     use relay_base_schema::spans::SpanStatus;
@@ -733,6 +728,8 @@ mod tests {
     use serde_json::json;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
+
+    use crate::normalize::processor::NormalizeProcessorConfig;
 
     use super::*;
 
@@ -910,8 +907,12 @@ mod tests {
 
         let config = StoreConfig::default();
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let ip_addr = get_value!(event.user.ip_address!);
@@ -938,8 +939,12 @@ mod tests {
 
         let config = StoreConfig::default();
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(Annotated::empty(), event.value().unwrap().user);
@@ -959,11 +964,15 @@ mod tests {
         };
 
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        let config = LightNormalizationConfig {
-            client_ip: Some(&ip_address),
-            ..Default::default()
-        };
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig {
+                client_ip: Some(&ip_address),
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let ip_addr = get_value!(event.user.ip_address!);
@@ -988,11 +997,15 @@ mod tests {
 
         let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), Some(&geo));
-        let config = LightNormalizationConfig {
-            client_ip: Some(&ip_address),
-            ..Default::default()
-        };
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig {
+                client_ip: Some(&ip_address),
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
@@ -1014,11 +1027,15 @@ mod tests {
 
         let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), Some(&geo));
-        let config = LightNormalizationConfig {
-            client_ip: Some(&ip_address),
-            ..Default::default()
-        };
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig {
+                client_ip: Some(&ip_address),
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
@@ -1030,8 +1047,12 @@ mod tests {
     fn test_event_level_defaulted() {
         let processor = &mut StoreNormalizeProcessor::default();
         let mut event = Annotated::new(Event::default());
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.level), Some(&Level::Error));
     }
@@ -1057,8 +1078,12 @@ mod tests {
             },
             ..Event::default()
         });
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.level), Some(&Level::Info));
     }
@@ -1074,8 +1099,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1096,8 +1125,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1114,8 +1147,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.environment), None);
     }
@@ -1131,8 +1168,12 @@ mod tests {
             ..StoreConfig::default()
         };
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1155,8 +1196,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let environment = get_path!(event.environment!);
@@ -1181,8 +1226,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let release = get_path!(event.release!);
@@ -1215,8 +1264,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.site), None);
@@ -1270,8 +1323,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.tags!).len(), 1);
@@ -1298,8 +1355,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1350,8 +1411,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         // should keep the first occurrence of every tag
@@ -1391,8 +1456,12 @@ mod tests {
             ..StoreConfig::default()
         };
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1446,8 +1515,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1545,8 +1618,12 @@ mod tests {
     });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1578,8 +1655,12 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let dist = &event.value().unwrap().dist;
@@ -1614,8 +1695,12 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1644,8 +1729,12 @@ mod tests {
             None,
         );
 
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1667,8 +1756,12 @@ mod tests {
 
         let mut processor = StoreNormalizeProcessor::default();
 
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1694,8 +1787,12 @@ mod tests {
             None,
         );
 
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1738,11 +1835,15 @@ mod tests {
     }
 }
 "#;
-        let mut event = Annotated::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         let mut processor = StoreNormalizeProcessor::default();
-        let config = LightNormalizationConfig::default();
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
@@ -1799,13 +1900,17 @@ mod tests {
             }),
             None,
         );
-        let config = LightNormalizationConfig {
-            received_at,
-            max_secs_in_past,
-            max_secs_in_future,
-            ..Default::default()
-        };
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig {
+                received_at,
+                max_secs_in_past,
+                max_secs_in_future,
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1858,13 +1963,17 @@ mod tests {
             }),
             None,
         );
-        let config = LightNormalizationConfig {
-            received_at,
-            max_secs_in_past,
-            max_secs_in_future,
-            ..Default::default()
-        };
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig {
+                received_at,
+                max_secs_in_past,
+                max_secs_in_future,
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -2062,8 +2171,6 @@ mod tests {
             ..Default::default()
         });
 
-        let config = LightNormalizationConfig::default();
-
         fn remove_received_from_event(event: &mut Annotated<Event>) -> &mut Annotated<Event> {
             relay_event_schema::processor::apply(event, |e, _m| {
                 e.received = Annotated::empty();
@@ -2073,19 +2180,34 @@ mod tests {
             event
         }
 
-        light_normalize_event(&mut event, config.clone()).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         let first = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
         // Expected some fields (such as timestamps) exist after first light normalization.
 
-        light_normalize_event(&mut event, config.clone()).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         let second = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
         assert_eq!(&first, &second, "idempotency check failed");
 
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        )
+        .unwrap();
         let third = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
@@ -2146,7 +2268,11 @@ mod tests {
                 .spans
                 .set_value(Some(vec![Annotated::<Span>::from_json(span).unwrap()]));
 
-            let res = light_normalize_event(&mut modified_event, Default::default());
+            let res = process_value(
+                &mut modified_event,
+                &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+                ProcessingState::root(),
+            );
 
             assert!(res.is_err(), "{span:?}");
         }
@@ -2164,12 +2290,13 @@ mod tests {
         )
         .unwrap();
 
-        let result = light_normalize_event(
+        let result = process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig {
                 is_renormalize: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         );
 
         assert!(result.is_ok());
@@ -2217,16 +2344,20 @@ mod tests {
         .unwrap();
 
         let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-        let config = LightNormalizationConfig {
-            geoip_lookup: Some(&lookup),
-            ..Default::default()
-        };
 
         // Extract user's geo information before normalization.
         let user_geo = event.value().unwrap().user.value().unwrap().geo.value();
         assert!(user_geo.is_none());
 
-        light_normalize_event(&mut event, config).unwrap();
+        process_value(
+            &mut event,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig {
+                geoip_lookup: Some(&lookup),
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
 
         // Extract user's geo information after normalization.
         let user_geo = event
@@ -2374,10 +2505,13 @@ mod tests {
   "timestamp": -1
 }"#;
         let mut transaction = Annotated::<Event>::from_json(json).unwrap();
+        let res = process_value(
+            &mut transaction,
+            &mut processor::NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
+        );
         assert_eq!(
-            light_normalize_event(&mut transaction, LightNormalizationConfig::default())
-                .unwrap_err()
-                .to_string(),
+            res.unwrap_err().to_string(),
             "invalid transaction event: timestamp is too stale"
         );
     }

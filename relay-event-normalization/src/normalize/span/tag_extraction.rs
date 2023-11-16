@@ -563,11 +563,13 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::{Event, Request};
     use relay_protocol::Annotated;
 
+    use crate::{NormalizeProcessor, NormalizeProcessorConfig};
+
     use super::*;
-    use crate::LightNormalizationConfig;
 
     #[test]
     fn test_truncate_string_no_panic() {
@@ -636,13 +638,14 @@ mod tests {
                 }
 
                 // Normalize first, to make sure that all things are correct as in the real pipeline:
-                let res = crate::light_normalize_event(
+                let res = process_value(
                     &mut event,
-                    LightNormalizationConfig {
+                    &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                         enrich_spans: true,
                         light_normalize_spans: true,
                         ..Default::default()
-                    },
+                    }),
+                    ProcessingState::root(),
                 );
                 assert!(res.is_ok());
 
