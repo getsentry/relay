@@ -1099,10 +1099,13 @@ impl EnvelopeProcessorService {
         let mut profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             // Drop profile without a transaction in the same envelope.
-            ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
+            ItemType::Profile if dbg!(transaction_count) == 0 => ItemAction::DropSilently,
             // First profile found in the envelope, we'll keep it if metadata are valid.
-            ItemType::Profile if profile_id.is_none() => {
-                match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
+            ItemType::Profile if dbg!(profile_id).is_none() => {
+                match dbg!(relay_profiling::parse_metadata(
+                    &item.payload(),
+                    state.project_id
+                )) {
                     Ok(id) => {
                         profile_id = Some(id);
                         ItemAction::Keep
@@ -3137,6 +3140,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
     use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
@@ -4446,5 +4450,89 @@ mod tests {
         );
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
+    }
+
+    #[tokio::test]
+    async fn test_profile_id_transfered() {
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
+        let event_id = EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Transaction);
+
+            item.set_payload(
+                ContentType::Json,
+                r#"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                }
+            }
+            "#,
+            );
+            item
+        });
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Profile);
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                    "profile_id": "012d836b15bb49d7bbf99e64295d995b",
+                    "version": "1",
+                    "platform": "android",
+                    "os": {"name": "foo", "version": "bar"},
+                    "device": {"architecture": "zap"},
+                    "timestamp": "2023-10-10 00:00:00Z"
+                }"#,
+            );
+            item
+        });
+
+        let mut project_state = ProjectState::allowed();
+        project_state.config.features.0.insert(Feature::Profiling);
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        let item = new_envelope
+            .get_item_by(|item| item.ty() == &ItemType::Transaction)
+            .unwrap();
+        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
+
+        let context = transaction
+            .value()
+            .unwrap()
+            .context::<ProfileContext>()
+            .unwrap();
+        assert_debug_snapshot!(context, @"");
     }
 }
