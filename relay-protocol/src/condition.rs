@@ -4,7 +4,7 @@
 
 use relay_common::glob3::GlobPatterns;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Number, Value};
 
 use crate::{Getter, Val};
 
@@ -106,12 +106,12 @@ macro_rules! impl_cmp_condition {
             /// Path of the field that should match the value.
             pub name: String,
             /// The numeric value to check against.
-            pub value: Value,
+            pub value: Number,
         }
 
         impl $struct_name {
             /// Creates a new condition that comparison condition.
-            pub fn new(field: impl Into<String>, value: impl Into<Value>) -> Self {
+            pub fn new(field: impl Into<String>, value: impl Into<Number>) -> Self {
                 Self {
                     name: field.into(),
                     value: value.into(),
@@ -135,8 +135,6 @@ macro_rules! impl_cmp_condition {
                 } else if let (Some(a), Some(b)) = (value.as_u64(), self.value.as_u64()) {
                     a $operator b
                 } else if let (Some(a), Some(b)) = (value.as_f64(), self.value.as_f64()) {
-                    a $operator b
-                } else if let (Some(a), Some(b)) = (value.as_str(), self.value.as_str()) {
                     a $operator b
                 } else {
                     false
@@ -529,7 +527,7 @@ impl RuleCondition {
     ///
     /// let condition = RuleCondition::gt("obj.length", 10);
     /// ```
-    pub fn gt(field: impl Into<String>, value: impl Into<Value>) -> Self {
+    pub fn gt(field: impl Into<String>, value: impl Into<Number>) -> Self {
         Self::Gt(GtCondition::new(field, value))
     }
 
@@ -542,7 +540,7 @@ impl RuleCondition {
     ///
     /// let condition = RuleCondition::gte("obj.length", 10);
     /// ```
-    pub fn gte(field: impl Into<String>, value: impl Into<Value>) -> Self {
+    pub fn gte(field: impl Into<String>, value: impl Into<Number>) -> Self {
         Self::Gte(GteCondition::new(field, value))
     }
 
@@ -555,7 +553,7 @@ impl RuleCondition {
     ///
     /// let condition = RuleCondition::lt("obj.length", 10);
     /// ```
-    pub fn lt(field: impl Into<String>, value: impl Into<Value>) -> Self {
+    pub fn lt(field: impl Into<String>, value: impl Into<Number>) -> Self {
         Self::Lt(LtCondition::new(field, value))
     }
 
@@ -568,7 +566,7 @@ impl RuleCondition {
     ///
     /// let condition = RuleCondition::lte("obj.length", 10);
     /// ```
-    pub fn lte(field: impl Into<String>, value: impl Into<Value>) -> Self {
+    pub fn lte(field: impl Into<String>, value: impl Into<Number>) -> Self {
         Self::Lte(LteCondition::new(field, value))
     }
 
@@ -936,7 +934,6 @@ mod tests {
                     & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             ("match no conditions", RuleCondition::all()),
-            ("string cmp", RuleCondition::gt("trace.transaction", "t")),
         ];
 
         let dsc = mock_dsc();

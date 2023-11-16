@@ -65,6 +65,7 @@ impl From<ControlFlow<SamplingMatch, SamplingEvaluator<'_>>> for SamplingResult 
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
+    processing_enabled: bool,
     root_project_config: &SamplingConfig,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
@@ -74,6 +75,14 @@ pub fn is_trace_fully_sampled(
     // the trace as not fully sampled.
     if !(dsc.sampled?) {
         return Some(false);
+    }
+
+    if root_project_config.unsupported() {
+        if processing_enabled {
+            relay_log::error!("found unsupported rules even as processing relay");
+        } else {
+            return Some(true);
+        }
     }
 
     let adjustment_rate = match root_project_config.mode {
@@ -151,7 +160,9 @@ mod tests {
     use relay_event_schema::protocol::{Event, EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
-    use relay_sampling::config::{RuleId, RuleType, SamplingConfig, SamplingRule, SamplingValue};
+    use relay_sampling::config::{
+        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    };
     use uuid::Uuid;
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
@@ -267,17 +278,21 @@ mod tests {
     #[test]
     fn test_is_trace_fully_sampled_return_true_with_unsupported_rules() {
         let config = SamplingConfig {
-            rules: vec![
+            rules: vec![],
+            rules_v2: vec![
                 mocked_sampling_rule(1, RuleType::Unsupported, 1.0),
                 mocked_sampling_rule(1, RuleType::Trace, 0.0),
             ],
-            ..SamplingConfig::new()
+            mode: SamplingMode::Received,
         };
 
         let dsc = mocked_simple_dynamic_sampling_context(None, None, None, None, Some(true));
 
+        // Return true if any unsupported rules.
+        assert_eq!(is_trace_fully_sampled(false, &config, &dsc), Some(true));
+
         // If processing is enabled, we simply log an error and otherwise proceed as usual.
-        assert_eq!(is_trace_fully_sampled(&config, &dsc), Some(false));
+        assert_eq!(is_trace_fully_sampled(true, &config, &dsc), Some(false));
     }
 
     #[test]
@@ -286,38 +301,41 @@ mod tests {
         // We test with `sampled = true` and 100% rule.
 
         let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
-            ..SamplingConfig::new()
+            rules: vec![],
+            rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
+            mode: SamplingMode::Received,
         };
 
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(result);
 
         // We test with `sampled = true` and 0% rule.
         let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 0.0)],
-            ..SamplingConfig::new()
+            rules: vec![],
+            rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 0.0)],
+            mode: SamplingMode::Received,
         };
 
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(!result);
 
         // We test with `sampled = false` and 100% rule.
         let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
-            ..SamplingConfig::new()
+            rules: vec![],
+            rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
+            mode: SamplingMode::Received,
         };
 
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(!result);
     }
 
@@ -326,12 +344,13 @@ mod tests {
     fn test_is_trace_fully_sampled_with_invalid_inputs() {
         // We test with missing `sampled`.
         let config = SamplingConfig {
-            rules: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
-            ..SamplingConfig::new()
+            rules: vec![],
+            rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
+            mode: SamplingMode::Received,
         };
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(&config, &dsc);
+        let result = is_trace_fully_sampled(false, &config, &dsc);
         assert!(result.is_none());
     }
 }
