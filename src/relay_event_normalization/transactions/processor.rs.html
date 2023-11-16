@@ -1872,31 +1872,15 @@
 <a href="#1872" id="1872">1872</a>
 <a href="#1873" id="1873">1873</a>
 <a href="#1874" id="1874">1874</a>
-<a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a>
-<a href="#1879" id="1879">1879</a>
-<a href="#1880" id="1880">1880</a>
-<a href="#1881" id="1881">1881</a>
-<a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a>
-<a href="#1884" id="1884">1884</a>
-<a href="#1885" id="1885">1885</a>
-<a href="#1886" id="1886">1886</a>
-<a href="#1887" id="1887">1887</a>
-<a href="#1888" id="1888">1888</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_event_schema::processor::{
-    <span class="self">self</span>, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
-};
-<span class="kw">use </span>relay_event_schema::protocol::{Event, EventType, SpanStatus, TraceContext, TransactionSource};
-<span class="kw">use </span>relay_protocol::{Annotated, Meta, Remark, RemarkType};
+<span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingResult};
+<span class="kw">use </span>relay_event_schema::protocol::{Event, SpanStatus, TraceContext, TransactionSource};
+<span class="kw">use </span>relay_protocol::{Annotated, Remark, RemarkType};
 
 <span class="kw">use </span><span class="kw">crate</span>::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 <span class="kw">use </span><span class="kw">crate</span>::TransactionNameRule;
@@ -1906,178 +1890,6 @@
 </span><span class="kw">pub struct </span>TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt; {
     <span class="doccomment">/// Rules for identifier replacement that were discovered by Sentry&#39;s transaction clusterer.
     </span><span class="kw">pub </span>rules: <span class="kw-2">&amp;</span><span class="lifetime">&#39;r </span>[TransactionNameRule],
-}
-
-<span class="doccomment">/// Rejects transactions based on required fields.
-</span><span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub struct </span>TransactionsProcessor&lt;<span class="lifetime">&#39;r</span>&gt; {
-    name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
-    timestamp_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;r</span>&gt; TransactionsProcessor&lt;<span class="lifetime">&#39;r</span>&gt; {
-    <span class="doccomment">/// Creates a new `TransactionsProcessor` instance.
-    </span><span class="kw">pub fn </span>new(
-        name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
-        timestamp_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
-    ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            name_config,
-            timestamp_range,
-        }
-    }
-
-    <span class="doccomment">/// Applies the rule if any found to the transaction name.
-    ///
-    /// It find the first rule matching the criteria:
-    /// - source matchining the one provided in the rule sorce
-    /// - rule hasn&#39;t epired yet
-    /// - glob pattern matches the transaction name
-    ///
-    /// Note: we add `/` at the end of the transaction name if there isn&#39;t one, to make sure that
-    /// patterns like `/&lt;something&gt;/*/**` where we have `**` at the end are a match.
-    </span><span class="kw">pub fn </span>apply_transaction_rename_rule(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        transaction: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
-    ) -&gt; ProcessingResult {
-        processor::apply(transaction, |transaction, meta| {
-            <span class="kw">let </span>result = <span class="self">self</span>.name_config.rules.iter().find_map(|rule| {
-                rule.match_and_apply(Cow::Borrowed(transaction))
-                    .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
-            });
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result {
-                <span class="kw">if </span><span class="kw-2">*</span>transaction != result {
-                    <span class="comment">// If another rule was applied before, we don&#39;t want to
-                    // rename the transaction name to keep the original one.
-                    // We do want to continue adding remarks though, in
-                    // order to keep track of all rules applied.
-                    </span><span class="kw">if </span>meta.original_value().is_none() {
-                        meta.set_original_value(<span class="prelude-val">Some</span>(transaction.clone()));
-                    }
-                    <span class="comment">// add also the rule which was applied to the transaction name
-                    </span>meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-                    <span class="kw-2">*</span>transaction = result;
-                }
-            }
-
-            <span class="prelude-val">Ok</span>(())
-        })<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="doccomment">/// Returns `true` if the given transaction name should be treated as a URL.
-    ///
-    /// We treat a transaction as URL if one of the following conditions apply:
-    ///
-    /// 1. It is marked with `source:url`
-    /// 2. It is marked with `source:sanitized`, in which case we run normalization again.
-    /// 3. It has no source attribute because it&#39;s from an old SDK version,
-    ///    but it contains slashes and we expect it to be high-cardinality
-    ///    based on the SDK information (see [`set_default_transaction_source`]).
-    </span><span class="kw">fn </span>treat_transaction_as_url(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
-        <span class="kw">let </span>source = event
-            .transaction_info
-            .value()
-            .and_then(|i| i.source.value());
-
-        <span class="macro">matches!</span>(
-            source,
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized)
-        ) || (source.is_none() &amp;&amp; event.transaction.value().map_or(<span class="bool-val">false</span>, |t| t.contains(<span class="string">&#39;/&#39;</span>)))
-    }
-
-    <span class="kw">fn </span>normalize_transaction_name(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
-        <span class="kw">if </span><span class="self">self</span>.treat_transaction_as_url(event) {
-            <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
-            // This in addition to renaming rules can catch some high cardinality parts.
-            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
-
-            <span class="comment">// Apply rules discovered by the transaction clusterer in sentry.
-            </span><span class="kw">if </span>!<span class="self">self</span>.name_config.rules.is_empty() {
-                <span class="self">self</span>.apply_transaction_rename_rule(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
-            }
-
-            <span class="comment">// Always mark URL transactions as sanitized, even if no modification were made by
-            // clusterer rules or regex matchers. This has the consequence that the transaction name
-            // is always extracted as a tag on transaction metrics.
-            // Instead of changing the source to &quot;sanitized&quot;, we could have changed metrics extraction
-            // to also extract the transaction name for URL transactions. But this is the safer way,
-            // because the product currently uses queries that assume that `source:url` is equivalent
-            // to `transaction:&lt;&lt; unparameterized &gt;&gt;`.
-            </span>event
-                .transaction_info
-                .get_or_insert_with(Default::default)
-                .source
-                .set_value(<span class="prelude-val">Some</span>(TransactionSource::Sanitized));
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>validate_transaction(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
-        <span class="self">self</span>.validate_timestamps(event)<span class="question-mark">?</span>;
-
-        <span class="kw">let </span><span class="prelude-val">Some</span>(trace_context) = event.context_mut::&lt;TraceContext&gt;() <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;missing valid trace context&quot;</span>,
-            ));
-        };
-
-        <span class="kw">if </span>trace_context.trace_id.value().is_none() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;trace context is missing trace_id&quot;</span>,
-            ));
-        }
-
-        <span class="kw">if </span>trace_context.span_id.value().is_none() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;trace context is missing span_id&quot;</span>,
-            ));
-        }
-
-        trace_context.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="doccomment">/// Returns start and end timestamps if they are both set and start &lt;= end.
-    </span><span class="kw">fn </span>validate_timestamps(<span class="kw-2">&amp;</span><span class="self">self</span>, transaction_event: <span class="kw-2">&amp;</span>Event) -&gt; ProcessingResult {
-        <span class="kw">match </span>(
-            transaction_event.start_timestamp.value(),
-            transaction_event.timestamp.value(),
-        ) {
-            (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; {
-                <span class="kw">if </span>end &lt; start {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                        <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
-                    ));
-                }
-
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>range) = <span class="self">self</span>.timestamp_range {
-                    <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                            <span class="string">&quot;invalid unix timestamp&quot;</span>,
-                        ));
-                    };
-                    <span class="kw">if </span>!range.contains(<span class="kw-2">&amp;</span>timestamp) {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                            <span class="string">&quot;timestamp is out of the valid range for metrics&quot;</span>,
-                        ));
-                    }
-                }
-
-                <span class="prelude-val">Ok</span>(())
-            }
-            (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;timestamp hard-required for transaction events&quot;</span>,
-            )),
-            <span class="comment">// XXX: Maybe copy timestamp over?
-            </span>(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;start_timestamp hard-required for transaction events&quot;</span>,
-            )),
-        }
-    }
 }
 
 <span class="doccomment">/// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
@@ -2247,7 +2059,7 @@
 }
 
 <span class="doccomment">/// Copies the event&#39;s end timestamp into the spans that don&#39;t have one.
-</span><span class="kw">fn </span>end_all_spans(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>end_all_spans(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
     <span class="kw">let </span>spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     <span class="kw">for </span>span <span class="kw">in </span>spans {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span.value_mut() {
@@ -2265,36 +2077,177 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">impl </span>Processor <span class="kw">for </span>TransactionsProcessor&lt;<span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>process_event(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        event: <span class="kw-2">&amp;mut </span>Event,
-        _meta: <span class="kw-2">&amp;mut </span>Meta,
-        state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
-    ) -&gt; ProcessingResult {
-        <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-        }
+<span class="doccomment">/// Returns `true` if the given transaction name should be treated as a URL.
+///
+/// We treat a transaction as URL if one of the following conditions apply:
+///
+/// 1. It is marked with `source:url`
+/// 2. It is marked with `source:sanitized`, in which case we run normalization again.
+/// 3. It has no source attribute because it&#39;s from an old SDK version,
+///    but it contains slashes and we expect it to be high-cardinality
+///    based on the SDK information (see [`set_default_transaction_source`]).
+</span><span class="kw">fn </span>treat_transaction_as_url(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
+    <span class="kw">let </span>source = event
+        .transaction_info
+        .value()
+        .and_then(|i| i.source.value());
 
-        <span class="comment">// The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
-        // Relay doesn&#39;t reject events missing the transaction name. Instead, a default transaction
-        // name is given, similar to how Sentry gives an &quot;&lt;unlabeled event&gt;&quot; title to error events.
-        // SDKs should avoid sending empty transaction names, setting a more contextual default
-        // value when possible.
-        </span><span class="kw">if </span>event.transaction.value().map_or(<span class="bool-val">true</span>, |s| s.is_empty()) {
-            event
-                .transaction
-                .set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;&lt;unlabeled transaction&gt;&quot;</span>.to_owned()))
-        }
+    <span class="macro">matches!</span>(
+        source,
+        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized)
+    ) || (source.is_none() &amp;&amp; event.transaction.value().map_or(<span class="bool-val">false</span>, |t| t.contains(<span class="string">&#39;/&#39;</span>)))
+}
 
-        set_default_transaction_source(event);
-        <span class="self">self</span>.normalize_transaction_name(event)<span class="question-mark">?</span>;
-        <span class="self">self</span>.validate_transaction(event)<span class="question-mark">?</span>;
-        end_all_spans(event)<span class="question-mark">?</span>;
+<span class="doccomment">/// Returns a [`ProcessingResult`] error if the transaction isn&#39;t valid.
+///
+/// A transaction is valid in the following cases:
+/// - The transaction has a start and end timestamp.
+/// - The start timestamp is no greater than the end timestamp.
+/// - The transaction has a trace and span ids in the trace context.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>validate_transaction(
+    event: <span class="kw-2">&amp;</span>Event,
+    transaction_range: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Range&lt;UnixTimestamp&gt;&gt;,
+) -&gt; ProcessingResult {
+    validate_transaction_timestamps(event, transaction_range)<span class="question-mark">?</span>;
 
-        event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(())
+    <span class="kw">let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;missing valid trace context&quot;</span>,
+        ));
+    };
+
+    <span class="kw">if </span>trace_context.trace_id.value().is_none() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;trace context is missing trace_id&quot;</span>,
+        ));
     }
+
+    <span class="kw">if </span>trace_context.span_id.value().is_none() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;trace context is missing span_id&quot;</span>,
+        ));
+    }
+
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="doccomment">/// Returns a [`ProcessingResult`] error if start &gt; end or either is missing.
+</span><span class="kw">fn </span>validate_transaction_timestamps(
+    transaction_event: <span class="kw-2">&amp;</span>Event,
+    transaction_range: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Range&lt;UnixTimestamp&gt;&gt;,
+) -&gt; ProcessingResult {
+    <span class="kw">match </span>(
+        transaction_event.start_timestamp.value(),
+        transaction_event.timestamp.value(),
+    ) {
+        (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; {
+            <span class="kw">if </span>end &lt; start {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                    <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
+                ));
+            }
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = transaction_range {
+                <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                        <span class="string">&quot;invalid unix timestamp&quot;</span>,
+                    ));
+                };
+                <span class="kw">if </span>!range.contains(<span class="kw-2">&amp;</span>timestamp) {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                        <span class="string">&quot;timestamp is out of the valid range for metrics&quot;</span>,
+                    ));
+                }
+            }
+
+            <span class="prelude-val">Ok</span>(())
+        }
+        (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;timestamp hard-required for transaction events&quot;</span>,
+        )),
+        <span class="comment">// XXX: Maybe copy timestamp over?
+        </span>(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;start_timestamp hard-required for transaction events&quot;</span>,
+        )),
+    }
+}
+
+<span class="doccomment">/// Applies scrubbing and transaction rename rules to URL transaction names.
+///
+/// If there&#39;s no transaction name, it sets `&lt;unlabeled transaction&gt;`.
+/// Additionally, for URL transaction names:
+/// - Applies static scrubbing on low value tokens such as UUIDs, SHAs and IDs.
+/// - Applies dynamic transaction name rules, pushed from upstream.
+/// - Sets the transaction source to sanitized.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalize_transaction_name(
+    event: <span class="kw-2">&amp;mut </span>Event,
+    transaction_name_config: <span class="kw-2">&amp;</span>TransactionNameConfig,
+) -&gt; ProcessingResult {
+    <span class="kw">if </span>treat_transaction_as_url(event) {
+        <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
+        // This in addition to renaming rules can catch some high cardinality parts.
+        </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
+
+        <span class="comment">// Apply rules discovered by the transaction clusterer in sentry.
+        </span><span class="kw">if </span>!transaction_name_config.rules.is_empty() {
+            apply_transaction_rename_rule(<span class="kw-2">&amp;mut </span>event.transaction, transaction_name_config)<span class="question-mark">?</span>;
+        }
+
+        <span class="comment">// Always mark URL transactions as sanitized, even if no modification were made by
+        // clusterer rules or regex matchers. This has the consequence that the transaction name
+        // is always extracted as a tag on transaction metrics.
+        // Instead of changing the source to &quot;sanitized&quot;, we could have changed metrics extraction
+        // to also extract the transaction name for URL transactions. But this is the safer way,
+        // because the product currently uses queries that assume that `source:url` is equivalent
+        // to `transaction:&lt;&lt; unparameterized &gt;&gt;`.
+        </span>event
+            .transaction_info
+            .get_or_insert_with(Default::default)
+            .source
+            .set_value(<span class="prelude-val">Some</span>(TransactionSource::Sanitized));
+    }
+
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="doccomment">/// Applies the rule if any found to the transaction name.
+///
+/// It find the first rule matching the criteria:
+/// - source matchining the one provided in the rule sorce
+/// - rule hasn&#39;t epired yet
+/// - glob pattern matches the transaction name
+///
+/// Note: we add `/` at the end of the transaction name if there isn&#39;t one, to make sure that
+/// patterns like `/&lt;something&gt;/*/**` where we have `**` at the end are a match.
+</span><span class="kw">fn </span>apply_transaction_rename_rule(
+    transaction: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
+    config: <span class="kw-2">&amp;</span>TransactionNameConfig,
+) -&gt; ProcessingResult {
+    processor::apply(transaction, |transaction, meta| {
+        <span class="kw">let </span>result = config.rules.iter().find_map(|rule| {
+            rule.match_and_apply(Cow::Borrowed(transaction))
+                .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
+        });
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((rule, result)) = result {
+            <span class="kw">if </span><span class="kw-2">*</span>transaction != result {
+                <span class="comment">// If another rule was applied before, we don&#39;t want to
+                // rename the transaction name to keep the original one.
+                // We do want to continue adding remarks though, in
+                // order to keep track of all rules applied.
+                </span><span class="kw">if </span>meta.original_value().is_none() {
+                    meta.set_original_value(<span class="prelude-val">Some</span>(transaction.clone()));
+                }
+                <span class="comment">// add also the rule which was applied to the transaction name
+                </span>meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                <span class="kw-2">*</span>transaction = result;
+            }
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    })<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="attr">#[cfg(test)]
@@ -2314,6 +2267,7 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
+    <span class="kw">use </span><span class="kw">crate</span>::processor::{NormalizeProcessor, NormalizeProcessorConfig};
     <span class="kw">use </span><span class="kw">crate</span>::RedactionRule;
 
     <span class="kw">fn </span>new_test_event() -&gt; Annotated&lt;Event&gt; {
@@ -2351,7 +2305,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event::default());
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2368,7 +2322,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2381,10 +2335,10 @@
     </span><span class="kw">fn </span>test_discards_when_timestamp_out_of_range() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
-        <span class="kw">let </span>processor = <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-            TransactionNameConfig::default(),
-            <span class="prelude-val">Some</span>(UnixTimestamp::now()..UnixTimestamp::now()),
-        );
+        <span class="kw">let </span>processor = <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+            transaction_range: <span class="prelude-val">Some</span>(UnixTimestamp::now()..UnixTimestamp::now()),
+            ..Default::default()
+        });
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             process_value(<span class="kw-2">&amp;mut </span>event, processor, ProcessingState::root()),
@@ -2398,7 +2352,7 @@
     </span><span class="kw">fn </span>test_replace_missing_timestamp() {
         <span class="kw">let </span>span = Span {
             start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(<span class="number">1968</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>).unwrap().into(),
+                Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>).unwrap().into(),
             ),
             trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
             span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
@@ -2408,7 +2362,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event().<span class="number">0</span>.unwrap();
         event.spans = Annotated::new(<span class="macro">vec!</span>[Annotated::new(span)]);
 
-        TransactionsProcessor::default()
+        NormalizeProcessor::default()
             .process_event(
                 <span class="kw-2">&amp;mut </span>event,
                 <span class="kw-2">&amp;mut </span>Meta::default(),
@@ -2434,7 +2388,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2457,7 +2411,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2481,7 +2435,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2509,7 +2463,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2537,7 +2491,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2568,7 +2522,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2601,7 +2555,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2637,7 +2591,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2668,7 +2622,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2687,7 +2641,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2719,7 +2673,7 @@
         <span class="macro">assert_eq!</span>(
             process_value(
                 <span class="kw-2">&amp;mut </span>event,
-                <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -2756,7 +2710,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2778,7 +2732,7 @@
 
         <span class="macro">assert!</span>(process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .is_ok());
@@ -2796,7 +2750,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2816,7 +2770,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2898,7 +2852,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2960,14 +2914,13 @@
             },
             &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.ruby&quot;},
             &quot;modules&quot;: {&quot;rack&quot;: &quot;1.2.3&quot;}
-
         }
         &quot;#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3001,7 +2954,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3058,12 +3011,12 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: <span class="kw-2">&amp;</span>[rule1, rule2, rule3],
                 },
-                <span class="prelude-val">None</span>,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3119,7 +3072,6 @@
             },
             &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.ruby&quot;},
             &quot;modules&quot;: {&quot;rack&quot;: &quot;1.2.3&quot;}
-
         }
         &quot;#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
@@ -3143,12 +3095,12 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: <span class="kw-2">&amp;</span>[rule1, rule2, rule3],
                 },
-                <span class="prelude-val">None</span>,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3213,12 +3165,10 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
-        <span class="kw">let </span><span class="kw-2">mut </span>processor = TransactionsProcessor::new(
-            TransactionNameConfig {
-                rules: rules.as_ref(),
-            },
-            <span class="prelude-val">None</span>,
-        );
+        <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::new(NormalizeProcessorConfig {
+            transaction_name_config: TransactionNameConfig { rules: <span class="kw-2">&amp;</span>rules },
+            ..Default::default()
+        });
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">transaction!</span>), <span class="string">&quot;/foo/*/user/*/0/&quot;</span>);
@@ -3249,6 +3199,11 @@
         range: None,
     },
 ]&quot;#</span>);
+
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+            <span class="string">&quot;sanitized&quot;
+        </span>);
 
         <span class="comment">// Process again:
         </span>process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
@@ -3281,6 +3236,11 @@
         range: None,
     },
 ]&quot;#</span>);
+
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+            <span class="string">&quot;sanitized&quot;
+        </span>);
     }
 
     <span class="attr">#[test]
@@ -3321,12 +3281,10 @@
         <span class="comment">// This must not normalize transaction name, since it&#39;s disabled.
         </span>process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                <span class="prelude-val">None</span>,
-            ),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: <span class="kw-2">&amp;</span>rules },
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3381,12 +3339,10 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                <span class="prelude-val">None</span>,
-            ),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: <span class="kw-2">&amp;</span>rules },
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3416,6 +3372,11 @@
         range: None,
     },
 ]&quot;#</span>);
+
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+            <span class="string">&quot;sanitized&quot;
+        </span>);
     }
 
     <span class="attr">#[test]
@@ -3451,7 +3412,6 @@
             },
             &quot;sdk&quot;: {&quot;name&quot;: &quot;sentry.ruby&quot;},
             &quot;modules&quot;: {&quot;rack&quot;: &quot;1.2.3&quot;}
-
         }
         &quot;#</span>;
 
@@ -3465,7 +3425,10 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] }, <span class="prelude-val">None</span>),
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] },
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3488,6 +3451,11 @@
         range: None,
     },
 ]&quot;#</span>);
+
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+            <span class="string">&quot;sanitized&quot;
+        </span>);
     }
 
     <span class="attr">#[test]
@@ -3540,7 +3508,7 @@
 
                 process_value(
                     <span class="kw-2">&amp;mut </span>event,
-                    <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
+                    <span class="kw-2">&amp;mut </span>NormalizeProcessor::default(),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -3665,16 +3633,16 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                         pattern: LazyGlob::new(<span class="string">&quot;/remains/*/1234567890/&quot;</span>.to_owned()),
                         expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
                 },
-                <span class="prelude-val">None</span>,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -3702,6 +3670,10 @@
         ),
     },
 ]&quot;#</span>);
+        <span class="macro">assert_eq!</span>(
+            <span class="macro">get_value!</span>(event.transaction_info.<span class="macro">source!</span>).as_str(),
+            <span class="string">&quot;sanitized&quot;
+        </span>);
     }
 
     <span class="attr">#[test]
@@ -3730,16 +3702,16 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
+            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                         pattern: LazyGlob::new(<span class="string">&quot;/remains/*/**&quot;</span>.to_owned()),
                         expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
                 },
-                <span class="prelude-val">None</span>,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
