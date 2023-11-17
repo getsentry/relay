@@ -63,7 +63,8 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 mod tests {
     use chrono::{DateTime, Utc};
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
-    use relay_event_normalization::LightNormalizationConfig;
+    use relay_event_normalization::{NormalizeProcessor, NormalizeProcessorConfig};
+    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
     use std::collections::BTreeSet;
@@ -489,13 +490,14 @@ mod tests {
         ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -1011,13 +1013,14 @@ mod tests {
         let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -1068,14 +1071,15 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 device_class_synthesis_config: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
