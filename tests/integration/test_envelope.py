@@ -1,5 +1,6 @@
 import pytest
 import queue
+import time
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -597,7 +598,7 @@ def test_buffer_envelopes_without_global_config(
 
         res = original_endpoint().get_json()
         if not include_global:
-            res.pop("global")
+            res["global"] = None
         return res
 
     mini_sentry.add_basic_project_config(42)
@@ -611,6 +612,7 @@ def test_buffer_envelopes_without_global_config(
         envelope.add_event({"message": "hello, world!"})
         relay.send_envelope(42, envelope)
 
+    time.sleep(2)
     events_consumer.assert_empty()
 
     include_global = True
