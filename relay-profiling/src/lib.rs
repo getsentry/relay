@@ -118,15 +118,10 @@ mod utils;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 
-/// Unique identifier for a profile.
-///
-/// Same format as event IDs.
-pub type ProfileId = EventId;
-
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
     #[serde(alias = "profile_id")]
-    event_id: ProfileId,
+    event_id: EventId,
     platform: String,
     #[serde(default)]
     version: sample::Version,
@@ -139,7 +134,7 @@ fn minimal_profile_from_json(
     serde_path_to_error::deserialize(d)
 }
 
-pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId, ProfileError> {
+pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<(), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
@@ -188,10 +183,10 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    Ok(profile.event_id)
+    Ok(())
 }
 
-pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u8>), ProfileError> {
+pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {

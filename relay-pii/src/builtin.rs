@@ -1256,6 +1256,24 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             ];
         );
         assert_text_rule!(
+            rule = "@userpath";
+            input = r#"make
+            export PATH=$PATH:$HOME/collectd_exporter
+            log
+            log
+            log
+            "#;
+            output = r#"make
+            export PATH=$PATH:$HOME/[user]
+            log
+            log
+            log
+            "#;
+            remarks = vec![
+                Remark::with_range(RemarkType::Substituted, "@userpath", (41, 47)),
+            ];
+        );
+        assert_text_rule!(
             rule = "@userpath:replace";
             input = "File in /Users/mitsuhiko/Development/sentry-stripping";
             output = "File in /Users/[user]/Development/sentry-stripping";

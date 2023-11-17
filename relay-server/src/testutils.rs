@@ -1,9 +1,8 @@
 use bytes::Bytes;
+use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
-use relay_sampling::config::{
-    DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue,
-};
+use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::actors::project::ProjectState;
@@ -27,16 +26,11 @@ pub fn state_with_rule_and_condition(
         None => Vec::new(),
     };
 
-    project_state_with_config(SamplingConfig {
-        rules: vec![],
-        rules_v2: rules,
-        mode: SamplingMode::Received,
-    })
-}
-
-pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectState {
     let mut state = ProjectState::allowed();
-    state.config.dynamic_sampling = Some(sampling_config);
+    state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
+        rules,
+        ..SamplingConfig::new()
+    }));
     state
 }
 
