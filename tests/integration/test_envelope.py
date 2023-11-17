@@ -581,10 +581,13 @@ def test_sample_rates_metrics(mini_sentry, relay_with_processing, events_consume
     assert event["_metrics"]["sample_rates"] == sample_rates
 
 
-# Checks that we buffer envelopes until we have a global config in processing mode.
 def test_buffer_envelopes_without_global_config(
     mini_sentry, relay_with_processing, events_consumer
 ):
+    """
+    Checks that we buffer envelopes until we have a global config in processing mode.
+    """
+
     include_global = False
     original_endpoint = mini_sentry.app.view_functions["get_project_config"]
 
@@ -594,7 +597,7 @@ def test_buffer_envelopes_without_global_config(
 
         res = original_endpoint().get_json()
         if not include_global:
-            res.pop("global", None)
+            res.pop("global")
         return res
 
     mini_sentry.add_basic_project_config(42)
@@ -602,17 +605,13 @@ def test_buffer_envelopes_without_global_config(
     options = {"cache": {"global_config_fetch_interval": 1}}
     relay = relay_with_processing(options=options)
 
-    envelope = Envelope()
-    envelope.add_event({"message": "hello, world!"})
-    relay.send_envelope(42, envelope)
+    envelope_qty = 5
+    for _ in range(envelope_qty):
+        envelope = Envelope()
+        envelope.add_event({"message": "hello, world!"})
+        relay.send_envelope(42, envelope)
 
-    error_raised = False
-    try:
-        # Event is still in buffer because we have not provided a global config
-        events_consumer.get_event(timeout=1)
-    except AssertionError:
-        error_raised = True
-    assert error_raised
+    events_consumer.assert_empty()
 
     include_global = True
     # Clear errors because we log error when we request global config yet we dont receive it.
@@ -624,6 +623,7 @@ def test_buffer_envelopes_without_global_config(
         )
     mini_sentry.test_failures.clear()
 
-    # Global configs are fetched in 10 second intervals, so the event should have come
-    # through after a 10 sec timeout.
-    events_consumer.get_event(timeout=10)
+    # Check that we received exactly {envelope_qty} envelopes.
+    for _ in range(envelope_qty):
+        events_consumer.get_event(timeout=2)
+    events_consumer.assert_empty()

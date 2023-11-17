@@ -464,7 +464,10 @@ struct ProjectCacheBroker {
     global_config: GlobalConfigStatus,
 }
 
-/// Status of global config needed for envelope processing.
+/// Describes the current status of the [`GlobalConfig`]
+///
+/// Either it's ready to be used, or it contains the list of in-flight project keys,
+/// to be processed once the config arrives.
 #[derive(Debug)]
 enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
@@ -508,7 +511,7 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn global_config_value(&self) -> Option<Arc<GlobalConfig>> {
+    fn global_config(&self) -> Option<Arc<GlobalConfig>> {
         match &self.global_config {
             GlobalConfigStatus::Ready(gc) => Some(gc.clone()),
             GlobalConfigStatus::Pending(_) => None,
@@ -735,7 +738,7 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
-        let Some(global_config) = self.global_config_value() else {
+        let Some(global_config) = self.global_config() else {
             // This indicates a logical error in our approach, this function should only
             // be called when we have a global config.
             relay_log::error!("attempted to process envelope without global config");
