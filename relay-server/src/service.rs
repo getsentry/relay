@@ -144,6 +144,7 @@ impl ServiceState {
             project_cache.clone(),
             global_config.clone(),
             upstream_relay.clone(),
+            test_store.clone(),
             #[cfg(feature = "processing")]
             aggregator.clone(),
         )
