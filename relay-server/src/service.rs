@@ -151,7 +151,6 @@ impl ServiceState {
         #[allow(unused_mut)]
         let mut envelope_manager_service = EnvelopeManagerService::new(
             config.clone(),
-            aggregator.clone(),
             processor.clone(),
             project_cache.clone(),
             test_store.clone(),
