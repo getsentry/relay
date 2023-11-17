@@ -6,6 +6,7 @@
 
 - Support `device.model` in dynamic sampling and metric extraction. ([#2728](https://github.com/getsentry/relay/pull/2728))
 - Support comparison operators (`>`, `>=`, `<`, `<=`) for strings in dynamic sampling and metric extraction rules. Previously, these comparisons were only possible on numbers. ([#2730](https://github.com/getsentry/relay/pull/2730))
+- Postpone processing till the global config is available. ([#2697](https://github.com/getsentry/relay/pull/2697))
 
 ## 23.11.0
 
@@ -39,7 +40,6 @@
 - Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
 - Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
-- Postpone processing till the global config is available. ([#2697](https://github.com/getsentry/relay/pull/2697))
 - Emit error on continued project config fetch failures after a time interval. ([#2700](https://github.com/getsentry/relay/pull/2700))
 
 ## 23.10.1
