@@ -27,7 +27,7 @@ use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::statsd::RelayHistograms;
-use crate::utils::ManagedEnvelope;
+use crate::utils::{ExtractionMode, ManagedEnvelope};
 
 use super::processor::EncodeMetrics;
 
@@ -149,6 +149,8 @@ pub struct SendMetrics {
     pub buckets: Vec<Bucket>,
     /// Scoping information for the metrics.
     pub scoping: Scoping,
+    /// Transaction extraction mode.
+    pub extraction_mode: ExtractionMode,
 }
 
 /// Dispatch service for generating and submitting Envelopes.
@@ -329,7 +331,11 @@ impl EnvelopeManagerService {
     }
 
     async fn handle_send_metrics(&self, message: SendMetrics) {
-        let SendMetrics { buckets, scoping } = message;
+        let SendMetrics {
+            buckets,
+            scoping,
+            extraction_mode,
+        } = message;
 
         #[allow(unused_mut)]
         let mut partitions = self.config.metrics_partitions();
@@ -347,6 +353,7 @@ impl EnvelopeManagerService {
         self.enveloper_processor.send(EncodeMetrics {
             buckets,
             scoping,
+            extraction_mode,
             max_batch_size_bytes,
             partitions,
         });

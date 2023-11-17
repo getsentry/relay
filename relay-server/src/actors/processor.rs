@@ -71,15 +71,18 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
+    self, extract_transaction_count, ChunkedFormDataAggregator, ExtractionMode, FormDataIter,
+    ItemAction, ManagedEnvelope, SamplingResult,
 };
+
+use super::test_store::TestStore;
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -493,6 +496,8 @@ pub struct EncodeMetrics {
     pub buckets: Vec<Bucket>,
     /// Scoping for metric buckets.
     pub scoping: Scoping,
+    /// Transaction metrics extraction mode.
+    pub extraction_mode: ExtractionMode,
     /// Approximate size in bytes to batch buckets.
     pub max_batch_size_bytes: usize,
     /// Amount of logical partitions for the buckets.
@@ -578,6 +583,7 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
+    test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
@@ -593,6 +599,7 @@ impl EnvelopeProcessorService {
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
+        test_store: Addr<TestStore>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -616,6 +623,7 @@ impl EnvelopeProcessorService {
             project_cache,
             outcome_aggregator,
             upstream_relay,
+            test_store,
             geoip_lookup,
             #[cfg(feature = "processing")]
             aggregator,
@@ -3101,6 +3109,7 @@ impl EnvelopeProcessorService {
             buckets,
             scoping,
             max_batch_size_bytes,
+            extraction_mode,
             partitions,
         } = message;
 
@@ -3119,11 +3128,14 @@ impl EnvelopeProcessorService {
             let mut num_batches = 0;
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
-                #[allow(clippy::redundant_closure_call)]
-                let mut envelope: ManagedEnvelope = (move || {
-                    let _ = dsn;
-                    todo!("Added by next commit in the PR")
-                })();
+                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+                envelope.add_item(create_metrics_item(&batch, extraction_mode));
+
+                let mut envelope = ManagedEnvelope::standalone(
+                    envelope,
+                    self.inner.outcome_aggregator.clone(),
+                    self.inner.test_store.clone(),
+                );
                 envelope.set_partition_key(partition_key).scope(scoping);
 
                 relay_statsd::metric!(
@@ -3190,6 +3202,26 @@ impl Service for EnvelopeProcessorService {
             }
         });
     }
+}
+
+fn create_metrics_item(buckets: &BucketsView<'_>, extraction_mode: ExtractionMode) -> Item {
+    let source_quantities = buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
+        .fold(SourceQuantities::default(), |acc, c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+
+            SourceQuantities {
+                transactions: acc.transactions + c.count,
+                profiles: acc.profiles + profile_count,
+            }
+        });
+
+    let mut item = Item::new(ItemType::MetricBuckets);
+    item.set_source_quantities(source_quantities);
+    item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+
+    item
 }
 
 #[cfg(test)]
@@ -3629,6 +3661,7 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
         #[cfg(feature = "processing")]
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let inner = InnerProcessor {
@@ -3636,14 +3669,15 @@ mod tests {
             envelope_manager,
             project_cache,
             outcome_aggregator,
+            #[cfg(feature = "processing")]
+            aggregator,
             upstream_relay,
+            test_store,
             #[cfg(feature = "processing")]
             rate_limiter: None,
             #[cfg(feature = "processing")]
             redis_pool: None,
             geoip_lookup: None,
-            #[cfg(feature = "processing")]
-            aggregator,
         };
 
         EnvelopeProcessorService {
@@ -3659,6 +3693,7 @@ mod tests {
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
+            test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
             rate_limiter: None,
             #[cfg(feature = "processing")]

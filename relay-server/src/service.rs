@@ -143,6 +143,7 @@ impl ServiceState {
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
+            test_store.clone(),
             #[cfg(feature = "processing")]
             aggregator.clone(),
         )
