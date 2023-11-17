@@ -36,12 +36,13 @@ use relay_event_schema::protocol::{
     Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
+use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
+use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ReasonCode};
+use relay_quotas::{DataCategory, ReasonCode, Scoping};
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -72,7 +73,7 @@ use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -482,6 +483,19 @@ impl EncodeEnvelope {
     }
 }
 
+/// Encodes metrics into an envelope ready to be sent upstream.
+#[derive(Debug)]
+pub struct EncodeMetrics {
+    /// The metric buckets to encode.
+    pub buckets: Vec<Bucket>,
+    /// Scoping for metric buckets.
+    pub scoping: Scoping,
+    /// Approximate size in bytes to batch buckets.
+    pub max_batch_size_bytes: usize,
+    /// Amount of logical partitions for the buckets.
+    pub partitions: Option<u64>,
+}
+
 /// Applies rate limits to metrics buckets and forwards them to the envelope manager.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
@@ -495,8 +509,9 @@ pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    EncodeMetrics(Box<EncodeMetrics>),
     #[cfg(feature = "processing")]
-    RateLimitFlushBuckets(RateLimitBuckets),
+    RateLimitBuckets(RateLimitBuckets),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -525,12 +540,20 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
     }
 }
 
+impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeMetrics, _: ()) -> Self {
+        Self::EncodeMetrics(Box::new(message))
+    }
+}
+
 #[cfg(feature = "processing")]
 impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
     fn from_message(message: RateLimitBuckets, _: ()) -> Self {
-        Self::RateLimitFlushBuckets(message)
+        Self::RateLimitBuckets(message)
     }
 }
 
@@ -2964,12 +2987,10 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
+    fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
         use relay_quotas::ItemScoping;
 
-        let RateLimitBuckets {
-            mut bucket_limiter, ..
-        } = message;
+        let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
 
@@ -3056,14 +3077,60 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_encode_metrics(&self, message: EncodeMetrics) {
+        let EncodeMetrics {
+            buckets,
+            scoping,
+            max_batch_size_bytes,
+            partitions,
+        } = message;
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        };
+
+        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
+        {
+            let mut num_batches = 0;
+
+            for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
+                #[allow(clippy::redundant_closure_call)]
+                let mut envelope: ManagedEnvelope = (move || {
+                    let _ = dsn;
+                    todo!("Added by next commit in the PR")
+                })();
+                envelope.set_partition_key(partition_key).scope(scoping);
+
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                );
+
+                self.inner
+                    .envelope_manager
+                    .send(SubmitEnvelope { envelope });
+
+                num_batches += 1;
+            }
+
+            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
+        }
+    }
+
     fn handle_message(&self, message: EnvelopeProcessor) {
         match message {
             EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            EnvelopeProcessor::EncodeMetrics(message) => self.handle_encode_metrics(*message),
             #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitFlushBuckets(message) => {
-                self.handle_rate_limit_flush_buckets(message);
+            EnvelopeProcessor::RateLimitBuckets(message) => {
+                self.handle_rate_limit_buckets(message);
             }
         }
     }

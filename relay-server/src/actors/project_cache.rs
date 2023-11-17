@@ -784,8 +784,9 @@ impl ProjectCacheBroker {
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
         let envelope_manager = self.services.envelope_manager.clone();
+
         self.get_or_create_project(message.project_key)
-            .flush_buckets(envelope_manager, message.partition_key, message.buckets);
+            .flush_buckets(envelope_manager, message.buckets);
     }
 
     fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {

@@ -1023,23 +1023,14 @@ impl Project {
         })
     }
 
-    pub fn flush_buckets(
-        &mut self,
-        envelope_manager: Addr<EnvelopeManager>,
-        partition_key: Option<u64>,
-        buckets: Vec<Bucket>,
-    ) {
+    pub fn flush_buckets(&mut self, envelope_manager: Addr<EnvelopeManager>, buckets: Vec<Bucket>) {
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: dropping {} buckets", buckets.len());
             return;
         };
 
         if !buckets.is_empty() {
-            envelope_manager.send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            });
+            envelope_manager.send(SendMetrics { buckets, scoping });
         }
     }
 }

@@ -33,6 +33,7 @@
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
 - Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
 - Emit error on continued project config fetch failures after a time interval. ([#2700](https://github.com/getsentry/relay/pull/2700))
+- Partition and split metric buckets just before sending. ([#2682](https://github.com/getsentry/relay/pull/2682))
 
 ## 23.10.1
 

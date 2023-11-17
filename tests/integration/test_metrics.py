@@ -6,6 +6,7 @@ import signal
 
 import pytest
 import requests
+import queue
 
 from .test_envelope import generate_transaction_item
 
@@ -121,19 +122,20 @@ def test_metrics_backdated(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "flush_partitions,expected_header", [(None, None), (0, "0"), (1, "0"), (128, "34")]
+    "metrics_partitions,expected_header",
+    [(None, None), (0, "0"), (1, "0"), (128, "34")],
 )
-def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_header):
+def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_header):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
     relay_config = {
         "processing": {
             "max_session_secs_in_past": forever,
+            "metrics_partitions": metrics_partitions,
         },
         "aggregator": {
             "bucket_interval": 1,
             "initial_delay": 0,
             "debounce_delay": 0,
-            "flush_partitions": flush_partitions,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
         },
@@ -160,6 +162,41 @@ def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_he
         assert "X-Sentry-Relay-Shard" not in headers
     else:
         assert headers["X-Sentry-Relay-Shard"] == expected_header, headers
+
+
+@pytest.mark.parametrize(
+    "max_batch_size,expected_events", [(1000, 1), (200, 2), (130, 3), (100, 6), (50, 0)]
+)
+def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_events):
+    forever = 100 * 365 * 24 * 60 * 60  # *almost forever
+    relay_config = {
+        "processing": {
+            "max_session_secs_in_past": forever,
+            "metrics_max_batch_size": max_batch_size,
+        },
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+            "debounce_delay": 0,
+            "max_secs_in_past": forever,
+            "max_secs_in_future": forever,
+        },
+    }
+    relay = relay(mini_sentry, options=relay_config)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    metrics_payload = (
+        "transactions/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T999994711"
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    for _ in range(expected_events):
+        mini_sentry.captured_events.get(timeout=3)
+
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
 
 
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):

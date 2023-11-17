@@ -59,6 +59,7 @@ struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
     slot: Option<SemaphorePermit>,
+    partition_key: Option<u64>,
     done: bool,
 }
 
@@ -102,6 +103,7 @@ impl ManagedEnvelope {
                 summary,
                 scoping,
                 slot,
+                partition_key: None,
                 done: false,
             },
             outcome_aggregator,
@@ -340,6 +342,15 @@ impl ManagedEnvelope {
     /// Returns scoping stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.context.scoping
+    }
+
+    pub fn partition_key(&self) -> Option<u64> {
+        self.context.partition_key
+    }
+
+    pub fn set_partition_key(&mut self, partition_key: Option<u64>) -> &mut Self {
+        self.context.partition_key = partition_key;
+        self
     }
 
     pub fn meta(&self) -> &RequestMeta {

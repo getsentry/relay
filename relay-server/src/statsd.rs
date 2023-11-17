@@ -69,6 +69,12 @@ pub enum RelayHistograms {
     /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
     /// always be one.
     BufferDequeueAttempts,
+    /// The number of batches emitted per partition.
+    BatchesPerPartition,
+    /// The number of buckets in a batch emitted.
+    ///
+    /// This corresponds to the number of buckets that will end up in an envelope.
+    BucketsPerBatch,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -157,6 +163,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
+            RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
+            RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
