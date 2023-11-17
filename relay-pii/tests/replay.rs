@@ -31,7 +31,7 @@ fn test_scrub_pii_from_annotated_replay() {
     // Assert URLs field scrubs array items.
     let urls = replay_value.urls.value().unwrap();
     assert_eq!(
-        urls.get(0).and_then(|a| a.as_str()),
+        urls.first().and_then(|a| a.as_str()),
         Some("sentry.io?ssn=[Filtered]")
     );
     assert_eq!(urls.get(1).and_then(|a| a.as_str()), Some("[Filtered]"));

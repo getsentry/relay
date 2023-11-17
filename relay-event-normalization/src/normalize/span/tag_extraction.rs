@@ -474,7 +474,7 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             if !visitor.table_names.is_empty() {
                 s.push(',');
             }
-            for (_i, name) in visitor.table_names.into_iter().enumerate() {
+            for name in visitor.table_names.into_iter() {
                 write!(&mut s, "{name},").ok();
             }
             (!s.is_empty()).then_some(s)
