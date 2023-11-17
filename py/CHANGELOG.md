@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 - License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
 
 ## 0.8.36
