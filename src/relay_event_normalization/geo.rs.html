@@ -135,7 +135,7 @@
                     .and_then(|city| <span class="prelude-val">Some</span>(city.names.as_ref()<span class="question-mark">?</span>.get(<span class="string">&quot;en&quot;</span>)<span class="question-mark">?</span>.to_string())),
             ),
             subdivision: Annotated::from(city.subdivisions.as_ref().and_then(|subdivisions| {
-                subdivisions.get(<span class="number">0</span>).and_then(|subdivision| {
+                subdivisions.first().and_then(|subdivision| {
                     subdivision.names.as_ref().and_then(|subdivision_names| {
                         subdivision_names
                             .get(<span class="string">&quot;en&quot;</span>)
