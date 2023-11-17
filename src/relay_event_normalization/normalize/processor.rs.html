@@ -3511,6 +3511,97 @@
 <a href="#3511" id="3511">3511</a>
 <a href="#3512" id="3512">3512</a>
 <a href="#3513" id="3513">3513</a>
+<a href="#3514" id="3514">3514</a>
+<a href="#3515" id="3515">3515</a>
+<a href="#3516" id="3516">3516</a>
+<a href="#3517" id="3517">3517</a>
+<a href="#3518" id="3518">3518</a>
+<a href="#3519" id="3519">3519</a>
+<a href="#3520" id="3520">3520</a>
+<a href="#3521" id="3521">3521</a>
+<a href="#3522" id="3522">3522</a>
+<a href="#3523" id="3523">3523</a>
+<a href="#3524" id="3524">3524</a>
+<a href="#3525" id="3525">3525</a>
+<a href="#3526" id="3526">3526</a>
+<a href="#3527" id="3527">3527</a>
+<a href="#3528" id="3528">3528</a>
+<a href="#3529" id="3529">3529</a>
+<a href="#3530" id="3530">3530</a>
+<a href="#3531" id="3531">3531</a>
+<a href="#3532" id="3532">3532</a>
+<a href="#3533" id="3533">3533</a>
+<a href="#3534" id="3534">3534</a>
+<a href="#3535" id="3535">3535</a>
+<a href="#3536" id="3536">3536</a>
+<a href="#3537" id="3537">3537</a>
+<a href="#3538" id="3538">3538</a>
+<a href="#3539" id="3539">3539</a>
+<a href="#3540" id="3540">3540</a>
+<a href="#3541" id="3541">3541</a>
+<a href="#3542" id="3542">3542</a>
+<a href="#3543" id="3543">3543</a>
+<a href="#3544" id="3544">3544</a>
+<a href="#3545" id="3545">3545</a>
+<a href="#3546" id="3546">3546</a>
+<a href="#3547" id="3547">3547</a>
+<a href="#3548" id="3548">3548</a>
+<a href="#3549" id="3549">3549</a>
+<a href="#3550" id="3550">3550</a>
+<a href="#3551" id="3551">3551</a>
+<a href="#3552" id="3552">3552</a>
+<a href="#3553" id="3553">3553</a>
+<a href="#3554" id="3554">3554</a>
+<a href="#3555" id="3555">3555</a>
+<a href="#3556" id="3556">3556</a>
+<a href="#3557" id="3557">3557</a>
+<a href="#3558" id="3558">3558</a>
+<a href="#3559" id="3559">3559</a>
+<a href="#3560" id="3560">3560</a>
+<a href="#3561" id="3561">3561</a>
+<a href="#3562" id="3562">3562</a>
+<a href="#3563" id="3563">3563</a>
+<a href="#3564" id="3564">3564</a>
+<a href="#3565" id="3565">3565</a>
+<a href="#3566" id="3566">3566</a>
+<a href="#3567" id="3567">3567</a>
+<a href="#3568" id="3568">3568</a>
+<a href="#3569" id="3569">3569</a>
+<a href="#3570" id="3570">3570</a>
+<a href="#3571" id="3571">3571</a>
+<a href="#3572" id="3572">3572</a>
+<a href="#3573" id="3573">3573</a>
+<a href="#3574" id="3574">3574</a>
+<a href="#3575" id="3575">3575</a>
+<a href="#3576" id="3576">3576</a>
+<a href="#3577" id="3577">3577</a>
+<a href="#3578" id="3578">3578</a>
+<a href="#3579" id="3579">3579</a>
+<a href="#3580" id="3580">3580</a>
+<a href="#3581" id="3581">3581</a>
+<a href="#3582" id="3582">3582</a>
+<a href="#3583" id="3583">3583</a>
+<a href="#3584" id="3584">3584</a>
+<a href="#3585" id="3585">3585</a>
+<a href="#3586" id="3586">3586</a>
+<a href="#3587" id="3587">3587</a>
+<a href="#3588" id="3588">3588</a>
+<a href="#3589" id="3589">3589</a>
+<a href="#3590" id="3590">3590</a>
+<a href="#3591" id="3591">3591</a>
+<a href="#3592" id="3592">3592</a>
+<a href="#3593" id="3593">3593</a>
+<a href="#3594" id="3594">3594</a>
+<a href="#3595" id="3595">3595</a>
+<a href="#3596" id="3596">3596</a>
+<a href="#3597" id="3597">3597</a>
+<a href="#3598" id="3598">3598</a>
+<a href="#3599" id="3599">3599</a>
+<a href="#3600" id="3600">3600</a>
+<a href="#3601" id="3601">3601</a>
+<a href="#3602" id="3602">3602</a>
+<a href="#3603" id="3603">3603</a>
+<a href="#3604" id="3604">3604</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization processor.
 //!
 //! This processor is work in progress. The intention is to have a single
@@ -3549,39 +3640,130 @@
     breakdowns, end_all_spans, normalize_transaction_name, schema, set_default_transaction_source,
     span, trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
     DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig, RawUserAgentInfo,
-    TransactionNameConfig,
+    SpanDescriptionRule, TransactionNameConfig,
 };
 
-<span class="kw">use </span><span class="kw">crate</span>::LightNormalizationConfig;
-
 <span class="doccomment">/// Configuration for [`NormalizeProcessor`].
-</span><span class="attr">#[derive(Clone, Debug, Default)]
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// Light normalization config.
-    </span><span class="comment">// XXX(iker): we should split this config appropriately.
-    </span><span class="kw">pub </span>light_config: LightNormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
+</span><span class="attr">#[derive(Clone, Debug)]
+</span><span class="kw">pub struct </span>NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to the `user` context.
+    </span><span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IpAddr&gt;,
 
-    <span class="doccomment">/// Configuration to apply to transaction names, especially around sanitizing.
-    </span><span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
+    <span class="doccomment">/// The user-agent and client hints obtained from the submission request headers.
+    ///
+    /// Client hints are the preferred way to infer device, operating system, and browser
+    /// information should the event payload contain no such data. If no client hints are present,
+    /// normalization falls back to the user agent.
+    </span><span class="kw">pub </span>user_agent: RawUserAgentInfo&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+
+    <span class="doccomment">/// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    </span><span class="kw">pub </span>received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+
+    <span class="doccomment">/// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event&#39;s timestamp is older, the received timestamp is assumed.
+    </span><span class="kw">pub </span>max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
+
+    <span class="doccomment">/// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event&#39;s timestamp lies further into the future, the received timestamp is assumed.
+    </span><span class="kw">pub </span>max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
 
     <span class="doccomment">/// Timestamp range in which a transaction must end.
     ///
     /// Transactions that finish outside of this range are considered invalid.
     /// This check is skipped if no range is provided.
     </span><span class="kw">pub </span>transaction_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
+
+    <span class="doccomment">/// The maximum length for names of custom measurements.
+    ///
+    /// Measurements with longer names are removed from the transaction event and replaced with a
+    /// metadata entry.
+    </span><span class="kw">pub </span>max_name_and_unit_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+
+    <span class="doccomment">/// Configuration for measurement normalization in transaction events.
+    ///
+    /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
+    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+
+    <span class="doccomment">/// Emit breakdowns based on given configuration.
+    </span><span class="kw">pub </span>breakdowns_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BreakdownsConfig&gt;,
+
+    <span class="doccomment">/// When `Some(true)`, context information is extracted from the user agent.
+    </span><span class="kw">pub </span>normalize_user_agent: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+
+    <span class="doccomment">/// Configuration to apply to transaction names, especially around sanitizing.
+    </span><span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
+
+    <span class="doccomment">/// When `Some(true)`, it is assumed that the event has been normalized before.
+    ///
+    /// This disables certain normalizations, especially all that are not idempotent. The
+    /// renormalize mode is intended for the use in the processing pipeline, so an event modified
+    /// during ingestion can be validated against the schema and large data can be trimmed. However,
+    /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
+    ///
+    /// `None` equals to `false`.
+    </span><span class="kw">pub </span>is_renormalize: bool,
+
+    <span class="doccomment">/// When `true`, infers the device class from CPU and model.
+    </span><span class="kw">pub </span>device_class_synthesis_config: bool,
+
+    <span class="doccomment">/// When `true`, extracts tags from event and spans and materializes them into `span.data`.
+    </span><span class="kw">pub </span>enrich_spans: bool,
+
+    <span class="doccomment">/// When `true`, computes and materializes attributes in spans based on the given configuration.
+    </span><span class="kw">pub </span>light_normalize_spans: bool,
+
+    <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
+    </span><span class="kw">pub </span>max_tag_value_length: usize, <span class="comment">// TODO: move span related fields into separate config.
+
+    </span><span class="doccomment">/// Configuration for replacing identifiers in the span description with placeholders.
+    ///
+    /// This is similar to `transaction_name_config`, but applies to span descriptions.
+    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
+
+    <span class="doccomment">/// Configuration for generating performance score measurements for web vitals
+    </span><span class="kw">pub </span>performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PerformanceScoreConfig&gt;,
+
+    <span class="doccomment">/// An initialized GeoIP lookup.
+    </span><span class="kw">pub </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GeoIpLookup&gt;,
+
+    <span class="doccomment">/// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
+    ///
+    /// See the event schema for size declarations.
+    </span><span class="kw">pub </span>enable_trimming: bool,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;LightNormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt;&gt; <span class="kw">for </span>NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>from(<span class="kw-2">mut </span>config: LightNormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="comment">// HACK(iker): workaround to avoid cloning of config items. We&#39;ll get
-        // rid of this when we remove light normalization in the next step.
-        </span><span class="kw">let </span>transaction_name_config = std::mem::take(<span class="kw-2">&amp;mut </span>config.transaction_name_config);
-        <span class="kw">let </span>transaction_range = config.transaction_range.take();
-
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Default <span class="kw">for </span>NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            light_config: config,
-            transaction_name_config,
-            transaction_range,
+            client_ip: Default::default(),
+            user_agent: Default::default(),
+            received_at: Default::default(),
+            max_secs_in_past: Default::default(),
+            max_secs_in_future: Default::default(),
+            transaction_range: Default::default(),
+            max_name_and_unit_len: Default::default(),
+            breakdowns_config: Default::default(),
+            normalize_user_agent: Default::default(),
+            transaction_name_config: Default::default(),
+            is_renormalize: Default::default(),
+            device_class_synthesis_config: Default::default(),
+            enrich_spans: Default::default(),
+            light_normalize_spans: Default::default(),
+            max_tag_value_length: usize::MAX,
+            span_description_rules: Default::default(),
+            performance_score: Default::default(),
+            geoip_lookup: Default::default(),
+            enable_trimming: <span class="bool-val">false</span>,
+            measurements: <span class="prelude-val">None</span>,
         }
     }
 }
@@ -3594,13 +3776,14 @@
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
 </span><span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>NormalizeProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>NormalizeProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// Configuration for the normalization steps.
     </span>config: NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; NormalizeProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub fn </span>new(config: NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="doccomment">/// Returns a new [`NormalizeProcessor`] with the given config.
+    </span><span class="kw">pub fn </span>new(config: NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ config }
     }
 }
@@ -3641,8 +3824,7 @@
         // below this call is being moved (WIP) to the processor appropriately.
         </span>event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>config = <span class="kw-2">&amp;</span><span class="self">self</span>.config.light_config;
-        <span class="kw">if </span>config.is_renormalize {
+        <span class="kw">if </span><span class="self">self</span>.config.is_renormalize {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
@@ -3652,20 +3834,20 @@
         TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
         <span class="comment">// Process security reports first to ensure all props.
-        </span>normalize_security_report(event, config.client_ip, <span class="kw-2">&amp;</span>config.user_agent);
+        </span>normalize_security_report(event, <span class="self">self</span>.config.client_ip, <span class="kw-2">&amp;</span><span class="self">self</span>.config.user_agent);
 
         <span class="comment">// Process NEL reports to ensure all props.
-        </span>normalize_nel_report(event, config.client_ip);
+        </span>normalize_nel_report(event, <span class="self">self</span>.config.client_ip);
 
         <span class="comment">// Insert IP addrs before recursing, since geo lookup depends on it.
         </span>normalize_ip_addresses(
             <span class="kw-2">&amp;mut </span>event.request,
             <span class="kw-2">&amp;mut </span>event.user,
             event.platform.as_str(),
-            config.client_ip,
+            <span class="self">self</span>.config.client_ip,
         );
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = config.geoip_lookup {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = <span class="self">self</span>.config.geoip_lookup {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value_mut() {
                 normalize_user_geoinfo(geoip_lookup, user)
             }
@@ -3695,31 +3877,31 @@
         </span>normalize_timestamps(
             event,
             meta,
-            config.received_at,
-            config.max_secs_in_past,
-            config.max_secs_in_future,
+            <span class="self">self</span>.config.received_at,
+            <span class="self">self</span>.config.max_secs_in_past,
+            <span class="self">self</span>.config.max_secs_in_future,
         )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction
         </span>normalize_event_tags(event)<span class="question-mark">?</span>; <span class="comment">// Tags are added to every metric
 
         // TODO: Consider moving to store normalization
-        </span><span class="kw">if </span>config.device_class_synthesis_config {
+        </span><span class="kw">if </span><span class="self">self</span>.config.device_class_synthesis_config {
             normalize_device_class(event);
         }
         light_normalize_stacktraces(event)<span class="question-mark">?</span>;
         normalize_exceptions(event)<span class="question-mark">?</span>; <span class="comment">// Browser extension filters look at the stacktrace
-        </span>normalize_user_agent(event, config.normalize_user_agent); <span class="comment">// Legacy browsers filter
+        </span>normalize_user_agent(event, <span class="self">self</span>.config.normalize_user_agent); <span class="comment">// Legacy browsers filter
         </span>normalize_measurements(
             event,
-            config.measurements.clone(),
-            config.max_name_and_unit_len,
+            <span class="self">self</span>.config.measurements.clone(),
+            <span class="self">self</span>.config.max_name_and_unit_len,
         ); <span class="comment">// Measurements are part of the metric extraction
-        </span>normalize_performance_score(event, config.performance_score);
-        normalize_breakdowns(event, config.breakdowns_config); <span class="comment">// Breakdowns are part of the metric extraction too
+        </span>normalize_performance_score(event, <span class="self">self</span>.config.performance_score);
+        normalize_breakdowns(event, <span class="self">self</span>.config.breakdowns_config); <span class="comment">// Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
         </span>processor::apply(<span class="kw-2">&amp;mut </span>event.contexts, normalize_contexts)<span class="question-mark">?</span>;
 
-        <span class="kw">if </span>config.light_normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+        <span class="kw">if </span><span class="self">self</span>.config.light_normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
             <span class="comment">// XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don&#39;t have many spans, but if this is no longer the
@@ -3732,16 +3914,16 @@
             );
         }
 
-        <span class="kw">if </span>config.enrich_spans {
+        <span class="kw">if </span><span class="self">self</span>.config.enrich_spans {
             extract_span_tags(
                 event,
                 <span class="kw-2">&amp;</span>tag_extraction::Config {
-                    max_tag_value_size: config.max_tag_value_length,
+                    max_tag_value_size: <span class="self">self</span>.config.max_tag_value_length,
                 },
             );
         }
 
-        <span class="kw">if </span>config.enable_trimming {
+        <span class="kw">if </span><span class="self">self</span>.config.enable_trimming {
             <span class="comment">// Trim large strings and databags down
             </span>trimming::TrimmingProcessor::new().process_event(
                 event,
@@ -5326,7 +5508,7 @@
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(processed.<span class="macro">op!</span>), <span class="kw-2">&amp;</span><span class="string">&quot;default&quot;</span>.to_owned());
 
         <span class="kw">let </span><span class="kw-2">mut </span>reprocess_config = processor_config.clone();
-        reprocess_config.light_config.is_renormalize = <span class="bool-val">true</span>;
+        reprocess_config.is_renormalize = <span class="bool-val">true</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::new(processor_config.clone());
 
         <span class="kw">let </span><span class="kw-2">mut </span>reprocessed = processed.clone();
@@ -5363,7 +5545,7 @@
         <span class="macro">assert_eq!</span>(trace_context.op.value().unwrap(), <span class="string">&quot;default&quot;</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>reprocess_config = processor_config.clone();
-        reprocess_config.light_config.is_renormalize = <span class="bool-val">true</span>;
+        reprocess_config.is_renormalize = <span class="bool-val">true</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::new(processor_config.clone());
 
         <span class="kw">let </span><span class="kw-2">mut </span>reprocessed = processed.clone();

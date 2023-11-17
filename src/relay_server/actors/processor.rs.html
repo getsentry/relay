@@ -4438,6 +4438,16 @@
 <a href="#4438" id="4438">4438</a>
 <a href="#4439" id="4439">4439</a>
 <a href="#4440" id="4440">4440</a>
+<a href="#4441" id="4441">4441</a>
+<a href="#4442" id="4442">4442</a>
+<a href="#4443" id="4443">4443</a>
+<a href="#4444" id="4444">4444</a>
+<a href="#4445" id="4445">4445</a>
+<a href="#4446" id="4446">4446</a>
+<a href="#4447" id="4447">4447</a>
+<a href="#4448" id="4448">4448</a>
+<a href="#4449" id="4449">4449</a>
+<a href="#4450" id="4450">4450</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4464,11 +4474,11 @@
 };
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
 <span class="kw">use </span>relay_event_normalization::{
-    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
-    MeasurementsConfig, TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
+    NormalizeProcessorConfig, TransactionNameConfig,
 };
 <span class="kw">use </span>relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-<span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingState};
+<span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, process_value, ProcessingAction, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
@@ -7117,7 +7127,7 @@
             .aggregator_config_for(MetricNamespace::Transactions);
 
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
-            <span class="kw">let </span>config = LightNormalizationConfig {
+            <span class="kw">let </span>config = NormalizeProcessorConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -7163,8 +7173,12 @@
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
-                relay_event_normalization::light_normalize_event(event, config)
-                    .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)
+                process_value(
+                    event,
+                    <span class="kw-2">&amp;mut </span>relay_event_normalization::NormalizeProcessor::new(config),
+                    ProcessingState::root(),
+                )
+                .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)
             })
         })<span class="question-mark">?</span>;
 
@@ -7569,7 +7583,9 @@
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
     <span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, MetricUnit};
     <span class="kw">use </span>relay_common::glob2::LazyGlob;
-    <span class="kw">use </span>relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
+    <span class="kw">use </span>relay_event_normalization::{
+        MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
+    };
     <span class="kw">use </span>relay_event_schema::protocol::{EventId, TransactionSource};
     <span class="kw">use </span>relay_pii::DataScrubbingConfig;
     <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -8604,7 +8620,7 @@
 
         relay_statsd::with_capturing_test_client(|| {
             utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>event, |event| {
-                <span class="kw">let </span>config = LightNormalizationConfig {
+                <span class="kw">let </span>config = NormalizeProcessorConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                             pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_owned()),
@@ -8616,7 +8632,11 @@
                     },
                     ..Default::default()
                 };
-                relay_event_normalization::light_normalize_event(event, config)
+                process_value(
+                    event,
+                    <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(config),
+                    ProcessingState::root(),
+                )
             })
             .unwrap();
         })

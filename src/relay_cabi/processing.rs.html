@@ -411,6 +411,10 @@
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -425,7 +429,7 @@
 <span class="kw">use </span>relay_common::glob::{glob_match_bytes, GlobOptions};
 <span class="kw">use </span>relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::{
-    light_normalize_event, GeoIpLookup, LightNormalizationConfig, RawUserAgentInfo, StoreConfig,
+    GeoIpLookup, NormalizeProcessor, NormalizeProcessorConfig, RawUserAgentInfo, StoreConfig,
     StoreProcessor,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
@@ -525,7 +529,7 @@
     <span class="kw">let </span>processor = normalizer <span class="kw">as </span><span class="kw-2">*mut </span>StoreProcessor;
     <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json((<span class="kw-2">*</span>event).as_str())<span class="question-mark">?</span>;
     <span class="kw">let </span>config = (<span class="kw-2">*</span>processor).config();
-    <span class="kw">let </span>light_normalization_config = LightNormalizationConfig {
+    <span class="kw">let </span>normalization_config = NormalizeProcessorConfig {
         client_ip: config.client_ip.as_ref(),
         user_agent: RawUserAgentInfo {
             user_agent: config.user_agent.as_deref(),
@@ -550,7 +554,11 @@
         </span>enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: <span class="prelude-val">None</span>,
     };
-    light_normalize_event(<span class="kw-2">&amp;mut </span>event, light_normalization_config)<span class="question-mark">?</span>;
+    process_value(
+        <span class="kw-2">&amp;mut </span>event,
+        <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(normalization_config),
+        ProcessingState::root(),
+    )<span class="question-mark">?</span>;
     process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut *</span>processor, ProcessingState::root())<span class="question-mark">?</span>;
     RelayStr::from_string(event.to_json()<span class="question-mark">?</span>)
 }

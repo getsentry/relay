@@ -953,6 +953,9 @@
 <a href="#953" id="953">953</a>
 <a href="#954" id="954">954</a>
 <a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1518,11 +1521,13 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
     <span class="kw">use </span>relay_event_schema::protocol::{Event, Request};
     <span class="kw">use </span>relay_protocol::Annotated;
 
+    <span class="kw">use crate</span>::{NormalizeProcessor, NormalizeProcessorConfig};
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::LightNormalizationConfig;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_truncate_string_no_panic() {
@@ -1591,13 +1596,14 @@
                 }
 
                 <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
-                </span><span class="kw">let </span>res = <span class="kw">crate</span>::light_normalize_event(
+                </span><span class="kw">let </span>res = process_value(
                     <span class="kw-2">&amp;mut </span>event,
-                    LightNormalizationConfig {
+                    <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
                         enrich_spans: <span class="bool-val">true</span>,
                         light_normalize_spans: <span class="bool-val">true</span>,
                         ..Default::default()
-                    },
+                    }),
+                    ProcessingState::root(),
                 );
                 <span class="macro">assert!</span>(res.is_ok());
 
