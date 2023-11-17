@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 android_trace_log = { version = "0.3.0", features = ["serde"] }
 chrono = { workspace = true }

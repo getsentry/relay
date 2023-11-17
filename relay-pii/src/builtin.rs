@@ -1,4 +1,3 @@
-#![allow(clippy::needless_update)]
 use std::collections::BTreeMap;
 
 use once_cell::sync::Lazy;

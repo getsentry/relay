@@ -94,6 +94,7 @@ impl From<serde_json::Error> for ParseRecordingError {
 /// The [`Transform`] implementation for data scrubbing.
 ///
 /// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
+#[derive(Debug)]
 struct ScrubberTransform<'a> {
     /// PII processors that are applied one by one on each value.
     processor1: Option<PiiProcessor<'a>>,
@@ -286,6 +287,7 @@ where
 /// let payload = b"{}\n[]";
 /// let result = scrubber.process_recording(payload.as_slice());
 /// ```
+#[derive(Debug)]
 pub struct RecordingScrubber<'a> {
     limit: usize,
     transform: Rc<RefCell<ScrubberTransform<'a>>>,

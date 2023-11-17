@@ -1,6 +1,5 @@
 //! Event normalization and processing.
 
-#![warn(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
@@ -155,6 +154,7 @@ pub struct StoreConfig {
 /// to be ingested, after other functionality such as inbound filters have run.
 ///
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
+#[derive(Debug)]
 pub struct StoreProcessor<'a> {
     config: Arc<StoreConfig>,
     normalize: normalize::StoreNormalizeProcessor<'a>,

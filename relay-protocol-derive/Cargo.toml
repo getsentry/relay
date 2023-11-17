@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 quote = "1.0.2"
 syn = "1.0.14"

@@ -350,6 +350,7 @@ impl Ord for QueuedBucket {
 
 /// A Bucket and its hashed key.
 /// This is cheaper to pass around than a (BucketKey, Bucket) pair.
+#[derive(Debug)]
 pub struct HashedBucket {
     // This is only public because pop_flush_buckets is used in benchmark.
     hashed_key: u64,

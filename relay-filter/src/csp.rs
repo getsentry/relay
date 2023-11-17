@@ -50,7 +50,7 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
 /// Scheme, domain and port are extracted from an url,
 /// they may be either a string (to be matched exactly, case insensitive)
 /// or None (matches anything in the respective position).
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub struct SchemeDomainPort {
     /// The scheme of the url.
     pub scheme: Option<String>,

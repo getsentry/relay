@@ -10,6 +10,9 @@ build = "build.rs"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 
 [build-dependencies]

@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 once_cell = { workspace = true }
 uaparser = { version = "0.6.0" }

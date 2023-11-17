@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 hmac = "0.12.1"
 minidump = "0.15.2"

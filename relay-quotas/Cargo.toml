@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [features]
 default = []
 redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]

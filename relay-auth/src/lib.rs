@@ -16,7 +16,6 @@
 //! let (private_key, public_key) = relay_auth::generate_key_pair();
 //! ```
 
-#![warn(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
@@ -512,7 +511,7 @@ impl fmt::Display for SignedRegisterState {
 /// This structure is used to carry over information between the downstream register request and
 /// register response. In addition to identifying information, it contains a random bit to avoid
 /// replay attacks.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RegisterState {
     timestamp: UnixTimestamp,
     relay_id: RelayId,

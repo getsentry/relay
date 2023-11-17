@@ -184,9 +184,9 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
 }
 
-// Setup a simple metrics listener.
-//
-// Returns `None` if the global metrics client has already been configured.
+/// Setup a simple metrics listener.
+///
+/// Returns `None` if the global metrics client has already been configured.
 pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
     CURRENT_CLIENT.with(|cell| {
         if cell.borrow().is_none() {

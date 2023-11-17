@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
 pub enum ProfileError {
     #[error(transparent)]
     InvalidJson(#[from] serde_path_to_error::Error<serde_json::Error>),
@@ -33,6 +34,9 @@ pub enum ProfileError {
 }
 
 impl ProfileError {
+    /// Returns the path to the field in the JSON payload at which the error occurred.
+    ///
+    /// This is only available for [`InvalidJson`](Self::InvalidJson). Returns `""` otherwise.
     pub fn path(self) -> String {
         match self {
             Self::InvalidJson(err) => err.path().to_string(),

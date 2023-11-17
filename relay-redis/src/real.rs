@@ -25,7 +25,17 @@ enum ConnectionInner<'a> {
     Single(&'a mut redis::Connection),
 }
 
+impl<'a> fmt::Debug for ConnectionInner<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cluster(_) => f.debug_tuple("Cluster").finish(),
+            Self::Single(_) => f.debug_tuple("Single").finish(),
+        }
+    }
+}
+
 /// A reference to a pooled connection from `PooledClient`.
+#[derive(Debug)]
 pub struct Connection<'a> {
     inner: ConnectionInner<'a>,
 }
@@ -77,7 +87,17 @@ enum PooledClientInner {
     Single(PooledConnection<redis::Client>),
 }
 
+impl fmt::Debug for PooledClientInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cluster(_) => f.debug_tuple("Cluster").finish(),
+            Self::Single(_) => f.debug_tuple("Single").finish(),
+        }
+    }
+}
+
 /// A pooled Redis client.
+#[derive(Debug)]
 pub struct PooledClient {
     opts: RedisConfigOptions,
     inner: PooledClientInner,

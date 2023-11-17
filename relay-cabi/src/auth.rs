@@ -8,13 +8,16 @@ use serde::Serialize;
 use crate::core::{RelayBuf, RelayStr, RelayUuid};
 
 /// Represents a public key in Relay.
+#[derive(Debug)]
 pub struct RelayPublicKey;
 
 /// Represents a secret key in Relay.
+#[derive(Debug)]
 pub struct RelaySecretKey;
 
 /// Represents a key pair from key generation.
 #[repr(C)]
+#[derive(Debug)]
 pub struct RelayKeyPair {
     /// The public key used for verifying Relay signatures.
     pub public_key: *mut RelayPublicKey,
@@ -23,6 +26,7 @@ pub struct RelayKeyPair {
 }
 
 /// Represents a register request.
+#[derive(Debug)]
 pub struct RelayRegisterRequest;
 
 /// Parses a public key from a string.

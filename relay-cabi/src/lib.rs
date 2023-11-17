@@ -90,12 +90,10 @@
 //!   breaking changes in the `relay` crate itself, **do major** bump.
 
 #![allow(clippy::missing_safety_doc)]
-#![warn(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 mod auth;
 mod codeowners;

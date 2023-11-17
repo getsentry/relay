@@ -224,12 +224,14 @@ pub struct FlushBuckets {
     pub buckets: Vec<Bucket>,
 }
 
+#[derive(Debug)]
 enum AggregatorState {
     Running,
     ShuttingDown,
 }
 
 /// Service implementing the [`Aggregator`] interface.
+#[derive(Debug)]
 pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
     state: AggregatorState,

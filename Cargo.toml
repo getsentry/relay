@@ -13,6 +13,13 @@ debug = false
 # panic and error stack traces to Sentry.
 debug = true
 
+[workspace.lints.rust]
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+enum_glob_use = "deny"
+
 [workspace.dependencies]
 anyhow = "1.0.66"
 chrono = { version = "0.4.29", default-features = false, features = [

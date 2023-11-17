@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [features]
 default = []
 
@@ -21,7 +24,7 @@ relay-common = { path = "../relay-common" }
 relay-filter = { path = "../relay-filter" }
 relay-event-normalization = { path = "../relay-event-normalization" }
 relay-pii = { path = "../relay-pii" }
-relay-protocol  = { path = "../relay-protocol" }
+relay-protocol = { path = "../relay-protocol" }
 relay-quotas = { path = "../relay-quotas" }
 relay-sampling = { path = "../relay-sampling" }
 serde = { workspace = true }

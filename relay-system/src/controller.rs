@@ -49,6 +49,7 @@ static MANUAL_SHUTDOWN: Lazy<Channel<ShutdownMode>> = Lazy::new(|| watch::channe
 ///
 /// This handle is returned by [`Controller::shutdown_handle`].
 // TODO: The receiver of this message can not yet signal they have completed shutdown.
+#[derive(Debug)]
 pub struct ShutdownHandle(watch::Receiver<Option<Shutdown>>);
 
 impl ShutdownHandle {

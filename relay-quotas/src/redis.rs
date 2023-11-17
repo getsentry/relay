@@ -135,7 +135,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// attachments. For more information on quota parameters, see `QuotaConfig`.
 ///
 /// Requires the `redis` feature.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RedisRateLimiter {
     pool: RedisPool,
     script: Arc<Script>,

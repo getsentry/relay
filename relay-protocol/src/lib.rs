@@ -10,7 +10,6 @@
 //! `assert_annotated_snapshot` macro. This can be used with `insta` to render and compare snapshots
 //! of annotated data with meta data.
 
-#![warn(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"

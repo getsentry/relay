@@ -9,6 +9,7 @@ use crate::core::RelayStr;
 /// Represents all possible error codes.
 #[repr(u32)]
 #[allow(missing_docs)]
+#[derive(Debug)]
 pub enum RelayErrorCode {
     NoError = 0,
     Panic = 1,

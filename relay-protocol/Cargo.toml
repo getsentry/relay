@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+# workspace = true # TODO(ja): Enable before merge!
+
 [dependencies]
 num-traits = "0.2.12"
 relay-common = { path = "../relay-common" }

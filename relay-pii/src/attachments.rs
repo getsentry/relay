@@ -334,12 +334,14 @@ struct WStrSegment<'a> {
 }
 
 /// A PII processor for attachment files.
+#[derive(Debug)]
 pub struct PiiAttachmentsProcessor<'a> {
     compiled_config: &'a CompiledPiiConfig,
     root_state: ProcessingState<'static>,
 }
 
 /// Which encodings to scrub for `scrub_bytes`.
+#[derive(Debug)]
 pub enum ScrubEncodings {
     /// Scrub UTF-8.
     Utf8,

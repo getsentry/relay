@@ -292,6 +292,7 @@ impl RateLimits {
 /// Immutable rate limits iterator.
 ///
 /// This struct is created by the `iter` method on `RateLimits`.
+#[derive(Debug)]
 pub struct RateLimitsIter<'a> {
     iter: std::slice::Iter<'a, RateLimit>,
 }
@@ -319,6 +320,7 @@ impl IntoIterator for RateLimits {
 ///
 /// This struct is created by the `into_iter` method on `RateLimits`, provided by the `IntoIterator`
 /// trait.
+#[derive(Debug)]
 pub struct RateLimitsIntoIter {
     iter: std::vec::IntoIter<RateLimit>,
 }

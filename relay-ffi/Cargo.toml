@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow = { workspace = true }
 relay-ffi-macros = { path = "../relay-ffi-macros" }

@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 bytecount = "0.6.0"
 chrono = { workspace = true, features = ["clock"] }

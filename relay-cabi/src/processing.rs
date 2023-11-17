@@ -1,7 +1,6 @@
 // TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 #![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::cmp::Ordering;
 use std::ffi::CStr;
@@ -27,9 +26,11 @@ use relay_sampling::SamplingConfig;
 use crate::core::{RelayBuf, RelayStr};
 
 /// A geo ip lookup helper based on maxmind db files.
+#[derive(Debug)]
 pub struct RelayGeoIpLookup;
 
 /// The processor that normalizes events for store.
+#[derive(Debug)]
 pub struct RelayStoreNormalizer;
 
 /// Chunks the given text based on remarks.
@@ -233,6 +234,7 @@ pub unsafe extern "C" fn relay_test_panic() -> () {
 
 /// Controls the globbing behaviors.
 #[repr(u32)]
+#[derive(Debug)]
 pub enum GlobFlags {
     /// When enabled `**` matches over path separators and `*` does not.
     DoubleStar = 1,
