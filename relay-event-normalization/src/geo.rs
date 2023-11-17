@@ -55,7 +55,7 @@ impl GeoIpLookup {
                     .and_then(|city| Some(city.names.as_ref()?.get("en")?.to_string())),
             ),
             subdivision: Annotated::from(city.subdivisions.as_ref().and_then(|subdivisions| {
-                subdivisions.get(0).and_then(|subdivision| {
+                subdivisions.first().and_then(|subdivision| {
                     subdivision.names.as_ref().and_then(|subdivision_names| {
                         subdivision_names
                             .get("en")

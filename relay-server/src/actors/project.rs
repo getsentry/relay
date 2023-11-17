@@ -145,7 +145,7 @@ impl ProjectState {
 
     /// Returns configuration options for the public key.
     pub fn get_public_key_config(&self) -> Option<&PublicKeyConfig> {
-        self.public_keys.get(0)
+        self.public_keys.first()
     }
 
     /// Returns `true` if the entire project should be considered
