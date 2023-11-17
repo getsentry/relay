@@ -6,7 +6,7 @@ homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 description = "Exposes some internals of the relay to C."
 edition = "2021"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 
 [lib]

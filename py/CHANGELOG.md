@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
+
 ## 0.8.36
 
 - Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
