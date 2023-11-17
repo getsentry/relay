@@ -85,7 +85,7 @@ impl SpanTagKey {
             SpanTagKey::System => "system",
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
-            SpanTagKey::Extension => "extension",
+            SpanTagKey::Extension => "file_extension",
         }
     }
 }

@@ -152,7 +152,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("", "transaction.method"),
                 ("", "transaction.op"),
                 ("", "resource.render_blocking_status"), // only set for resource spans
-                ("", "extension"),                       // only set for resource spans
+                ("", "file_extension"),                  // only set for resource spans
                 ("", "ttid"),                            // only set for mobile spans
                 ("", "ttfd"),                            // only set for mobile spans
             ]
