@@ -749,7 +749,9 @@ impl<I: Interface> Addr<I> {
         }
     }
 
-    /// Dummy address used for testing.
+    /// Custom address used for testing.
+    ///
+    /// Returns the receiving end of the channel for inspection.
     pub fn custom() -> (Self, mpsc::UnboundedReceiver<I>) {
         let (tx, rx) = mpsc::unbounded_channel();
         (
@@ -759,6 +761,11 @@ impl<I: Interface> Addr<I> {
             },
             rx,
         )
+    }
+
+    /// Dummy address used for testing.
+    pub fn dummy() -> Self {
+        Self::custom().0
     }
 }
 

@@ -3593,6 +3593,30 @@ mod tests {
         }
     }
 
+    /// Creates test processor that can be initialized in sync tests.
+    fn create_test_processor_sync(config: Config) -> EnvelopeProcessorService {
+        let inner = InnerProcessor {
+            config: Arc::new(config),
+            envelope_manager: Addr::dummy(),
+            project_cache: Addr::dummy(),
+            outcome_aggregator: Addr::dummy(),
+            upstream_relay: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            rate_limiter: None,
+            #[cfg(feature = "processing")]
+            redis_pool: None,
+            geoip_lookup: None,
+            global_config: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            aggregator: Addr::dummy(),
+        };
+
+        EnvelopeProcessorService {
+            global_config: Arc::default(),
+            inner: Arc::new(inner),
+        }
+    }
+
     #[tokio::test]
     async fn test_user_report_invalid() {
         let processor = create_test_processor(Default::default());
@@ -4452,11 +4476,10 @@ mod tests {
         assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
     }
 
-    #[tokio::test]
-    async fn test_profile_id_transfered() {
+    #[test]
+    fn test_profile_id_transfered() {
         // Setup
-        let processor = create_test_processor(Default::default());
-        let (outcome_aggregator, test_store) = services();
+        let processor = create_test_processor_sync(Default::default());
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -4514,7 +4537,7 @@ mod tests {
         project_state.config.features.0.insert(Feature::Profiling);
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope: ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy()),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
