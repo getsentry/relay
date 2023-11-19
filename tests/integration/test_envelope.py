@@ -1,6 +1,5 @@
 import pytest
 import queue
-import time
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -612,8 +611,7 @@ def test_buffer_envelopes_without_global_config(
         envelope.add_event({"message": "hello, world!"})
         relay.send_envelope(42, envelope)
 
-    time.sleep(2)
-    events_consumer.assert_empty()
+    events_consumer.assert_empty(timeout=2)
 
     include_global = True
     # Clear errors because we log error when we request global config yet we dont receive it.
