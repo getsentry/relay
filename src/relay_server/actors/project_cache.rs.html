@@ -1105,85 +1105,6 @@
 <a href="#1105" id="1105">1105</a>
 <a href="#1106" id="1106">1106</a>
 <a href="#1107" id="1107">1107</a>
-<a href="#1108" id="1108">1108</a>
-<a href="#1109" id="1109">1109</a>
-<a href="#1110" id="1110">1110</a>
-<a href="#1111" id="1111">1111</a>
-<a href="#1112" id="1112">1112</a>
-<a href="#1113" id="1113">1113</a>
-<a href="#1114" id="1114">1114</a>
-<a href="#1115" id="1115">1115</a>
-<a href="#1116" id="1116">1116</a>
-<a href="#1117" id="1117">1117</a>
-<a href="#1118" id="1118">1118</a>
-<a href="#1119" id="1119">1119</a>
-<a href="#1120" id="1120">1120</a>
-<a href="#1121" id="1121">1121</a>
-<a href="#1122" id="1122">1122</a>
-<a href="#1123" id="1123">1123</a>
-<a href="#1124" id="1124">1124</a>
-<a href="#1125" id="1125">1125</a>
-<a href="#1126" id="1126">1126</a>
-<a href="#1127" id="1127">1127</a>
-<a href="#1128" id="1128">1128</a>
-<a href="#1129" id="1129">1129</a>
-<a href="#1130" id="1130">1130</a>
-<a href="#1131" id="1131">1131</a>
-<a href="#1132" id="1132">1132</a>
-<a href="#1133" id="1133">1133</a>
-<a href="#1134" id="1134">1134</a>
-<a href="#1135" id="1135">1135</a>
-<a href="#1136" id="1136">1136</a>
-<a href="#1137" id="1137">1137</a>
-<a href="#1138" id="1138">1138</a>
-<a href="#1139" id="1139">1139</a>
-<a href="#1140" id="1140">1140</a>
-<a href="#1141" id="1141">1141</a>
-<a href="#1142" id="1142">1142</a>
-<a href="#1143" id="1143">1143</a>
-<a href="#1144" id="1144">1144</a>
-<a href="#1145" id="1145">1145</a>
-<a href="#1146" id="1146">1146</a>
-<a href="#1147" id="1147">1147</a>
-<a href="#1148" id="1148">1148</a>
-<a href="#1149" id="1149">1149</a>
-<a href="#1150" id="1150">1150</a>
-<a href="#1151" id="1151">1151</a>
-<a href="#1152" id="1152">1152</a>
-<a href="#1153" id="1153">1153</a>
-<a href="#1154" id="1154">1154</a>
-<a href="#1155" id="1155">1155</a>
-<a href="#1156" id="1156">1156</a>
-<a href="#1157" id="1157">1157</a>
-<a href="#1158" id="1158">1158</a>
-<a href="#1159" id="1159">1159</a>
-<a href="#1160" id="1160">1160</a>
-<a href="#1161" id="1161">1161</a>
-<a href="#1162" id="1162">1162</a>
-<a href="#1163" id="1163">1163</a>
-<a href="#1164" id="1164">1164</a>
-<a href="#1165" id="1165">1165</a>
-<a href="#1166" id="1166">1166</a>
-<a href="#1167" id="1167">1167</a>
-<a href="#1168" id="1168">1168</a>
-<a href="#1169" id="1169">1169</a>
-<a href="#1170" id="1170">1170</a>
-<a href="#1171" id="1171">1171</a>
-<a href="#1172" id="1172">1172</a>
-<a href="#1173" id="1173">1173</a>
-<a href="#1174" id="1174">1174</a>
-<a href="#1175" id="1175">1175</a>
-<a href="#1176" id="1176">1176</a>
-<a href="#1177" id="1177">1177</a>
-<a href="#1178" id="1178">1178</a>
-<a href="#1179" id="1179">1179</a>
-<a href="#1180" id="1180">1180</a>
-<a href="#1181" id="1181">1181</a>
-<a href="#1182" id="1182">1182</a>
-<a href="#1183" id="1183">1183</a>
-<a href="#1184" id="1184">1184</a>
-<a href="#1185" id="1185">1185</a>
-<a href="#1186" id="1186">1186</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1705,16 +1626,9 @@
         <span class="kw">let </span>eviction_start = Instant::now();
         <span class="kw">let </span>delta = <span class="number">2 </span>* <span class="self">self</span>.config.project_cache_expiry() + <span class="self">self</span>.config.project_grace_period();
 
-        <span class="comment">// Get all the projects which have not updated in the configured time and also have not gotten
-        // any new incoming envelopes in the meantime.
-        //
-        // In case of an incident it can happen, that the ProjectState cannot get updated, and we
-        // still getting incoming traffic - we want to keep the buffered envelopes as long as we
-        // reasonable can (till the incident is resolved) and process them as usual.
-        </span><span class="kw">let </span>expired = <span class="self">self</span>.projects.drain_filter(|<span class="kw">_</span>, entry| {
-            entry.last_updated_at() + delta &lt;= eviction_start
-                &amp;&amp; entry.last_envelope_seen_at() + delta &lt;= eviction_start
-        });
+        <span class="kw">let </span>expired = <span class="self">self
+            </span>.projects
+            .drain_filter(|<span class="kw">_</span>, entry| entry.last_updated_at() + delta &lt;= eviction_start);
 
         <span class="comment">// Defer dropping the projects to a dedicated thread:
         </span><span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
@@ -2133,7 +2047,6 @@
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>uuid::Uuid;
 
-    <span class="kw">use </span><span class="kw">crate</span>::actors::project::ExpiryState;
     <span class="kw">use </span><span class="kw">crate</span>::testutils::empty_envelope;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -2159,12 +2072,21 @@
     }
 
     <span class="kw">async fn </span>project_cache_broker_setup(
-        config: Arc&lt;Config&gt;,
         services: Services,
         buffer_guard: Arc&lt;BufferGuard&gt;,
         state_tx: mpsc::UnboundedSender&lt;UpdateProjectState&gt;,
         buffer_tx: mpsc::UnboundedSender&lt;ManagedEnvelope&gt;,
     ) -&gt; (ProjectCacheBroker, Addr&lt;Buffer&gt;) {
+        <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
+            <span class="string">&quot;spool&quot;</span>: {
+                <span class="string">&quot;envelopes&quot;</span>: {
+                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
+                </span>}
+            }
+        }))
+        .unwrap()
+        .into();
         <span class="kw">let </span>buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
@@ -2210,25 +2132,9 @@
         <span class="kw">let </span>services = mocked_services();
         <span class="kw">let </span>(state_tx, <span class="kw">_</span>) = mpsc::unbounded_channel();
         <span class="kw">let </span>(buffer_tx, <span class="kw-2">mut </span>buffer_rx) = mpsc::unbounded_channel();
-        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    <span class="string">&quot;max_memory_size&quot;</span>: <span class="number">0</span>, <span class="comment">// 0 bytes, to force to spool to disk all the envelopes.
-                </span>}
-            }
-        }))
-        .unwrap()
-        .into();
-
-        <span class="kw">let </span>(<span class="kw-2">mut </span>broker, buffer_svc) = project_cache_broker_setup(
-            config,
-            services.clone(),
-            buffer_guard.clone(),
-            state_tx,
-            buffer_tx,
-        )
-        .<span class="kw">await</span>;
+        <span class="kw">let </span>(<span class="kw-2">mut </span>broker, buffer_svc) =
+            project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
+                .<span class="kw">await</span>;
 
         <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">8 </span>{
             <span class="kw">let </span>envelope = buffer_guard
@@ -2279,7 +2185,7 @@
         </span>envelopes.pop().unwrap();
         <span class="macro">assert_eq!</span>(buffer_guard.available(), <span class="number">1</span>);
 
-        <span class="comment">// Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
+        <span class="comment">// Till now we should have enqueued 5 envleopes and dequeued only 1, it means the index is
         // still populated with same keys and values.
         </span><span class="macro">assert_eq!</span>(broker.index.keys().len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(broker.index.values().count(), <span class="number">1</span>);
@@ -2304,70 +2210,6 @@
             <span class="comment">// Nothing will be dequeued.
             </span><span class="macro">assert!</span>(buffer_rx.try_recv().is_err())
         }
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_eviction() {
-        tokio::time::pause();
-
-        <span class="kw">let </span>num_permits = <span class="number">5</span>;
-        <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(num_permits).into();
-        <span class="kw">let </span>services = mocked_services();
-        <span class="kw">let </span>(state_tx, <span class="kw">_</span>) = mpsc::unbounded_channel();
-        <span class="kw">let </span>(buffer_tx, <span class="kw">_</span>) = mpsc::unbounded_channel();
-
-        <span class="comment">// Projects should be expired after 2 seconds.
-        </span><span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;cache&quot;</span>: {
-              <span class="string">&quot;project_expiry&quot;</span>: <span class="number">1
-            </span>}
-        }))
-        .unwrap()
-        .into();
-
-        <span class="kw">let </span>(<span class="kw-2">mut </span>broker, <span class="kw">_</span>) = project_cache_broker_setup(
-            config.clone(),
-            services.clone(),
-            buffer_guard,
-            state_tx,
-            buffer_tx,
-        )
-        .<span class="kw">await</span>;
-
-        <span class="kw">let </span>key1 = ProjectKey::parse(<span class="string">&quot;e12d836b15bb49d7bbf99e64295d995b&quot;</span>).unwrap();
-        <span class="kw">let </span>project1 = Project::new(key1, config.clone());
-        <span class="kw">let </span>key2 = ProjectKey::parse(<span class="string">&quot;eeed836b15bb49d7bbf99e64295d9bbb&quot;</span>).unwrap();
-        <span class="kw">let </span>project2 = Project::new(key2, config);
-
-        broker.projects.insert(key1, project1);
-        broker.projects.insert(key2, project2);
-
-        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">20 </span>{
-            <span class="kw">let </span>envelope = ManagedEnvelope::untracked(
-                empty_envelope(),
-                services.outcome_aggregator.clone(),
-                services.test_store.clone(),
-            );
-            <span class="kw">if let </span>hashbrown::hash_map::Entry::Occupied(<span class="kw-2">mut </span>e) = broker.projects.entry(key2) {
-                e.get_mut()
-                    .check_envelope(envelope, services.outcome_aggregator.clone())
-                    .unwrap();
-            }
-            tokio::time::advance(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-        }
-
-        <span class="comment">// One of the project will be removed.
-        </span>broker.evict_stale_project_caches();
-        <span class="comment">// Project 1 did not receive any envelopes, and should be removed now.
-        </span><span class="macro">assert_eq!</span>(broker.projects.len(), <span class="number">1</span>);
-        <span class="macro">assert!</span>(broker.projects.get(<span class="kw-2">&amp;</span>key1).is_none());
-
-        <span class="comment">// Project 2, even though expired, still must be in the cache.
-        </span><span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            broker.projects.get(<span class="kw-2">&amp;</span>key2).unwrap().expiry_state(),
-            ExpiryState::Expired
-        ));
-        <span class="macro">assert!</span>(broker.projects.get(<span class="kw-2">&amp;</span>key2).is_some());
     }
 }
 </code></pre></div></section></main></body></html>
