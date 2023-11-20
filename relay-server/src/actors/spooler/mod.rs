@@ -29,8 +29,11 @@
 //!
 //! Current on-disk spool implementation uses SQLite as a storage.
 
+static NUMBER_OF_ENVELOPES_PER_KEY: usize = 1000;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
+use std::fmt::Display;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -112,6 +115,15 @@ impl QueueKey {
             own_key,
             sampling_key,
         }
+    }
+}
+
+impl Display for QueueKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "own_key = {}, sampling_key = {}",
+            self.own_key, self.sampling_key
+        ))
     }
 }
 
@@ -250,6 +262,24 @@ impl InMemory {
     /// Returns the number of envelopes in the memory buffer.
     fn count(&self) -> usize {
         self.buffer.values().map(|v| v.len()).sum()
+    }
+
+    /// Runs the check for in-memory buffer and emits the metrics and/or errors.
+    fn check(&self) {
+        let count = self.buffer.keys().count();
+        relay_statsd::metric!(gauge(RelayGauges::BufferProjectsMemoryCount) = count as u64);
+
+        // Go over the buffered emvelopes and check if any of the keys exceeds the threshold.
+        for (key, values) in &self.buffer {
+            let number_of_envelopes = values.len();
+            if number_of_envelopes > NUMBER_OF_ENVELOPES_PER_KEY {
+                relay_log::error!(
+                    key = %key,
+                    count = number_of_envelopes,
+                    "Number of envelopes per key in memory exceeds the threshold"
+                );
+            }
+        }
     }
 
     /// Removes envelopes from the in-memory buffer.
@@ -917,6 +947,20 @@ impl BufferService {
         disk.spool(buffer).await?;
         Ok(())
     }
+
+    /// Handles the check of the envelopes buffer.
+    ///
+    /// Note: currently the check runs only on the in-memory buffer to track if there is "hot"
+    /// projects keys which are always have too many envelopes in the queue.
+    fn handle_check(&mut self) {
+        let (BufferState::Memory(ref mut ram) | BufferState::MemoryFileStandby { ref mut ram, .. }) =
+            self.state
+        else {
+            return;
+        };
+
+        ram.check();
+    }
 }
 
 impl Service for BufferService {
@@ -925,11 +969,13 @@ impl Service for BufferService {
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
+            let mut ticker = tokio::time::interval(self.config.spool_envelopes_check_interval());
 
             loop {
                 tokio::select! {
                     biased;
 
+                    _ = ticker.tick() => self.handle_check(),
                     Some(message) = rx.recv() => {
                         if let Err(err) = self.handle_message(message).await {
                             relay_log::error!(
