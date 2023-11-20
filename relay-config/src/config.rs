@@ -815,7 +815,7 @@ pub struct EnvelopeSpool {
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
 
-    /// The interval for the internal check to run and issue specific to the spooler mertrics and
+    /// The interval for the internal check to run and issue specific to the spooler metrics and
     /// errors.
     #[serde(default = "spool_envelopes_check_interval")]
     check_interval: u64,
