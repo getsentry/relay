@@ -24,13 +24,12 @@ mod legacy;
 mod normalize;
 mod regexes;
 mod remove_other;
-pub mod replay;
-mod schema;
 mod statsd;
 mod timestamp;
 mod transactions;
 mod trimming;
 
+pub mod replay;
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use transactions::*;
