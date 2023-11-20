@@ -52,7 +52,7 @@ pub enum SpanTagKey {
     /// Contributes to Time-To-Full-Display.
     TimeToFullDisplay,
     /// File extension for resource spans.
-    Extension,
+    FileExtension,
 }
 
 impl SpanTagKey {
@@ -85,7 +85,7 @@ impl SpanTagKey {
             SpanTagKey::System => "system",
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
-            SpanTagKey::Extension => "file_extension",
+            SpanTagKey::FileExtension => "file_extension",
         }
     }
 }
@@ -341,7 +341,7 @@ pub(crate) fn extract_tags(
                     .and_then(|last_segment| last_segment.rsplit_once('.'))
                     .map(|(_, extension)| extension)
                 {
-                    span_tags.insert(SpanTagKey::Extension, ext.to_lowercase());
+                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
                 }
             }
 
