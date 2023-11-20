@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Fix bug introduced in 23.11.0 that broke profile-transaction association. ([#2733](https://github.com/getsentry/relay/pull/2733))
+
 **Internal**:
 
 - License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
@@ -17,7 +21,7 @@
 - Group resource spans by scrubbed domain and filename. ([#2654](https://github.com/getsentry/relay/pull/2654))
 - Convert transactions to spans for all organizations. ([#2659](https://github.com/getsentry/relay/pull/2659))
 - Filter outliers (>180s) for mobile measurements. ([#2649](https://github.com/getsentry/relay/pull/2649))
-- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640), [#2675](https://github.com/getsentry/relay/pull/2675), [#2707](https://github.com/getsentry/relay/pull/2707))
+- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640), [#2675](https://github.com/getsentry/relay/pull/2675), [#2707](https://github.com/getsentry/relay/pull/2707), [#2715](https://github.com/getsentry/relay/pull/2715))
 - Allow advanced scrubbing expressions for datascrubbing safe fields. ([#2670](https://github.com/getsentry/relay/pull/2670))
 - Disable graphql scrubbing when datascrubbing is disabled. ([#2689](https://github.com/getsentry/relay/pull/2689))
 - Track when a span was received. ([#2688](https://github.com/getsentry/relay/pull/2688))
