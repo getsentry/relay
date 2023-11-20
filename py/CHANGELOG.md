@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.37
 
 - License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
 - Skip running `NormalizeProcessor` on renormalization. ([#2744](https://github.com/getsentry/relay/pull/2744))
