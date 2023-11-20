@@ -1617,6 +1617,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "css",
             "resource.render_blocking_status": "blocking",
             "span.description": "https://*.domain.com/*/*.css",
             "span.domain": "*.domain.com",
@@ -1636,6 +1637,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "css",
             "resource.render_blocking_status": "blocking",
             "span.description": "https://*.domain.com/*/*.css",
             "span.domain": "*.domain.com",
@@ -1655,6 +1657,7 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "file_extension": "css",
             "resource.render_blocking_status": "blocking",
             "span.description": "https://*.domain.com/*/*.css",
             "span.domain": "*.domain.com",

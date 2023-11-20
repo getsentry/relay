@@ -199,6 +199,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("span.", "op"),
                 ("", "transaction"),
                 ("", "resource.render_blocking_status"),
+                ("", "file_extension"),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),

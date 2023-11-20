@@ -341,7 +341,7 @@ pub(crate) fn extract_tags(
                     .and_then(|last_segment| last_segment.rsplit_once('.'))
                     .map(|(_, extension)| extension)
                 {
-                    span_tags.insert(SpanTagKey::Extension, ext.to_owned());
+                    span_tags.insert(SpanTagKey::Extension, ext.to_lowercase());
                 }
             }
 
