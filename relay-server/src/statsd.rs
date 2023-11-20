@@ -20,7 +20,7 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
-    /// Number unique project keys currently in memory.
+    /// The current count of the keys in the "in-memory" buffer.
     BufferProjectsMemoryCount,
 }
 

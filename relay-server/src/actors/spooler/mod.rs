@@ -266,7 +266,7 @@ impl InMemory {
 
     /// Runs the check for in-memory buffer and emits the metrics and/or errors.
     fn check(&self) {
-        let count = self.buffer.keys().count();
+        let count = self.buffer.keys().len();
         relay_statsd::metric!(gauge(RelayGauges::BufferProjectsMemoryCount) = count as u64);
 
         // Go over the buffered emvelopes and check if any of the keys exceeds the threshold.
