@@ -51,6 +51,8 @@ pub enum SpanTagKey {
     TimeToInitialDisplay,
     /// Contributes to Time-To-Full-Display.
     TimeToFullDisplay,
+    /// File extension for resource spans.
+    FileExtension,
 }
 
 impl SpanTagKey {
@@ -83,6 +85,7 @@ impl SpanTagKey {
             SpanTagKey::System => "system",
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
+            SpanTagKey::FileExtension => "file_extension",
         }
     }
 }
@@ -331,6 +334,17 @@ pub(crate) fn extract_tags(
             span_tags.insert(SpanTagKey::Group, span_group);
 
             let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            if span_op.starts_with("resource.") {
+                if let Some(ext) = truncated
+                    .rsplit('/')
+                    .next()
+                    .and_then(|last_segment| last_segment.rsplit_once('.'))
+                    .map(|(_, extension)| extension)
+                {
+                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                }
+            }
+
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 
