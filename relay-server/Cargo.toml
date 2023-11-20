@@ -118,7 +118,7 @@ uuid = { workspace = true, features = ["v5"] }
 zstd = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util", "time"] }
+tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
 relay-event-schema = { path = "../relay-event-schema", features = [
     "jsonschema",

@@ -430,7 +430,6 @@ pub struct Project {
     backoff: RetryBackoff,
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
-    last_envelope_seen: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
     state: State,
@@ -447,7 +446,6 @@ impl Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
-            last_envelope_seen: Instant::now(),
             project_key: key,
             state: State::new(config.permissive_aggregator_config()),
             state_channel: None,
@@ -534,11 +532,6 @@ impl Project {
     /// The last time the project state was updated
     pub fn last_updated_at(&self) -> Instant {
         self.last_updated_at
-    }
-
-    /// The last time that this project was used for an incoming envelope.
-    pub fn last_envelope_seen_at(&self) -> Instant {
-        self.last_envelope_seen
     }
 
     /// Refresh the update time of the project in order to delay eviction.
@@ -983,9 +976,6 @@ impl Project {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
 
-        // On every incoming envelope, which belongs to this project, update when it was last seen.
-        self.last_envelope_seen = envelope.start_time().into();
-
         if let Some(ref state) = state {
             scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
@@ -1139,7 +1129,7 @@ mod tests {
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it's the first attempt, we get Duration of 0.
+        //   it's the first attemt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
