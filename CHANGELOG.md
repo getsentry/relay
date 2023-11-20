@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add Bytespider (Bytedance) to web crawler filter. ([#2747](https://github.com/getsentry/relay/pull/2747))
+
 **Bug Fixes**:
 
 - Fix bug introduced in 23.11.0 that broke profile-transaction association. ([#2733](https://github.com/getsentry/relay/pull/2733))
