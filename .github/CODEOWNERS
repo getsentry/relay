@@ -2,7 +2,7 @@
 *   @getsentry/owners-ingest
 
 # Legal
-/LICENSE  @getsentry/owners-legal
+/LICENSE.md  @getsentry/owners-legal
 
 # Build & Releases
 /.github/workflows/release*.yml  @getsentry/release-approvers

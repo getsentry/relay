@@ -51,6 +51,8 @@ pub enum SpanTagKey {
     TimeToInitialDisplay,
     /// Contributes to Time-To-Full-Display.
     TimeToFullDisplay,
+    /// File extension for resource spans.
+    FileExtension,
 }
 
 impl SpanTagKey {
@@ -83,6 +85,7 @@ impl SpanTagKey {
             SpanTagKey::System => "system",
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
+            SpanTagKey::FileExtension => "file_extension",
         }
     }
 }
@@ -331,6 +334,17 @@ pub(crate) fn extract_tags(
             span_tags.insert(SpanTagKey::Group, span_group);
 
             let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            if span_op.starts_with("resource.") {
+                if let Some(ext) = truncated
+                    .rsplit('/')
+                    .next()
+                    .and_then(|last_segment| last_segment.rsplit_once('.'))
+                    .map(|(_, extension)| extension)
+                {
+                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                }
+            }
+
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 
@@ -474,7 +488,7 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             if !visitor.table_names.is_empty() {
                 s.push(',');
             }
-            for (_i, name) in visitor.table_names.into_iter().enumerate() {
+            for name in visitor.table_names.into_iter() {
                 write!(&mut s, "{name},").ok();
             }
             (!s.is_empty()).then_some(s)
@@ -563,11 +577,13 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::{Event, Request};
     use relay_protocol::Annotated;
 
+    use crate::{NormalizeProcessor, NormalizeProcessorConfig};
+
     use super::*;
-    use crate::LightNormalizationConfig;
 
     #[test]
     fn test_truncate_string_no_panic() {
@@ -636,13 +652,14 @@ mod tests {
                 }
 
                 // Normalize first, to make sure that all things are correct as in the real pipeline:
-                let res = crate::light_normalize_event(
+                let res = process_value(
                     &mut event,
-                    LightNormalizationConfig {
+                    &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                         enrich_spans: true,
                         light_normalize_spans: true,
                         ..Default::default()
-                    },
+                    }),
+                    ProcessingState::root(),
                 );
                 assert!(res.is_ok());
 
