@@ -956,6 +956,20 @@
 <a href="#956" id="956">956</a>
 <a href="#957" id="957">957</a>
 <a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1009,6 +1023,8 @@
     </span>TimeToInitialDisplay,
     <span class="doccomment">/// Contributes to Time-To-Full-Display.
     </span>TimeToFullDisplay,
+    <span class="doccomment">/// File extension for resource spans.
+    </span>FileExtension,
 }
 
 <span class="kw">impl </span>SpanTagKey {
@@ -1041,6 +1057,7 @@
             SpanTagKey::System =&gt; <span class="string">&quot;system&quot;</span>,
             SpanTagKey::TimeToFullDisplay =&gt; <span class="string">&quot;ttfd&quot;</span>,
             SpanTagKey::TimeToInitialDisplay =&gt; <span class="string">&quot;ttid&quot;</span>,
+            SpanTagKey::FileExtension =&gt; <span class="string">&quot;file_extension&quot;</span>,
         }
     }
 }
@@ -1289,6 +1306,17 @@
             span_tags.insert(SpanTagKey::Group, span_group);
 
             <span class="kw">let </span>truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;resource.&quot;</span>) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(ext) = truncated
+                    .rsplit(<span class="string">&#39;/&#39;</span>)
+                    .next()
+                    .and_then(|last_segment| last_segment.rsplit_once(<span class="string">&#39;.&#39;</span>))
+                    .map(|(<span class="kw">_</span>, extension)| extension)
+                {
+                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                }
+            }
+
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 

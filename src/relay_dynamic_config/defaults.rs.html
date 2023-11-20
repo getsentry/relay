@@ -214,6 +214,8 @@
 <a href="#214" id="214">214</a>
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -368,6 +370,7 @@
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;transaction.method&quot;</span>),
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;transaction.op&quot;</span>),
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;resource.render_blocking_status&quot;</span>), <span class="comment">// only set for resource spans
+                </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;file_extension&quot;</span>),                  <span class="comment">// only set for resource spans
                 </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttid&quot;</span>),                            <span class="comment">// only set for mobile spans
                 </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttfd&quot;</span>),                            <span class="comment">// only set for mobile spans
             </span>]
@@ -414,6 +417,7 @@
                 (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;op&quot;</span>),
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;transaction&quot;</span>),
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;resource.render_blocking_status&quot;</span>),
+                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;file_extension&quot;</span>),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: <span class="macro">format!</span>(<span class="string">&quot;{prefix}{key}&quot;</span>),
