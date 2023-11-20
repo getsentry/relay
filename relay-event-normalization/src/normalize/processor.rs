@@ -191,6 +191,10 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if self.config.is_renormalize {
+            return Ok(());
+        }
+
         if event.ty.value() == Some(&EventType::Transaction) {
             // TODO: Parts of this processor should probably be a filter so we
             // can revert some changes to ProcessingAction)
