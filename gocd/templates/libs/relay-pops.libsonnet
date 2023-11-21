@@ -80,7 +80,7 @@ local generic_pops_stage(region) =
 {
   stages(region)::
     if region == 'us' || region == 'de' then
-      [pops_stage()]
+      [pops_stage(region)]
     else
       [generic_pops_stage(region)],
 }
