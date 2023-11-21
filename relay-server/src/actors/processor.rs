@@ -3085,6 +3085,59 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Check if org total is past or whatever
+    fn rate_limit_buckets(&self, metrics_item: &Item) {
+        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+            return;
+        };
+
+        let project_state = ProjectState::allowed(); //todo
+        let quotas = project_state.config.quotas.as_slice();
+
+        if quotas.is_empty() {
+            return;
+        }
+
+        let event_category = project_state.event_category();
+
+        // When invoking the rate limiter, capture if the event item has been rate limited to also
+        // remove it from the processing state eventually.
+        let mut envelope_limiter =
+            EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
+                rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
+            });
+
+        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
+        // this stage in processing.
+        if let Some(category) = event_category {
+            envelope_limiter.assume_event(category, state.event_metrics_extracted);
+        }
+
+        let scoping = state.managed_envelope.scoping();
+        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
+        });
+
+        if limits.is_limited() {
+            self.inner
+                .project_cache
+                .send(UpdateRateLimits::new(scoping.project_key, limits));
+        }
+
+        if enforcement.event_active() {
+            state.remove_event();
+            debug_assert!(state.envelope().is_empty());
+        }
+
+        enforcement.track_outcomes(
+            state.envelope(),
+            &state.managed_envelope.scoping(),
+            self.inner.outcome_aggregator.clone(),
+        );
+
+        Ok(())
+    }
+
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
@@ -3110,7 +3163,10 @@ impl EnvelopeProcessorService {
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
-                envelope.add_item(create_metrics_item(&batch, extraction_mode));
+                let item = create_metrics_item(&batch, extraction_mode);
+
+                self.rate_limit_buckets(&item);
+                envelope.add_item(item);
 
                 let mut envelope = ManagedEnvelope::standalone(
                     envelope,
