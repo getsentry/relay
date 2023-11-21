@@ -3597,13 +3597,11 @@ mod tests {
             #[cfg(feature = "processing")]
             redis_pool: None,
             geoip_lookup: None,
-            global_config: Addr::dummy(),
             #[cfg(feature = "processing")]
             aggregator: Addr::dummy(),
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -4542,6 +4540,7 @@ mod tests {
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
