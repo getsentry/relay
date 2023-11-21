@@ -605,25 +605,30 @@ def test_buffer_envelopes_without_global_config(
     options = {"cache": {"global_config_fetch_interval": 1}}
     relay = relay_with_processing(options=options)
 
-    envelope_qty = 5
-    for _ in range(envelope_qty):
-        envelope = Envelope()
-        envelope.add_event({"message": "hello, world!"})
-        relay.send_envelope(42, envelope)
+    try:
+        envelope_qty = 5
+        for _ in range(envelope_qty):
+            envelope = Envelope()
+            envelope.add_event({"message": "hello, world!"})
+            relay.send_envelope(42, envelope)
 
-    events_consumer.assert_empty(timeout=2)
+        events_consumer.assert_empty(timeout=2)
 
-    include_global = True
-    # Clear errors because we log error when we request global config yet we dont receive it.
-    assert len(mini_sentry.test_failures) > 0
-    for err in mini_sentry.test_failures:
-        assert (
-            str(err[1])
-            == "Relay sent us event: global config missing in upstream response"
-        )
-    mini_sentry.test_failures.clear()
+        include_global = True
+        # Clear errors because we log error when we request global config yet we dont receive it.
+        assert len(mini_sentry.test_failures) > 0
+        assert {str(e) for _, e in mini_sentry.test_failures} == {
+            "Relay sent us event: global config missing in upstream response"
+        }
+    finally:
+        mini_sentry.test_failures.clear()
 
-    # Check that we received exactly {envelope_qty} envelopes.
-    for _ in range(envelope_qty):
-        events_consumer.get_event(timeout=2)
-    events_consumer.assert_empty()
+    try:
+        envelopes = []
+        # Check that we received exactly {envelope_qty} envelopes.
+        for _ in range(envelope_qty):
+            envelopes.append(events_consumer.get_event(timeout=2))
+        events_consumer.assert_empty()
+        assert len(envelopes) == envelope_qty
+    finally:
+        mini_sentry.test_failures.clear()
