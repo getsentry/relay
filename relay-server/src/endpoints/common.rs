@@ -2,13 +2,14 @@
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
+use itertools::Itertools;
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::ProcessMetrics;
+use crate::actors::processor::{ProcessMetricMeta, ProcessMetrics};
 use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
@@ -276,6 +277,18 @@ fn queue_envelope(
             start_time: envelope.meta().start_time(),
             sent_at: envelope.sent_at(),
         });
+    }
+
+    let is_metric_meta = |i: &Item| matches!(i.ty(), ItemType::MetricMeta);
+    let metric_meta = std::iter::repeat(0)
+        .map_while(|_| envelope.take_item_by(is_metric_meta))
+        .collect_vec();
+    if !metric_meta.is_empty() {
+        relay_log::trace!("sending metrics into processing queue");
+        state.processor().send(ProcessMetricMeta {
+            items: metric_meta,
+            project_key: envelope.meta().public_key(),
+        })
     }
 
     // Take all NEL reports and split them up into the separate envelopes with 1 item per

@@ -8,7 +8,8 @@ use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Project
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
-    aggregator, Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
+    aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
+    MetricResourceIdentifier,
 };
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -29,6 +30,8 @@ use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate}
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeLimiter, ManagedEnvelope, MetricsLimiter, RetryBackoff};
+
+use super::processor::EncodeMetricMeta;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -437,6 +440,8 @@ pub struct Project {
     rate_limits: RateLimits,
     last_no_cache: Instant,
     reservoir_counters: ReservoirCounters,
+    metric_meta_aggregator: MetaAggregator,
+    has_pending_metric_meta: bool,
 }
 
 impl Project {
@@ -453,6 +458,8 @@ impl Project {
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
             config,
+            metric_meta_aggregator: MetaAggregator::new(),
+            has_pending_metric_meta: false,
         }
     }
 
@@ -705,6 +712,76 @@ impl Project {
         }
     }
 
+    pub fn add_metric_meta(
+        &mut self,
+        meta: MetricMeta,
+        envelope_processor: Addr<EnvelopeProcessor>,
+    ) {
+        let state = self.state_value();
+
+        // Only track metadata if the feature is enabled or we don't know yet whether it is enabled.
+        if !state.map_or(true, |state| state.has_feature(Feature::MetricMeta)) {
+            relay_log::trace!(
+                "metric meta feature flag not enabled for project {}",
+                self.project_key
+            );
+            return;
+        }
+
+        let Some(meta) = self
+            .metric_meta_aggregator
+            .aggregate(self.project_key, meta)
+        else {
+            // Nothing to do. Which means there is also no pending data.
+            relay_log::trace!("metric meta aggregator already has data, nothing to send upstream");
+            return;
+        };
+
+        let scoping = self
+            .state_value()
+            .and_then(|state| self.build_scoping(&state));
+
+        match scoping {
+            Some(scoping) => {
+                // We can only have a scoping if we also have a state, which means at this point feature
+                // flags are already checked.
+                envelope_processor.send(EncodeMetricMeta { scoping, meta })
+            }
+            None => self.has_pending_metric_meta = true,
+        }
+    }
+
+    fn flush_metric_meta(
+        &mut self,
+        state: &ProjectState,
+        envelope_processor: &Addr<EnvelopeProcessor>,
+    ) {
+        let Some(scoping) = self.build_scoping(state) else {
+            return;
+        };
+
+        // All relevant info has been gathered, consider us flushed.
+        self.has_pending_metric_meta = false;
+
+        if !state.has_feature(Feature::MetricMeta) {
+            relay_log::debug!(
+                "clearing metric meta aggregator, because project {} does not have feature flag enabled",
+                self.project_key,
+            );
+            // Project/Org does not have the feature, forget everything.
+            self.metric_meta_aggregator.clear(self.project_key);
+            return;
+        }
+
+        for meta in self.metric_meta_aggregator.get_relevant(self.project_key) {
+            relay_log::debug!(
+                "flushing aggregated metrics for project {}",
+                self.project_key
+            );
+            envelope_processor.send(EncodeMetricMeta { scoping, meta });
+        }
+    }
+
     /// Returns `true` if backoff expired and new attempt can be triggered.
     fn can_fetch(&self) -> bool {
         self.next_fetch_attempt
@@ -913,7 +990,7 @@ impl Project {
             _ => self.set_state(
                 state.clone(),
                 aggregator,
-                envelope_processor,
+                envelope_processor.clone(),
                 outcome_aggregator,
             ),
         }
@@ -929,6 +1006,10 @@ impl Project {
 
             project_cache.send(RequestUpdate::new(self.project_key, no_cache));
             return;
+        }
+
+        if self.has_pending_metric_meta {
+            self.flush_metric_meta(&state, &envelope_processor);
         }
 
         // Flush all waiting recipients.
@@ -947,6 +1028,10 @@ impl Project {
     /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
         let state = self.state_value()?;
+        self.build_scoping(&state)
+    }
+
+    fn build_scoping(&self, state: &ProjectState) -> Option<Scoping> {
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,

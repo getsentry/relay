@@ -556,9 +556,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.29"
+version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d87d9d13be47a5b7c3907137f1290b0459a7f80efb26be8c52afb11963bccb02"
+checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -3717,15 +3717,18 @@ name = "relay-metrics"
 version = "23.11.1"
 dependencies = [
  "bytecount",
+ "chrono",
  "criterion",
  "fnv",
  "hash32",
+ "hashbrown 0.13.2",
  "insta",
  "itertools",
  "rand",
  "relay-base-schema",
  "relay-common",
  "relay-log",
+ "relay-redis",
  "relay-statsd",
  "relay-system",
  "relay-test",
@@ -3904,6 +3907,7 @@ dependencies = [
  "data-encoding",
  "flate2",
  "futures",
+ "hash32",
  "hashbrown 0.13.2",
  "insta",
  "itertools",

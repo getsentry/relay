@@ -72,11 +72,17 @@ pub mod aggregator;
 
 mod aggregatorservice;
 mod bucket;
+mod meta;
 mod protocol;
+#[cfg(feature = "redis")]
+mod redis_meta;
 mod router;
 mod statsd;
 
 pub use aggregatorservice::*;
 pub use bucket::*;
+pub use meta::*;
 pub use protocol::*;
+#[cfg(feature = "redis")]
+pub use redis_meta::*;
 pub use router::*;

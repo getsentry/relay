@@ -5,7 +5,7 @@ use std::sync::Arc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_dynamic_config::GlobalConfig;
-use relay_metrics::{self, Aggregator, FlushBuckets, MergeBuckets};
+use relay_metrics::{Aggregator, FlushBuckets, MergeBuckets, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -167,6 +167,15 @@ impl UpdateRateLimits {
     }
 }
 
+/// Add metric metadata to the aggregator.
+#[derive(Debug)]
+pub struct AddMetricMeta {
+    /// The project key.
+    pub project_key: ProjectKey,
+    /// The metadata.
+    pub meta: MetricMeta,
+}
+
 /// Updates the buffer index for [`ProjectKey`] with the [`QueueKey`] keys.
 ///
 /// This message is sent from the project buffer in case of the error while fetching the data from
@@ -213,6 +222,7 @@ pub enum ProjectCache {
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
     MergeBuckets(MergeBuckets),
+    AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
@@ -287,6 +297,14 @@ impl FromMessage<MergeBuckets> for ProjectCache {
 
     fn from_message(message: MergeBuckets, _: ()) -> Self {
         Self::MergeBuckets(message)
+    }
+}
+
+impl FromMessage<AddMetricMeta> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: AddMetricMeta, _: ()) -> Self {
+        Self::AddMetricMeta(message)
     }
 }
 
@@ -857,6 +875,13 @@ impl ProjectCacheBroker {
             );
     }
 
+    fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
+        let envelope_processor = self.services.envelope_processor.clone();
+
+        self.get_or_create_project(message.project_key)
+            .add_metric_meta(message.meta, envelope_processor);
+    }
+
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
         let envelope_manager = self.services.envelope_manager.clone();
         self.get_or_create_project(message.project_key)
@@ -884,6 +909,7 @@ impl ProjectCacheBroker {
             ProjectCache::ValidateEnvelope(message) => self.handle_validate_envelope(message),
             ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
+            ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
