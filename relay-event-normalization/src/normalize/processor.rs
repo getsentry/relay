@@ -24,7 +24,7 @@ use relay_event_schema::protocol::{
     IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, Span, SpanAttribute,
     SpanStatus, Tags, TraceContext, User,
 };
-use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
 use crate::normalize::utils::validate_span;
@@ -33,42 +33,133 @@ use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, end_all_spans, normalize_transaction_name, schema, set_default_transaction_source,
-    span, trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
+    breakdowns, end_all_spans, normalize_transaction_name, set_default_transaction_source, span,
+    trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
     DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig, RawUserAgentInfo,
-    TransactionNameConfig,
+    SpanDescriptionRule, TransactionNameConfig,
 };
 
-use crate::LightNormalizationConfig;
-
 /// Configuration for [`NormalizeProcessor`].
-#[derive(Clone, Debug, Default)]
-pub(crate) struct NormalizeProcessorConfig<'a> {
-    /// Light normalization config.
-    // XXX(iker): we should split this config appropriately.
-    pub light_config: LightNormalizationConfig<'a>,
+#[derive(Clone, Debug)]
+pub struct NormalizeProcessorConfig<'a> {
+    /// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to the `user` context.
+    pub client_ip: Option<&'a IpAddr>,
 
-    /// Configuration to apply to transaction names, especially around sanitizing.
-    pub transaction_name_config: TransactionNameConfig<'a>,
+    /// The user-agent and client hints obtained from the submission request headers.
+    ///
+    /// Client hints are the preferred way to infer device, operating system, and browser
+    /// information should the event payload contain no such data. If no client hints are present,
+    /// normalization falls back to the user agent.
+    pub user_agent: RawUserAgentInfo<&'a str>,
+
+    /// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    pub received_at: Option<DateTime<Utc>>,
+
+    /// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event's timestamp is older, the received timestamp is assumed.
+    pub max_secs_in_past: Option<i64>,
+
+    /// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
+    pub max_secs_in_future: Option<i64>,
 
     /// Timestamp range in which a transaction must end.
     ///
     /// Transactions that finish outside of this range are considered invalid.
     /// This check is skipped if no range is provided.
     pub transaction_range: Option<Range<UnixTimestamp>>,
+
+    /// The maximum length for names of custom measurements.
+    ///
+    /// Measurements with longer names are removed from the transaction event and replaced with a
+    /// metadata entry.
+    pub max_name_and_unit_len: Option<usize>,
+
+    /// Configuration for measurement normalization in transaction events.
+    ///
+    /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
+    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+
+    /// Emit breakdowns based on given configuration.
+    pub breakdowns_config: Option<&'a BreakdownsConfig>,
+
+    /// When `Some(true)`, context information is extracted from the user agent.
+    pub normalize_user_agent: Option<bool>,
+
+    /// Configuration to apply to transaction names, especially around sanitizing.
+    pub transaction_name_config: TransactionNameConfig<'a>,
+
+    /// When `Some(true)`, it is assumed that the event has been normalized before.
+    ///
+    /// This disables certain normalizations, especially all that are not idempotent. The
+    /// renormalize mode is intended for the use in the processing pipeline, so an event modified
+    /// during ingestion can be validated against the schema and large data can be trimmed. However,
+    /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
+    ///
+    /// `None` equals to `false`.
+    pub is_renormalize: bool,
+
+    /// When `true`, infers the device class from CPU and model.
+    pub device_class_synthesis_config: bool,
+
+    /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
+    pub enrich_spans: bool,
+
+    /// When `true`, computes and materializes attributes in spans based on the given configuration.
+    pub light_normalize_spans: bool,
+
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
+    pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
+
+    /// Configuration for replacing identifiers in the span description with placeholders.
+    ///
+    /// This is similar to `transaction_name_config`, but applies to span descriptions.
+    pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
+
+    /// Configuration for generating performance score measurements for web vitals
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
+
+    /// An initialized GeoIP lookup.
+    pub geoip_lookup: Option<&'a GeoIpLookup>,
+
+    /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
+    ///
+    /// See the event schema for size declarations.
+    pub enable_trimming: bool,
 }
 
-impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
-    fn from(mut config: LightNormalizationConfig<'a>) -> Self {
-        // HACK(iker): workaround to avoid cloning of config items. We'll get
-        // rid of this when we remove light normalization in the next step.
-        let transaction_name_config = std::mem::take(&mut config.transaction_name_config);
-        let transaction_range = config.transaction_range.take();
-
+impl<'a> Default for NormalizeProcessorConfig<'a> {
+    fn default() -> Self {
         Self {
-            light_config: config,
-            transaction_name_config,
-            transaction_range,
+            client_ip: Default::default(),
+            user_agent: Default::default(),
+            received_at: Default::default(),
+            max_secs_in_past: Default::default(),
+            max_secs_in_future: Default::default(),
+            transaction_range: Default::default(),
+            max_name_and_unit_len: Default::default(),
+            breakdowns_config: Default::default(),
+            normalize_user_agent: Default::default(),
+            transaction_name_config: Default::default(),
+            is_renormalize: Default::default(),
+            device_class_synthesis_config: Default::default(),
+            enrich_spans: Default::default(),
+            light_normalize_spans: Default::default(),
+            max_tag_value_length: usize::MAX,
+            span_description_rules: Default::default(),
+            performance_score: Default::default(),
+            geoip_lookup: Default::default(),
+            enable_trimming: false,
+            measurements: None,
         }
     }
 }
@@ -81,12 +172,13 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
 #[derive(Debug, Default)]
-pub(crate) struct NormalizeProcessor<'a> {
+pub struct NormalizeProcessor<'a> {
     /// Configuration for the normalization steps.
     config: NormalizeProcessorConfig<'a>,
 }
 
 impl<'a> NormalizeProcessor<'a> {
+    /// Returns a new [`NormalizeProcessor`] with the given config.
     pub fn new(config: NormalizeProcessorConfig<'a>) -> Self {
         Self { config }
     }
@@ -99,6 +191,10 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if self.config.is_renormalize {
+            return Ok(());
+        }
+
         if event.ty.value() == Some(&EventType::Transaction) {
             // TODO: Parts of this processor should probably be a filter so we
             // can revert some changes to ProcessingAction)
@@ -128,31 +224,27 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // below this call is being moved (WIP) to the processor appropriately.
         event.process_child_values(self, state)?;
 
-        let config = &self.config.light_config;
-        if config.is_renormalize {
+        if self.config.is_renormalize {
             return Ok(());
         }
-
-        // Check for required and non-empty values
-        schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
         TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, &config.user_agent);
+        normalize_security_report(event, self.config.client_ip, &self.config.user_agent);
 
         // Process NEL reports to ensure all props.
-        normalize_nel_report(event, config.client_ip);
+        normalize_nel_report(event, self.config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
             &mut event.request,
             &mut event.user,
             event.platform.as_str(),
-            config.client_ip,
+            self.config.client_ip,
         );
 
-        if let Some(geoip_lookup) = config.geoip_lookup {
+        if let Some(geoip_lookup) = self.config.geoip_lookup {
             if let Some(user) = event.user.value_mut() {
                 normalize_user_geoinfo(geoip_lookup, user)
             }
@@ -182,31 +274,31 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         normalize_timestamps(
             event,
             meta,
-            config.received_at,
-            config.max_secs_in_past,
-            config.max_secs_in_future,
+            self.config.received_at,
+            self.config.max_secs_in_past,
+            self.config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
 
         // TODO: Consider moving to store normalization
-        if config.device_class_synthesis_config {
+        if self.config.device_class_synthesis_config {
             normalize_device_class(event);
         }
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
-        normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
+        normalize_user_agent(event, self.config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(
             event,
-            config.measurements.clone(),
-            config.max_name_and_unit_len,
+            self.config.measurements.clone(),
+            self.config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
-        normalize_performance_score(event, config.performance_score);
-        normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+        normalize_performance_score(event, self.config.performance_score);
+        normalize_breakdowns(event, self.config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
         processor::apply(&mut event.contexts, normalize_contexts)?;
 
-        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        if self.config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don't have many spans, but if this is no longer the
@@ -219,16 +311,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             );
         }
 
-        if config.enrich_spans {
+        if self.config.enrich_spans {
             extract_span_tags(
                 event,
                 &tag_extraction::Config {
-                    max_tag_value_size: config.max_tag_value_length,
+                    max_tag_value_size: self.config.max_tag_value_length,
                 },
             );
         }
 
-        if config.enable_trimming {
+        if self.config.enable_trimming {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(
                 event,
@@ -253,6 +345,114 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         Ok(())
     }
+
+    fn before_process<T: ProcessValue>(
+        &mut self,
+        value: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if value.is_none() && state.attrs().required && !meta.has_errors() {
+            meta.add_error(ErrorKind::MissingAttribute);
+        }
+        Ok(())
+    }
+
+    fn process_string(
+        &mut self,
+        value: &mut String,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        value_trim_whitespace(value, meta, state);
+        verify_value_nonempty_string(value, meta, state)?;
+        verify_value_characters(value, meta, state)?;
+        Ok(())
+    }
+
+    fn process_array<T>(
+        &mut self,
+        value: &mut Array<T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        value.process_child_values(self, state)?;
+        verify_value_nonempty(value, meta, state)?;
+        Ok(())
+    }
+
+    fn process_object<T>(
+        &mut self,
+        value: &mut Object<T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        value.process_child_values(self, state)?;
+        verify_value_nonempty(value, meta, state)?;
+        Ok(())
+    }
+}
+
+fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &ProcessingState<'_>) {
+    if state.attrs().trim_whitespace {
+        let new_value = value.trim().to_owned();
+        value.clear();
+        value.push_str(&new_value);
+    }
+}
+
+fn verify_value_nonempty<T>(
+    value: &T,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult
+where
+    T: Empty,
+{
+    if state.attrs().nonempty && value.is_empty() {
+        meta.add_error(Error::nonempty());
+        Err(ProcessingAction::DeleteValueHard)
+    } else {
+        Ok(())
+    }
+}
+
+fn verify_value_nonempty_string<T>(
+    value: &T,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult
+where
+    T: Empty,
+{
+    if state.attrs().nonempty && value.is_empty() {
+        meta.add_error(Error::nonempty_string());
+        Err(ProcessingAction::DeleteValueHard)
+    } else {
+        Ok(())
+    }
+}
+
+fn verify_value_characters(
+    value: &str,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult {
+    if let Some(ref character_set) = state.attrs().characters {
+        for c in value.chars() {
+            if !(character_set.char_is_valid)(c) {
+                meta.add_error(Error::invalid(format!("invalid character {c:?}")));
+                return Err(ProcessingAction::DeleteValueSoft);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Backfills the client IP address on for the NEL reports.
@@ -1017,10 +1217,11 @@ mod tests {
         self, process_value, ProcessingAction, ProcessingState, Processor,
     };
     use relay_event_schema::protocol::{
-        ClientSdkInfo, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement,
-        Measurements, Request, Span, SpanId, Tags, TraceContext, TraceId, TransactionSource,
+        CError, ClientSdkInfo, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, MachException,
+        Measurement, Measurements, Mechanism, MechanismMeta, PosixSignal, RawStacktrace, Request,
+        Span, SpanId, Tags, TraceContext, TraceId, TransactionSource, User,
     };
-    use relay_protocol::{get_value, Annotated, Meta, Object, SerializableAnnotated};
+    use relay_protocol::{get_value, Annotated, ErrorKind, Meta, Object, SerializableAnnotated};
     use serde_json::json;
 
     use crate::normalize::processor::{
@@ -1813,7 +2014,7 @@ mod tests {
         assert_eq!(get_value!(processed.op!), &"default".to_owned());
 
         let mut reprocess_config = processor_config.clone();
-        reprocess_config.light_config.is_renormalize = true;
+        reprocess_config.is_renormalize = true;
         let mut processor = NormalizeProcessor::new(processor_config.clone());
 
         let mut reprocessed = processed.clone();
@@ -1850,7 +2051,7 @@ mod tests {
         assert_eq!(trace_context.op.value().unwrap(), "default");
 
         let mut reprocess_config = processor_config.clone();
-        reprocess_config.light_config.is_renormalize = true;
+        reprocess_config.is_renormalize = true;
         let mut processor = NormalizeProcessor::new(processor_config.clone());
 
         let mut reprocessed = processed.clone();
@@ -3509,5 +3710,165 @@ mod tests {
         range: None,
     },
 ]"#);
+    }
+
+    // TODO(ja): Enable this test
+    // fn assert_nonempty_base<T>(expected_error: &str)
+    // where
+    //     T: Default + PartialEq + ProcessValue,
+    // {
+    //     #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+    //     struct Foo<T> {
+    //         #[metastructure(required = "true", nonempty = "true")]
+    //         bar: Annotated<T>,
+    //         bar2: Annotated<T>,
+    //     }
+
+    //     let mut wrapper = Annotated::new(Foo {
+    //         bar: Annotated::new(T::default()),
+    //         bar2: Annotated::new(T::default()),
+    //     });
+    //     process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
+
+    //     assert_eq!(
+    //         wrapper,
+    //         Annotated::new(Foo {
+    //             bar: Annotated::from_error(Error::expected(expected_error), None),
+    //             bar2: Annotated::new(T::default())
+    //         })
+    //     );
+    // }
+
+    // #[test]
+    // fn test_nonempty_string() {
+    //     assert_nonempty_base::<String>("a non-empty string");
+    // }
+
+    // #[test]
+    // fn test_nonempty_array() {
+    //     assert_nonempty_base::<Array<u64>>("a non-empty value");
+    // }
+
+    // #[test]
+    // fn test_nonempty_object() {
+    //     assert_nonempty_base::<Object<u64>>("a non-empty value");
+    // }
+
+    #[test]
+    fn test_invalid_email() {
+        let mut user = Annotated::new(User {
+            email: Annotated::new("bananabread".to_owned()),
+            ..Default::default()
+        });
+
+        let expected = user.clone();
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(user, expected);
+    }
+
+    #[test]
+    fn test_client_sdk_missing_attribute() {
+        let mut info = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            ..Default::default()
+        });
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut info, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::from_error(ErrorKind::MissingAttribute, None),
+            ..Default::default()
+        });
+
+        assert_eq!(info, expected);
+    }
+
+    #[test]
+    fn test_mechanism_missing_attributes() {
+        let mut mechanism = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    name: Annotated::new("ENOENT".to_string()),
+                    ..Default::default()
+                }),
+                mach_exception: Annotated::new(MachException {
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    ..Default::default()
+                }),
+                signal: Annotated::new(PosixSignal {
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut mechanism, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    number: Annotated::empty(),
+                    name: Annotated::new("ENOENT".to_string()),
+                }),
+                mach_exception: Annotated::new(MachException {
+                    ty: Annotated::empty(),
+                    code: Annotated::empty(),
+                    subcode: Annotated::empty(),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                }),
+                signal: Annotated::new(PosixSignal {
+                    number: Annotated::empty(),
+                    code: Annotated::empty(),
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    code_name: Annotated::empty(),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(mechanism, expected);
+    }
+
+    #[test]
+    fn test_stacktrace_missing_attribute() {
+        let mut stack = Annotated::new(RawStacktrace::default());
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut stack, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(RawStacktrace {
+            frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
+            ..Default::default()
+        });
+
+        assert_eq!(stack, expected);
+    }
+
+    #[test]
+    fn test_newlines_release() {
+        let mut event = Annotated::new(Event {
+            release: Annotated::new("42\n".to_string().into()),
+            ..Default::default()
+        });
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(Event {
+            release: Annotated::new("42".to_string().into()),
+            ..Default::default()
+        });
+
+        assert_eq!(get_value!(expected.release!), get_value!(event.release!));
     }
 }

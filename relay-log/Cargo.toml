@@ -6,7 +6,7 @@ homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
 version = "23.11.0"
 edition = "2021"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 build = "build.rs"
 
