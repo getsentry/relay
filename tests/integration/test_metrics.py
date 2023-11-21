@@ -279,7 +279,8 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     upstream_config = {
         "aggregator": {
             "bucket_interval": 1,
-            "initial_delay": 2,  # Give upstream some time to process downstream entries:
+            # Give upstream some time to process downstream entries:
+            "initial_delay": 2,
             "debounce_delay": 0,
         }
     }
@@ -588,9 +589,9 @@ def test_transaction_metrics(
 
     if discard_data:
         # Make sure Relay drops the transaction
-        ds = config.setdefault("dynamicSampling", {})
-        ds.setdefault("rules", [])
-        ds.setdefault("rulesV2", []).append(
+        ds = config.setdefault("sampling", {})
+        ds.setdefault("version", 2)
+        ds.setdefault("rules", []).append(
             {
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": discard_data,
@@ -805,9 +806,9 @@ def test_transaction_metrics_extraction_external_relays(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {"version": 3}
-    config["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    config["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
@@ -1219,9 +1220,11 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 2
+    assert len(span_metrics) == 3
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
+        if metric["name"] == "c:spans/count_per_op@none":
+            continue
         assert metric["tags"]["span.description"] == expected_description
         assert metric["tags"]["span.group"] == expected_group
 
@@ -1243,9 +1246,9 @@ def test_generic_metric_extraction(mini_sentry, relay):
         ],
     }
     config["transactionMetrics"] = {"version": 3}
-    config["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    config["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},

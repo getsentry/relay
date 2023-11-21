@@ -223,6 +223,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
+    /// The log level of this relay.
+    pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
     /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -716,6 +718,11 @@ struct Http {
     ///
     /// This time is only used before going into a network outage mode.
     retry_delay: u64,
+    /// The interval in seconds for continued failed project fetches at which Relay will error.
+    ///
+    /// A successful fetch resets this interval. Relay does nothing during long
+    /// times without emitting requests.
+    project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -743,6 +750,7 @@ impl Default for Http {
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             retry_delay: default_retry_delay(),
+            project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
         }
     }
@@ -751,6 +759,11 @@ impl Default for Http {
 /// Default for unavailable upstream retry period, 1s.
 fn default_retry_delay() -> u64 {
     1
+}
+
+/// Default for project failure interval, 90s.
+fn default_project_failure_interval() -> u64 {
+    90
 }
 
 /// Default for max memory size, 500 MB.
@@ -771,6 +784,11 @@ fn spool_envelopes_min_connections() -> u32 {
 /// Default for max connections to keep open in the pool.
 fn spool_envelopes_max_connections() -> u32 {
     20
+}
+
+/// Defaualt period for garbage collection in the spooler.
+fn spool_envelopes_check_interval() -> u64 {
+    60
 }
 
 /// Persistent buffering configuration for incoming envelopes.
@@ -796,6 +814,11 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
+
+    /// The interval for the internal check to run and issue specific to the spooler metrics and
+    /// errors.
+    #[serde(default = "spool_envelopes_check_interval")]
+    check_interval: u64,
 }
 
 impl Default for EnvelopeSpool {
@@ -806,6 +829,7 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
+            check_interval: spool_envelopes_check_interval(),
         }
     }
 }
@@ -1331,6 +1355,10 @@ impl Config {
                 .with_context(|| ConfigError::field("mode"))?;
         }
 
+        if let Some(log_level) = overrides.log_level {
+            self.values.logging.level = log_level.parse()?;
+        }
+
         if let Some(upstream) = overrides.upstream {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
@@ -1625,6 +1653,11 @@ impl Config {
         Duration::from_secs(self.values.http.retry_delay)
     }
 
+    /// Time of continued project request failures before Relay emits an error.
+    pub fn http_project_failure_interval(&self) -> Duration {
+        Duration::from_secs(self.values.http.project_failure_interval)
+    }
+
     /// Content encoding of upstream requests.
     pub fn http_encoding(&self) -> HttpEncoding {
         self.values.http.encoding
@@ -1825,6 +1858,11 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
+    }
+
+    /// The interval to run the check.
+    pub fn spool_envelopes_check_interval(&self) -> Duration {
+        Duration::from_secs(self.values.spool.envelopes.check_interval)
     }
 
     /// Returns the maximum size of an event payload in bytes.

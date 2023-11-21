@@ -14,9 +14,9 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, RelayInfo, Request,
-    ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext,
-    TransactionInfo, User, Values,
+    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, ProfileContext, RelayInfo,
+    Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
+    TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -626,10 +626,12 @@ impl Getter for Event {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path.strip_prefix("event.")? {
             // Simple fields
+            "level" => self.level.value()?.name().into(),
             "release" => self.release.as_str()?.into(),
             "dist" => self.dist.as_str()?.into(),
             "environment" => self.environment.as_str()?.into(),
             "transaction" => self.transaction.as_str()?.into(),
+            "logger" => self.logger.as_str()?.into(),
             "platform" => self.platform.as_str().unwrap_or("other").into(),
 
             // Fields in top level structures (called "interfaces" in Sentry)
@@ -667,6 +669,7 @@ impl Getter for Event {
             "contexts.device.brand" => self.context::<DeviceContext>()?.brand.as_str()?.into(),
             "contexts.device.charging" => self.context::<DeviceContext>()?.charging.value()?.into(),
             "contexts.device.family" => self.context::<DeviceContext>()?.family.as_str()?.into(),
+            "contexts.device.model" => self.context::<DeviceContext>()?.model.as_str()?.into(),
             "contexts.device.locale" => self.context::<DeviceContext>()?.locale.as_str()?.into(),
             "contexts.device.online" => self.context::<DeviceContext>()?.online.value()?.into(),
             "contexts.device.orientation" => self
@@ -706,6 +709,12 @@ impl Getter for Event {
             "contexts.browser.version" => {
                 self.context::<BrowserContext>()?.version.as_str()?.into()
             }
+            "contexts.profile.profile_id" => self
+                .context::<ProfileContext>()?
+                .profile_id
+                .value()?
+                .0
+                .into(),
             "contexts.device.uuid" => self.context::<DeviceContext>()?.uuid.value()?.into(),
             "contexts.trace.status" => self
                 .context::<TraceContext>()?
@@ -1100,6 +1109,11 @@ mod tests {
                     kernel_version: Annotated::new("17.4.0".to_string()),
                     ..OsContext::default()
                 });
+                contexts.add(ProfileContext {
+                    profile_id: Annotated::new(EventId(uuid!(
+                        "abadcade-feed-dead-beef-8addadfeedaa"
+                    ))),
+                });
                 contexts
             }),
             ..Default::default()
@@ -1183,6 +1197,10 @@ mod tests {
             Some(Val::String("https://sentry.io")),
             event.get_value("event.request.url")
         );
+        assert_eq!(
+            Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-8addadfeedaa"))),
+            event.get_value("event.contexts.profile.profile_id")
+        )
     }
 
     #[test]

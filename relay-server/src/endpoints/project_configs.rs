@@ -130,7 +130,13 @@ async fn inner(
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
     let global_config = match inner.global {
-        true => Some(state.global_config().send(global_config::Get).await?),
+        true => Some(
+            state
+                .global_config()
+                .send(global_config::Get)
+                .await?
+                .get_ready_or_default(),
+        ),
         false => None,
     };
 

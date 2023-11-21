@@ -659,6 +659,16 @@ pub enum Level {
 }
 
 impl Level {
+    pub fn name(self) -> &'static str {
+        match self {
+            Level::Debug => "debug",
+            Level::Info => "info",
+            Level::Warning => "warning",
+            Level::Error => "error",
+            Level::Fatal => "fatal",
+        }
+    }
+
     fn from_python_level(value: u64) -> Option<Level> {
         Some(match value {
             10 => Level::Debug,
@@ -688,13 +698,7 @@ impl FromStr for Level {
 
 impl fmt::Display for Level {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Level::Debug => write!(f, "debug"),
-            Level::Info => write!(f, "info"),
-            Level::Warning => write!(f, "warning"),
-            Level::Error => write!(f, "error"),
-            Level::Fatal => write!(f, "fatal"),
-        }
+        f.write_str(self.name())
     }
 }
 

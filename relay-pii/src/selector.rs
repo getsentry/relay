@@ -35,6 +35,10 @@ pub enum InvalidSelectorError {
     /// Internal parser bug: An unexpected item was consumed.
     #[error("parser bug: consumed {0} (expected {1})")]
     UnexpectedToken(String, &'static str),
+
+    /// Internal parsing error, this should never happen and is a bug that needs to be fixed.
+    #[error("internal parser error")]
+    InternalError,
 }
 
 mod parser {
@@ -167,15 +171,22 @@ pub enum SelectorSpec {
 impl SelectorSpec {
     /// Parses a selector from a string without legacy special handling.
     pub fn parse_non_legacy(s: &str) -> Result<SelectorSpec, InvalidSelectorError> {
-        handle_selector(
-            SelectorParser::parse(Rule::RootSelector, s)
-                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))?
-                .next()
-                .unwrap()
-                .into_inner()
-                .next()
-                .unwrap(),
-        )
+        let mut selector = SelectorParser::parse(Rule::RootSelector, s)
+            .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))?;
+
+        // Extracts the first `OrSelector` spanning the entire selector from the `RootSelector`.
+        // The `RootSelector` is guaranteed to have exactly one `OrSelector`.
+        let Some(selector) = selector.next().and_then(|s| s.into_inner().next()) else {
+            // Internal parsing error, this should never happen.
+            // If this happens the pest file was modified without changing the code.
+            relay_log::error!(
+                selector = s,
+                "internal error parsing selector {s:?}, this is a bug!"
+            );
+            return Err(InvalidSelectorError::InternalError);
+        };
+
+        handle_selector(selector)
     }
 
     /// Checks if a path matches given selector.

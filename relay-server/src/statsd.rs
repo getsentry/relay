@@ -20,6 +20,8 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
+    /// The current count of the keys in the "in-memory" buffer.
+    BufferProjectsMemoryCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -29,6 +31,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
+            RelayGauges::BufferProjectsMemoryCount => "buffer.projects_mem_count",
         }
     }
 }
@@ -392,7 +395,6 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
-    ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -459,6 +461,11 @@ pub enum RelayCounters {
     /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
     /// many attempts were made respectively.
     ProjectUpstreamCompleted,
+    /// Number of times an upstream request for a project config failed.
+    ///
+    /// Failure can happen, for example, when there's a network error. Refer to
+    /// [`UpstreamRequestError`](crate::actors::upstream::UpstreamRequestError) for all cases.
+    ProjectUpstreamFailed,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -570,6 +577,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
+            RelayCounters::ProjectUpstreamFailed => "project_upstream.failed",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",

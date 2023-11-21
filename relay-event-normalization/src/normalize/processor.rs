@@ -11,43 +11,155 @@ use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::ops::Range;
 
 use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
-    self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    self, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, TraceContext, User,
+    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, Span, SpanAttribute,
+    SpanStatus, Tags, TraceContext, User,
 };
-use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
+use crate::normalize::utils::validate_span;
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
-use crate::utils::MAX_DURATION_MOBILE_MS;
+use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, schema, span, transactions, trimming, user_agent, BreakdownsConfig,
-    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, RawUserAgentInfo,
+    breakdowns, end_all_spans, normalize_transaction_name, set_default_transaction_source, span,
+    trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
+    DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig, RawUserAgentInfo,
+    SpanDescriptionRule, TransactionNameConfig,
 };
 
-use crate::LightNormalizationConfig;
-
 /// Configuration for [`NormalizeProcessor`].
-#[derive(Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct NormalizeProcessorConfig<'a> {
-    /// Light normalization config.
-    // XXX(iker): we should split this config appropriately.
-    light_config: LightNormalizationConfig<'a>,
+    /// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to the `user` context.
+    pub client_ip: Option<&'a IpAddr>,
+
+    /// The user-agent and client hints obtained from the submission request headers.
+    ///
+    /// Client hints are the preferred way to infer device, operating system, and browser
+    /// information should the event payload contain no such data. If no client hints are present,
+    /// normalization falls back to the user agent.
+    pub user_agent: RawUserAgentInfo<&'a str>,
+
+    /// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    pub received_at: Option<DateTime<Utc>>,
+
+    /// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event's timestamp is older, the received timestamp is assumed.
+    pub max_secs_in_past: Option<i64>,
+
+    /// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
+    pub max_secs_in_future: Option<i64>,
+
+    /// Timestamp range in which a transaction must end.
+    ///
+    /// Transactions that finish outside of this range are considered invalid.
+    /// This check is skipped if no range is provided.
+    pub transaction_range: Option<Range<UnixTimestamp>>,
+
+    /// The maximum length for names of custom measurements.
+    ///
+    /// Measurements with longer names are removed from the transaction event and replaced with a
+    /// metadata entry.
+    pub max_name_and_unit_len: Option<usize>,
+
+    /// Configuration for measurement normalization in transaction events.
+    ///
+    /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
+    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+
+    /// Emit breakdowns based on given configuration.
+    pub breakdowns_config: Option<&'a BreakdownsConfig>,
+
+    /// When `Some(true)`, context information is extracted from the user agent.
+    pub normalize_user_agent: Option<bool>,
+
+    /// Configuration to apply to transaction names, especially around sanitizing.
+    pub transaction_name_config: TransactionNameConfig<'a>,
+
+    /// When `Some(true)`, it is assumed that the event has been normalized before.
+    ///
+    /// This disables certain normalizations, especially all that are not idempotent. The
+    /// renormalize mode is intended for the use in the processing pipeline, so an event modified
+    /// during ingestion can be validated against the schema and large data can be trimmed. However,
+    /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
+    ///
+    /// `None` equals to `false`.
+    pub is_renormalize: bool,
+
+    /// When `true`, infers the device class from CPU and model.
+    pub device_class_synthesis_config: bool,
+
+    /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
+    pub enrich_spans: bool,
+
+    /// When `true`, computes and materializes attributes in spans based on the given configuration.
+    pub light_normalize_spans: bool,
+
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
+    pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
+
+    /// Configuration for replacing identifiers in the span description with placeholders.
+    ///
+    /// This is similar to `transaction_name_config`, but applies to span descriptions.
+    pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
+
+    /// Configuration for generating performance score measurements for web vitals
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
+
+    /// An initialized GeoIP lookup.
+    pub geoip_lookup: Option<&'a GeoIpLookup>,
+
+    /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
+    ///
+    /// See the event schema for size declarations.
+    pub enable_trimming: bool,
 }
 
-impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
-    fn from(config: LightNormalizationConfig<'a>) -> Self {
+impl<'a> Default for NormalizeProcessorConfig<'a> {
+    fn default() -> Self {
         Self {
-            light_config: config,
+            client_ip: Default::default(),
+            user_agent: Default::default(),
+            received_at: Default::default(),
+            max_secs_in_past: Default::default(),
+            max_secs_in_future: Default::default(),
+            transaction_range: Default::default(),
+            max_name_and_unit_len: Default::default(),
+            breakdowns_config: Default::default(),
+            normalize_user_agent: Default::default(),
+            transaction_name_config: Default::default(),
+            is_renormalize: Default::default(),
+            device_class_synthesis_config: Default::default(),
+            enrich_spans: Default::default(),
+            light_normalize_spans: Default::default(),
+            max_tag_value_length: usize::MAX,
+            span_description_rules: Default::default(),
+            performance_score: Default::default(),
+            geoip_lookup: Default::default(),
+            enable_trimming: false,
+            measurements: None,
         }
     }
 }
@@ -59,13 +171,14 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NormalizeProcessor<'a> {
     /// Configuration for the normalization steps.
     config: NormalizeProcessorConfig<'a>,
 }
 
 impl<'a> NormalizeProcessor<'a> {
+    /// Returns a new [`NormalizeProcessor`] with the given config.
     pub fn new(config: NormalizeProcessorConfig<'a>) -> Self {
         Self { config }
     }
@@ -76,44 +189,62 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         &mut self,
         event: &mut Event,
         meta: &mut Meta,
-        _: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let config = &self.config.light_config;
-
-        if config.is_renormalize {
+        if self.config.is_renormalize {
             return Ok(());
         }
 
-        // Validate and normalize transaction
-        // (internally noops for non-transaction events).
-        // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction)
-        let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.transaction_name_config.clone(),
-            config.transaction_range.clone(),
-        );
-        transactions_processor.process_event(event, meta, ProcessingState::root())?;
+        if event.ty.value() == Some(&EventType::Transaction) {
+            // TODO: Parts of this processor should probably be a filter so we
+            // can revert some changes to ProcessingAction)
 
-        // Check for required and non-empty values
-        schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+            validate_transaction(event, self.config.transaction_range.as_ref())?;
+
+            if let Some(trace_context) = event.context_mut::<TraceContext>() {
+                trace_context.op.get_or_insert_with(|| "default".to_owned());
+            }
+
+            // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
+            // Relay doesn't reject events missing the transaction name. Instead, a default transaction
+            // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
+            // SDKs should avoid sending empty transaction names, setting a more contextual default
+            // value when possible.
+            if event.transaction.value().map_or(true, |s| s.is_empty()) {
+                event
+                    .transaction
+                    .set_value(Some("<unlabeled transaction>".to_owned()))
+            }
+            set_default_transaction_source(event);
+            normalize_transaction_name(event, &self.config.transaction_name_config)?;
+            end_all_spans(event)?;
+        }
+
+        // XXX(iker): processing child values should be the last step. The logic
+        // below this call is being moved (WIP) to the processor appropriately.
+        event.process_child_values(self, state)?;
+
+        if self.config.is_renormalize {
+            return Ok(());
+        }
 
         TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, &config.user_agent);
+        normalize_security_report(event, self.config.client_ip, &self.config.user_agent);
 
         // Process NEL reports to ensure all props.
-        normalize_nel_report(event, config.client_ip);
+        normalize_nel_report(event, self.config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
             &mut event.request,
             &mut event.user,
             event.platform.as_str(),
-            config.client_ip,
+            self.config.client_ip,
         );
 
-        if let Some(geoip_lookup) = config.geoip_lookup {
+        if let Some(geoip_lookup) = self.config.geoip_lookup {
             if let Some(user) = event.user.value_mut() {
                 normalize_user_geoinfo(geoip_lookup, user)
             }
@@ -143,30 +274,31 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         normalize_timestamps(
             event,
             meta,
-            config.received_at,
-            config.max_secs_in_past,
-            config.max_secs_in_future,
+            self.config.received_at,
+            self.config.max_secs_in_past,
+            self.config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
 
         // TODO: Consider moving to store normalization
-        if config.device_class_synthesis_config {
+        if self.config.device_class_synthesis_config {
             normalize_device_class(event);
         }
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
-        normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
+        normalize_user_agent(event, self.config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(
             event,
-            config.measurements.clone(),
-            config.max_name_and_unit_len,
+            self.config.measurements.clone(),
+            self.config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
-        normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+        normalize_performance_score(event, self.config.performance_score);
+        normalize_breakdowns(event, self.config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
         processor::apply(&mut event.contexts, normalize_contexts)?;
 
-        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        if self.config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don't have many spans, but if this is no longer the
@@ -179,16 +311,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             );
         }
 
-        if config.enrich_spans {
+        if self.config.enrich_spans {
             extract_span_tags(
                 event,
                 &tag_extraction::Config {
-                    max_tag_value_size: config.max_tag_value_length,
+                    max_tag_value_size: self.config.max_tag_value_length,
                 },
             );
         }
 
-        if config.enable_trimming {
+        if self.config.enable_trimming {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(
                 event,
@@ -199,6 +331,128 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         Ok(())
     }
+
+    fn process_span(
+        &mut self,
+        span: &mut Span,
+        _: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        validate_span(span)?;
+        span.op.get_or_insert_with(|| "default".to_owned());
+
+        span.process_child_values(self, state)?;
+
+        Ok(())
+    }
+
+    fn before_process<T: ProcessValue>(
+        &mut self,
+        value: Option<&T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if value.is_none() && state.attrs().required && !meta.has_errors() {
+            meta.add_error(ErrorKind::MissingAttribute);
+        }
+        Ok(())
+    }
+
+    fn process_string(
+        &mut self,
+        value: &mut String,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        value_trim_whitespace(value, meta, state);
+        verify_value_nonempty_string(value, meta, state)?;
+        verify_value_characters(value, meta, state)?;
+        Ok(())
+    }
+
+    fn process_array<T>(
+        &mut self,
+        value: &mut Array<T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        value.process_child_values(self, state)?;
+        verify_value_nonempty(value, meta, state)?;
+        Ok(())
+    }
+
+    fn process_object<T>(
+        &mut self,
+        value: &mut Object<T>,
+        meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult
+    where
+        T: ProcessValue,
+    {
+        value.process_child_values(self, state)?;
+        verify_value_nonempty(value, meta, state)?;
+        Ok(())
+    }
+}
+
+fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &ProcessingState<'_>) {
+    if state.attrs().trim_whitespace {
+        let new_value = value.trim().to_owned();
+        value.clear();
+        value.push_str(&new_value);
+    }
+}
+
+fn verify_value_nonempty<T>(
+    value: &T,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult
+where
+    T: Empty,
+{
+    if state.attrs().nonempty && value.is_empty() {
+        meta.add_error(Error::nonempty());
+        Err(ProcessingAction::DeleteValueHard)
+    } else {
+        Ok(())
+    }
+}
+
+fn verify_value_nonempty_string<T>(
+    value: &T,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult
+where
+    T: Empty,
+{
+    if state.attrs().nonempty && value.is_empty() {
+        meta.add_error(Error::nonempty_string());
+        Err(ProcessingAction::DeleteValueHard)
+    } else {
+        Ok(())
+    }
+}
+
+fn verify_value_characters(
+    value: &str,
+    meta: &mut Meta,
+    state: &ProcessingState<'_>,
+) -> ProcessingResult {
+    if let Some(ref character_set) = state.attrs().characters {
+        for c in value.chars() {
+            if !(character_set.char_is_valid)(c) {
+                meta.add_error(Error::invalid(format!("invalid character {c:?}")));
+                return Err(ProcessingAction::DeleteValueSoft);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Backfills the client IP address on for the NEL reports.
@@ -603,6 +857,77 @@ fn normalize_measurements(
     }
 }
 
+/// Computes performance score measurements.
+///
+/// This computes score from vital measurements, using config options to define how it is
+/// calculated.
+fn normalize_performance_score(
+    event: &mut Event,
+    performance_score: Option<&PerformanceScoreConfig>,
+) {
+    let Some(performance_score) = performance_score else {
+        return;
+    };
+    for profile in &performance_score.profiles {
+        if let Some(condition) = &profile.condition {
+            if !condition.matches(event) {
+                continue;
+            }
+            if let Some(measurements) = event.measurements.value_mut() {
+                let mut should_add_total = false;
+                if !profile
+                    .score_components
+                    .iter()
+                    .all(|c| measurements.contains_key(c.measurement.as_str()))
+                {
+                    // Check all measurements exist, otherwise don't add any score components.
+                    break;
+                }
+                let mut score_total = 0.0;
+                let mut weight_total = 0.0;
+                for component in &profile.score_components {
+                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                        let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+                        let component_score = cdf * component.weight;
+                        score_total += component_score;
+                        weight_total += component.weight;
+                        should_add_total = true;
+
+                        measurements.insert(
+                            format!("score.{}", component.measurement),
+                            Measurement {
+                                value: cdf.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                        measurements.insert(
+                            format!("score.weight.{}", component.measurement),
+                            Measurement {
+                                value: component.weight.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                    }
+                }
+
+                if should_add_total {
+                    measurements.insert(
+                        "score.total".to_owned(),
+                        Measurement {
+                            value: (score_total / weight_total).into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
+                }
+                break; // Measurements have successfully been added, skip any other profiles.
+            }
+        }
+    }
+}
+
 /// Compute additional measurements derived from existing ones.
 ///
 /// The added measurements are:
@@ -881,21 +1206,36 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 mod tests {
     use std::collections::BTreeMap;
 
+    use chrono::{Duration, TimeZone, Utc};
     use insta::assert_debug_snapshot;
+    use itertools::Itertools;
+    use relay_base_schema::events::EventType;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
-    use relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement, Measurements, Request,
-        Tags,
+    use relay_base_schema::spans::SpanStatus;
+    use relay_common::glob2::LazyGlob;
+    use relay_common::time::UnixTimestamp;
+    use relay_event_schema::processor::{
+        self, process_value, ProcessingAction, ProcessingState, Processor,
     };
-    use relay_protocol::{Annotated, Meta, Object, SerializableAnnotated};
+    use relay_event_schema::protocol::{
+        CError, ClientSdkInfo, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, MachException,
+        Measurement, Measurements, Mechanism, MechanismMeta, PosixSignal, RawStacktrace, Request,
+        Span, SpanId, Tags, TraceContext, TraceId, TransactionSource, User,
+    };
+    use relay_protocol::{get_value, Annotated, ErrorKind, Meta, Object, SerializableAnnotated};
     use serde_json::json;
 
     use crate::normalize::processor::{
         filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
-        normalize_dist, normalize_measurements, normalize_security_report, normalize_units,
-        remove_invalid_measurements,
+        normalize_dist, normalize_measurements, normalize_performance_score,
+        normalize_security_report, normalize_units, remove_invalid_measurements,
+        NormalizeProcessor, NormalizeProcessorConfig,
     };
-    use crate::{ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, RawUserAgentInfo};
+    use crate::{
+        scrub_identifiers, ClientHints, DynamicMeasurementsConfig, MeasurementsConfig,
+        PerformanceScoreConfig, RawUserAgentInfo, RedactionRule, TransactionNameConfig,
+        TransactionNameRule,
+    };
 
     #[test]
     fn test_normalize_dist_none() {
@@ -1514,5 +1854,2022 @@ mod tests {
         assert_eq!(measurements.len(), 1);
         filter_mobile_outliers(&mut measurements);
         assert_eq!(measurements.len(), 0);
+    }
+
+    #[test]
+    fn test_span_default_op_when_missing() {
+        let json = r#"{
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+}"#;
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        process_value(
+            &mut span,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert_eq!(get_value!(span.op).unwrap(), &"default".to_owned());
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_span_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing span_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing start_timestamp"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_trace_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing trace_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_renormalize_spans_is_idempotent() {
+        let json = r#"{
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+}"#;
+
+        let mut processed = Annotated::<Span>::from_json(json).unwrap();
+        let processor_config = NormalizeProcessorConfig::default();
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+        process_value(&mut processed, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(processed.op!), &"default".to_owned());
+
+        let mut reprocess_config = processor_config.clone();
+        reprocess_config.is_renormalize = true;
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+
+        let mut reprocessed = processed.clone();
+        process_value(&mut reprocessed, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(processed, reprocessed);
+
+        let mut reprocessed2 = reprocessed.clone();
+        process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(reprocessed, reprocessed2);
+    }
+
+    #[test]
+    fn test_renormalize_transactions_is_idempotent() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "test-transaction",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  }
+}"#;
+
+        let mut processed = Annotated::<Event>::from_json(json).unwrap();
+        let processor_config = NormalizeProcessorConfig::default();
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+        process_value(&mut processed, &mut processor, ProcessingState::root()).unwrap();
+        remove_received_from_event(&mut processed);
+        let trace_context = get_value!(processed!).context::<TraceContext>().unwrap();
+        assert_eq!(trace_context.op.value().unwrap(), "default");
+
+        let mut reprocess_config = processor_config.clone();
+        reprocess_config.is_renormalize = true;
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+
+        let mut reprocessed = processed.clone();
+        process_value(&mut reprocessed, &mut processor, ProcessingState::root()).unwrap();
+        remove_received_from_event(&mut reprocessed);
+        assert_eq!(processed, reprocessed);
+
+        let mut reprocessed2 = reprocessed.clone();
+        process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
+        remove_received_from_event(&mut reprocessed2);
+        assert_eq!(reprocessed, reprocessed2);
+    }
+
+    fn remove_received_from_event(event: &mut Annotated<Event>) {
+        processor::apply(event, |e, _| {
+            e.received = Annotated::empty();
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn test_computed_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.03079632190462195,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_missing_measurement() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
+    }
+
+    fn new_test_event() -> Annotated<Event> {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+        Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            start_timestamp: Annotated::new(start.into()),
+            timestamp: Annotated::new(end.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                start_timestamp: Annotated::new(start.into()),
+                timestamp: Annotated::new(end.into()),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                op: Annotated::new("db.statement".to_owned()),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn test_skips_non_transaction_events() {
+        let mut event = Annotated::new(Event::default());
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert!(event.value().is_some());
+    }
+
+    #[test]
+    fn test_discards_when_missing_timestamp() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "timestamp hard-required for transaction events"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_when_timestamp_out_of_range() {
+        let mut event = new_test_event();
+
+        let processor = &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+            transaction_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
+            ..Default::default()
+        });
+
+        assert!(matches!(
+            process_value(&mut event, processor, ProcessingState::root()),
+            Err(ProcessingAction::InvalidTransaction(
+                "timestamp is out of the valid range for metrics"
+            ))
+        ));
+    }
+
+    #[test]
+    fn test_replace_missing_timestamp() {
+        let span = Span {
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 1).unwrap().into(),
+            ),
+            trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+            span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+            ..Default::default()
+        };
+
+        let mut event = new_test_event().0.unwrap();
+        event.spans = Annotated::new(vec![Annotated::new(span)]);
+
+        NormalizeProcessor::default()
+            .process_event(
+                &mut event,
+                &mut Meta::default(),
+                &ProcessingState::default(),
+            )
+            .unwrap();
+
+        let spans = event.spans;
+        let span = get_value!(spans[0]!);
+
+        assert_eq!(span.timestamp, event.timestamp);
+        assert_eq!(span.status.value().unwrap(), &SpanStatus::DeadlineExceeded);
+    }
+
+    #[test]
+    fn test_discards_when_missing_start_timestamp() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "start_timestamp hard-required for transaction events"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_on_missing_contexts_map() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "missing valid trace context"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_on_missing_context() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: Annotated::new(Contexts::new()),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "missing valid trace context"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_on_null_context() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: Annotated::new(Contexts({
+                let mut contexts = Object::new();
+                contexts.insert("trace".to_owned(), Annotated::empty());
+                contexts
+            })),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "missing valid trace context"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_on_missing_trace_id_in_context() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext::default());
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "trace context is missing trace_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_on_missing_span_id_in_context() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "trace context is missing span_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_defaults_missing_op_in_context() {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let trace_context = get_value!(event.contexts)
+            .unwrap()
+            .get::<TraceContext>()
+            .unwrap();
+        let trace_op = trace_context.op.value().unwrap();
+        assert_eq!(trace_op, "default");
+    }
+
+    #[test]
+    fn test_allows_transaction_event_without_span_list() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert!(event.value().is_some());
+    }
+
+    #[test]
+    fn test_allows_transaction_event_with_empty_span_list() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![]),
+            ..Default::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert!(event.value().is_some());
+    }
+
+    #[test]
+    fn test_allows_transaction_event_with_null_span_list() {
+        let mut event = new_test_event();
+
+        processor::apply(&mut event, |event, _| {
+            event.spans.set_value(None);
+            Ok(())
+        })
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert!(get_value!(event.spans).unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_nulled_out_span() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::empty()]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "spans must be valid in transaction event"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_default_transaction_source_unknown() {
+        let mut event = Annotated::<Event>::from_json(
+            r#"
+            {
+                "type": "transaction",
+                "transaction": "/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "sdk": {
+                    "name": "sentry.dart.flutter"
+                },
+                "spans": []
+            }
+            "#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let source = event
+            .value()
+            .unwrap()
+            .transaction_info
+            .value()
+            .and_then(|info| info.source.value())
+            .unwrap();
+
+        assert_eq!(source, &TransactionSource::Unknown);
+    }
+
+    #[test]
+    fn test_allows_valid_transaction_event_with_spans() {
+        let mut event = new_test_event();
+
+        assert!(process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_defaults_transaction_name_when_missing() {
+        let mut event = new_test_event();
+
+        processor::apply(&mut event, |event, _| {
+            event.transaction.set_value(None);
+            Ok(())
+        })
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "<unlabeled transaction>");
+    }
+
+    #[test]
+    fn test_defaults_transaction_name_when_empty() {
+        let mut event = new_test_event();
+
+        processor::apply(&mut event, |event, _| {
+            event.transaction.set_value(Some("".to_owned()));
+            Ok(())
+        })
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "<unlabeled transaction>");
+    }
+
+    #[test]
+    fn test_transaction_name_normalize() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                5,
+                45,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                51,
+                54,
+            ),
+        ),
+    },
+]"#);
+    }
+
+    /// When no identifiers are scrubbed, we should not set an original value in _meta.
+    #[test]
+    fn test_transaction_name_skip_original_value() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/static/page",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert!(event.meta().is_empty());
+    }
+
+    #[test]
+    fn test_transaction_name_normalize_mark_as_sanitized() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+    }
+
+    #[test]
+    fn test_transaction_name_rename_with_rules() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/rule-target/user/123/0/",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+
+        let rule1 = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+        let rule2 = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+        // This should not happend, such rules shouldn't be sent to relay at all.
+        let rule3 = TransactionNameRule {
+            pattern: LazyGlob::new("/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
+                    rules: &[rule1, rule2, rule3],
+                },
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/user/*/**",
+        range: None,
+    },
+]"#);
+    }
+
+    #[test]
+    fn test_transaction_name_rules_skip_expired() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/rule-target/user/123/0/",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let rule1 = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            expiry: Utc::now() - Duration::hours(1), // Expired rule
+            redaction: Default::default(),
+        };
+        let rule2 = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+        // This should not happend, such rules shouldn't be sent to relay at all.
+        let rule3 = TransactionNameRule {
+            pattern: LazyGlob::new("/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
+                    rules: &[rule1, rule2, rule3],
+                },
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/**",
+        range: None,
+    },
+]"#);
+    }
+
+    #[test]
+    fn test_normalize_twice() {
+        // Simulate going through a chain of relays.
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/rule-target/user/123/0/",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request"
+                }
+            }
+        }
+        "#;
+
+        let rules = vec![TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        }];
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig {
+            transaction_name_config: TransactionNameConfig { rules: &rules },
+            ..Default::default()
+        });
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/user/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        // Process again:
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/user/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+    }
+
+    #[test]
+    fn test_transaction_name_unsupported_source() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
+            "transaction_info": {
+              "source": "foobar"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        let rule1 = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+        // This should not happend, such rules shouldn't be sent to relay at all.
+        let rule2 = TransactionNameRule {
+            pattern: LazyGlob::new("/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+        let rules = vec![rule1, rule2];
+
+        // This must not normalize transaction name, since it's disabled.
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: &rules },
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            get_value!(event.transaction!),
+            "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
+        );
+        assert!(get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .next()
+            .is_none());
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "foobar"
+        );
+    }
+
+    fn run_with_unknown_source(sdk: &str) -> Annotated<Event> {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/user/jane/blog/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        event
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .client_sdk
+            .set_value(Some(ClientSdkInfo {
+                name: sdk.to_owned().into(),
+                ..Default::default()
+            }));
+        let rules: Vec<TransactionNameRule> = serde_json::from_value(serde_json::json!([
+            {"pattern": "/user/*/**", "expiry": "3021-04-26T07:59:01+0100", "redaction": {"method": "replace"}}
+        ]))
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: &rules },
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        event
+    }
+
+    #[test]
+    fn test_normalize_legacy_javascript() {
+        // Javascript without source annotation gets sanitized.
+        let event = run_with_unknown_source("sentry.javascript.browser");
+
+        assert_eq!(get_value!(event.transaction!), "/user/*/blog/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "/user/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+    }
+
+    #[test]
+    fn test_normalize_legacy_python() {
+        // Python without source annotation does not get sanitized, because we assume it to be
+        // low cardinality.
+        let event = run_with_unknown_source("sentry.python");
+        assert_eq!(get_value!(event.transaction!), "/user/jane/blog/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn test_transaction_name_rename_end_slash() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/rule-target/user",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+
+        let rule = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: &[rule] },
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+    }
+
+    #[test]
+    fn test_normalize_transaction_names() {
+        let should_be_replaced = [
+            "/aaa11111-aa11-11a1-a11a-1aaa1111a111",
+            "/1aa111aa-11a1-11aa-a111-a1a11111aa11",
+            "/00a00000-0000-0000-0000-000000000001",
+            "/test/b25feeaa-ed2d-4132-bcbd-6232b7922add/url",
+        ];
+        let replaced = should_be_replaced.map(|s| {
+            let mut s = Annotated::new(s.to_owned());
+            scrub_identifiers(&mut s).unwrap();
+            s.0.unwrap()
+        });
+        assert_eq!(
+            replaced,
+            ["/*", "/*", "/*", "/test/*/url",].map(str::to_owned)
+        )
+    }
+
+    macro_rules! transaction_name_test {
+        ($name:ident, $input:literal, $output:literal) => {
+            #[test]
+            fn $name() {
+                let json = format!(
+                    r#"
+                    {{
+                        "type": "transaction",
+                        "transaction": "{}",
+                        "transaction_info": {{
+                          "source": "url"
+                        }},
+                        "timestamp": "2021-04-26T08:00:00+0100",
+                        "start_timestamp": "2021-04-26T07:59:01+0100",
+                        "contexts": {{
+                            "trace": {{
+                                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                                "span_id": "fa90fdead5f74053",
+                                "op": "rails.request",
+                                "status": "ok"
+                            }}
+                        }}
+                    }}
+                "#,
+                    $input
+                );
+
+                let mut event = Annotated::<Event>::from_json(&json).unwrap();
+
+                process_value(
+                    &mut event,
+                    &mut NormalizeProcessor::default(),
+                    ProcessingState::root(),
+                )
+                .unwrap();
+
+                assert_eq!($output, event.value().unwrap().transaction.value().unwrap());
+            }
+        };
+    }
+
+    transaction_name_test!(test_transaction_name_normalize_id, "/1234", "/*");
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_1,
+        "/user/path-with-1234/",
+        "/user/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_2,
+        "/testing/open-19-close/1",
+        "/testing/*/1"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_3,
+        "/testing/open19close/1",
+        "/testing/*/1"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_4,
+        "/testing/asdf012/asdf034/asdf056",
+        "/testing/*/*/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_in_segments_5,
+        "/foo/test%A33/1234",
+        "/foo/test%A33/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_1,
+        "/%2Ftest%2Fopen%20and%20help%2F1%0A",
+        "/%2Ftest%2Fopen%20and%20help%2F1%0A"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_2,
+        "/this/1234/%E2%9C%85/foo/bar/098123908213",
+        "/this/*/%E2%9C%85/foo/bar/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_3,
+        "/foo/hello%20world-4711/",
+        "/foo/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_4,
+        "/foo/hello%20world-0xdeadbeef/",
+        "/foo/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_5,
+        "/foo/hello%20world-4711/",
+        "/foo/*/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_6,
+        "/foo/hello%2Fworld/",
+        "/foo/hello%2Fworld/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_url_encode_7,
+        "/foo/hello%201/",
+        "/foo/hello%201/"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_sha,
+        "/hash/4c79f60c11214eb38604f4ae0781bfb2/diff",
+        "/hash/*/diff"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_uuid,
+        "/u/7b25feea-ed2d-4132-bcbd-6232b7922add/edit",
+        "/u/*/edit"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_hex,
+        "/u/0x3707344A4093822299F31D008/profile/123123213",
+        "/u/*/profile/*"
+    );
+    transaction_name_test!(
+        test_transaction_name_normalize_windows_path,
+        r"C:\\\\Program Files\\1234\\Files",
+        r"C:\\Program Files\*\Files"
+    );
+    transaction_name_test!(test_transaction_name_skip_replace_all, "12345", "12345");
+    transaction_name_test!(
+        test_transaction_name_skip_replace_all2,
+        "open-12345-close",
+        "open-12345-close"
+    );
+
+    #[test]
+    fn test_scrub_identifiers_before_rules() {
+        // There's a rule matching the transaction name. However, the UUID
+        // should be scrubbed first. Scrubbing the UUID makes the rule to not
+        // match the transformed transaction name anymore.
+
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/1234567890",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        redaction: RedactionRule::default(),
+                    }],
+                },
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/remains/rule-target/*");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                21,
+                31,
+            ),
+        ),
+    },
+]"#);
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+    }
+
+    #[test]
+    fn test_scrub_identifiers_and_apply_rules() {
+        // Ensure rules are applied after scrubbing identifiers. Rules are only
+        // applied when `transaction.source="url"`, so this test ensures this
+        // value isn't set as part of identifier scrubbing.
+        let mut event = Annotated::<Event>::from_json(
+            r#"{
+                "type": "transaction",
+                "transaction": "/remains/rule-target/1234567890",
+                "transaction_info": {
+                    "source": "url"
+                },
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
+                    rules: &[TransactionNameRule {
+                        pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                        redaction: RedactionRule::default(),
+                    }],
+                },
+                ..Default::default()
+            }),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/remains/*/*");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                21,
+                31,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/remains/*/**",
+        range: None,
+    },
+]"#);
+    }
+
+    // TODO(ja): Enable this test
+    // fn assert_nonempty_base<T>(expected_error: &str)
+    // where
+    //     T: Default + PartialEq + ProcessValue,
+    // {
+    //     #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+    //     struct Foo<T> {
+    //         #[metastructure(required = "true", nonempty = "true")]
+    //         bar: Annotated<T>,
+    //         bar2: Annotated<T>,
+    //     }
+
+    //     let mut wrapper = Annotated::new(Foo {
+    //         bar: Annotated::new(T::default()),
+    //         bar2: Annotated::new(T::default()),
+    //     });
+    //     process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
+
+    //     assert_eq!(
+    //         wrapper,
+    //         Annotated::new(Foo {
+    //             bar: Annotated::from_error(Error::expected(expected_error), None),
+    //             bar2: Annotated::new(T::default())
+    //         })
+    //     );
+    // }
+
+    // #[test]
+    // fn test_nonempty_string() {
+    //     assert_nonempty_base::<String>("a non-empty string");
+    // }
+
+    // #[test]
+    // fn test_nonempty_array() {
+    //     assert_nonempty_base::<Array<u64>>("a non-empty value");
+    // }
+
+    // #[test]
+    // fn test_nonempty_object() {
+    //     assert_nonempty_base::<Object<u64>>("a non-empty value");
+    // }
+
+    #[test]
+    fn test_invalid_email() {
+        let mut user = Annotated::new(User {
+            email: Annotated::new("bananabread".to_owned()),
+            ..Default::default()
+        });
+
+        let expected = user.clone();
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_eq!(user, expected);
+    }
+
+    #[test]
+    fn test_client_sdk_missing_attribute() {
+        let mut info = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            ..Default::default()
+        });
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut info, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(ClientSdkInfo {
+            name: Annotated::new("sentry.rust".to_string()),
+            version: Annotated::from_error(ErrorKind::MissingAttribute, None),
+            ..Default::default()
+        });
+
+        assert_eq!(info, expected);
+    }
+
+    #[test]
+    fn test_mechanism_missing_attributes() {
+        let mut mechanism = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    name: Annotated::new("ENOENT".to_string()),
+                    ..Default::default()
+                }),
+                mach_exception: Annotated::new(MachException {
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                    ..Default::default()
+                }),
+                signal: Annotated::new(PosixSignal {
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut mechanism, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(Mechanism {
+            ty: Annotated::new("mytype".to_string()),
+            meta: Annotated::new(MechanismMeta {
+                errno: Annotated::new(CError {
+                    number: Annotated::empty(),
+                    name: Annotated::new("ENOENT".to_string()),
+                }),
+                mach_exception: Annotated::new(MachException {
+                    ty: Annotated::empty(),
+                    code: Annotated::empty(),
+                    subcode: Annotated::empty(),
+                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
+                }),
+                signal: Annotated::new(PosixSignal {
+                    number: Annotated::empty(),
+                    code: Annotated::empty(),
+                    name: Annotated::new("SIGSEGV".to_string()),
+                    code_name: Annotated::empty(),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(mechanism, expected);
+    }
+
+    #[test]
+    fn test_stacktrace_missing_attribute() {
+        let mut stack = Annotated::new(RawStacktrace::default());
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut stack, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(RawStacktrace {
+            frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
+            ..Default::default()
+        });
+
+        assert_eq!(stack, expected);
+    }
+
+    #[test]
+    fn test_newlines_release() {
+        let mut event = Annotated::new(Event {
+            release: Annotated::new("42\n".to_string().into()),
+            ..Default::default()
+        });
+
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
+        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let expected = Annotated::new(Event {
+            release: Annotated::new("42".to_string().into()),
+            ..Default::default()
+        });
+
+        assert_eq!(get_value!(expected.release!), get_value!(event.release!));
     }
 }

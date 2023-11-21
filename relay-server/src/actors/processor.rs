@@ -24,22 +24,22 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
-    MeasurementsConfig, TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
+    NormalizeProcessorConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
-    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
+    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
     Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
-use relay_profiling::ProfileError;
+use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_replays::recording::RecordingScrubber;
@@ -58,7 +58,7 @@ use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::{ProfileContext, Span},
+    relay_event_schema::protocol::Span,
     relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -66,7 +66,6 @@ use {
 };
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
-use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
@@ -314,11 +313,14 @@ struct ProcessEnvelopeState<'a> {
     /// The managed envelope before processing.
     managed_envelope: ManagedEnvelope,
 
-    /// Whether there is a profiling item in the envelope.
-    has_profile: bool,
+    /// The ID of the profile in the envelope, if a valid profile exists.
+    profile_id: Option<ProfileId>,
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
+
+    /// Global config used for envelope processing.
+    global_config: Arc<GlobalConfig>,
 }
 
 impl<'a> ProcessEnvelopeState<'a> {
@@ -438,6 +440,7 @@ pub struct ProcessEnvelope {
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
     pub reservoir_counters: ReservoirCounters,
+    pub global_config: Arc<GlobalConfig>,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -539,7 +542,6 @@ impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
-    global_config: Arc<GlobalConfig>,
     inner: Arc<InnerProcessor>,
 }
 
@@ -549,7 +551,6 @@ struct InnerProcessor {
     redis_pool: Option<RedisPool>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
-    global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
     #[cfg(feature = "processing")]
     aggregator: Addr<Aggregator>,
@@ -568,7 +569,6 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
-        global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
@@ -591,7 +591,6 @@ impl EnvelopeProcessorService {
             config,
             envelope_manager,
             project_cache,
-            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
@@ -600,7 +599,6 @@ impl EnvelopeProcessorService {
         };
 
         Self {
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -1096,15 +1094,15 @@ impl EnvelopeProcessorService {
             .items()
             .filter(|item| item.ty() == &ItemType::Transaction)
             .count();
-        let mut found_profile = false;
+        let mut profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             // Drop profile without a transaction in the same envelope.
             ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             // First profile found in the envelope, we'll keep it if metadata are valid.
-            ItemType::Profile if !found_profile => {
+            ItemType::Profile if profile_id.is_none() => {
                 match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
-                    Ok(_) => {
-                        found_profile = true;
+                    Ok(id) => {
+                        profile_id = Some(id);
                         ItemAction::Keep
                     }
                     Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -1118,7 +1116,24 @@ impl EnvelopeProcessorService {
             ))),
             _ => ItemAction::Keep,
         });
-        state.has_profile = found_profile;
+        state.profile_id = profile_id;
+    }
+
+    /// Transfers the profile ID from the profile item to the transaction item.
+    ///
+    /// If profile processing happens at a later stage, we remove the context again.
+    fn transfer_profile_id(&self, state: &mut ProcessEnvelopeState) {
+        if let Some(event) = state.event.value_mut() {
+            if event.ty.value() == Some(&EventType::Transaction) {
+                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                // If we found a profile, add its ID to the profile context on the transaction.
+                if let Some(profile_id) = state.profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                }
+            }
+        }
     }
 
     /// Normalize monitor check-ins and remove invalid ones.
@@ -1182,17 +1197,13 @@ impl EnvelopeProcessorService {
             }
             _ => ItemAction::Keep,
         });
-        if let Some(event) = state.event.value_mut() {
-            if event.ty.value() == Some(&EventType::Transaction) {
-                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                // If we found a profile, add its ID to the profile context on the transaction.
-                if let Some(profile_id) = found_profile_id {
-                    contexts.add(ProfileContext {
-                        profile_id: Annotated::new(profile_id),
-                    });
-                // If not, we delete the profile context.
-                } else {
-                    contexts.remove::<ProfileContext>();
+        if found_profile_id.is_none() {
+            // Remove profile context from event.
+            if let Some(event) = state.event.value_mut() {
+                if event.ty.value() == Some(&EventType::Transaction) {
+                    if let Some(contexts) = event.contexts.value_mut() {
+                        contexts.remove::<ProfileContext>();
+                    }
                 }
             }
         }
@@ -1341,6 +1352,7 @@ impl EnvelopeProcessorService {
             project_state,
             sampling_project_state,
             reservoir_counters,
+            global_config,
         } = message;
 
         let envelope = managed_envelope.envelope_mut();
@@ -1393,8 +1405,9 @@ impl EnvelopeProcessorService {
             sampling_project_state,
             project_id,
             managed_envelope,
-            has_profile: false,
+            profile_id: None,
             reservoir,
+            global_config,
         })
     }
 
@@ -2197,7 +2210,7 @@ impl EnvelopeProcessorService {
                         generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
                         sampling_result: &state.sampling_result,
-                        has_profile: state.has_profile,
+                        has_profile: state.profile_id.is_some(),
                     };
 
                     state.extracted_metrics.extend(extractor.extract(event)?);
@@ -2326,7 +2339,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn is_span_allowed(&self, span: &Span, resource_span_extraction_enabled: bool) -> bool {
+    fn is_span_allowed(&self, span: &Span) -> bool {
         let Some(op) = span.op.value() else {
             return false;
         };
@@ -2339,8 +2352,8 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        (resource_span_extraction_enabled
-            && (op.contains("resource.script") || op.contains("resource.css")))
+        op.contains("resource.script")
+            || op.contains("resource.css")
             || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
@@ -2404,9 +2417,6 @@ impl EnvelopeProcessorService {
         let all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
-        let resource_span_extraction_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionResource);
 
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
@@ -2415,9 +2425,7 @@ impl EnvelopeProcessorService {
                     continue;
                 };
                 // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled
-                    && !self.is_span_allowed(inner_span, resource_span_extraction_enabled)
-                {
+                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
                     continue;
                 }
                 // HACK: clone the span to set the segment_id. This should happen
@@ -2502,27 +2510,35 @@ impl EnvelopeProcessorService {
         // - Tagging whether an incoming error has a sampled trace connected to it.
         // - Computing the actual sampling decision on an incoming transaction.
         match state.event_type().unwrap_or_default() {
-            EventType::Default | EventType::Error => self.tag_error_with_sampling_decision(state),
-            EventType::Transaction => {
-                if let Some(ErrorBoundary::Ok(config)) =
-                    &state.project_state.config.transaction_metrics
-                {
-                    if config.is_enabled() {
-                        state.sampling_result = Self::compute_sampling_decision(
-                            self.inner.config.processing_enabled(),
-                            &state.reservoir,
-                            state.project_state.config.dynamic_sampling.as_ref(),
-                            state.event.value(),
-                            state
-                                .sampling_project_state
-                                .as_ref()
-                                .and_then(|state| state.config.dynamic_sampling.as_ref()),
-                            state.envelope().dsc(),
-                        );
-                    }
-                }
+            EventType::Default | EventType::Error => {
+                self.tag_error_with_sampling_decision(state);
             }
+            EventType::Transaction => {
+                match state.project_state.config.transaction_metrics {
+                    Some(ErrorBoundary::Ok(ref c)) if c.is_enabled() => (),
+                    _ => return,
+                }
 
+                let sampling_config = match state.project_state.config.sampling {
+                    Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+                    _ => None,
+                };
+
+                let root_state = state.sampling_project_state.as_ref();
+                let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
+                    Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
+                    _ => None,
+                };
+
+                state.sampling_result = Self::compute_sampling_decision(
+                    self.inner.config.processing_enabled(),
+                    &state.reservoir,
+                    sampling_config,
+                    state.event.value(),
+                    root_config,
+                    state.envelope().dsc(),
+                );
+            }
             _ => {}
         }
     }
@@ -2600,24 +2616,28 @@ impl EnvelopeProcessorService {
     /// This execution of dynamic sampling is technically a "simulation" since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        if state.event.is_empty() {
-            return;
-        }
-
-        let (Some(config), Some(dsc)) = (
-            state
-                .sampling_project_state
-                .as_deref()
-                .and_then(|state| state.config.dynamic_sampling.as_ref()),
-            state.envelope().dsc(),
+        let (Some(dsc), Some(event)) = (
+            state.managed_envelope.envelope().dsc(),
+            state.event.value_mut(),
         ) else {
             return;
         };
 
-        let sampled =
-            utils::is_trace_fully_sampled(self.inner.config.processing_enabled(), config, dsc);
+        let root_state = state.sampling_project_state.as_ref();
+        let config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
+            Some(ErrorBoundary::Ok(ref config)) => config,
+            _ => return,
+        };
 
-        let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
+        if config.unsupported() {
+            if self.inner.config.processing_enabled() {
+                relay_log::error!("found unsupported rules even as processing relay");
+            }
+
+            return;
+        }
+
+        let Some(sampled) = utils::is_trace_fully_sampled(config, dsc) else {
             return;
         };
 
@@ -2670,7 +2690,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = LightNormalizationConfig {
+            let config = NormalizeProcessorConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -2711,13 +2731,17 @@ impl EnvelopeProcessorService {
                 enable_trimming: true,
                 measurements: Some(DynamicMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
-                    self.global_config.measurements.as_ref(),
+                    state.global_config.measurements.as_ref(),
                 )),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                relay_event_normalization::light_normalize_event(event, config)
-                    .map_err(|_| ProcessingError::InvalidTransaction)
+                process_value(
+                    event,
+                    &mut relay_event_normalization::NormalizeProcessor::new(config),
+                    ProcessingState::root(),
+                )
+                .map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
 
@@ -2749,6 +2773,7 @@ impl EnvelopeProcessorService {
             });
 
             self.extract_event(state)?;
+            self.transfer_profile_id(state);
 
             if_processing!({
                 self.process_unreal(state)?;
@@ -2776,7 +2801,6 @@ impl EnvelopeProcessorService {
 
         if_processing!({
             self.enforce_quotas(state)?;
-            // We need the event parsed in order to set the profile context on it
             self.process_profiles(state);
             self.process_check_ins(state);
         });
@@ -3067,24 +3091,12 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let thread_count = self.inner.config.cpu_concurrency();
         relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
-
-            let Ok(mut subscription) = self.inner.global_config.send(Subscribe).await else {
-                // TODO(iker): we accept this sub-optimal error handling. TBD
-                // the approach to deal with failures on the subscription
-                // mechanism.
-                relay_log::error!("failed to subscribe to GlobalConfigService");
-                return;
-            };
-
-            // In case we use static global config, the watch wont be updated repeatedly, so we
-            // should immediatly use the content of the watch.
-            self.global_config = subscription.borrow().clone();
 
             loop {
                 let next_msg = async {
@@ -3098,7 +3110,6 @@ impl Service for EnvelopeProcessorService {
                 tokio::select! {
                    biased;
 
-                    Ok(()) = subscription.changed() => self.global_config = subscription.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
@@ -3120,9 +3131,12 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
-    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
+    use relay_event_normalization::{
+        MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
+    };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
     use relay_protocol::RuleCondition;
@@ -3363,9 +3377,10 @@ mod tests {
                     outcome_aggregator.clone(),
                     test_store.clone(),
                 ),
-                has_profile: false,
+                profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
+                global_config: Arc::default(),
             }
         };
 
@@ -3396,8 +3411,7 @@ mod tests {
 
         for (sample_rate, should_keep) in [(0.0, false), (1.0, true)] {
             let sampling_config = SamplingConfig {
-                rules: vec![],
-                rules_v2: vec![SamplingRule {
+                rules: vec![SamplingRule {
                     condition: RuleCondition::all(),
                     sampling_value: SamplingValue::SampleRate { value: sample_rate },
                     ty: RuleType::Transaction,
@@ -3405,7 +3419,7 @@ mod tests {
                     time_range: Default::default(),
                     decaying_fn: DecayingFunction::Constant,
                 }],
-                mode: SamplingMode::Received,
+                ..SamplingConfig::new()
             };
 
             // TODO: This does not test if the sampling decision is actually applied. This should be
@@ -3548,7 +3562,6 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
         #[cfg(feature = "processing")]
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let inner = InnerProcessor {
@@ -3562,13 +3575,33 @@ mod tests {
             #[cfg(feature = "processing")]
             redis_pool: None,
             geoip_lookup: None,
-            global_config,
             #[cfg(feature = "processing")]
             aggregator,
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::default(),
+            inner: Arc::new(inner),
+        }
+    }
+
+    /// Creates test processor that can be initialized in sync tests.
+    fn create_test_processor_sync(config: Config) -> EnvelopeProcessorService {
+        let inner = InnerProcessor {
+            config: Arc::new(config),
+            envelope_manager: Addr::dummy(),
+            project_cache: Addr::dummy(),
+            outcome_aggregator: Addr::dummy(),
+            upstream_relay: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            rate_limiter: None,
+            #[cfg(feature = "processing")]
+            redis_pool: None,
+            geoip_lookup: None,
+            #[cfg(feature = "processing")]
+            aggregator: Addr::dummy(),
+        };
+
+        EnvelopeProcessorService {
             inner: Arc::new(inner),
         }
     }
@@ -3603,6 +3636,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3625,6 +3659,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3663,8 +3698,7 @@ mod tests {
 
     fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
         let sampling_config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![SamplingRule {
+            rules: vec![SamplingRule {
                 condition: RuleCondition::all(),
                 sampling_value: SamplingValue::SampleRate { value: sample_rate },
                 ty: RuleType::Trace,
@@ -3672,10 +3706,11 @@ mod tests {
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
             }],
-            mode: SamplingMode::Received,
+            ..SamplingConfig::new()
         };
+
         let mut sampling_project_state = ProjectState::allowed();
-        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        sampling_project_state.config.sampling = Some(ErrorBoundary::Ok(sampling_config));
         sampling_project_state
     }
 
@@ -3836,6 +3871,7 @@ mod tests {
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3907,6 +3943,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3956,6 +3993,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -4013,6 +4051,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -4158,7 +4197,7 @@ mod tests {
 
         relay_statsd::with_capturing_test_client(|| {
             utils::log_transaction_name_metrics(&mut event, |event| {
-                let config = LightNormalizationConfig {
+                let config = NormalizeProcessorConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
@@ -4170,7 +4209,11 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                relay_event_normalization::light_normalize_event(event, config)
+                process_value(
+                    event,
+                    &mut NormalizeProcessor::new(config),
+                    ProcessingState::root(),
+                )
             })
             .unwrap();
         })
@@ -4314,9 +4357,8 @@ mod tests {
         };
 
         let sampling_config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![rule],
-            mode: SamplingMode::Received,
+            rules: vec![rule],
+            ..SamplingConfig::new()
         };
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
@@ -4352,9 +4394,8 @@ mod tests {
         };
 
         let sampling_config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![rule, unsupported_rule],
-            mode: SamplingMode::Received,
+            rules: vec![rule, unsupported_rule],
+            ..SamplingConfig::new()
         };
 
         // Unsupported rule should result in no match if processing is not enabled.
@@ -4405,9 +4446,8 @@ mod tests {
         };
 
         let mut sampling_config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![rule],
-            mode: SamplingMode::Received,
+            rules: vec![rule],
+            ..SamplingConfig::new()
         };
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
@@ -4433,5 +4473,97 @@ mod tests {
         );
 
         assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
+    }
+
+    #[test]
+    fn test_profile_id_transfered() {
+        // Setup
+        let processor = create_test_processor_sync(Default::default());
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        // Add a valid transaction item.
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Transaction);
+
+            item.set_payload(
+                ContentType::Json,
+                r#"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                }
+            }
+            "#,
+            );
+            item
+        });
+
+        // Add a profile to the same envelope.
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Profile);
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                    "profile_id": "012d836b15bb49d7bbf99e64295d995b",
+                    "version": "1",
+                    "platform": "android",
+                    "os": {"name": "foo", "version": "bar"},
+                    "device": {"architecture": "zap"},
+                    "timestamp": "2023-10-10 00:00:00Z"
+                }"#,
+            );
+            item
+        });
+
+        let mut project_state = ProjectState::allowed();
+        project_state.config.features.0.insert(Feature::Profiling);
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy()),
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        // Get the re-serialized context.
+        let item = new_envelope
+            .get_item_by(|item| item.ty() == &ItemType::Transaction)
+            .unwrap();
+        let transaction = Annotated::<Event>::from_json_bytes(&item.payload()).unwrap();
+        let context = transaction
+            .value()
+            .unwrap()
+            .context::<ProfileContext>()
+            .unwrap();
+
+        assert_debug_snapshot!(context, @r###"
+        ProfileContext {
+            profile_id: EventId(
+                012d836b-15bb-49d7-bbf9-9e64295d995b,
+            ),
+        }
+        "###);
     }
 }

@@ -63,7 +63,8 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 mod tests {
     use chrono::{DateTime, Utc};
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
-    use relay_event_normalization::LightNormalizationConfig;
+    use relay_event_normalization::{NormalizeProcessor, NormalizeProcessorConfig};
+    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
     use std::collections::BTreeSet;
@@ -451,7 +452,7 @@ mod tests {
                     "timestamp": 1694732408.3145,
                     "start_timestamp": 1694732407.8367,
                     "exclusive_time": 477.800131,
-                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.css",
+                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.CSS",
                     "op": "resource.css",
                     "span_id": "97c0ef9770a02f9d",
                     "parent_span_id": "9756d8d7b2b364ff",
@@ -489,13 +490,14 @@ mod tests {
         ]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -1011,13 +1013,14 @@ mod tests {
         let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -1068,14 +1071,15 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 device_class_synthesis_config: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -1120,7 +1124,7 @@ mod tests {
     #[test]
     fn test_app_start_cold_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("app.start.cold", 180000.0).len()
         );
     }
@@ -1136,7 +1140,7 @@ mod tests {
     #[test]
     fn test_app_start_warm_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("app.start.warm", 180000.0).len()
         );
     }
@@ -1152,7 +1156,7 @@ mod tests {
     #[test]
     fn test_ui_load_initial_display_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("ui.load.initial_display", 180000.0).len()
         );
     }
@@ -1168,7 +1172,7 @@ mod tests {
     #[test]
     fn test_ui_load_full_display_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("ui.load.full_display", 180000.0).len()
         );
     }
@@ -1200,6 +1204,9 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
+            if metric.name == "c:spans/count_per_op@none" {
+                continue;
+            }
             assert_eq!(metric.tag("ttid"), Some("ttid"));
             assert_eq!(metric.tag("ttfd"), Some("ttfd"));
         }

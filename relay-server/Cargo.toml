@@ -4,10 +4,10 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.10.1"
+version = "23.11.0"
 edition = "2021"
 build = "build.rs"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 
 [features]
@@ -118,7 +118,7 @@ uuid = { workspace = true, features = ["v5"] }
 zstd = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util", "time"] }
+tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
 relay-event-schema = { path = "../relay-event-schema", features = [
     "jsonschema",

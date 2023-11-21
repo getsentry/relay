@@ -4,9 +4,9 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Event schema (Error, Transaction, Security) and types for event processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.10.1"
+version = "23.11.0"
 edition = "2021"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]

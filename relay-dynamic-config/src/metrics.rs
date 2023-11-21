@@ -84,7 +84,8 @@ pub struct CustomMeasurementConfig {
 ///  - 3:
 ///      - Emit a `usage` metric and use it for rate limiting.
 ///      - Delay metrics extraction for indexed transactions.
-const TRANSACTION_EXTRACT_VERSION: u16 = 3;
+///  - 4: Adds support for `RuleConfigs` with string comparisons.
+const TRANSACTION_EXTRACT_VERSION: u16 = 4;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]

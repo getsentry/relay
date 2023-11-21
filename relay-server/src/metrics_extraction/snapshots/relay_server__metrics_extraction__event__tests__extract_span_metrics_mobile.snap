@@ -74,5 +74,16 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
             },
         },
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
+            name: "c:spans/count_per_op@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {
+                "span.op": "default",
+            },
+        },
     ],
 )

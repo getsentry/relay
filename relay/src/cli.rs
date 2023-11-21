@@ -80,6 +80,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
 
     OverridableConfig {
         mode: matches.get_one("mode").cloned(),
+        log_level: matches.get_one("log_level").cloned(),
         upstream: matches.get_one("upstream").cloned(),
         upstream_dsn: matches.get_one("upstream_dsn").cloned(),
         host: matches.get_one("host").cloned(),
@@ -100,6 +101,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
 pub fn extract_config_env_vars() -> OverridableConfig {
     OverridableConfig {
         mode: env::var("RELAY_MODE").ok(),
+        log_level: env::var("RELAY_LOG_LEVEL").ok(),
         upstream: env::var("RELAY_UPSTREAM_URL").ok(),
         upstream_dsn: env::var("RELAY_UPSTREAM_DSN").ok(),
         host: env::var("RELAY_HOST").ok(),
