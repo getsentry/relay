@@ -969,4 +969,29 @@ LIMIT 1
             Some("3.3"),
         );
     }
+
+    #[test]
+    fn test_same_group_truncated() {
+        let mut span = Span {
+            description: "SELECT * FROM foo".to_owned().into(),
+            op: "db.sql".to_owned().into(),
+            ..Default::default()
+        };
+        let config = &Config {
+            max_tag_value_size: 10,
+        };
+
+        let tags1 = extract_tags(&span, config, None, None);
+
+        let v = span.description.value_mut().as_mut().unwrap();
+        *v = "SELECT * FROM bar".into();
+
+        let tags2 = extract_tags(&span, config, None, None);
+
+        assert_eq!(
+            tags1[&SpanTagKey::Description],
+            tags2[&SpanTagKey::Description]
+        );
+        assert_eq!(tags1[&SpanTagKey::Group], tags2[&SpanTagKey::Group]);
+    }
 }
