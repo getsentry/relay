@@ -6,6 +6,7 @@ use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
+use crate::native_debug_image::NativeDebugImage;
 use crate::measurements::Measurement;
 use crate::sample::Profile as SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
@@ -79,6 +80,9 @@ pub struct ProfileMetadata {
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_tags: BTreeMap<String, String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug_meta: Option<DebugMeta>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -94,6 +98,11 @@ struct AndroidProfile {
 
     #[serde(default = "AndroidProfile::default")]
     profile: AndroidTraceLog,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+struct DebugMeta {
+    images: Vec<NativeDebugImage>,
 }
 
 impl AndroidProfile {
