@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 23.11.1
 
 **Features**:
 
@@ -18,7 +18,6 @@
 - Support comparison operators (`>`, `>=`, `<`, `<=`) for strings in dynamic sampling and metric extraction rules. Previously, these comparisons were only possible on numbers. ([#2730](https://github.com/getsentry/relay/pull/2730))
 - Postpone processing till the global config is available. ([#2697](https://github.com/getsentry/relay/pull/2697))
 - Skip running `NormalizeProcessor` on renormalization. ([#2744](https://github.com/getsentry/relay/pull/2744))
-
 
 ## 23.11.0
 
