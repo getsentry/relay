@@ -29,7 +29,7 @@ pub trait Limiter {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Scope {
     /// The organization.
-    pub organization: OrganizationId,
+    pub organization_id: OrganizationId,
     /// The metric namespace, extracted from the metric bucket name.
     pub namespace: MetricNamespace,
 }

@@ -1,39 +1,16 @@
 use std::collections::HashSet;
 
 use itertools::Itertools;
-use relay_metrics::MetricNamespace;
 use relay_redis::{
     redis::{self, ToRedisArgs},
     Connection, RedisPool,
 };
 
-use crate::{limiter::Entry, Limiter, OrganizationId, Result};
+use crate::{limiter::Entry, Limiter, Result, Scope};
 
 // TODO: this should be in the config
 const REDIS_SET_PREFIX: &str = "relay:cardinality";
 const CARDINALITY_LIMIT: usize = 10000;
-
-/// The Metrics scope.
-///
-/// Each unique scope will be tracked in a unique redis set.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-struct Scope {
-    organization_id: OrganizationId,
-    namespace: MetricNamespace,
-}
-
-impl Scope {
-    /// Transforms the scope into a redis key.
-    fn to_redis_key(self, prefix: &str) -> String {
-        // Pattern match here, to not forget to update the key, when modifying the scope.
-        let Scope {
-            organization_id,
-            namespace,
-        } = self;
-
-        format!("{prefix}:scope-{organization_id}-{namespace}",)
-    }
-}
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
@@ -60,7 +37,7 @@ impl RedisSetLimiter {
     ) -> Result<impl Iterator<Item = Entry>> {
         // TODO: benchmark ahash for these sets
 
-        let set_key = scope.to_redis_key(REDIS_SET_PREFIX);
+        let set_key = self.to_redis_key(&scope);
         let set = client.read_set(&set_key)?;
         let mut new_hashes = HashSet::new();
 
@@ -84,6 +61,17 @@ impl RedisSetLimiter {
         client.add_to_set(&set_key, new_hashes);
 
         Ok(entries.into_iter().filter(|entry| entry.is_accepted()))
+    }
+
+    fn to_redis_key(&self, scope: &Scope) -> String {
+        // Pattern match here, to not forget to update the key, when modifying the scope.
+        let Scope {
+            organization_id,
+            namespace,
+        } = scope;
+
+        let prefix = REDIS_SET_PREFIX; // TODO: make this configurable
+        format!("{prefix}:scope-{organization_id}-{namespace}",)
     }
 }
 
