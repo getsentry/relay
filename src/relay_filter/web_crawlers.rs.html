@@ -150,6 +150,8 @@
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
 <a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Filters events coming from user agents known to be web crawlers.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
@@ -181,7 +183,8 @@
         AWS\sSecurity\sScanner|     # AWS Security Scanner causing DisallowedHost errors in Django, see
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
-        HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
+        HubSpot\sCrawler|           # HubSpot web crawler (web-crawlers@hubspot.com)
+        Bytespider                  # Bytedance
     &quot;
     </span>)
     .expect(<span class="string">&quot;Invalid web crawlers filter Regex&quot;</span>)
@@ -266,7 +269,8 @@
             <span class="string">&quot;Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)&quot;</span>,
             <span class="string">&quot;AdsBot-Google (+http://www.google.com/adsbot.html)&quot;</span>,
             <span class="string">&quot;Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)&quot;</span>,
-        ];
+            <span class="string">&quot;Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)&quot;
+        </span>];
 
         <span class="kw">for </span>banned_user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>user_agents {
             <span class="kw">let </span>event = testutils::get_event_with_user_agent(banned_user_agent);
