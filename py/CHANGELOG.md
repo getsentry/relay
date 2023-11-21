@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component ([#2734](https://github.com/getsentry/relay/pull/2734))
+- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
 
 ## 0.8.37
 

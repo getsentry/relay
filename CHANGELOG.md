@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
+
 **Bug Fixes**:
 
 - Fix bug introduced in 23.11.0 that broke profile-transaction association. ([#2733](https://github.com/getsentry/relay/pull/2733))
