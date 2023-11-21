@@ -324,16 +324,12 @@ pub(crate) fn extract_tags(
         }
 
         if let Some(scrubbed_desc) = scrubbed_description {
-            // Truncating the span description's tag value is, for now,
-            // a temporary solution to not get large descriptions dropped. The
-            // group tag mustn't be affected by this, and still be
-            // computed from the full, untruncated description.
+            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
 
-            let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
+            let mut span_group = format!("{:?}", md5::compute(&truncated));
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
             if span_op.starts_with("resource.") {
                 if let Some(ext) = truncated
                     .rsplit('/')
