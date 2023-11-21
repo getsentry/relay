@@ -4567,16 +4567,6 @@
 <a href="#4567" id="4567">4567</a>
 <a href="#4568" id="4568">4568</a>
 <a href="#4569" id="4569">4569</a>
-<a href="#4570" id="4570">4570</a>
-<a href="#4571" id="4571">4571</a>
-<a href="#4572" id="4572">4572</a>
-<a href="#4573" id="4573">4573</a>
-<a href="#4574" id="4574">4574</a>
-<a href="#4575" id="4575">4575</a>
-<a href="#4576" id="4576">4576</a>
-<a href="#4577" id="4577">4577</a>
-<a href="#4578" id="4578">4578</a>
-<a href="#4579" id="4579">4579</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4645,7 +4635,6 @@
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
-<span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{GlobalConfigManager, Subscribe};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::ProjectCache;
@@ -4898,6 +4887,9 @@
 
     <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
     </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">&#39;a</span>&gt;,
+
+    <span class="doccomment">/// Global config used for envelope processing.
+    </span>global_config: Arc&lt;GlobalConfig&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ProcessEnvelopeState&lt;<span class="lifetime">&#39;a</span>&gt; {
@@ -5017,6 +5009,7 @@
     <span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
     <span class="kw">pub </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
     <span class="kw">pub </span>reservoir_counters: ReservoirCounters,
+    <span class="kw">pub </span>global_config: Arc&lt;GlobalConfig&gt;,
 }
 
 <span class="doccomment">/// Parses a list of metrics or metric buckets and pushes them to the project&#39;s aggregator.
@@ -5118,7 +5111,6 @@
 /// This service handles messages in a worker pool with configurable concurrency.
 </span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>EnvelopeProcessorService {
-    global_config: Arc&lt;GlobalConfig&gt;,
     inner: Arc&lt;InnerProcessor&gt;,
 }
 
@@ -5128,7 +5120,6 @@
     </span>redis_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     envelope_manager: Addr&lt;EnvelopeManager&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
-    global_config: Addr&lt;GlobalConfigManager&gt;,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>aggregator: Addr&lt;Aggregator&gt;,
@@ -5147,7 +5138,6 @@
         envelope_manager: Addr&lt;EnvelopeManager&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
-        global_config: Addr&lt;GlobalConfigManager&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>aggregator: Addr&lt;Aggregator&gt;,
     ) -&gt; <span class="self">Self </span>{
@@ -5170,7 +5160,6 @@
             config,
             envelope_manager,
             project_cache,
-            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
@@ -5179,7 +5168,6 @@
         };
 
         <span class="self">Self </span>{
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -5933,6 +5921,7 @@
             project_state,
             sampling_project_state,
             reservoir_counters,
+            global_config,
         } = message;
 
         <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
@@ -5987,6 +5976,7 @@
             managed_envelope,
             profile_id: <span class="prelude-val">None</span>,
             reservoir,
+            global_config,
         })
     }
 
@@ -7310,7 +7300,7 @@
                 enable_trimming: <span class="bool-val">true</span>,
                 measurements: <span class="prelude-val">Some</span>(DynamicMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
-                    <span class="self">self</span>.global_config.measurements.as_ref(),
+                    state.global_config.measurements.as_ref(),
                 )),
             };
 
@@ -7670,24 +7660,12 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>EnvelopeProcessorService {
     <span class="kw">type </span>Interface = EnvelopeProcessor;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>thread_count = <span class="self">self</span>.inner.config.cpu_concurrency();
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {thread_count} envelope processing workers&quot;</span>);
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span>semaphore = Arc::new(Semaphore::new(thread_count));
-
-            <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>subscription) = <span class="self">self</span>.inner.global_config.send(Subscribe).<span class="kw">await else </span>{
-                <span class="comment">// TODO(iker): we accept this sub-optimal error handling. TBD
-                // the approach to deal with failures on the subscription
-                // mechanism.
-                </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to subscribe to GlobalConfigService&quot;</span>);
-                <span class="kw">return</span>;
-            };
-
-            <span class="comment">// In case we use static global config, the watch wont be updated repeatedly, so we
-            // should immediatly use the content of the watch.
-            </span><span class="self">self</span>.global_config = subscription.borrow().clone();
 
             <span class="kw">loop </span>{
                 <span class="kw">let </span>next_msg = <span class="kw">async </span>{
@@ -7701,7 +7679,6 @@
                 <span class="macro">tokio::select! </span>{
                    biased;
 
-                    <span class="prelude-val">Ok</span>(()) = subscription.changed() =&gt; <span class="self">self</span>.global_config = subscription.borrow().clone(),
                     (<span class="prelude-val">Some</span>(message), <span class="prelude-val">Ok</span>(permit)) = next_msg =&gt; {
                         <span class="kw">let </span>service = <span class="self">self</span>.clone();
                         tokio::task::spawn_blocking(<span class="kw">move </span>|| {
@@ -7972,6 +7949,7 @@
                 profile_id: <span class="prelude-val">None</span>,
                 event_metrics_extracted: <span class="bool-val">false</span>,
                 reservoir: dummy_reservoir(),
+                global_config: Arc::default(),
             }
         };
 
@@ -8153,7 +8131,6 @@
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(upstream_relay, <span class="kw">_</span>) = mock_service(<span class="string">&quot;upstream_relay&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        <span class="kw">let </span>(global_config, <span class="kw">_</span>) = mock_service(<span class="string">&quot;global_config&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>inner = InnerProcessor {
@@ -8167,13 +8144,11 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>redis_pool: <span class="prelude-val">None</span>,
             geoip_lookup: <span class="prelude-val">None</span>,
-            global_config,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>aggregator,
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -8191,13 +8166,11 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>redis_pool: <span class="prelude-val">None</span>,
             geoip_lookup: <span class="prelude-val">None</span>,
-            global_config: Addr::dummy(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>aggregator: Addr::dummy(),
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -8232,6 +8205,7 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8254,6 +8228,7 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8465,6 +8440,7 @@
             project_state: Arc::new(project_state),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8536,6 +8512,7 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8585,6 +8562,7 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8642,6 +8620,7 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -9130,6 +9109,7 @@
             project_state: Arc::new(project_state),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();

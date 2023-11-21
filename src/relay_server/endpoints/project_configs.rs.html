@@ -197,6 +197,12 @@
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -329,7 +335,13 @@
     <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
     <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
     <span class="kw">let </span>global_config = <span class="kw">match </span>inner.global {
-        <span class="bool-val">true </span>=&gt; <span class="prelude-val">Some</span>(state.global_config().send(global_config::Get).<span class="kw">await</span><span class="question-mark">?</span>),
+        <span class="bool-val">true </span>=&gt; <span class="prelude-val">Some</span>(
+            state
+                .global_config()
+                .send(global_config::Get)
+                .<span class="kw">await</span><span class="question-mark">?
+                </span>.get_ready_or_default(),
+        ),
         <span class="bool-val">false </span>=&gt; <span class="prelude-val">None</span>,
     };
 

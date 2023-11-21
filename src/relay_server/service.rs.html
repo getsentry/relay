@@ -466,7 +466,6 @@
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
-            global_config.clone(),
             upstream_relay.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>aggregator.clone(),
@@ -500,6 +499,7 @@
             project_cache.clone(),
             test_store.clone(),
             upstream_relay.clone(),
+            global_config.clone(),
         );
         <span class="kw">let </span>guard = runtimes.project.enter();
         ProjectCacheService::new(
