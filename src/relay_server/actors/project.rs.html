@@ -2194,9 +2194,9 @@
             <span class="self">self</span>.backoff.reset();
         }
 
-        <span class="kw">let </span>channel = <span class="kw">match </span><span class="self">self</span>.state_channel.take() {
-            <span class="prelude-val">Some</span>(channel) =&gt; channel,
-            <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
+        <span class="kw">let </span><span class="prelude-val">Some</span>(channel) = <span class="self">self</span>.state_channel.take() <span class="kw">else </span>{
+            <span class="macro">relay_log::error!</span>(tags.project_key = %<span class="self">self</span>.project_key, <span class="string">&quot;channel is missing for the state update&quot;</span>);
+            <span class="kw">return</span>;
         };
 
         <span class="comment">// If the channel has `no_cache` set but we are not a `no_cache` request, we have
