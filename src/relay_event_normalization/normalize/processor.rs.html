@@ -3872,6 +3872,7 @@
 <a href="#3872" id="3872">3872</a>
 <a href="#3873" id="3873">3873</a>
 <a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization processor.
 //!
 //! This processor is work in progress. The intention is to have a single
@@ -4758,18 +4759,19 @@
                     </span><span class="kw">break</span>;
                 }
                 <span class="kw">let </span><span class="kw-2">mut </span>score_total = <span class="number">0.0</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>weight_total = <span class="number">0.0</span>;
                 <span class="kw">for </span>component <span class="kw">in </span><span class="kw-2">&amp;</span>profile.score_components {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurements.get_value(component.measurement.as_str()) {
-                        <span class="kw">let </span>subscore =
-                            utils::calculate_cdf_score(value, component.p10, component.p50)
-                                * component.weight;
-                        score_total += subscore;
+                        <span class="kw">let </span>cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+                        <span class="kw">let </span>component_score = cdf * component.weight;
+                        score_total += component_score;
+                        weight_total += component.weight;
                         should_add_total = <span class="bool-val">true</span>;
 
                         measurements.insert(
                             <span class="macro">format!</span>(<span class="string">&quot;score.{}&quot;</span>, component.measurement),
                             Measurement {
-                                value: subscore.into(),
+                                value: cdf.into(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                             }
                             .into(),
@@ -4789,7 +4791,7 @@
                     measurements.insert(
                         <span class="string">&quot;score.total&quot;</span>.to_owned(),
                         Measurement {
-                            value: score_total.into(),
+                            value: (score_total / weight_total).into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                         }
                         .into(),
@@ -6043,19 +6045,19 @@
               &quot;unit&quot;: &quot;millisecond&quot;,
             },
             &quot;score.cls&quot;: {
-              &quot;value&quot;: 0.21864170607444863,
+              &quot;value&quot;: 0.8745668242977945,
               &quot;unit&quot;: &quot;ratio&quot;,
             },
             &quot;score.fcp&quot;: {
-              &quot;value&quot;: 0.10750855443790831,
+              &quot;value&quot;: 0.7167236962527221,
               &quot;unit&quot;: &quot;ratio&quot;,
             },
             &quot;score.fid&quot;: {
-              &quot;value&quot;: 0.19657361348282545,
+              &quot;value&quot;: 0.6552453782760849,
               &quot;unit&quot;: &quot;ratio&quot;,
             },
             &quot;score.lcp&quot;: {
-              &quot;value&quot;: 0.009238896571386584,
+              &quot;value&quot;: 0.03079632190462195,
               &quot;unit&quot;: &quot;ratio&quot;,
             },
             &quot;score.total&quot;: {
