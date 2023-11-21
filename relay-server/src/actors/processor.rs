@@ -66,7 +66,6 @@ use {
 };
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
-use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
@@ -319,6 +318,9 @@ struct ProcessEnvelopeState<'a> {
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
+
+    /// Global config used for envelope processing.
+    global_config: Arc<GlobalConfig>,
 }
 
 impl<'a> ProcessEnvelopeState<'a> {
@@ -438,6 +440,7 @@ pub struct ProcessEnvelope {
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
     pub reservoir_counters: ReservoirCounters,
+    pub global_config: Arc<GlobalConfig>,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -539,7 +542,6 @@ impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
-    global_config: Arc<GlobalConfig>,
     inner: Arc<InnerProcessor>,
 }
 
@@ -549,7 +551,6 @@ struct InnerProcessor {
     redis_pool: Option<RedisPool>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
-    global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
     #[cfg(feature = "processing")]
     aggregator: Addr<Aggregator>,
@@ -568,7 +569,6 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
-        global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
@@ -591,7 +591,6 @@ impl EnvelopeProcessorService {
             config,
             envelope_manager,
             project_cache,
-            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
@@ -600,7 +599,6 @@ impl EnvelopeProcessorService {
         };
 
         Self {
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -1354,6 +1352,7 @@ impl EnvelopeProcessorService {
             project_state,
             sampling_project_state,
             reservoir_counters,
+            global_config,
         } = message;
 
         let envelope = managed_envelope.envelope_mut();
@@ -1408,6 +1407,7 @@ impl EnvelopeProcessorService {
             managed_envelope,
             profile_id: None,
             reservoir,
+            global_config,
         })
     }
 
@@ -2731,7 +2731,7 @@ impl EnvelopeProcessorService {
                 enable_trimming: true,
                 measurements: Some(DynamicMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
-                    self.global_config.measurements.as_ref(),
+                    state.global_config.measurements.as_ref(),
                 )),
             };
 
@@ -3091,24 +3091,12 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let thread_count = self.inner.config.cpu_concurrency();
         relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
-
-            let Ok(mut subscription) = self.inner.global_config.send(Subscribe).await else {
-                // TODO(iker): we accept this sub-optimal error handling. TBD
-                // the approach to deal with failures on the subscription
-                // mechanism.
-                relay_log::error!("failed to subscribe to GlobalConfigService");
-                return;
-            };
-
-            // In case we use static global config, the watch wont be updated repeatedly, so we
-            // should immediatly use the content of the watch.
-            self.global_config = subscription.borrow().clone();
 
             loop {
                 let next_msg = async {
@@ -3122,7 +3110,6 @@ impl Service for EnvelopeProcessorService {
                 tokio::select! {
                    biased;
 
-                    Ok(()) = subscription.changed() => self.global_config = subscription.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
@@ -3393,6 +3380,7 @@ mod tests {
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
+                global_config: Arc::default(),
             }
         };
 
@@ -3574,7 +3562,6 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
         #[cfg(feature = "processing")]
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let inner = InnerProcessor {
@@ -3588,13 +3575,11 @@ mod tests {
             #[cfg(feature = "processing")]
             redis_pool: None,
             geoip_lookup: None,
-            global_config,
             #[cfg(feature = "processing")]
             aggregator,
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -3612,13 +3597,11 @@ mod tests {
             #[cfg(feature = "processing")]
             redis_pool: None,
             geoip_lookup: None,
-            global_config: Addr::dummy(),
             #[cfg(feature = "processing")]
             aggregator: Addr::dummy(),
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -3653,6 +3636,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3675,6 +3659,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3886,6 +3871,7 @@ mod tests {
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3957,6 +3943,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -4006,6 +3993,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -4063,6 +4051,7 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -4551,6 +4540,7 @@ mod tests {
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
+            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
