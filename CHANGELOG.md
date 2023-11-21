@@ -4,6 +4,7 @@
 
 **Features**:
 
+- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
 - Add Bytespider (Bytedance) to web crawler filter. ([#2747](https://github.com/getsentry/relay/pull/2747))
 
 **Bug Fixes**:
@@ -15,7 +16,9 @@
 - License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
 - Support `device.model` in dynamic sampling and metric extraction. ([#2728](https://github.com/getsentry/relay/pull/2728))
 - Support comparison operators (`>`, `>=`, `<`, `<=`) for strings in dynamic sampling and metric extraction rules. Previously, these comparisons were only possible on numbers. ([#2730](https://github.com/getsentry/relay/pull/2730))
+- Postpone processing till the global config is available. ([#2697](https://github.com/getsentry/relay/pull/2697))
 - Skip running `NormalizeProcessor` on renormalization. ([#2744](https://github.com/getsentry/relay/pull/2744))
+
 
 ## 23.11.0
 

@@ -894,9 +894,9 @@ impl Project {
             self.backoff.reset();
         }
 
-        let channel = match self.state_channel.take() {
-            Some(channel) => channel,
-            None => return,
+        let Some(channel) = self.state_channel.take() else {
+            relay_log::error!(tags.project_key = %self.project_key, "channel is missing for the state update");
+            return;
         };
 
         // If the channel has `no_cache` set but we are not a `no_cache` request, we have

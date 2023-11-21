@@ -105,29 +105,56 @@ pub struct Subscribe;
 /// frequency from upstream.
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
-    Get(relay_system::Sender<Arc<GlobalConfig>>),
+    Get(relay_system::Sender<Status>),
     /// Returns a [`watch::Receiver`] where global config updates will be sent to.
-    Subscribe(relay_system::Sender<watch::Receiver<Arc<GlobalConfig>>>),
+    Subscribe(relay_system::Sender<watch::Receiver<Status>>),
 }
 
 impl Interface for GlobalConfigManager {}
 
 impl FromMessage<Get> for GlobalConfigManager {
-    type Response = AsyncResponse<Arc<GlobalConfig>>;
+    type Response = AsyncResponse<Status>;
 
-    fn from_message(_: Get, sender: relay_system::Sender<Arc<GlobalConfig>>) -> Self {
+    fn from_message(_: Get, sender: relay_system::Sender<Status>) -> Self {
         Self::Get(sender)
     }
 }
 
 impl FromMessage<Subscribe> for GlobalConfigManager {
-    type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
+    type Response = AsyncResponse<watch::Receiver<Status>>;
 
-    fn from_message(
-        _: Subscribe,
-        sender: relay_system::Sender<watch::Receiver<Arc<GlobalConfig>>>,
-    ) -> Self {
+    fn from_message(_: Subscribe, sender: relay_system::Sender<watch::Receiver<Status>>) -> Self {
         Self::Subscribe(sender)
+    }
+}
+
+/// Describes the current fetching status of the [`GlobalConfig`] from the upstream.
+#[derive(Debug, Clone, Default)]
+pub enum Status {
+    /// Global config ready to be used by other services.
+    ///
+    /// This variant implies different things in different circumstances. In managed mode, it means
+    /// that we have received a config from upstream. In other modes the config is either
+    /// from a file or the default global config.
+    Ready(Arc<GlobalConfig>),
+    /// The global config is requested from the upstream but it has not arrived yet.
+    ///
+    /// This variant should never be sent after the first `Ready` has occured.
+    #[default]
+    Pending,
+}
+
+impl Status {
+    fn is_ready(&self) -> bool {
+        matches!(self, Self::Ready(_))
+    }
+
+    /// Similar to Option::unwrap_or_default.
+    pub fn get_ready_or_default(self) -> Arc<GlobalConfig> {
+        match self {
+            Status::Ready(global_config) => global_config,
+            Status::Pending => Arc::default(),
+        }
     }
 }
 
@@ -140,7 +167,7 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 pub struct GlobalConfigService {
     config: Arc<Config>,
     /// Sender of the [`watch`] channel for the subscribers of the service.
-    global_config_watch: watch::Sender<Arc<GlobalConfig>>,
+    global_config_watch: watch::Sender<Status>,
     /// Sender of the internal channel to forward global configs from upstream.
     internal_tx: mpsc::Sender<UpstreamQueryResult>,
     /// Receiver of the internal channel to forward global configs from upstream.
@@ -161,7 +188,7 @@ impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (internal_tx, internal_rx) = mpsc::channel(1);
-        let (global_config_watch, _) = watch::channel(Arc::default());
+        let (global_config_watch, _) = watch::channel(Status::Pending);
 
         Self {
             config,
@@ -177,7 +204,7 @@ impl GlobalConfigService {
     }
 
     /// Handles messages from external services.
-    fn handle_message(&self, message: GlobalConfigManager) {
+    fn handle_message(&mut self, message: GlobalConfigManager) {
         match message {
             GlobalConfigManager::Get(sender) => {
                 sender.send(self.global_config_watch.borrow().clone());
@@ -231,9 +258,12 @@ impl GlobalConfigService {
                 let mut success = false;
                 match config.global {
                     Some(global_config) => {
-                        // Notifying subscribers only fails when there are no
-                        // subscribers.
-                        self.global_config_watch.send(Arc::new(global_config)).ok();
+                        // Log the first time we receive a global config from upstream.
+                        if !self.global_config_watch.borrow().is_ready() {
+                            relay_log::info!("received global config from upstream");
+                        }
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::new(global_config)));
                         success = true;
                         self.last_fetched = Instant::now();
                     }
@@ -277,24 +307,29 @@ impl Service for GlobalConfigService {
 
             relay_log::info!("global config service starting");
             if self.config.relay_mode() == RelayMode::Managed {
-                relay_log::info!("serving global configs fetched from upstream");
+                relay_log::info!("requesting global config from upstream");
                 self.request_global_config();
             } else {
                 match GlobalConfig::load(self.config.path()) {
                     Ok(Some(from_file)) => {
                         relay_log::info!("serving static global config loaded from file");
-                        self.global_config_watch.send(Arc::new(from_file)).ok();
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::new(from_file)));
                     }
                     Ok(None) => {
                         relay_log::info!(
                                 "serving default global configs due to lacking static global config file"
                             );
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::default()));
                     }
                     Err(e) => {
                         relay_log::error!("failed to load global config from file: {}", e);
                         relay_log::info!(
                                 "serving default global configs due to failure to load global config from file"
                             );
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::default()));
                     }
                 }
             };

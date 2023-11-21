@@ -884,18 +884,19 @@ fn normalize_performance_score(
                     break;
                 }
                 let mut score_total = 0.0;
+                let mut weight_total = 0.0;
                 for component in &profile.score_components {
                     if let Some(value) = measurements.get_value(component.measurement.as_str()) {
-                        let subscore =
-                            utils::calculate_cdf_score(value, component.p10, component.p50)
-                                * component.weight;
-                        score_total += subscore;
+                        let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+                        let component_score = cdf * component.weight;
+                        score_total += component_score;
+                        weight_total += component.weight;
                         should_add_total = true;
 
                         measurements.insert(
                             format!("score.{}", component.measurement),
                             Measurement {
-                                value: subscore.into(),
+                                value: cdf.into(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                             }
                             .into(),
@@ -915,7 +916,7 @@ fn normalize_performance_score(
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
-                            value: score_total.into(),
+                            value: (score_total / weight_total).into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                         }
                         .into(),
@@ -2169,19 +2170,19 @@ mod tests {
               "unit": "millisecond",
             },
             "score.cls": {
-              "value": 0.21864170607444863,
+              "value": 0.8745668242977945,
               "unit": "ratio",
             },
             "score.fcp": {
-              "value": 0.10750855443790831,
+              "value": 0.7167236962527221,
               "unit": "ratio",
             },
             "score.fid": {
-              "value": 0.19657361348282545,
+              "value": 0.6552453782760849,
               "unit": "ratio",
             },
             "score.lcp": {
-              "value": 0.009238896571386584,
+              "value": 0.03079632190462195,
               "unit": "ratio",
             },
             "score.total": {
