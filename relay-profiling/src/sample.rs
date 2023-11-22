@@ -85,7 +85,7 @@ pub struct Profile {
 }
 
 impl Profile {
-    fn parse(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
+    pub fn parse(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
         // Clean samples before running the checks.
         self.remove_idle_samples_at_the_edge();
         self.remove_single_samples_per_thread();

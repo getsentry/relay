@@ -171,9 +171,8 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
         return Err(ProfileError::NoTransactionAssociated);
     }
 
-    if let Some(js_profile) = profile.js_profile {
-        // TODO: Extract validations from https://github.com/getsentry/relay/blob/6d87ca4a402cdda760bb4281719b3b231a429c19/relay-profiling/src/sample.rs#L312
-        profile.js_profile = Some(js_profile);
+    if let Some(ref mut js_profile) = profile.js_profile {
+        js_profile.parse(profile.metadata.platform.as_str(), "")?;
     }
 
     if !profile.sampled_profile.is_empty() {
@@ -231,6 +230,17 @@ mod tests {
     #[test]
     fn test_roundtrip_android() {
         let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let profile = parse_profile(payload);
+        assert!(profile.is_ok());
+        let data = serde_json::to_vec(&profile.unwrap());
+        assert!(
+            parse_android_profile(&(data.unwrap())[..], BTreeMap::new(), BTreeMap::new()).is_ok()
+        );
+    }
+
+    #[test]
+    fn test_roundtrip_react_native() {
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.rn.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
