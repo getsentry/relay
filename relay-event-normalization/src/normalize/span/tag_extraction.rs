@@ -14,8 +14,7 @@ use url::Url;
 
 use crate::span::description::{parse_query, scrub_span_description};
 use crate::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
-    http_status_code_from_span, MOBILE_SDKS,
+    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MOBILE_SDKS,
 };
 
 /// A list of supported span tags for tag extraction.
@@ -29,7 +28,6 @@ pub enum SpanTagKey {
     Transaction,
     TransactionMethod,
     TransactionOp,
-    HttpStatusCode,
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
@@ -67,7 +65,6 @@ impl SpanTagKey {
             SpanTagKey::Transaction => "transaction",
             SpanTagKey::TransactionMethod => "transaction.method",
             SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
 
@@ -193,13 +190,6 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
         }
-    }
-
-    if let Some(transaction_http_status_code) = extract_http_status_code(event) {
-        tags.insert(
-            SpanTagKey::HttpStatusCode,
-            transaction_http_status_code.to_owned(),
-        );
     }
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
