@@ -1207,6 +1207,17 @@
 <a href="#1207" id="1207">1207</a>
 <a href="#1208" id="1208">1208</a>
 <a href="#1209" id="1209">1209</a>
+<a href="#1210" id="1210">1210</a>
+<a href="#1211" id="1211">1211</a>
+<a href="#1212" id="1212">1212</a>
+<a href="#1213" id="1213">1213</a>
+<a href="#1214" id="1214">1214</a>
+<a href="#1215" id="1215">1215</a>
+<a href="#1216" id="1216">1216</a>
+<a href="#1217" id="1217">1217</a>
+<a href="#1218" id="1218">1218</a>
+<a href="#1219" id="1219">1219</a>
+<a href="#1220" id="1220">1220</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1699,23 +1710,34 @@
 
 <span class="kw">impl </span>ProjectCacheBroker {
     <span class="kw">fn </span>set_global_config(<span class="kw-2">&amp;mut </span><span class="self">self</span>, global_config: Arc&lt;GlobalConfig&gt;) {
-        <span class="kw">if let </span>GlobalConfigStatus::Pending(project_keys) = std::mem::replace(
+        <span class="kw">let </span>GlobalConfigStatus::Pending(project_keys) = std::mem::replace(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>.global_config,
             GlobalConfigStatus::Ready(global_config),
-        ) {
-            <span class="macro">relay_log::info!</span>(
-                <span class="string">&quot;global config received: {} project were pending&quot;</span>,
-                project_keys.len()
-            );
-            <span class="comment">// When the global config arrives, we will request new ProjectStates for all the
-            // projects. This will trigger dequeuing of that we deferred in ProjectCacheBroker::dequeue.
-            </span><span class="kw">for </span>project_key <span class="kw">in </span>project_keys {
-                <span class="kw">let </span>message = RequestUpdate {
-                    project_key,
-                    no_cache: <span class="bool-val">false</span>,
-                };
+        ) <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
 
-                <span class="self">self</span>.services.project_cache.send(message)
+        <span class="macro">relay_log::info!</span>(
+            <span class="string">&quot;global config received: {} projects were pending&quot;</span>,
+            project_keys.len()
+        );
+
+        <span class="comment">// Check which of the pending projects can be dequeued now:
+        </span><span class="kw">for </span>project_key <span class="kw">in </span>project_keys {
+            <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
+
+            <span class="comment">// Check for a cached state:
+            //  1. If the state is cached and valid, trigger an immediate dequeue. There could be a
+            //     fetch running in the background, but this is not guaranteed.
+            //  2. If the state is not cached, `get_cached_state` will trigger a fetch in the
+            //     background. Once the fetch completes, the project will automatically cause a
+            //     dequeue by sending `UpdateProjectState` to the broker.
+            </span><span class="kw">let </span>state = <span class="self">self
+                </span>.get_or_create_project(project_key)
+                .get_cached_state(project_cache, <span class="bool-val">false</span>);
+
+            <span class="kw">if </span>state.map_or(<span class="bool-val">false</span>, |s| !s.invalid()) {
+                <span class="self">self</span>.dequeue(project_key);
             }
         }
     }
