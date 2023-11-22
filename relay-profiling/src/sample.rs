@@ -85,6 +85,34 @@ pub struct Profile {
 }
 
 impl Profile {
+    fn parse(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
+        // Clean samples before running the checks.
+        self.remove_idle_samples_at_the_edge();
+        self.remove_single_samples_per_thread();
+
+        if self.samples.is_empty() {
+            return Err(ProfileError::NotEnoughSamples);
+        }
+
+        if !self.check_samples() {
+            return Err(ProfileError::MalformedSamples);
+        }
+
+        if !self.check_stacks() {
+            return Err(ProfileError::MalformedStacks);
+        }
+
+        if self.is_above_max_duration() {
+            return Err(ProfileError::DurationIsTooLong);
+        }
+
+        self.strip_pointer_authentication_code(platform, architecture);
+        self.cleanup_thread_metadata();
+        self.cleanup_queue_metadata();
+
+        Ok(())
+    }
+
     fn strip_pointer_authentication_code(&mut self, platform: &str, architecture: &str) {
         let addr = match (platform, architecture) {
             // https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
@@ -93,6 +121,107 @@ impl Profile {
         };
         for frame in &mut self.frames {
             frame.strip_pointer_authentication_code(addr);
+        }
+    }
+
+    fn remove_idle_samples_at_the_edge(&mut self) {
+        let mut active_ranges: HashMap<u64, Range<usize>> = HashMap::new();
+
+        for (i, sample) in self.samples.iter().enumerate() {
+            let is_active = match self.stacks.get(sample.stack_id) {
+                Some(stack) => !stack.is_empty(),
+                None => true,
+            };
+
+            if !is_active {
+                continue;
+            }
+
+            if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
+                range.end = i + 1;
+            } else {
+                active_ranges.insert(sample.thread_id, i..i + 1);
+            }
+        }
+
+        self.samples = self
+            .samples
+            .drain(..)
+            .enumerate()
+            .filter(|(i, sample)| {
+                if let Some(range) = active_ranges.get(&sample.thread_id) {
+                    range.contains(i)
+                } else {
+                    false
+                }
+            })
+            .map(|(_, sample)| sample)
+            .collect();
+    }
+
+    /// Removes a sample when it's the only sample on its thread
+    fn remove_single_samples_per_thread(&mut self) {
+        let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
+
+        for sample in &self.samples {
+            *sample_count_by_thread_id
+                .entry(sample.thread_id)
+                .or_default() += 1;
+        }
+
+        // Only keep data from threads with more than 1 sample so we can calculate a duration
+        sample_count_by_thread_id.retain(|_, count| *count > 1);
+
+        self.samples
+            .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
+    }
+
+    fn check_samples(&self) -> bool {
+        for sample in &self.samples {
+            if self.stacks.get(sample.stack_id).is_none() {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn check_stacks(&self) -> bool {
+        for stack in &self.stacks {
+            for frame_id in stack {
+                if self.frames.get(*frame_id).is_none() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn is_above_max_duration(&self) -> bool {
+        if let Some(sample) = &self.samples.last() {
+            return sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS;
+        }
+        false
+    }
+
+    fn cleanup_thread_metadata(&mut self) {
+        if let Some(thread_metadata) = &mut self.thread_metadata {
+            let mut thread_ids: HashSet<String> = HashSet::new();
+            for sample in &self.samples {
+                thread_ids.insert(sample.thread_id.to_string());
+            }
+            thread_metadata.retain(|thread_id, _| thread_ids.contains(thread_id));
+        }
+    }
+
+    fn cleanup_queue_metadata(&mut self) {
+        if let Some(queue_metadata) = &mut self.queue_metadata {
+            let mut queue_addresses: HashSet<&String> = HashSet::new();
+            for sample in &self.samples {
+                if let Some(queue_address) = &sample.queue_address {
+                    queue_addresses.insert(queue_address);
+                }
+            }
+            queue_metadata.retain(|queue_address, _| queue_addresses.contains(&queue_address));
         }
     }
 }
@@ -197,116 +326,6 @@ impl SampleProfile {
             _ => true,
         }
     }
-
-    fn check_samples(&self) -> bool {
-        for sample in &self.profile.samples {
-            if self.profile.stacks.get(sample.stack_id).is_none() {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn check_stacks(&self) -> bool {
-        for stack in &self.profile.stacks {
-            for frame_id in stack {
-                if self.profile.frames.get(*frame_id).is_none() {
-                    return false;
-                }
-            }
-        }
-        true
-    }
-
-    fn is_above_max_duration(&self) -> bool {
-        if let Some(sample) = &self.profile.samples.last() {
-            return sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS;
-        }
-        false
-    }
-
-    /// Removes a sample when it's the only sample on its thread
-    fn remove_single_samples_per_thread(&mut self) {
-        let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
-
-        for sample in &self.profile.samples {
-            *sample_count_by_thread_id
-                .entry(sample.thread_id)
-                .or_default() += 1;
-        }
-
-        // Only keep data from threads with more than 1 sample so we can calculate a duration
-        sample_count_by_thread_id.retain(|_, count| *count > 1);
-
-        self.profile
-            .samples
-            .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
-    }
-
-    fn strip_pointer_authentication_code(&mut self) {
-        self.profile.strip_pointer_authentication_code(
-            &self.metadata.platform,
-            &self.metadata.device.architecture,
-        );
-    }
-
-    fn remove_idle_samples_at_the_edge(&mut self) {
-        let mut active_ranges: HashMap<u64, Range<usize>> = HashMap::new();
-
-        for (i, sample) in self.profile.samples.iter().enumerate() {
-            let is_active = match self.profile.stacks.get(sample.stack_id) {
-                Some(stack) => !stack.is_empty(),
-                None => true,
-            };
-
-            if !is_active {
-                continue;
-            }
-
-            if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
-                range.end = i + 1;
-            } else {
-                active_ranges.insert(sample.thread_id, i..i + 1);
-            }
-        }
-
-        self.profile.samples = self
-            .profile
-            .samples
-            .drain(..)
-            .enumerate()
-            .filter(|(i, sample)| {
-                if let Some(range) = active_ranges.get(&sample.thread_id) {
-                    range.contains(i)
-                } else {
-                    false
-                }
-            })
-            .map(|(_, sample)| sample)
-            .collect();
-    }
-
-    fn cleanup_thread_metadata(&mut self) {
-        if let Some(thread_metadata) = &mut self.profile.thread_metadata {
-            let mut thread_ids: HashSet<String> = HashSet::new();
-            for sample in &self.profile.samples {
-                thread_ids.insert(sample.thread_id.to_string());
-            }
-            thread_metadata.retain(|thread_id, _| thread_ids.contains(thread_id));
-        }
-    }
-
-    fn cleanup_queue_metadata(&mut self) {
-        if let Some(queue_metadata) = &mut self.profile.queue_metadata {
-            let mut queue_addresses: HashSet<&String> = HashSet::new();
-            for sample in &self.profile.samples {
-                if let Some(queue_address) = &sample.queue_address {
-                    queue_addresses.insert(queue_address);
-                }
-            }
-            queue_metadata.retain(|queue_address, _| queue_addresses.contains(&queue_address));
-        }
-    }
 }
 
 fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
@@ -340,29 +359,10 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         });
     }
 
-    // Clean samples before running the checks.
-    profile.remove_idle_samples_at_the_edge();
-    profile.remove_single_samples_per_thread();
-
-    if profile.profile.samples.is_empty() {
-        return Err(ProfileError::NotEnoughSamples);
-    }
-
-    if !profile.check_samples() {
-        return Err(ProfileError::MalformedSamples);
-    }
-
-    if !profile.check_stacks() {
-        return Err(ProfileError::MalformedStacks);
-    }
-
-    if profile.is_above_max_duration() {
-        return Err(ProfileError::DurationIsTooLong);
-    }
-
-    profile.strip_pointer_authentication_code();
-    profile.cleanup_thread_metadata();
-    profile.cleanup_queue_metadata();
+    profile.profile.parse(
+        profile.metadata.platform.as_str(),
+        profile.metadata.device.architecture.as_str(),
+    )?;
 
     Ok(profile)
 }
@@ -494,7 +494,7 @@ mod tests {
             },
         ]);
 
-        profile.remove_single_samples_per_thread();
+        profile.profile.remove_single_samples_per_thread();
 
         assert!(profile.profile.samples.len() == 2);
     }
@@ -797,7 +797,7 @@ mod tests {
             },
         ];
 
-        profile.remove_idle_samples_at_the_edge();
+        profile.profile.remove_idle_samples_at_the_edge();
 
         let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
 
@@ -894,8 +894,8 @@ mod tests {
             },
         ]);
 
-        profile.cleanup_thread_metadata();
-        profile.cleanup_queue_metadata();
+        profile.profile.cleanup_thread_metadata();
+        profile.profile.cleanup_queue_metadata();
 
         assert_eq!(profile.profile.thread_metadata.unwrap().len(), 2);
         assert_eq!(profile.profile.queue_metadata.unwrap().len(), 1);
@@ -942,7 +942,7 @@ mod tests {
             },
         ]);
 
-        assert!(!profile.is_above_max_duration());
+        assert!(!profile.profile.is_above_max_duration());
     }
 
     #[test]
@@ -964,7 +964,7 @@ mod tests {
             },
         ]);
 
-        assert!(profile.is_above_max_duration());
+        assert!(profile.profile.is_above_max_duration());
     }
 
     #[test]

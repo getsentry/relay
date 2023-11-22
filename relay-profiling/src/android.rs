@@ -6,8 +6,8 @@ use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
-use crate::native_debug_image::NativeDebugImage;
 use crate::measurements::Measurement;
+use crate::native_debug_image::NativeDebugImage;
 use crate::sample::Profile as SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
