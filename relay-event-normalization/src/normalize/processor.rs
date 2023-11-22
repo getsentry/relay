@@ -878,7 +878,7 @@ fn normalize_performance_score(
                 if !profile
                     .score_components
                     .iter()
-                    .all(|c| measurements.contains_key(c.measurement.as_str()))
+                    .all(|c| measurements.contains_key(c.measurement.as_str()) || c.weight == 0.0)
                 {
                     // Check all measurements exist, otherwise don't add any score components.
                     break;
@@ -901,15 +901,15 @@ fn normalize_performance_score(
                             }
                             .into(),
                         );
-                        measurements.insert(
-                            format!("score.weight.{}", component.measurement),
-                            Measurement {
-                                value: component.weight.into(),
-                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
-                        );
                     }
+                    measurements.insert(
+                        format!("score.weight.{}", component.measurement),
+                        Measurement {
+                            value: component.weight.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
                 }
 
                 if should_add_total {
@@ -2128,6 +2128,12 @@ mod tests {
                             "p10": 0.1,
                             "p50": 0.25
                         },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
                     ],
                     "condition": {
                         "op":"eq",
@@ -2203,6 +2209,10 @@ mod tests {
             },
             "score.weight.lcp": {
               "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
               "unit": "ratio",
             },
           },
