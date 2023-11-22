@@ -24,6 +24,7 @@ mod legacy;
 mod normalize;
 mod regexes;
 mod remove_other;
+mod schema;
 mod statsd;
 mod timestamp;
 mod transactions;
