@@ -97,11 +97,11 @@ impl Profile {
             return Err(ProfileError::NotEnoughSamples);
         }
 
-        if !self.check_samples() {
+        if !self.all_stacks_referenced_by_samples_exist() {
             return Err(ProfileError::MalformedSamples);
         }
 
-        if !self.check_stacks() {
+        if !self.all_frames_referenced_by_stacks_exist() {
             return Err(ProfileError::MalformedStacks);
         }
 
@@ -110,8 +110,8 @@ impl Profile {
         }
 
         self.strip_pointer_authentication_code(platform, architecture);
-        self.cleanup_thread_metadata();
-        self.cleanup_queue_metadata();
+        self.remove_unreferenced_threads();
+        self.remove_unreferenced_queues();
 
         Ok(())
     }
@@ -179,7 +179,8 @@ impl Profile {
             .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
     }
 
-    fn check_samples(&self) -> bool {
+    /// Checks that all stacks referenced by the samples exist in the stacks.
+    fn all_stacks_referenced_by_samples_exist(&self) -> bool {
         for sample in &self.samples {
             if self.stacks.get(sample.stack_id).is_none() {
                 return false;
@@ -188,7 +189,8 @@ impl Profile {
         true
     }
 
-    fn check_stacks(&self) -> bool {
+    /// Checks that all frames referenced by the stacks exist in the frames.
+    fn all_frames_referenced_by_stacks_exist(&self) -> bool {
         for stack in &self.stacks {
             for frame_id in stack {
                 if self.frames.get(*frame_id).is_none() {
@@ -199,6 +201,7 @@ impl Profile {
         true
     }
 
+    /// Checks if the last sample was recorded within the max profile duration.
     fn is_above_max_duration(&self) -> bool {
         if let Some(sample) = &self.samples.last() {
             return sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS;
@@ -206,24 +209,24 @@ impl Profile {
         false
     }
 
-    fn cleanup_thread_metadata(&mut self) {
+    fn remove_unreferenced_threads(&mut self) {
         if let Some(thread_metadata) = &mut self.thread_metadata {
-            let mut thread_ids: HashSet<String> = HashSet::new();
-            for sample in &self.samples {
-                thread_ids.insert(sample.thread_id.to_string());
-            }
+            let thread_ids = self
+                .samples
+                .iter()
+                .map(|sample| sample.thread_id.to_string())
+                .collect::<HashSet<_>>();
             thread_metadata.retain(|thread_id, _| thread_ids.contains(thread_id));
         }
     }
 
-    fn cleanup_queue_metadata(&mut self) {
+    fn remove_unreferenced_queues(&mut self) {
         if let Some(queue_metadata) = &mut self.queue_metadata {
-            let mut queue_addresses: HashSet<&String> = HashSet::new();
-            for sample in &self.samples {
-                if let Some(queue_address) = &sample.queue_address {
-                    queue_addresses.insert(queue_address);
-                }
-            }
+            let queue_addresses = self
+                .samples
+                .iter()
+                .filter_map(|sample| sample.queue_address.as_ref())
+                .collect::<HashSet<_>>();
             queue_metadata.retain(|queue_address, _| queue_addresses.contains(&queue_address));
         }
     }
@@ -897,8 +900,8 @@ mod tests {
             },
         ]);
 
-        profile.profile.cleanup_thread_metadata();
-        profile.profile.cleanup_queue_metadata();
+        profile.profile.remove_unreferenced_threads();
+        profile.profile.remove_unreferenced_queues();
 
         assert_eq!(profile.profile.thread_metadata.unwrap().len(), 2);
         assert_eq!(profile.profile.queue_metadata.unwrap().len(), 1);
