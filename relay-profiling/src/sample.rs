@@ -85,7 +85,10 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn parse(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
+    /// Mutates the profile. Removes invalid samples and threads.
+    /// Throws an error if the profile is malformed.
+    /// Removes extra metadata that are not referenced in the samples.
+    pub fn normalize(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
         // Clean samples before running the checks.
         self.remove_idle_samples_at_the_edge();
         self.remove_single_samples_per_thread();
@@ -359,7 +362,7 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         });
     }
 
-    profile.profile.parse(
+    profile.profile.normalize(
         profile.metadata.platform.as_str(),
         profile.metadata.device.architecture.as_str(),
     )?;

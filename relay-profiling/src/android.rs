@@ -172,7 +172,7 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
     }
 
     if let Some(ref mut js_profile) = profile.js_profile {
-        js_profile.parse(profile.metadata.platform.as_str(), "")?;
+        js_profile.normalize(profile.metadata.platform.as_str(), "")?;
     }
 
     if !profile.sampled_profile.is_empty() {
