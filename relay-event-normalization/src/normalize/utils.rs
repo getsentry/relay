@@ -59,6 +59,9 @@ pub const MOBILE_SDKS: [&str; 4] = [
     "sentry.javascript.react-native",
 ];
 
+/// Allowed value for main thread name
+pub const MAIN_THREAD_NAME: &str = "main";
+
 /// Maximum length of a mobile span or measurement in milliseconds.
 ///
 /// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
