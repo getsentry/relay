@@ -498,7 +498,7 @@ impl ProjectCacheBroker {
         };
 
         relay_log::info!(
-            "global config received: {} project were pending",
+            "global config received: {} projects were pending",
             project_keys.len()
         );
 
