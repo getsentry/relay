@@ -490,23 +490,34 @@ impl GlobalConfigStatus {
 
 impl ProjectCacheBroker {
     fn set_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        if let GlobalConfigStatus::Pending(project_keys) = std::mem::replace(
+        let GlobalConfigStatus::Pending(project_keys) = std::mem::replace(
             &mut self.global_config,
             GlobalConfigStatus::Ready(global_config),
-        ) {
-            relay_log::info!(
-                "global config received: {} project were pending",
-                project_keys.len()
-            );
-            // When the global config arrives, we will request new ProjectStates for all the
-            // projects. This will trigger dequeuing of that we deferred in ProjectCacheBroker::dequeue.
-            for project_key in project_keys {
-                let message = RequestUpdate {
-                    project_key,
-                    no_cache: false,
-                };
+        ) else {
+            return;
+        };
 
-                self.services.project_cache.send(message)
+        relay_log::info!(
+            "global config received: {} project were pending",
+            project_keys.len()
+        );
+
+        // Check which of the pending projects can be dequeued now:
+        for project_key in project_keys {
+            let project_cache = self.services.project_cache.clone();
+
+            // Check for a cached state:
+            //  1. If the state is cached and valid, trigger an immediate dequeue. There could be a
+            //     fetch running in the background, but this is not guaranteed.
+            //  2. If the state is not cached, `get_cached_state` will trigger a fetch in the
+            //     background. Once the fetch completes, the project will automatically cause a
+            //     dequeue by sending `UpdateProjectState` to the broker.
+            let state = self
+                .get_or_create_project(project_key)
+                .get_cached_state(project_cache, false);
+
+            if state.map_or(false, |s| !s.invalid()) {
+                self.dequeue(project_key);
             }
         }
     }
