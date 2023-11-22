@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
 - `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
+- Add Bytespider (Bytedance) to web crawler filter. ([#2747](https://github.com/getsentry/relay/pull/2747))
 
 **Bug Fixes**:
 
