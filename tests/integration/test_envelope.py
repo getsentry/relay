@@ -623,12 +623,9 @@ def test_buffer_envelopes_without_global_config(
     finally:
         mini_sentry.test_failures.clear()
 
-    try:
-        envelopes = []
-        # Check that we received exactly {envelope_qty} envelopes.
-        for _ in range(envelope_qty):
-            envelopes.append(events_consumer.get_event(timeout=2))
-        events_consumer.assert_empty()
-        assert len(envelopes) == envelope_qty
-    finally:
-        mini_sentry.test_failures.clear()
+    envelopes = []
+    # Check that we received exactly {envelope_qty} envelopes.
+    for _ in range(envelope_qty):
+        envelopes.append(events_consumer.get_event(timeout=2))
+    events_consumer.assert_empty()
+    assert len(envelopes) == envelope_qty

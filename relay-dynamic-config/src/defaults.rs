@@ -139,7 +139,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: [
                 ("", "environment"),
-                ("", "http.status_code"),
                 ("span.", "action"),
                 ("span.", "category"),
                 ("span.", "description"),
