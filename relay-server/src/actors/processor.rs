@@ -499,6 +499,8 @@ pub struct EncodeMetrics {
     pub max_batch_size_bytes: usize,
     /// Amount of logical partitions for the buckets.
     pub partitions: Option<u64>,
+    /// nice!
+    pub project_state: Arc<ProjectState>,
 }
 
 /// Applies rate limits to metrics buckets and forwards them to the envelope manager.
@@ -3086,19 +3088,18 @@ impl EnvelopeProcessorService {
     }
 
     /// Check if org total is past or whatever
-    fn rate_limit_buckets(&self, metrics_item: &Item) {
+    fn rate_limit_buckets(&self, qty: usize, project_state: Arc<ProjectState>, scoping: Scoping) {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return;
         };
 
-        let project_state = ProjectState::allowed(); //todo
         let quotas = project_state.config.quotas.as_slice();
 
         if quotas.is_empty() {
             return;
         }
 
-        let event_category = project_state.event_category();
+        rate_limiter.is_rate_limited(quotas, item_scoping, quantity, over_accept_once);
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
@@ -3106,12 +3107,6 @@ impl EnvelopeProcessorService {
             EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
                 rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
             });
-
-        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
-        // this stage in processing.
-        if let Some(category) = event_category {
-            envelope_limiter.assume_event(category, state.event_metrics_extracted);
-        }
 
         let scoping = state.managed_envelope.scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
@@ -3145,6 +3140,7 @@ impl EnvelopeProcessorService {
             max_batch_size_bytes,
             extraction_mode,
             partitions,
+            project_state,
         } = message;
 
         let upstream = self.inner.config.upstream_descriptor();
@@ -3157,15 +3153,26 @@ impl EnvelopeProcessorService {
             project_id: Some(scoping.project_id),
         };
 
-        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
-        {
+        let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
+
+        let total_batches: usize = bucket_partitions
+            .values()
+            .map(|buckets| {
+                BucketsView::new(buckets)
+                    .by_size(max_batch_size_bytes)
+                    .count()
+            })
+            .sum();
+
+        self.rate_limit_buckets(total_batches, project_state, scoping);
+
+        for (partition_key, buckets) in bucket_partitions {
             let mut num_batches = 0;
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
                 let item = create_metrics_item(&batch, extraction_mode);
 
-                self.rate_limit_buckets(&item);
                 envelope.add_item(item);
 
                 let mut envelope = ManagedEnvelope::standalone(
