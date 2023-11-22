@@ -4,7 +4,6 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![recursion_limit = "256"]
 
 use std::str::FromStr;
 
@@ -19,9 +18,21 @@ enum Trait {
     To,
 }
 
-decl_derive!([Empty, attributes(metastructure)] => derive_empty);
-decl_derive!([IntoValue, attributes(metastructure)] => derive_to_value);
-decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
+decl_derive!(
+    [Empty, attributes(metastructure)] =>
+    /// Derives `relay_protocol::Empty` for an `Annotated` structure.
+    derive_empty
+);
+decl_derive!(
+    [IntoValue, attributes(metastructure)] =>
+    /// Derives `relay_protocol::IntoValue` for an `Annotated` structure.
+    derive_to_value
+);
+decl_derive!(
+    [FromValue, attributes(metastructure)] =>
+    /// Derives `relay_protocol::FromValue` for an `Annotated` structure.
+    derive_from_value
+);
 
 fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
     let _ = s.add_bounds(synstructure::AddBounds::Generics);

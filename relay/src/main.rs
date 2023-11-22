@@ -116,7 +116,6 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 mod cli;
 mod cliapp;
@@ -131,6 +130,7 @@ use relay_log::Hub;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
+/// Main entry point of the Relay process.
 pub fn main() {
     let exit_code = match cli::execute() {
         Ok(()) => 0,

@@ -257,6 +257,7 @@ enum InitialResponse<T> {
 }
 
 /// States of a [`BroadcastRequest`].
+#[derive(Debug)]
 enum BroadcastState<T> {
     /// The request is waiting for an initial response.
     Pending(oneshot::Receiver<InitialResponse<T>>),
@@ -273,6 +274,7 @@ enum BroadcastState<T> {
 /// # Panics
 ///
 /// This future is not fused and panics if it is polled again after it has resolved.
+#[derive(Debug)]
 pub struct BroadcastRequest<T>(BroadcastState<T>)
 where
     T: Clone;
@@ -701,6 +703,12 @@ impl<M, R: MessageResponse> Clone for Recipient<M, R> {
         Self {
             inner: self.inner.to_trait_object(),
         }
+    }
+}
+
+impl<M, R> fmt::Debug for Recipient<M, R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Recipient").finish_non_exhaustive()
     }
 }
 

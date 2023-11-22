@@ -1,9 +1,16 @@
 [package]
 name = "relay-dashboard"
+authors = ["Sentry <oss@sentry.io>"]
+description = "A dashboard to debug Relay locally"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
 version = "23.11.0"
 edition = "2021"
+license-file = "../LICENSE"
+publish = false
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 ansi-to-html = "0.1.3"

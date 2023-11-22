@@ -20,7 +20,13 @@ impl fmt::Display for UnknownValueTypeError {
 impl std::error::Error for UnknownValueTypeError {}
 
 /// The (simplified) type of a value.
+///
+/// This type is used to match fields generically based on their type. The value types contain basic
+/// data types, certain protocol types, as well as types of attachments.
+///
+/// The primary use of the value type is for data scrubbing and event normalization.
 #[derive(Debug, Ord, PartialOrd, EnumSetType)]
+#[allow(missing_docs)]
 pub enum ValueType {
     // Basic types
     String,
@@ -56,6 +62,7 @@ pub enum ValueType {
 }
 
 impl ValueType {
+    /// Returns the value type set for a given annotated field depending on its type.
     pub fn for_field<T: ProcessValue>(field: &Annotated<T>) -> EnumSet<Self> {
         field
             .value()
@@ -93,6 +100,7 @@ relay_common::derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
 
 /// The maximum length of a field.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
+#[allow(missing_docs)]
 pub enum MaxChars {
     Hash,
     EnumLike,
@@ -164,10 +172,15 @@ impl MaxChars {
 /// The maximum size of a databag.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum BagSize {
+    /// Limits to 1KB and 3 nesting levels.
     Small,
+    /// Limits to 2KB and 5 nesting levels.
     Medium,
+    /// Limits to 8KB and 7 nesting levels.
     Large,
+    /// Limits to 16KB and 7 nesting levels.
     Larger,
+    /// Limits to 256KB and 7 nesting levels.
     Massive,
 }
 
@@ -528,6 +541,7 @@ impl<'a> ProcessingState<'a> {
         Path(self)
     }
 
+    /// Returns the set of value types that this field matches.
     pub fn value_type(&self) -> EnumSet<ValueType> {
         self.value_type
     }
@@ -601,6 +615,8 @@ impl<'a> ProcessingState<'a> {
     }
 }
 
+/// An iterator over the processing states in a path, returned from [`ProcessingState::iter`].
+#[derive(Debug)]
 pub struct ProcessingStateIter<'a> {
     state: Option<&'a ProcessingState<'a>>,
     size: usize,

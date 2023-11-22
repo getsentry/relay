@@ -49,6 +49,7 @@ pub enum Field {
 /// Each aggregator gets its own configuration.
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
+#[derive(Debug)]
 pub struct RouterService {
     default_aggregator: AggregatorService,
     secondary_aggregators: BTreeMap<MetricNamespace, AggregatorService>,

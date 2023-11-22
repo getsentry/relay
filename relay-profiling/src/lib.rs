@@ -139,6 +139,10 @@ fn minimal_profile_from_json(
     serde_path_to_error::deserialize(d)
 }
 
+/// Parses profiling-related meta data from a profile payload.
+///
+/// This function is optimized to parse minimal data and skips most fields. It is therefore suitable
+/// to be used in contexts with restricted CPU bandwidth.
 pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId, ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
@@ -191,6 +195,7 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
     Ok(profile.event_id)
 }
 
+/// Parses and normalizes a profiling payload.
 pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,

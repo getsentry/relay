@@ -9,6 +9,9 @@ edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 flate2 = "1.0.19"
 once_cell = { workspace = true }

@@ -1,5 +1,3 @@
-#![cfg_attr(test, allow(unused_must_use))]
-
 use std::borrow::Cow;
 
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
@@ -99,7 +97,7 @@ mod tests {
             ..LogEntry::default()
         };
 
-        normalize_logentry(&mut logentry, &mut Meta::default());
+        normalize_logentry(&mut logentry, &mut Meta::default()).unwrap();
         assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
     }
 
@@ -118,7 +116,7 @@ mod tests {
             ..LogEntry::default()
         };
 
-        normalize_logentry(&mut logentry, &mut Meta::default());
+        normalize_logentry(&mut logentry, &mut Meta::default()).unwrap();
         assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
     }
 
@@ -132,7 +130,7 @@ mod tests {
             ..LogEntry::default()
         };
 
-        normalize_logentry(&mut logentry, &mut Meta::default());
+        normalize_logentry(&mut logentry, &mut Meta::default()).unwrap();
         assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
     }
 
@@ -146,7 +144,7 @@ mod tests {
             ..LogEntry::default()
         };
 
-        normalize_logentry(&mut logentry, &mut Meta::default());
+        normalize_logentry(&mut logentry, &mut Meta::default()).unwrap();
         assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
     }
 
@@ -157,7 +155,7 @@ mod tests {
             ..LogEntry::default()
         };
 
-        normalize_logentry(&mut logentry, &mut Meta::default());
+        normalize_logentry(&mut logentry, &mut Meta::default()).unwrap();
         assert_eq!(logentry.formatted.as_str(), Some("hello, %s!"));
     }
 
@@ -168,7 +166,7 @@ mod tests {
             ..LogEntry::default()
         };
 
-        normalize_logentry(&mut logentry, &mut Meta::default());
+        normalize_logentry(&mut logentry, &mut Meta::default()).unwrap();
         assert_eq!(logentry.message.value(), None);
         assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
     }
@@ -181,7 +179,7 @@ mod tests {
             ..LogEntry::default()
         };
 
-        normalize_logentry(&mut logentry, &mut Meta::default());
+        normalize_logentry(&mut logentry, &mut Meta::default()).unwrap();
         assert_eq!(logentry.message.value(), None);
         assert_eq!(logentry.formatted.as_str(), Some("hello, world!"));
     }

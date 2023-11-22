@@ -27,8 +27,6 @@
 //!
 //! If the configuration for the [`KafkaTopic`] was not added, attemps to send the message to this
 //! topic will return the error.
-#![warn(missing_docs)]
-#![warn(missing_debug_implementations)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"

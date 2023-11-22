@@ -12,6 +12,7 @@ use uuid::Uuid;
 ///  - When obtained as instance through return values, always free the string.
 ///  - When obtained as pointer through field access, never free the string.
 #[repr(C)]
+#[derive(Debug)]
 pub struct RelayStr {
     /// Pointer to the UTF-8 encoded string data.
     pub data: *mut c_char,
@@ -113,6 +114,7 @@ pub unsafe extern "C" fn relay_str_free(s: *mut RelayStr) {
 
 /// A 16-byte UUID.
 #[repr(C)]
+#[derive(Debug)]
 pub struct RelayUuid {
     /// UUID bytes in network byte order (big endian).
     pub data: [u8; 16],
@@ -161,6 +163,7 @@ pub unsafe extern "C" fn relay_uuid_to_str(uuid: *const RelayUuid) -> RelayStr {
 ///  - When obtained as instance through return values, always free the buffer.
 ///  - When obtained as pointer through field access, never free the buffer.
 #[repr(C)]
+#[derive(Debug)]
 pub struct RelayBuf {
     /// Pointer to the raw data.
     pub data: *mut u8,

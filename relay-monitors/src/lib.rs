@@ -14,7 +14,6 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![warn(missing_docs)]
 
 use once_cell::sync::OnceCell;
 use relay_base_schema::project::ProjectId;
@@ -156,6 +155,7 @@ pub struct CheckIn {
 }
 
 /// The result from calling process_check_in
+#[derive(Debug)]
 pub struct ProcessedCheckInResult {
     /// The routing key to be used for the check-in payload.
     ///

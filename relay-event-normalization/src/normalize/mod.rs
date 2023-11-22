@@ -80,6 +80,7 @@ pub fn is_valid_platform(platform: &str) -> bool {
 }
 
 /// The processor that normalizes events for store.
+#[derive(Debug)]
 pub struct StoreNormalizeProcessor<'a> {
     config: Arc<StoreConfig>,
     geoip_lookup: Option<&'a GeoIpLookup>,

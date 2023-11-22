@@ -1,5 +1,6 @@
 use crate::ProfileError;
 
+/// Returns a reason code for outcomes.
 pub fn discard_reason(err: ProfileError) -> &'static str {
     match err {
         ProfileError::CannotSerializePayload => "profiling_failed_serialization",

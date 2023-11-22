@@ -20,6 +20,7 @@ use crate::regexes::{self, PatternType, ReplaceBehavior, ANYTHING_REGEX};
 use crate::utils;
 
 /// A processor that performs PII stripping.
+#[derive(Debug)]
 pub struct PiiProcessor<'a> {
     compiled_config: &'a CompiledPiiConfig,
 }

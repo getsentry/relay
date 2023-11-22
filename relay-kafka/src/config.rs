@@ -57,21 +57,20 @@ impl KafkaTopic {
     /// Returns iterator over the variants of [`KafkaTopic`].
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
-        use KafkaTopic::*;
         static TOPICS: [KafkaTopic; 13] = [
-            Events,
-            Attachments,
-            Transactions,
-            Outcomes,
-            OutcomesBilling,
-            Sessions,
-            MetricsSessions,
-            MetricsGeneric,
-            Profiles,
-            ReplayEvents,
-            ReplayRecordings,
-            Monitors,
-            Spans,
+            KafkaTopic::Events,
+            KafkaTopic::Attachments,
+            KafkaTopic::Transactions,
+            KafkaTopic::Outcomes,
+            KafkaTopic::OutcomesBilling,
+            KafkaTopic::Sessions,
+            KafkaTopic::MetricsSessions,
+            KafkaTopic::MetricsGeneric,
+            KafkaTopic::Profiles,
+            KafkaTopic::ReplayEvents,
+            KafkaTopic::ReplayRecordings,
+            KafkaTopic::Monitors,
+            KafkaTopic::Spans,
         ];
         TOPICS.iter()
     }
