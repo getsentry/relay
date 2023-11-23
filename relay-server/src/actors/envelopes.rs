@@ -16,6 +16,7 @@ use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
+use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
 #[cfg(feature = "processing")]
 use crate::actors::store::{Store, StoreEnvelope, StoreError};
@@ -151,6 +152,8 @@ pub struct SendMetrics {
     pub scoping: Scoping,
     /// Transaction extraction mode.
     pub extraction_mode: ExtractionMode,
+
+    pub project_state: Arc<ProjectState>,
 }
 
 /// Dispatch service for generating and submitting Envelopes.
@@ -335,6 +338,7 @@ impl EnvelopeManagerService {
             buckets,
             scoping,
             extraction_mode,
+            project_state,
         } = message;
 
         #[allow(unused_mut)]
@@ -356,6 +360,7 @@ impl EnvelopeManagerService {
             extraction_mode,
             max_batch_size_bytes,
             partitions,
+            project_state,
         });
     }
 

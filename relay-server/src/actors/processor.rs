@@ -2998,8 +2998,6 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
-        use relay_quotas::ItemScoping;
-
         let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
@@ -3094,15 +3092,15 @@ impl EnvelopeProcessorService {
         quantity: usize,
         project_state: Arc<ProjectState>,
         scoping: Scoping,
-    ) {
+    ) -> bool {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return;
+            return false;
         };
 
         let quotas = project_state.config.quotas.as_slice();
 
         if quotas.is_empty() {
-            return;
+            return false;
         }
 
         let item_scoping = ItemScoping {
@@ -3110,19 +3108,11 @@ impl EnvelopeProcessorService {
             scoping: &scoping,
         };
 
-        let x = rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false);
+        let Ok(limits) = rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) else {
+            return false;
+        };
 
-        // When invoking the rate limiter, capture if the event item has been rate limited to also
-        // remove it from the processing state eventually.
-        let mut envelope_limiter =
-            EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
-                rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
-            });
-
-        let scoping = state.managed_envelope.scoping();
-        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
-        });
+        let is_limited = limits.is_limited();
 
         if limits.is_limited() {
             self.inner
@@ -3130,18 +3120,7 @@ impl EnvelopeProcessorService {
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
-        if enforcement.event_active() {
-            state.remove_event();
-            debug_assert!(state.envelope().is_empty());
-        }
-
-        enforcement.track_outcomes(
-            state.envelope(),
-            &state.managed_envelope.scoping(),
-            self.inner.outcome_aggregator.clone(),
-        );
-
-        Ok(())
+        is_limited
     }
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
@@ -3166,16 +3145,22 @@ impl EnvelopeProcessorService {
 
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
+        // We want to protect the kafka metrics ingestion topics, therefore we ratelimit based on
+        // batches, as the batches are what's sent to kafka.
         let total_batches: usize = bucket_partitions
             .values()
             .map(|buckets| {
+                // Cheap operation because there's no allocations.
                 BucketsView::new(buckets)
                     .by_size(max_batch_size_bytes)
                     .count()
             })
             .sum();
 
-        self.rate_limit_buckets(total_batches, project_state, scoping);
+        if self.rate_limit_buckets(total_batches, project_state, scoping) {
+            let track_outcomes = todo!();
+            return;
+        }
 
         for (partition_key, buckets) in bucket_partitions {
             let mut num_batches = 0;

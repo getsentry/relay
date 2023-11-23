@@ -1057,6 +1057,7 @@ impl Project {
                 buckets,
                 scoping,
                 extraction_mode,
+                project_state,
             });
         }
     }
