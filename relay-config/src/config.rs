@@ -928,6 +928,10 @@ fn default_metrics_max_batch_size() -> ByteSize {
     ByteSize::mebibytes(5)
 }
 
+fn default_metrics_max_batch_size_processing() -> ByteSize {
+    ByteSize::kibibytes(100)
+}
+
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
@@ -997,12 +1001,9 @@ pub struct Processing {
     /// left to hard limits.
     #[serde(default = "default_metrics_max_batch_size")]
     pub metrics_max_batch_size: ByteSize,
-    /// The approximate maximum number of bytes submitted in one metrics batch for processing
-    /// relays.
-    ///
-    /// Overrides [`Self::metrics_max_batch_size`] when specified on processing relays.
-    #[serde(default)]
-    pub metrics_max_batch_size_processing: Option<ByteSize>,
+    /// The approximate maximum number of bytes submitted in one metrics batch on processing relays.
+    #[serde(default = "default_metrics_max_batch_size_processing")]
+    pub metrics_max_batch_size_processing: ByteSize,
 }
 
 impl Default for Processing {
@@ -1023,7 +1024,7 @@ impl Default for Processing {
             max_rate_limit: default_max_rate_limit(),
             metrics_partitions: None,
             metrics_max_batch_size: default_metrics_max_batch_size(),
-            metrics_max_batch_size_processing: None,
+            metrics_max_batch_size_processing: default_metrics_max_batch_size_processing(),
         }
     }
 }
@@ -2081,9 +2082,7 @@ impl Config {
         self.values
             .processing
             .metrics_max_batch_size_processing
-            .as_ref()
-            .map(|s| s.as_bytes())
-            .unwrap_or_else(|| self.metrics_max_batch_size_bytes())
+            .as_bytes()
     }
 
     /// Default prefix to use when looking up project configs in Redis. This is only done when

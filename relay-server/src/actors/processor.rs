@@ -498,10 +498,6 @@ pub struct EncodeMetrics {
     pub scoping: Scoping,
     /// Transaction metrics extraction mode.
     pub extraction_mode: ExtractionMode,
-    /// Approximate size in bytes to batch buckets.
-    pub max_batch_size_bytes: usize,
-    /// Amount of logical partitions for the buckets.
-    pub partitions: Option<u64>,
 }
 
 /// Applies rate limits to metrics buckets and forwards them to the envelope manager.
@@ -3108,10 +3104,25 @@ impl EnvelopeProcessorService {
         let EncodeMetrics {
             buckets,
             scoping,
-            max_batch_size_bytes,
             extraction_mode,
-            partitions,
         } = message;
+
+        #[cfg(not(feature = "processing"))]
+        let (partitions, max_batch_size_bytes) = {
+            (
+                self.inner.config.metrics_partitions(),
+                self.inner.config.metrics_max_batch_size_bytes(),
+            )
+        };
+        #[cfg(feature = "processing")]
+        let (partitions, max_batch_size_bytes) = {
+            // Partitioning on processing relays does not make sense, they end up all
+            // in the same Kafka topic anyways and the partition key is ignored.
+            (
+                None,
+                self.inner.config.metrics_max_batch_size_bytes_processing(),
+            )
+        };
 
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn {

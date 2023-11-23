@@ -8,7 +8,6 @@ use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_event_schema::protocol::ClientReport;
-use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
@@ -27,9 +26,7 @@ use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::statsd::RelayHistograms;
-use crate::utils::{ExtractionMode, ManagedEnvelope};
-
-use super::processor::EncodeMetrics;
+use crate::utils::ManagedEnvelope;
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -139,26 +136,11 @@ pub struct SendClientReports {
     pub scoping: Scoping,
 }
 
-/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
-///
-/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
-/// failed buckets.
-#[derive(Debug)]
-pub struct SendMetrics {
-    /// The pre-aggregated metric buckets.
-    pub buckets: Vec<Bucket>,
-    /// Scoping information for the metrics.
-    pub scoping: Scoping,
-    /// Transaction extraction mode.
-    pub extraction_mode: ExtractionMode,
-}
-
 /// Dispatch service for generating and submitting Envelopes.
 #[derive(Debug)]
 pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
-    SendMetrics(SendMetrics),
 }
 
 impl relay_system::Interface for EnvelopeManager {}
@@ -176,14 +158,6 @@ impl FromMessage<SendClientReports> for EnvelopeManager {
 
     fn from_message(message: SendClientReports, _: ()) -> Self {
         Self::SendClientReports(message)
-    }
-}
-
-impl FromMessage<SendMetrics> for EnvelopeManager {
-    type Response = NoResponse;
-
-    fn from_message(message: SendMetrics, _: ()) -> Self {
-        Self::SendMetrics(message)
     }
 }
 
@@ -330,35 +304,6 @@ impl EnvelopeManagerService {
         }
     }
 
-    async fn handle_send_metrics(&self, message: SendMetrics) {
-        let SendMetrics {
-            buckets,
-            scoping,
-            extraction_mode,
-        } = message;
-
-        #[allow(unused_mut)]
-        let mut partitions = self.config.metrics_partitions();
-        #[allow(unused_mut)]
-        let mut max_batch_size_bytes = self.config.metrics_max_batch_size_bytes();
-
-        #[cfg(feature = "processing")]
-        if self.store_forwarder.is_some() {
-            // Partitioning on processing relays does not make sense, they end up all
-            // in the same Kafka topic anyways and the partition key is ignored.
-            partitions = None;
-            max_batch_size_bytes = self.config.metrics_max_batch_size_bytes_processing();
-        }
-
-        self.enveloper_processor.send(EncodeMetrics {
-            buckets,
-            scoping,
-            extraction_mode,
-            max_batch_size_bytes,
-            partitions,
-        });
-    }
-
     async fn handle_send_client_reports(&self, message: SendClientReports) {
         let SendClientReports {
             client_reports,
@@ -397,9 +342,6 @@ impl EnvelopeManagerService {
             }
             EnvelopeManager::SendClientReports(message) => {
                 self.handle_send_client_reports(message).await;
-            }
-            EnvelopeManager::SendMetrics(message) => {
-                self.handle_send_metrics(message).await;
             }
         }
     }

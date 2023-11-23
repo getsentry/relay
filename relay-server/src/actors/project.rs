@@ -19,7 +19,6 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
@@ -31,6 +30,8 @@ use crate::statsd::RelayCounters;
 use crate::utils::{
     EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
+
+use super::processor::EncodeMetrics;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -1020,7 +1021,7 @@ impl Project {
     pub fn flush_buckets(
         &mut self,
         project_cache: Addr<ProjectCache>,
-        envelope_manager: Addr<EnvelopeManager>,
+        envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
     ) {
         let Some(project_state) = self.get_cached_state(project_cache, false) else {
@@ -1043,7 +1044,7 @@ impl Project {
         let extraction_mode = ExtractionMode::from_usage(usage);
 
         if !buckets.is_empty() {
-            envelope_manager.send(SendMetrics {
+            envelope_processor.send(EncodeMetrics {
                 buckets,
                 scoping,
                 extraction_mode,
