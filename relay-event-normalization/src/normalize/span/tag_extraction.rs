@@ -872,7 +872,7 @@ LIMIT 1
                         "start_timestamp": 1597976307.0000000,
                         "timestamp": 1597976308.0000000,
                         "trace_id": "ff62a8b040f340bda5d830223def1d81"
-                    },
+                    }
                 ]
             }
         "#;
