@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `normalize_performance_score` now handles `PerformanceScoreProfile` configs with zero weight components and component weight sums of any number greater than 0. ([#2756](https://github.com/getsentry/relay/pull/2756))
+
 ## 23.11.1
 
 **Features**:
