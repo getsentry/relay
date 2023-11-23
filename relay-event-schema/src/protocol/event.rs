@@ -496,7 +496,7 @@ pub struct Event {
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
     #[metastructure(omit_from_schema)]
-    pub _metrics_summary: Annotated<Object<Value>>,
+    pub _metrics_summary: Annotated<Value>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]

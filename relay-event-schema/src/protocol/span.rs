@@ -76,12 +76,6 @@ pub struct Span {
     /// Timestamp when the span has been received by Sentry.
     pub received: Annotated<Timestamp>,
 
-    /// Temporary protocol support for metric summaries.
-    ///
-    /// This shall move to a stable location once we have stabilized the
-    /// interface.  This is intentionally not typed today.
-    pub _metrics_summary: Annotated<Object<Value>>,
-
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
