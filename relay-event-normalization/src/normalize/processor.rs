@@ -1113,7 +1113,7 @@ mod tests {
         self, process_value, ProcessingAction, ProcessingState, Processor,
     };
     use relay_event_schema::protocol::{
-        CError, ClientSdkInfo, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement,
+        ClientSdkInfo, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement,
         Measurements, Request, Span, SpanId, Tags, TraceContext, TraceId, TransactionSource,
     };
     use relay_protocol::{get_value, Annotated, Meta, Object, SerializableAnnotated};
