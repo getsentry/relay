@@ -11,14 +11,14 @@ use crate::bucket::Bucket;
 use crate::BucketValue;
 
 /// The fraction of size passed to [`BucketsView::by_size()`] at which buckets will be split. A value of
-/// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
+/// `2` means that all buckets smaller than half of `metrics_max_batch_size` will be moved in their entirety,
 /// and buckets larger will be split up.
 const BUCKET_SPLIT_FACTOR: usize = 32;
 
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
 
-/// Just an internal type representing an index into a slice of buckets.
+/// An internal type representing an index into a slice of buckets.
 ///
 /// Note: the meaning of fields depends on the context of the index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,16 +45,23 @@ struct Index {
 /// Iterating over a [`BucketsView`] yields [`BucketView`] items,
 /// only the first and last elements may be partial buckets.
 ///
+/// In the above example `View 1` has a partial bucket at the end and
+/// `View 2` has a partial bucket in the beginning.
+///
 /// Using the above example, iterating over `View 1` yields the buckets:
 /// `[C:1], [C:12], [D:0, 1, 2, 3]`.
 pub struct BucketsView<'a> {
     /// Source slice of buckets.
     inner: &'a [Bucket],
-    /// Start index, slice index indicates bucket,
-    /// bucket index indicates offset in the selected bucket.
+    /// Start index.
+    ///
+    /// - Slice index indicates bucket.
+    /// - Bucket index indicates offset in the selected bucket.
     start: Index,
-    /// End index, slice index indicates exclusive end,
-    /// bucket index, indicates offset into the *next* bucket past the end.
+    /// End index.
+    ///
+    /// - Slice index indicates exclusive end.
+    /// - Bucket index, indicates offset into the *next* bucket past the end.
     end: Index,
 }
 
@@ -88,7 +95,7 @@ impl<'a> BucketsView<'a> {
         self.len() == 0
     }
 
-    /// Iterater over all buckets in the view.
+    /// Iterator over all buckets in the view.
     pub fn iter(&self) -> impl Iterator<Item = BucketView<'a>> {
         BucketsViewIter::new(self.inner, self.start, self.end)
     }
@@ -147,7 +154,7 @@ impl<'a> Iterator for BucketsViewIter<'a> {
         // This doesn't overflow because the last bucket in the inner slice will always have a 0 bucket index.
         let next = &self.inner[self.current.slice];
 
-        // Choose the bucket end, this will always the full bucket except if it is the last.
+        // Choose the bucket end, this will always be the full bucket except if it is the last.
         let end = match self.current.slice == self.end.slice {
             false => next.value.len(),
             true => self.end.bucket,
@@ -156,7 +163,7 @@ impl<'a> Iterator for BucketsViewIter<'a> {
         let next = BucketView::new(next).select(self.current.bucket..end);
 
         // Even if the current Bucket was partial, the next one will be full,
-        // except it is the last one.
+        // except if it is the last one.
         self.current = Index {
             slice: self.current.slice + 1,
             bucket: 0,
@@ -176,7 +183,7 @@ struct BucketsViewBySizeIter<'a> {
     current: Index,
     /// Terminal position.
     end: Index,
-    /// Maximum size of in bytes of each slice.
+    /// Maximum size in bytes of each slice.
     max_size_bytes: usize,
 }
 
@@ -296,6 +303,7 @@ pub struct BucketView<'a> {
 
 impl<'a> BucketView<'a> {
     /// Creates a new bucket view of a bucket.
+    ///
     /// The resulting view contains the entire bucket.
     pub fn new(bucket: &'a Bucket) -> Self {
         Self {
@@ -367,7 +375,7 @@ impl<'a> BucketView<'a> {
     ///
     /// Function panics when:
     /// * the passed range is not contained in the current view.
-    /// * trying to split a counter or gauage bucket
+    /// * trying to split a counter or gauge bucket.
     pub fn select(mut self, range: Range<usize>) -> Self {
         assert!(
             range.start >= self.range.start,
@@ -603,17 +611,17 @@ enum SplitDecision {
 /// This is an approximate function. The bucket is not actually serialized, but rather its
 /// footprint is estimated through the number of data points contained. See
 /// `estimate_size` for more information.
-fn split_at(bucket: &BucketView<'_>, size: usize, min_split_size: usize) -> SplitDecision {
+fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> SplitDecision {
     // If there's enough space for the entire bucket, do not perform a split.
     let bucket_size = estimate_size(bucket);
-    if size >= bucket_size {
+    if max_size >= bucket_size {
         return SplitDecision::BucketFits(bucket_size);
     }
 
     // If the bucket key can't even fit into the remaining length, move the entire bucket into
     // the right-hand side.
     let own_size = estimate_base_size(bucket);
-    if size < (own_size + AVG_VALUE_SIZE) {
+    if max_size < (own_size + AVG_VALUE_SIZE) {
         // split_at must not be zero
         return SplitDecision::MoveToNextBatch;
     }
@@ -624,7 +632,7 @@ fn split_at(bucket: &BucketView<'_>, size: usize, min_split_size: usize) -> Spli
 
     // Perform a split with the remaining space after adding the key. We assume an average
     // length of 8 bytes per value and compute the number of items fitting into the left side.
-    let split_at = (size - own_size) / AVG_VALUE_SIZE;
+    let split_at = (max_size - own_size) / AVG_VALUE_SIZE;
 
     SplitDecision::Split(split_at)
 }

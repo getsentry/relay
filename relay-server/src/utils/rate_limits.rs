@@ -139,7 +139,7 @@ pub struct EnvelopeSummary {
     /// The number of monitor check-ins.
     pub checkin_quantity: usize,
 
-    /// Secondary number of of transactions.
+    /// Secondary number of transactions.
     ///
     /// This is 0 for envelopes which contain a transaction,
     /// only secondary transaction quantity should be tracked here,
