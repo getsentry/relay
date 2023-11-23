@@ -128,7 +128,7 @@ struct BucketsViewIter<'a> {
 impl<'a> BucketsViewIter<'a> {
     /// Creates a new iterator.
     ///
-    /// **Notes:** if `start` and `end` are not valid indices the iterator may panic.
+    /// Start and end must be valid indices or iterator may end early.
     fn new(inner: &'a [Bucket], start: Index, end: Index) -> Self {
         Self {
             inner,
@@ -152,7 +152,11 @@ impl<'a> Iterator for BucketsViewIter<'a> {
         }
 
         // This doesn't overflow because the last bucket in the inner slice will always have a 0 bucket index.
-        let next = &self.inner[self.current.slice];
+        debug_assert!(
+            self.current.slice < self.inner.len(),
+            "invariant violated, iterator pointing past the slice"
+        );
+        let next = self.inner.get(self.current.slice)?;
 
         // Choose the bucket end, this will always be the full bucket except if it is the last.
         let end = match self.current.slice == self.end.slice {
@@ -161,6 +165,11 @@ impl<'a> Iterator for BucketsViewIter<'a> {
         };
 
         let next = BucketView::new(next).select(self.current.bucket..end);
+        let Some(next) = next else {
+            debug_assert!(false, "invariant violated, invalid bucket split");
+            relay_log::error!("Internal invariant violated, invalid bucket split, dropping all remaining buckets.");
+            return None;
+        };
 
         // Even if the current Bucket was partial, the next one will be full,
         // except if it is the last one.
@@ -190,7 +199,7 @@ struct BucketsViewBySizeIter<'a> {
 impl<'a> BucketsViewBySizeIter<'a> {
     /// Creates a new iterator.
     ///
-    /// **Notes:** if `start` and `end` are not valid indices the iterator may panic.
+    /// Start and end must be valid indices or iterator may end early.
     fn new(inner: &'a [Bucket], start: Index, end: Index, max_size_bytes: usize) -> Self {
         Self {
             inner,
@@ -217,10 +226,22 @@ impl<'a> Iterator for BucketsViewBySizeIter<'a> {
             }
 
             // Select next potential bucket,
-            // this won't overflow because `end` will never go past the slice and
+            // this should never overflow because `end` will never go past the slice and
             // we just validated that current is constrained by end.
-            let bucket = &self.inner[self.current.slice];
+            debug_assert!(
+                self.current.slice < self.inner.len(),
+                "invariant violated, iterator pointing past the slice"
+            );
+            let bucket = self.inner.get(self.current.slice)?;
+
+            // Selection should never fail, because either we select the entire range,
+            // or we previously already split the bucket, which means this range is good.
             let bucket = BucketView::new(bucket).select(self.current.bucket..bucket.value.len());
+            let Some(bucket) = bucket else {
+                debug_assert!(false, "internal invariant violated, invalid bucket split");
+                relay_log::error!("Internal invariant violated, invalid bucket split, dropping all remaining buckets.");
+                return None;
+            };
 
             match split_at(
                 &bucket,
@@ -371,24 +392,21 @@ impl<'a> BucketView<'a> {
 
     /// Selects a sub-view of the current view.
     ///
-    /// # Panics
-    ///
-    /// Function panics when:
-    /// * the passed range is not contained in the current view.
-    /// * trying to split a counter or gauge bucket.
-    pub fn select(mut self, range: Range<usize>) -> Self {
-        assert!(
-            range.start >= self.range.start,
-            "range not contained in view"
-        );
-        assert!(range.end <= self.range.end, "range not contained in view");
-        assert!(
-            self.can_split() || range == (0..self.inner.value.len()),
-            "attempt to split unsplittable bucket"
-        );
+    /// Returns `None` when:
+    /// - the passed range is not contained in the current view.
+    /// - trying to split a counter or gauge bucket.
+    pub fn select(mut self, range: Range<usize>) -> Option<Self> {
+        if range.start < self.range.start || range.end > self.range.end {
+            return None;
+        }
+
+        // Make sure the bucket can be split, or the entire bucket range is passed.
+        if !self.can_split() && range != (0..self.inner.value.len()) {
+            return None;
+        }
 
         self.range = range;
-        self
+        Some(self)
     }
 
     /// Whether the bucket can be split into multiple.
@@ -665,7 +683,7 @@ mod tests {
     fn test_bucket_view_select_counter() {
         let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let view = BucketView::new(&bucket).select(0..1);
+        let view = BucketView::new(&bucket).select(0..1).unwrap();
         assert_eq!(view.len(), 1);
         assert_eq!(
             serde_json::to_string(&view).unwrap(),
@@ -677,30 +695,25 @@ mod tests {
     fn test_bucket_view_select_invalid_counter() {
         let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..0);
-        select_fail(0..2);
-        select_fail(1..1);
+        assert!(BucketView::new(&bucket).select(0..0).is_none());
+        assert!(BucketView::new(&bucket).select(0..2).is_none());
+        assert!(BucketView::new(&bucket).select(1..1).is_none());
     }
 
     #[test]
     fn test_bucket_view_select_distribution() {
         let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let view = BucketView::new(&bucket).select(0..3);
+        let view = BucketView::new(&bucket).select(0..3).unwrap();
         assert_eq!(view.len(), 3);
         assert_eq!(
             view.value(),
             BucketViewValue::Distribution(&[1.0, 2.0, 3.0])
         );
-        let view = BucketView::new(&bucket).select(1..3);
+        let view = BucketView::new(&bucket).select(1..3).unwrap();
         assert_eq!(view.len(), 2);
         assert_eq!(view.value(), BucketViewValue::Distribution(&[2.0, 3.0]));
-        let view = BucketView::new(&bucket).select(1..5);
+        let view = BucketView::new(&bucket).select(1..5).unwrap();
         assert_eq!(view.len(), 4);
         assert_eq!(
             view.value(),
@@ -712,14 +725,9 @@ mod tests {
     fn test_bucket_view_select_invalid_distribution() {
         let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..6);
-        select_fail(5..6);
-        select_fail(77..99);
+        assert!(BucketView::new(&bucket).select(0..6).is_none());
+        assert!(BucketView::new(&bucket).select(5..6).is_none());
+        assert!(BucketView::new(&bucket).select(77..99).is_none());
     }
 
     #[test]
@@ -727,13 +735,13 @@ mod tests {
         let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
         let s = [42, 75].into();
 
-        let view = BucketView::new(&bucket).select(0..2);
+        let view = BucketView::new(&bucket).select(0..2).unwrap();
         assert_eq!(view.len(), 2);
         assert_eq!(view.value(), BucketViewValue::Set(SetView::new(&s, 0..2)));
-        let view = BucketView::new(&bucket).select(1..2);
+        let view = BucketView::new(&bucket).select(1..2).unwrap();
         assert_eq!(view.len(), 1);
         assert_eq!(view.value(), BucketViewValue::Set(SetView::new(&s, 1..2)));
-        let view = BucketView::new(&bucket).select(0..1);
+        let view = BucketView::new(&bucket).select(0..1).unwrap();
         assert_eq!(view.len(), 1);
         assert_eq!(view.value(), BucketViewValue::Set(SetView::new(&s, 0..1)));
     }
@@ -742,13 +750,9 @@ mod tests {
     fn test_bucket_view_select_invalid_set() {
         let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..3);
-        select_fail(2..5);
+        assert!(BucketView::new(&bucket).select(0..3).is_none());
+        assert!(BucketView::new(&bucket).select(2..5).is_none());
+        assert!(BucketView::new(&bucket).select(77..99).is_none());
     }
 
     #[test]
@@ -756,7 +760,7 @@ mod tests {
         let bucket =
             Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let view = BucketView::new(&bucket).select(0..5);
+        let view = BucketView::new(&bucket).select(0..5).unwrap();
         assert_eq!(view.len(), 5);
         assert_eq!(
             view.value(),
@@ -775,15 +779,10 @@ mod tests {
         let bucket =
             Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..1);
-        select_fail(0..4);
-        select_fail(5..5);
-        select_fail(5..6);
+        assert!(BucketView::new(&bucket).select(0..1).is_none());
+        assert!(BucketView::new(&bucket).select(0..4).is_none());
+        assert!(BucketView::new(&bucket).select(5..5).is_none());
+        assert!(BucketView::new(&bucket).select(5..6).is_none());
     }
 
     #[test]
