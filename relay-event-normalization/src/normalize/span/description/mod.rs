@@ -271,11 +271,7 @@ fn scrub_resource_path(path: &str) -> String {
     }
 
     // Only accept short, clean file extensions.
-    if let Some((invalid, _)) = extension
-        .bytes()
-        .enumerate()
-        .find(|(_, c)| !c.is_ascii_alphanumeric())
-    {
+    if let Some(invalid) = extension.bytes().position(|c| !c.is_ascii_alphanumeric()) {
         extension = &extension[..invalid];
     }
     if extension.len() > MAX_EXTENSION_LENGTH {
