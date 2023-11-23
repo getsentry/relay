@@ -24,7 +24,7 @@ use relay_event_schema::protocol::{
     IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, Span, SpanAttribute,
     SpanStatus, Tags, TraceContext, User,
 };
-use relay_protocol::{Annotated, Array, Empty, Error, ErrorKind, Meta, Object, Value};
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
 use crate::normalize::utils::validate_span;
@@ -33,8 +33,8 @@ use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, end_all_spans, normalize_transaction_name, set_default_transaction_source, span,
-    trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
+    breakdowns, end_all_spans, normalize_transaction_name, schema, set_default_transaction_source,
+    span, trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
     DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig, RawUserAgentInfo,
     SpanDescriptionRule, TransactionNameConfig,
 };
@@ -228,6 +228,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             return Ok(());
         }
 
+        // Check for required and non-empty values
+        schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+
         TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
@@ -345,114 +348,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         Ok(())
     }
-
-    fn before_process<T: ProcessValue>(
-        &mut self,
-        value: Option<&T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        if value.is_none() && state.attrs().required && !meta.has_errors() {
-            meta.add_error(ErrorKind::MissingAttribute);
-        }
-        Ok(())
-    }
-
-    fn process_string(
-        &mut self,
-        value: &mut String,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        value_trim_whitespace(value, meta, state);
-        verify_value_nonempty_string(value, meta, state)?;
-        verify_value_characters(value, meta, state)?;
-        Ok(())
-    }
-
-    fn process_array<T>(
-        &mut self,
-        value: &mut Array<T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        T: ProcessValue,
-    {
-        value.process_child_values(self, state)?;
-        verify_value_nonempty(value, meta, state)?;
-        Ok(())
-    }
-
-    fn process_object<T>(
-        &mut self,
-        value: &mut Object<T>,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult
-    where
-        T: ProcessValue,
-    {
-        value.process_child_values(self, state)?;
-        verify_value_nonempty(value, meta, state)?;
-        Ok(())
-    }
-}
-
-fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &ProcessingState<'_>) {
-    if state.attrs().trim_whitespace {
-        let new_value = value.trim().to_owned();
-        value.clear();
-        value.push_str(&new_value);
-    }
-}
-
-fn verify_value_nonempty<T>(
-    value: &T,
-    meta: &mut Meta,
-    state: &ProcessingState<'_>,
-) -> ProcessingResult
-where
-    T: Empty,
-{
-    if state.attrs().nonempty && value.is_empty() {
-        meta.add_error(Error::nonempty());
-        Err(ProcessingAction::DeleteValueHard)
-    } else {
-        Ok(())
-    }
-}
-
-fn verify_value_nonempty_string<T>(
-    value: &T,
-    meta: &mut Meta,
-    state: &ProcessingState<'_>,
-) -> ProcessingResult
-where
-    T: Empty,
-{
-    if state.attrs().nonempty && value.is_empty() {
-        meta.add_error(Error::nonempty_string());
-        Err(ProcessingAction::DeleteValueHard)
-    } else {
-        Ok(())
-    }
-}
-
-fn verify_value_characters(
-    value: &str,
-    meta: &mut Meta,
-    state: &ProcessingState<'_>,
-) -> ProcessingResult {
-    if let Some(ref character_set) = state.attrs().characters {
-        for c in value.chars() {
-            if !(character_set.char_is_valid)(c) {
-                meta.add_error(Error::invalid(format!("invalid character {c:?}")));
-                return Err(ProcessingAction::DeleteValueSoft);
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Backfills the client IP address on for the NEL reports.
@@ -875,22 +770,26 @@ fn normalize_performance_score(
             }
             if let Some(measurements) = event.measurements.value_mut() {
                 let mut should_add_total = false;
-                if !profile
-                    .score_components
-                    .iter()
-                    .all(|c| measurements.contains_key(c.measurement.as_str()))
-                {
-                    // Check all measurements exist, otherwise don't add any score components.
+                if profile.score_components.iter().any(|c| {
+                    !measurements.contains_key(c.measurement.as_str())
+                        && c.weight.abs() >= f64::EPSILON
+                }) {
+                    // All measurements with a profile weight greater than 0 are required to exist
+                    // on the event. Skip calculating performance scores if a measurement with
+                    // weight is missing.
                     break;
                 }
                 let mut score_total = 0.0;
                 let mut weight_total = 0.0;
                 for component in &profile.score_components {
+                    weight_total += component.weight;
+                }
+                for component in &profile.score_components {
+                    let normalized_component_weight = component.weight / weight_total;
                     if let Some(value) = measurements.get_value(component.measurement.as_str()) {
                         let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
-                        let component_score = cdf * component.weight;
+                        let component_score = cdf * normalized_component_weight;
                         score_total += component_score;
-                        weight_total += component.weight;
                         should_add_total = true;
 
                         measurements.insert(
@@ -901,22 +800,22 @@ fn normalize_performance_score(
                             }
                             .into(),
                         );
-                        measurements.insert(
-                            format!("score.weight.{}", component.measurement),
-                            Measurement {
-                                value: component.weight.into(),
-                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
-                        );
                     }
+                    measurements.insert(
+                        format!("score.weight.{}", component.measurement),
+                        Measurement {
+                            value: normalized_component_weight.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
                 }
 
                 if should_add_total {
                     measurements.insert(
                         "score.total".to_owned(),
                         Measurement {
-                            value: (score_total / weight_total).into(),
+                            value: score_total.into(),
                             unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                         }
                         .into(),
@@ -1218,11 +1117,10 @@ mod tests {
         self, process_value, ProcessingAction, ProcessingState, Processor,
     };
     use relay_event_schema::protocol::{
-        CError, ClientSdkInfo, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, MachException,
-        Measurement, Measurements, Mechanism, MechanismMeta, PosixSignal, RawStacktrace, Request,
-        Span, SpanId, Tags, TraceContext, TraceId, TransactionSource, User,
+        ClientSdkInfo, Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement,
+        Measurements, Request, Span, SpanId, Tags, TraceContext, TraceId, TransactionSource,
     };
-    use relay_protocol::{get_value, Annotated, ErrorKind, Meta, Object, SerializableAnnotated};
+    use relay_protocol::{get_value, Annotated, Meta, Object, SerializableAnnotated};
     use serde_json::json;
 
     use crate::normalize::processor::{
@@ -2128,6 +2026,12 @@ mod tests {
                             "p10": 0.1,
                             "p50": 0.25
                         },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
                     ],
                     "condition": {
                         "op":"eq",
@@ -2203,6 +2107,306 @@ mod tests {
             },
             "score.weight.lcp": {
               "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    // Test performance score is calculated correctly when the sum of weights is under 1.
+    // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
+    #[test]
+    fn test_computed_performance_score_with_under_normalized_weights() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.03,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.06,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.06,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.05,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.03079632190462195,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    // Test performance score is calculated correctly when the sum of weights is over 1.
+    // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
+    #[test]
+    fn test_computed_performance_score_with_over_normalized_weights() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.30,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.60,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.60,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.50,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.03079632190462195,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
               "unit": "ratio",
             },
           },
@@ -3711,165 +3915,5 @@ mod tests {
         range: None,
     },
 ]"#);
-    }
-
-    // TODO(ja): Enable this test
-    // fn assert_nonempty_base<T>(expected_error: &str)
-    // where
-    //     T: Default + PartialEq + ProcessValue,
-    // {
-    //     #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-    //     struct Foo<T> {
-    //         #[metastructure(required = "true", nonempty = "true")]
-    //         bar: Annotated<T>,
-    //         bar2: Annotated<T>,
-    //     }
-
-    //     let mut wrapper = Annotated::new(Foo {
-    //         bar: Annotated::new(T::default()),
-    //         bar2: Annotated::new(T::default()),
-    //     });
-    //     process_value(&mut wrapper, &mut SchemaProcessor, ProcessingState::root()).unwrap();
-
-    //     assert_eq!(
-    //         wrapper,
-    //         Annotated::new(Foo {
-    //             bar: Annotated::from_error(Error::expected(expected_error), None),
-    //             bar2: Annotated::new(T::default())
-    //         })
-    //     );
-    // }
-
-    // #[test]
-    // fn test_nonempty_string() {
-    //     assert_nonempty_base::<String>("a non-empty string");
-    // }
-
-    // #[test]
-    // fn test_nonempty_array() {
-    //     assert_nonempty_base::<Array<u64>>("a non-empty value");
-    // }
-
-    // #[test]
-    // fn test_nonempty_object() {
-    //     assert_nonempty_base::<Object<u64>>("a non-empty value");
-    // }
-
-    #[test]
-    fn test_invalid_email() {
-        let mut user = Annotated::new(User {
-            email: Annotated::new("bananabread".to_owned()),
-            ..Default::default()
-        });
-
-        let expected = user.clone();
-        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
-        processor::process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
-
-        assert_eq!(user, expected);
-    }
-
-    #[test]
-    fn test_client_sdk_missing_attribute() {
-        let mut info = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
-            ..Default::default()
-        });
-
-        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
-        processor::process_value(&mut info, &mut processor, ProcessingState::root()).unwrap();
-
-        let expected = Annotated::new(ClientSdkInfo {
-            name: Annotated::new("sentry.rust".to_string()),
-            version: Annotated::from_error(ErrorKind::MissingAttribute, None),
-            ..Default::default()
-        });
-
-        assert_eq!(info, expected);
-    }
-
-    #[test]
-    fn test_mechanism_missing_attributes() {
-        let mut mechanism = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
-            meta: Annotated::new(MechanismMeta {
-                errno: Annotated::new(CError {
-                    name: Annotated::new("ENOENT".to_string()),
-                    ..Default::default()
-                }),
-                mach_exception: Annotated::new(MachException {
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
-                    ..Default::default()
-                }),
-                signal: Annotated::new(PosixSignal {
-                    name: Annotated::new("SIGSEGV".to_string()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
-        processor::process_value(&mut mechanism, &mut processor, ProcessingState::root()).unwrap();
-
-        let expected = Annotated::new(Mechanism {
-            ty: Annotated::new("mytype".to_string()),
-            meta: Annotated::new(MechanismMeta {
-                errno: Annotated::new(CError {
-                    number: Annotated::empty(),
-                    name: Annotated::new("ENOENT".to_string()),
-                }),
-                mach_exception: Annotated::new(MachException {
-                    ty: Annotated::empty(),
-                    code: Annotated::empty(),
-                    subcode: Annotated::empty(),
-                    name: Annotated::new("EXC_BAD_ACCESS".to_string()),
-                }),
-                signal: Annotated::new(PosixSignal {
-                    number: Annotated::empty(),
-                    code: Annotated::empty(),
-                    name: Annotated::new("SIGSEGV".to_string()),
-                    code_name: Annotated::empty(),
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        assert_eq!(mechanism, expected);
-    }
-
-    #[test]
-    fn test_stacktrace_missing_attribute() {
-        let mut stack = Annotated::new(RawStacktrace::default());
-
-        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
-        processor::process_value(&mut stack, &mut processor, ProcessingState::root()).unwrap();
-
-        let expected = Annotated::new(RawStacktrace {
-            frames: Annotated::from_error(ErrorKind::MissingAttribute, None),
-            ..Default::default()
-        });
-
-        assert_eq!(stack, expected);
-    }
-
-    #[test]
-    fn test_newlines_release() {
-        let mut event = Annotated::new(Event {
-            release: Annotated::new("42\n".to_string().into()),
-            ..Default::default()
-        });
-
-        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig::default());
-        processor::process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-
-        let expected = Annotated::new(Event {
-            release: Annotated::new("42".to_string().into()),
-            ..Default::default()
-        });
-
-        assert_eq!(get_value!(expected.release!), get_value!(event.release!));
     }
 }
