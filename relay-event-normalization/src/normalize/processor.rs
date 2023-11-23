@@ -875,12 +875,13 @@ fn normalize_performance_score(
             }
             if let Some(measurements) = event.measurements.value_mut() {
                 let mut should_add_total = false;
-                if !profile
-                    .score_components
-                    .iter()
-                    .all(|c| measurements.contains_key(c.measurement.as_str()) || c.weight == 0.0)
-                {
-                    // Check all measurements exist, otherwise don't add any score components.
+                if profile.score_components.iter().any(|c| {
+                    !measurements.contains_key(c.measurement.as_str())
+                        && c.weight.abs() >= f64::EPSILON
+                }) {
+                    // All measurements with a profile weight greater than 0 are required to exist
+                    // on the event. Skip calculating performance scores if a measurement with
+                    // weight is missing.
                     break;
                 }
                 let mut score_total = 0.0;
