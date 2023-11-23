@@ -118,6 +118,7 @@ impl DataCategory {
             Self::Span => "span",
             Self::MonitorSeat => "monitor_seat",
             Self::UserReportV2 => "feedback",
+            Self::Metrics => "metrics",
             Self::Unknown => "unknown",
         }
     }

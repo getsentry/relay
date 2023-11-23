@@ -42,7 +42,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, ReasonCode, Scoping};
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -3088,7 +3088,13 @@ impl EnvelopeProcessorService {
     }
 
     /// Check if org total is past or whatever
-    fn rate_limit_buckets(&self, qty: usize, project_state: Arc<ProjectState>, scoping: Scoping) {
+    #[cfg(feature = "processing")]
+    fn rate_limit_buckets(
+        &self,
+        quantity: usize,
+        project_state: Arc<ProjectState>,
+        scoping: Scoping,
+    ) {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return;
         };
@@ -3099,7 +3105,12 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        rate_limiter.is_rate_limited(quotas, item_scoping, quantity, over_accept_once);
+        let item_scoping = ItemScoping {
+            category: DataCategory::Metrics,
+            scoping: &scoping,
+        };
+
+        let x = rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false);
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
