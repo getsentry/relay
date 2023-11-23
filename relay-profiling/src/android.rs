@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
-use crate::sample::Profile as SampleProfile;
+use crate::sample::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};
@@ -86,7 +86,7 @@ pub struct ProfileMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct AndroidProfile {
+struct AndroidProfilingEvent {
     #[serde(flatten)]
     metadata: ProfileMetadata,
 
@@ -96,7 +96,7 @@ struct AndroidProfile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     js_profile: Option<SampleProfile>,
 
-    #[serde(default = "AndroidProfile::default")]
+    #[serde(default = "AndroidProfilingEvent::default")]
     profile: AndroidTraceLog,
 }
 
@@ -105,7 +105,7 @@ struct DebugMeta {
     images: Vec<NativeDebugImage>,
 }
 
-impl AndroidProfile {
+impl AndroidProfilingEvent {
     fn default() -> AndroidTraceLog {
         AndroidTraceLog {
             data_file_overflow: Default::default(),
@@ -140,9 +140,9 @@ impl AndroidProfile {
     }
 }
 
-fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
+fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> {
     let d = &mut serde_json::Deserializer::from_slice(payload);
-    let mut profile: AndroidProfile =
+    let mut profile: AndroidProfilingEvent =
         serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     let transaction_opt = profile.metadata.transactions.drain(..).next();
@@ -302,7 +302,7 @@ mod tests {
 
         let payload = profile_json.unwrap();
         let d = &mut serde_json::Deserializer::from_slice(&payload[..]);
-        let output: AndroidProfile = serde_path_to_error::deserialize(d)
+        let output: AndroidProfilingEvent = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
         assert_eq!(output.metadata.release, "some-random-release".to_string());

@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
 
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use relay_event_schema::protocol::{Addr, EventId};
 use serde::{Deserialize, Serialize};
 
@@ -71,7 +72,7 @@ struct QueueMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Profile {
+pub struct SampleProfile {
     samples: Vec<Sample>,
     stacks: Vec<Vec<usize>>,
     frames: Vec<Frame>,
@@ -84,10 +85,14 @@ pub struct Profile {
     queue_metadata: Option<HashMap<String, QueueMetadata>>,
 }
 
-impl Profile {
+impl SampleProfile {
+    /// Ensures valid profiler or returns an error.
+    ///
     /// Mutates the profile. Removes invalid samples and threads.
     /// Throws an error if the profile is malformed.
     /// Removes extra metadata that are not referenced in the samples.
+    ///
+    /// profile.normalize("cocoa", "arm64e")
     pub fn normalize(&mut self, platform: &str, architecture: &str) -> Result<(), ProfileError> {
         // Clean samples before running the checks.
         self.remove_idle_samples_at_the_edge();
@@ -131,20 +136,18 @@ impl Profile {
         let mut active_ranges: HashMap<u64, Range<usize>> = HashMap::new();
 
         for (i, sample) in self.samples.iter().enumerate() {
-            let is_active = match self.stacks.get(sample.stack_id) {
-                Some(stack) => !stack.is_empty(),
-                None => true,
-            };
-
-            if !is_active {
+            if !self
+                .stacks
+                .get(sample.stack_id)
+                .is_some_and(|stack| !stack.is_empty())
+            {
                 continue;
             }
 
-            if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
-                range.end = i + 1;
-            } else {
-                active_ranges.insert(sample.thread_id, i..i + 1);
-            }
+            active_ranges
+                .entry(sample.thread_id)
+                .and_modify(|range| range.end = i + 1)
+                .or_insert(i..i + 1);
         }
 
         self.samples = self
@@ -152,11 +155,9 @@ impl Profile {
             .drain(..)
             .enumerate()
             .filter(|(i, sample)| {
-                if let Some(range) = active_ranges.get(&sample.thread_id) {
-                    range.contains(i)
-                } else {
-                    false
-                }
+                active_ranges
+                    .get(&sample.thread_id)
+                    .is_some_and(|range| range.contains(i))
             })
             .map(|(_, sample)| sample)
             .collect();
@@ -164,16 +165,14 @@ impl Profile {
 
     /// Removes a sample when it's the only sample on its thread
     fn remove_single_samples_per_thread(&mut self) {
-        let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
-
-        for sample in &self.samples {
-            *sample_count_by_thread_id
-                .entry(sample.thread_id)
-                .or_default() += 1;
-        }
-
-        // Only keep data from threads with more than 1 sample so we can calculate a duration
-        sample_count_by_thread_id.retain(|_, count| *count > 1);
+        let sample_count_by_thread_id = &self
+            .samples
+            .iter()
+            .counts_by(|sample| sample.thread_id)
+            // Only keep data from threads with more than 1 sample so we can calculate a duration
+            .into_iter()
+            .filter(|(_, count)| *count > 1)
+            .collect::<HashMap<_, _>>();
 
         self.samples
             .retain(|sample| sample_count_by_thread_id.contains_key(&sample.thread_id));
@@ -181,32 +180,25 @@ impl Profile {
 
     /// Checks that all stacks referenced by the samples exist in the stacks.
     fn all_stacks_referenced_by_samples_exist(&self) -> bool {
-        for sample in &self.samples {
-            if self.stacks.get(sample.stack_id).is_none() {
-                return false;
-            }
-        }
-        true
+        self.samples
+            .iter()
+            .all(|sample| self.stacks.get(sample.stack_id).is_some())
     }
 
     /// Checks that all frames referenced by the stacks exist in the frames.
     fn all_frames_referenced_by_stacks_exist(&self) -> bool {
-        for stack in &self.stacks {
-            for frame_id in stack {
-                if self.frames.get(*frame_id).is_none() {
-                    return false;
-                }
-            }
-        }
-        true
+        self.stacks.iter().all(|stack| {
+            stack
+                .iter()
+                .all(|frame_id| self.frames.get(*frame_id).is_some())
+        })
     }
 
     /// Checks if the last sample was recorded within the max profile duration.
     fn is_above_max_duration(&self) -> bool {
-        if let Some(sample) = &self.samples.last() {
-            return sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS;
-        }
-        false
+        self.samples.last().map_or(false, |sample| {
+            sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS
+        })
     }
 
     fn remove_unreferenced_threads(&mut self) {
@@ -311,15 +303,15 @@ pub struct ProfileMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SampleProfile {
+pub struct ProfilingEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurements: Option<HashMap<String, Measurement>>,
     #[serde(flatten)]
     metadata: ProfileMetadata,
-    profile: Profile,
+    profile: SampleProfile,
 }
 
-impl SampleProfile {
+impl ProfilingEvent {
     fn valid(&self) -> bool {
         match self.metadata.platform.as_str() {
             "cocoa" => {
@@ -334,9 +326,9 @@ impl SampleProfile {
     }
 }
 
-fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
+fn parse_profile(payload: &[u8]) -> Result<ProfilingEvent, ProfileError> {
     let d = &mut serde_json::Deserializer::from_slice(payload);
-    let mut profile: SampleProfile =
+    let mut profile: ProfilingEvent =
         serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     if !profile.valid() {
@@ -428,8 +420,8 @@ mod tests {
         assert!(profile.is_ok());
     }
 
-    fn generate_profile() -> SampleProfile {
-        SampleProfile {
+    fn generate_profile() -> ProfilingEvent {
+        ProfilingEvent {
             measurements: None,
             metadata: ProfileMetadata {
                 debug_meta: Option::None,
@@ -458,7 +450,7 @@ mod tests {
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
             },
-            profile: Profile {
+            profile: SampleProfile {
                 queue_metadata: Some(HashMap::new()),
                 samples: Vec::new(),
                 stacks: Vec::new(),
@@ -920,7 +912,7 @@ mod tests {
 
         let payload = profile_json.unwrap();
         let d = &mut serde_json::Deserializer::from_slice(&payload[..]);
-        let output: SampleProfile = serde_path_to_error::deserialize(d)
+        let output: ProfilingEvent = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
         assert_eq!(

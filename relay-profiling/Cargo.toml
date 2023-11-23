@@ -13,6 +13,7 @@ publish = false
 android_trace_log = { version = "0.3.0", features = ["serde"] }
 chrono = { workspace = true }
 data-encoding = "2.3.3"
+itertools = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-log = { path = "../relay-log" }
