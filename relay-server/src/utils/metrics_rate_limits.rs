@@ -73,7 +73,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     _ => 0,
                 };
 
-                let has_profile = matches!(mri.name, "usage" | "duration")
+                let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
                     && metric.tag(PROFILE_TAG) == Some("true");
 
                 Some((count, has_profile))
