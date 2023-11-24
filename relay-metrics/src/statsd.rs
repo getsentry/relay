@@ -50,7 +50,7 @@ pub enum MetricCounters {
     BucketsDropped,
     /// Incremented every time the meta aggregator emitted an update that needs to be stored or
     /// sent upstream.
-    MetaLocationUpdate,
+    MetaAggregatorUpdate,
     /// Incremented every time a redis key is updated to store or update metadata.
     MetaRedisUpdate,
 }
@@ -61,7 +61,7 @@ impl CounterMetric for MetricCounters {
             Self::MergeHit => "metrics.buckets.merge.hit",
             Self::MergeMiss => "metrics.buckets.merge.miss",
             Self::BucketsDropped => "metrics.buckets.dropped",
-            Self::MetaLocationUpdate => "metrics.meta.agg.miss",
+            Self::MetaAggregatorUpdate => "metrics.meta.agg.update",
             Self::MetaRedisUpdate => "metrics.meta.redis.update",
         }
     }

@@ -47,7 +47,7 @@ pub struct Location {
     pub function: Option<String>,
     /// The line number.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub lineno: Option<u64>, // TODO nachschauen
+    pub lineno: Option<u64>,
 }
 
 /// A Unix timestamp that is truncated to the start of the day.

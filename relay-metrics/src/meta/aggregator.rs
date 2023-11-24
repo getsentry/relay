@@ -23,7 +23,7 @@ use crate::{statsd::MetricCounters, MetricResourceIdentifier};
 /// of this happening is small enough to just add it to the storage worst case.
 #[derive(Debug)]
 pub struct MetaAggregator {
-    ///
+    /// All tracked code locations.
     locations: hashbrown::HashMap<Scope, HashSet<Location>>,
 
     /// Maximum tracked locations.
@@ -64,7 +64,7 @@ impl MetaAggregator {
             return None;
         }
 
-        relay_statsd::metric!(counter(MetricCounters::MetaLocationUpdate) += 1);
+        relay_statsd::metric!(counter(MetricCounters::MetaAggregatorUpdate) += 1);
         Some(MetricMeta {
             timestamp: meta.timestamp,
             mapping: send_upstream,
