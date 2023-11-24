@@ -1052,7 +1052,7 @@ impl Project {
         };
         let extraction_mode = ExtractionMode::from_usage(usage);
 
-        if !buckets.is_empty() {
+        if !buckets.is_empty() && self.rate_limits.is_ok() {
             envelope_manager.send(SendMetrics {
                 buckets,
                 scoping,

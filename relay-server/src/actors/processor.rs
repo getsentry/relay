@@ -42,7 +42,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ItemScoping, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -499,7 +499,7 @@ pub struct EncodeMetrics {
     pub max_batch_size_bytes: usize,
     /// Amount of logical partitions for the buckets.
     pub partitions: Option<u64>,
-    /// nice!
+    /// Projectstate of the project the buckets belong to.
     pub project_state: Arc<ProjectState>,
 }
 
@@ -3143,6 +3143,7 @@ impl EnvelopeProcessorService {
             project_id: Some(scoping.project_id),
         };
 
+        let bucket_qty = buckets.len();
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
         // We want to protect the kafka metrics ingestion topics, therefore we ratelimit based on
@@ -3158,7 +3159,20 @@ impl EnvelopeProcessorService {
             .sum();
 
         if self.rate_limit_buckets(total_batches, project_state, scoping) {
-            let track_outcomes = todo!();
+            relay_log::trace!("dropping {bucket_qty} buckets due to hitting throughput rate limit");
+            let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
+            self.inner.outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(Some(ReasonCode::new(
+                    "reached max throughput limit",
+                ))),
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Metrics,
+                quantity: bucket_qty as u32,
+            });
+
             return;
         }
 

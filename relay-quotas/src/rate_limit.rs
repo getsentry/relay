@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
+use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
@@ -228,6 +229,13 @@ impl RateLimits {
     /// Returns `true` if this instance contains no active limits.
     pub fn is_ok(&self) -> bool {
         !self.is_limited()
+    }
+
+    /// like is_ok but with a datacategory.
+    pub fn is_category_ok(&self, category: &DataCategory) -> bool {
+        !self
+            .iter()
+            .any(|limit| limit.categories.contains(category) && !limit.retry_after.expired())
     }
 
     /// Returns `true` if this instance contains active rate limits.
