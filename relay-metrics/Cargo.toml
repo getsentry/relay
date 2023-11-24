@@ -14,6 +14,7 @@ redis = ["relay-redis/impl"]
 
 [dependencies]
 bytecount = "0.6.0"
+chrono = { workspace = true }
 fnv = "1.0.7"
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
@@ -29,7 +30,6 @@ serde_json = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
-chrono = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }

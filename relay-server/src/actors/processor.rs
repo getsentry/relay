@@ -630,7 +630,6 @@ impl EnvelopeProcessorService {
             rate_limiter: redis
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
-            config,
             envelope_manager,
             project_cache,
             outcome_aggregator,
@@ -639,7 +638,10 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             aggregator,
             #[cfg(feature = "processing")]
-            metric_meta_store: redis.map(RedisMetricMetaStore::new),
+            metric_meta_store: redis.clone().map(|pool| {
+                RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            }),
+            config,
         };
 
         Self {
@@ -3166,7 +3168,7 @@ impl EnvelopeProcessorService {
         item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
-        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy()); // xD
+        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy());
 
         self.inner
             .envelope_manager

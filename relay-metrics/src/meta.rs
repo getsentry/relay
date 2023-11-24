@@ -8,7 +8,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::MetricResourceIdentifier;
+use crate::{statsd::MetricCounters, MetricResourceIdentifier};
 
 /// A metric metadata item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -29,6 +29,9 @@ pub struct MetricMeta {
 pub enum MetricMetaItem {
     /// A location metadata pointing to the code location where the metric originates from.
     Location(Location),
+    /// Unknown item.
+    #[serde(other)]
+    Unknown,
 }
 
 /// A code location.
@@ -48,7 +51,7 @@ pub struct Location {
     pub function: Option<String>,
     /// The line number.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub lineno: Option<u32>,
+    pub lineno: Option<u64>, // TODO nachschauen
 }
 
 /// A Unix timestamp that is truncated to the start of the day.
@@ -116,8 +119,7 @@ impl<'de> Deserialize<'de> for StartOfDayUnixTimestamp {
 /// of this happening is small enough to just add it to the storage worst case.
 #[derive(Debug)]
 pub struct MetaAggregator {
-    // Backdating lol. The in-memory cache wont hold data for old buckets.
-    // Do we need to check redis for old days?
+    ///
     locations: hashbrown::HashMap<Scope, HashSet<Location>>,
 
     /// Maximum tracked locations.
@@ -126,10 +128,10 @@ pub struct MetaAggregator {
 
 impl MetaAggregator {
     /// Creates a new metrics meta aggregator.
-    pub fn new() -> Self {
+    pub fn new(max_locations: usize) -> Self {
         Self {
             locations: hashbrown::HashMap::new(),
-            max_locations: 5, // TODO: dont hardcode this
+            max_locations,
         }
     }
 
@@ -139,8 +141,8 @@ impl MetaAggregator {
     /// or sent upstream for storage.
     ///
     /// Returns `None` when the meta item was already seen or is not considered relevant.
-    pub fn aggregate(&mut self, project_key: ProjectKey, meta: MetricMeta) -> Option<MetricMeta> {
-        let mut send_upstream = HashMap::with_capacity(meta.mapping.len());
+    pub fn add(&mut self, project_key: ProjectKey, meta: MetricMeta) -> Option<MetricMeta> {
+        let mut send_upstream = HashMap::new();
 
         for (mri, items) in meta.mapping {
             let scope = Scope {
@@ -158,6 +160,7 @@ impl MetaAggregator {
             return None;
         }
 
+        relay_statsd::metric!(counter(MetricCounters::MetaLocationUpdate) += 1);
         Some(MetricMeta {
             timestamp: meta.timestamp,
             mapping: send_upstream,
@@ -200,6 +203,7 @@ impl MetaAggregator {
         scope: &Scope,
         items: Vec<MetricMetaItem>,
     ) -> Option<Vec<MetricMetaItem>> {
+        // Entry ref needs hashbrown, we would have to clone the scope without or do a separate lookup.
         let locations = self.locations.entry_ref(scope).or_default();
         let mut send_upstream = Vec::new();
 
@@ -215,16 +219,11 @@ impl MetaAggregator {
                         send_upstream.push(MetricMetaItem::Location(location));
                     }
                 }
+                MetricMetaItem::Unknown => {}
             }
         }
 
         (!send_upstream.is_empty()).then_some(send_upstream)
-    }
-}
-
-impl Default for MetaAggregator {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

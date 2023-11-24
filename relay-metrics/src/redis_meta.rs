@@ -1,24 +1,22 @@
+use std::time::Duration;
+
 use hash32::{FnvHasher, Hasher as _};
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_redis::{RedisError, RedisPool};
 
-use crate::{MetricMeta, MetricMetaItem, MetricResourceIdentifier};
+use crate::{statsd::MetricCounters, MetricMeta, MetricMetaItem, MetricResourceIdentifier};
 
 /// Redis metric meta
 pub struct RedisMetricMetaStore {
     redis: RedisPool,
-    expiry_in_seconds: u64,
+    expiry: Duration,
 }
 
 impl RedisMetricMetaStore {
     /// Creates a new Redis metrics meta store.
-    pub fn new(redis: RedisPool) -> Self {
-        Self {
-            redis,
-            // 14 days + 1 to make sure it stays at least the entire day
-            expiry_in_seconds: 15 * 24 * 60 * 60, // TODO: dont hardcode this
-        }
+    pub fn new(redis: RedisPool, expiry: Duration) -> Self {
+        Self { redis, expiry }
     }
 
     /// Stores metric metadata in Redis.
@@ -45,16 +43,18 @@ impl RedisMetricMetaStore {
                         let member = serde_json::to_string(&location).unwrap();
                         location_cmd.arg(member);
                     }
+                    MetricMetaItem::Unknown => {}
                 }
             }
 
+            relay_statsd::metric!(counter(MetricCounters::MetaRedisUpdate) += 1);
             relay_log::trace!("storing metric meta for project {organization_id}:{project_id}");
             location_cmd
                 .query(&mut connection)
                 .map_err(RedisError::Redis)?;
 
             // use original timestamp to not bump expiry
-            let expire_at = meta.timestamp.as_secs() + self.expiry_in_seconds;
+            let expire_at = meta.timestamp.as_secs() + self.expiry.as_secs();
             relay_redis::redis::Cmd::expire_at(key, expire_at as usize)
                 .query(&mut connection)
                 .map_err(RedisError::Redis)?;

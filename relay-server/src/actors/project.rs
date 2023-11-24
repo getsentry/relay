@@ -457,9 +457,9 @@ impl Project {
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
-            config,
-            metric_meta_aggregator: MetaAggregator::new(),
+            metric_meta_aggregator: MetaAggregator::new(config.metrics_meta_locations_max()),
             has_pending_metric_meta: false,
+            config,
         }
     }
 
@@ -728,10 +728,7 @@ impl Project {
             return;
         }
 
-        let Some(meta) = self
-            .metric_meta_aggregator
-            .aggregate(self.project_key, meta)
-        else {
+        let Some(meta) = self.metric_meta_aggregator.add(self.project_key, meta) else {
             // Nothing to do. Which means there is also no pending data.
             relay_log::trace!("metric meta aggregator already has data, nothing to send upstream");
             return;

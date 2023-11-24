@@ -292,14 +292,6 @@ impl<'a> MetricResourceIdentifier<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a str> for MetricResourceIdentifier<'a> {
-    type Error = ParseMetricError;
-
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-
 impl<'de> Deserialize<'de> for MetricResourceIdentifier<'static> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
