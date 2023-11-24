@@ -297,7 +297,8 @@ impl<'de> Deserialize<'de> for MetricResourceIdentifier<'static> {
     where
         D: serde::Deserializer<'de>,
     {
-        let string = String::deserialize(deserializer)?;
+        // Deserialize without allocation, if possible.
+        let string = <Cow<'de, str>>::deserialize(deserializer)?;
         let result = MetricResourceIdentifier::parse(&string)
             .map_err(serde::de::Error::custom)?
             .into_owned();
@@ -445,5 +446,35 @@ mod tests {
             },
         );
         assert!(MetricResourceIdentifier::parse("foo").is_err());
+    }
+
+    #[test]
+    fn test_deserialize_mri() {
+        assert_eq!(
+            serde_json::from_str::<MetricResourceIdentifier<'static>>(
+                "\"c:custom/foo@millisecond\""
+            )
+            .unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::Duration(DurationUnit::MilliSecond),
+            },
+        );
+    }
+
+    #[test]
+    fn test_serialize() {
+        assert_eq!(
+            serde_json::to_string(&MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::Duration(DurationUnit::MilliSecond),
+            })
+            .unwrap(),
+            "\"c:custom/foo@millisecond\"".to_owned(),
+        );
     }
 }

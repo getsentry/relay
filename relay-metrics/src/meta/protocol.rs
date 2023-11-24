@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
@@ -94,7 +94,6 @@ impl<'de> Deserialize<'de> for StartOfDayUnixTimestamp {
         D: serde::Deserializer<'de>,
     {
         let ts = UnixTimestamp::deserialize(deserializer)?;
-
         StartOfDayUnixTimestamp::new(ts)
             .ok_or_else(|| serde::de::Error::custom("invalid timestamp"))
     }
