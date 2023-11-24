@@ -5,7 +5,8 @@ use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_redis::{RedisError, RedisPool};
 
-use crate::{statsd::MetricCounters, MetricMeta, MetricMetaItem, MetricResourceIdentifier};
+use super::{Item, MetricMeta};
+use crate::{statsd::MetricCounters, MetricResourceIdentifier};
 
 /// Redis metric meta
 pub struct RedisMetricMetaStore {
@@ -39,11 +40,11 @@ impl RedisMetricMetaStore {
 
             for item in items {
                 match item {
-                    MetricMetaItem::Location(location) => {
+                    Item::Location(location) => {
                         let member = serde_json::to_string(&location).unwrap();
                         location_cmd.arg(member);
                     }
-                    MetricMetaItem::Unknown => {}
+                    Item::Unknown => {}
                 }
             }
 

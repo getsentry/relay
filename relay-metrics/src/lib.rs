@@ -69,22 +69,18 @@
 )]
 
 pub mod aggregator;
-
-// TODO: make modul
+pub mod meta;
 
 mod aggregatorservice;
 mod bucket;
-mod meta;
 mod protocol;
-#[cfg(feature = "redis")]
-mod redis_meta;
 mod router;
 mod statsd;
 
 pub use aggregatorservice::*;
 pub use bucket::*;
-pub use meta::*;
-pub use protocol::*;
 #[cfg(feature = "redis")]
-pub use redis_meta::*;
+pub use meta::RedisMetricMetaStore;
+pub use meta::{MetaAggregator, MetricMeta};
+pub use protocol::*;
 pub use router::*;
