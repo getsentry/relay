@@ -253,7 +253,7 @@
         <span class="kw">let </span>mri = MetricResourceIdentifier {
             ty: value.ty(),
             namespace: MetricNamespace::Sessions,
-            name: <span class="kw-2">&amp;</span>name,
+            name: name.into(),
             unit: MetricUnit::None,
         };
 

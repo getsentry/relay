@@ -334,9 +334,19 @@
 <a href="#334" id="334">334</a>
 <a href="#335" id="335">335</a>
 <a href="#336" id="336">336</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::fmt;
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
+<span class="kw">use </span>std::{borrow::Cow, error::Error};
 
 <span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
 
@@ -570,7 +580,7 @@
     </span><span class="kw">pub </span>namespace: MetricNamespace,
 
     <span class="doccomment">/// The display name of the metric in the allowed character set.
-    </span><span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    </span><span class="kw">pub </span>name: Cow&lt;<span class="lifetime">&#39;a</span>, str&gt;,
 
     <span class="doccomment">/// The verbatim unit name of the metric value.
     ///
@@ -591,9 +601,19 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             ty,
             namespace: raw_namespace.parse()<span class="question-mark">?</span>,
-            name,
+            name: Cow::Borrowed(name),
             unit,
         })
+    }
+
+    <span class="doccomment">/// Converts the MRI into an owned version with a static lifetime.
+    </span><span class="kw">pub fn </span>into_owned(<span class="self">self</span>) -&gt; MetricResourceIdentifier&lt;<span class="lifetime">&#39;static</span>&gt; {
+        MetricResourceIdentifier {
+            ty: <span class="self">self</span>.ty,
+            namespace: <span class="self">self</span>.namespace,
+            name: Cow::Owned(<span class="self">self</span>.name.into_owned()),
+            unit: <span class="self">self</span>.unit,
+        }
     }
 }
 

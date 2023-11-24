@@ -1711,7 +1711,7 @@
 ///  - (optional) The unit. If missing, it is defaulted to &quot;none&quot;.
 ///
 /// The metric type is never part of this string and must be supplied separately.
-</span><span class="kw">fn </span>parse_mri(string: <span class="kw-2">&amp;</span>str, ty: MetricType) -&gt; <span class="prelude-ty">Option</span>&lt;MetricResourceIdentifier&gt; {
+</span><span class="kw">fn </span>parse_mri(string: <span class="kw-2">&amp;</span>str, ty: MetricType) -&gt; <span class="prelude-ty">Option</span>&lt;MetricResourceIdentifier&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
     <span class="kw">let </span>(name_and_namespace, unit) = protocol::parse_name_unit(string)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>(raw_namespace, name) = name_and_namespace
@@ -1720,7 +1720,7 @@
 
     <span class="prelude-val">Some</span>(MetricResourceIdentifier {
         ty,
-        name,
+        name: name.into(),
         namespace: raw_namespace.parse().ok()<span class="question-mark">?</span>,
         unit,
     })
