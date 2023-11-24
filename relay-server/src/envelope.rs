@@ -1086,6 +1086,14 @@ impl Envelope {
         index.map(|index| self.items.swap_remove(index))
     }
 
+    /// Removes and returns the all items that match the given condition.
+    pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items.drain_filter(|item| cond(item)).collect()
+    }
+
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)

@@ -3184,11 +3184,10 @@ impl EnvelopeProcessorService {
         };
 
         let r = metric_meta_store.store(scoping.organization_id, scoping.project_id, meta);
-
         if let Err(error) = r {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
-                "failed to add code locations to redis set"
+                "failed to store metric meta in redis"
             )
         }
     }

@@ -72,7 +72,7 @@ impl MetaAggregator {
     }
 
     /// Retrieves all currently relevant metric meta for a project.
-    pub fn get_relevant(&self, project_key: ProjectKey) -> impl Iterator<Item = MetricMeta> {
+    pub fn get_all_relevant(&self, project_key: ProjectKey) -> impl Iterator<Item = MetricMeta> {
         let locations = self
             .locations
             .iter()

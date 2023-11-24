@@ -22,16 +22,14 @@ use url::Url;
 
 use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitBuckets;
+use crate::actors::processor::{EncodeMetricMeta, EnvelopeProcessor};
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeLimiter, ManagedEnvelope, MetricsLimiter, RetryBackoff};
-
-use super::processor::EncodeMetricMeta;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -734,10 +732,7 @@ impl Project {
             return;
         };
 
-        let scoping = self
-            .state_value()
-            .and_then(|state| self.build_scoping(&state));
-
+        let scoping = self.scoping();
         match scoping {
             Some(scoping) => {
                 // We can only have a scoping if we also have a state, which means at this point feature
@@ -748,12 +743,14 @@ impl Project {
         }
     }
 
-    fn flush_metric_meta(
-        &mut self,
-        state: &ProjectState,
-        envelope_processor: &Addr<EnvelopeProcessor>,
-    ) {
-        let Some(scoping) = self.build_scoping(state) else {
+    fn flush_metric_meta(&mut self, envelope_processor: &Addr<EnvelopeProcessor>) {
+        if !self.has_pending_metric_meta {
+            return;
+        }
+        let Some(state) = self.state_value() else {
+            return;
+        };
+        let Some(scoping) = self.scoping() else {
             return;
         };
 
@@ -770,11 +767,22 @@ impl Project {
             return;
         }
 
-        for meta in self.metric_meta_aggregator.get_relevant(self.project_key) {
+        // Flush the entire aggregator containing all code locations for the project.
+        //
+        // There is the rare case when this flushes items which have already been flushed before.
+        // This happens only if we temporarily lose a previously valid and loaded project state
+        // and then reveive an update for the project state.
+        // While this is a possible occurence the effect should be relatively limited,
+        // especially since the final store does de-deuplication.
+        for meta in self
+            .metric_meta_aggregator
+            .get_all_relevant(self.project_key)
+        {
             relay_log::debug!(
-                "flushing aggregated metrics for project {}",
+                "flushing aggregated metric meta for project {}",
                 self.project_key
             );
+            metric!(counter(RelayCounters::ProjectStateFlushAllMetricMeta) += 1);
             envelope_processor.send(EncodeMetricMeta { scoping, meta });
         }
     }
@@ -1005,14 +1013,18 @@ impl Project {
             return;
         }
 
-        if self.has_pending_metric_meta {
-            self.flush_metric_meta(&state, &envelope_processor);
-        }
-
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(state);
 
+        self.after_state_updated(&envelope_processor);
+    }
+
+    /// Called after all state validations and after the project state is updated.
+    ///
+    /// See also: [`Self::update_state`].
+    fn after_state_updated(&mut self, envelope_processor: &Addr<EnvelopeProcessor>) {
+        self.flush_metric_meta(envelope_processor);
         // Check if the new sampling config got rid of any reservoir rules we have counters for.
         self.remove_expired_reservoir_rules();
     }

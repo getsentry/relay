@@ -2,7 +2,6 @@
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use itertools::Itertools;
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
@@ -261,32 +260,28 @@ fn queue_envelope(
     mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
-    // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-    let mut metric_items = Vec::new();
-    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
     let envelope = managed_envelope.envelope_mut();
-    while let Some(item) = envelope.take_item_by(is_metric) {
-        metric_items.push(item);
-    }
+
+    // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
+    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
+    let metric_items = envelope.take_items_by(is_metric);
 
     if !metric_items.is_empty() {
         relay_log::trace!("sending metrics into processing queue");
         state.processor().send(ProcessMetrics {
-            items: metric_items,
+            items: metric_items.into_vec(),
             project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),
             sent_at: envelope.sent_at(),
         });
     }
 
-    let is_metric_meta = |i: &Item| matches!(i.ty(), ItemType::MetricMeta);
-    let metric_meta = std::iter::repeat(0)
-        .map_while(|_| envelope.take_item_by(is_metric_meta))
-        .collect_vec();
+    // Remove metric meta from the envelope and send them directly to processing.
+    let metric_meta = envelope.take_items_by(|item| matches!(item.ty(), ItemType::MetricMeta));
     if !metric_meta.is_empty() {
-        relay_log::trace!("sending metrics into processing queue");
+        relay_log::trace!("sending metric meta into processing queue");
         state.processor().send(ProcessMetricMeta {
-            items: metric_meta,
+            items: metric_meta.into_vec(),
             project_key: envelope.meta().public_key(),
         })
     }
