@@ -132,7 +132,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
-    let sdk_name = event.sdk_name().to_owned();
+    let is_mobile = shared_tags.get(&SpanTagKey::Mobile);
 
     let Some(spans) = event.spans.value_mut() else {
         return;
@@ -146,7 +146,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             continue;
         };
 
-        let tags = extract_tags(span, config, ttid, ttfd, &sdk_name);
+        let tags = extract_tags(span, config, ttid, ttfd, is_mobile);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -219,7 +219,7 @@ pub(crate) fn extract_tags(
     config: &Config,
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
-    sdk_name: &str,
+    is_mobile: Option<&String>,
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
@@ -390,7 +390,7 @@ pub(crate) fn extract_tags(
         span_tags.insert(SpanTagKey::StatusCode, status_code);
     }
 
-    if MOBILE_SDKS.contains(&sdk_name) {
+    if is_mobile.is_some_and(|v| v.as_str() == "true") {
         if let Some(thread_name) = span
             .data
             .value()
