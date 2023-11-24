@@ -779,7 +779,7 @@ fn normalize_performance_score(
                         measurements.insert(
                             format!("score.{}", component.measurement),
                             Measurement {
-                                value: cdf.into(),
+                                value: component_score.into(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
                             }
                             .into(),
@@ -2004,19 +2004,19 @@ mod tests {
               "unit": "millisecond",
             },
             "score.cls": {
-              "value": 0.8745668242977945,
+              "value": 0.21864170607444863,
               "unit": "ratio",
             },
             "score.fcp": {
-              "value": 0.7167236962527221,
+              "value": 0.10750855443790831,
               "unit": "ratio",
             },
             "score.fid": {
-              "value": 0.6552453782760849,
+              "value": 0.19657361348282545,
               "unit": "ratio",
             },
             "score.lcp": {
-              "value": 0.03079632190462195,
+              "value": 0.009238896571386584,
               "unit": "ratio",
             },
             "score.total": {
@@ -2152,19 +2152,19 @@ mod tests {
               "unit": "millisecond",
             },
             "score.cls": {
-              "value": 0.8745668242977945,
+              "value": 0.21864170607444863,
               "unit": "ratio",
             },
             "score.fcp": {
-              "value": 0.7167236962527221,
+              "value": 0.10750855443790831,
               "unit": "ratio",
             },
             "score.fid": {
-              "value": 0.6552453782760849,
+              "value": 0.19657361348282545,
               "unit": "ratio",
             },
             "score.lcp": {
-              "value": 0.03079632190462195,
+              "value": 0.009238896571386584,
               "unit": "ratio",
             },
             "score.total": {
@@ -2300,19 +2300,19 @@ mod tests {
               "unit": "millisecond",
             },
             "score.cls": {
-              "value": 0.8745668242977945,
+              "value": 0.21864170607444863,
               "unit": "ratio",
             },
             "score.fcp": {
-              "value": 0.7167236962527221,
+              "value": 0.10750855443790831,
               "unit": "ratio",
             },
             "score.fid": {
-              "value": 0.6552453782760849,
+              "value": 0.19657361348282545,
               "unit": "ratio",
             },
             "score.lcp": {
-              "value": 0.03079632190462195,
+              "value": 0.009238896571386584,
               "unit": "ratio",
             },
             "score.total": {
