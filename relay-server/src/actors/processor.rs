@@ -1458,7 +1458,6 @@ impl EnvelopeProcessorService {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
-            ItemType::EventSpan => false,
 
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
@@ -2110,12 +2109,6 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
-        // For now, drop any spans submitted by the SDK.
-        state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Span => ItemAction::DropSilently,
-            _ => ItemAction::Keep,
-        });
-
         // Only extract spans from transactions (not errors).
         if state.event_type() != Some(EventType::Transaction) {
             return;
@@ -2270,7 +2263,7 @@ impl EnvelopeProcessorService {
             .project_state
             .has_feature(Feature::StandaloneSpanIngestion);
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::OtelSpan | ItemType::EventSpan => {
+            ItemType::OtelSpan | ItemType::Span => {
                 if !standalone_span_ingestion_enabled {
                     relay_log::warn!("dropping span because feature is disabled");
                     ItemAction::DropSilently
@@ -2315,7 +2308,7 @@ impl EnvelopeProcessorService {
                 {
                     extract_span_metrics(Annotated::new(otel_span.into()));
                 }
-            } else if item.ty() == &ItemType::EventSpan {
+            } else if item.ty() == &ItemType::Span {
                 if let Ok(event_span) = Annotated::<Span>::from_json_bytes(&item.payload()) {
                     extract_span_metrics(event_span);
                 }
@@ -2346,7 +2339,7 @@ impl EnvelopeProcessorService {
 
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
-            ItemType::EventSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
+            ItemType::Span if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
             ItemType::OtelSpan => {
                 if let Ok(otel_span) =
                     serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
@@ -2357,7 +2350,7 @@ impl EnvelopeProcessorService {
                 }
                 ItemAction::DropSilently
             }
-            ItemType::EventSpan => {
+            ItemType::Span => {
                 if let Ok(event_span) = Annotated::<Span>::from_json_bytes(&item.payload()) {
                     add_span(event_span);
                 } else {

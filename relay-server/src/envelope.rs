@@ -118,8 +118,6 @@ pub enum ItemType {
     Span,
     /// A standalone OpenTelemetry span.
     OtelSpan,
-    /// A standalone span.
-    EventSpan,
     /// UserReport as an Event
     UserReportV2,
     /// A new item type that is yet unknown by this version of Relay.
@@ -170,7 +168,6 @@ impl fmt::Display for ItemType {
             Self::CheckIn => write!(f, "check_in"),
             Self::Span => write!(f, "span"),
             Self::OtelSpan => write!(f, "otel_span"),
-            Self::EventSpan => write!(f, "event_span"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -203,7 +200,6 @@ impl std::str::FromStr for ItemType {
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
-            "event_span" => Self::EventSpan,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -588,9 +584,8 @@ impl Item {
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Unknown(_) => None,
-            ItemType::Span => None,      // No outcomes, for now
-            ItemType::OtelSpan => None,  // No outcomes, for now
-            ItemType::EventSpan => None, // No outcomes, for now
+            ItemType::Span => None,     // No outcomes, for now
+            ItemType::OtelSpan => None, // No outcomes, for now
         }
     }
 
@@ -766,8 +761,7 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
-            | ItemType::OtelSpan
-            | ItemType::EventSpan => false,
+            | ItemType::OtelSpan => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -803,7 +797,6 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
-            ItemType::EventSpan => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
