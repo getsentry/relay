@@ -1,4 +1,5 @@
 //! Span description scrubbing logic.
+mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 pub use sql::parse_query;
@@ -13,6 +14,7 @@ use url::Url;
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
+use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 /// Dummy URL used to parse relative URLs.
@@ -236,19 +238,35 @@ fn scrub_resource(string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let segments = url.path_segments();
-            let segment_count = segments.map(|s| s.count()).unwrap_or_default();
             let domain = url
                 .domain()
                 .and_then(|d| normalize_domain(d, url.port()))
                 .unwrap_or("".into());
+            let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
+            let mut output_segments = vec![];
+            for (i, segment) in url.path_segments().into_iter().flatten().enumerate() {
+                if i + 1 == segment_count {
+                    break;
+                }
+                if COMMON_PATH_SEGMENTS.contains(segment) {
+                    output_segments.push(segment);
+                } else if !output_segments.last().is_some_and(|s| *s == "*") {
+                    // only one asterisk
+                    output_segments.push("*");
+                }
+            }
+
+            let segments = output_segments.join("/");
+
             let last_segment = url
                 .path_segments()
                 .and_then(|s| s.last())
                 .unwrap_or_default();
-            let sep = if segment_count > 1 { "*/" } else { "" };
-            let last_segment = scrub_resource_path(last_segment);
-            format!("{scheme}://{domain}/{sep}{last_segment}")
+            let last_segment = scrub_resource_filename(last_segment);
+
+            dbg!((&segments, &last_segment));
+
+            format!("{scheme}://{domain}/{segments}/{last_segment}")
         }
     };
 
@@ -262,7 +280,7 @@ fn scrub_resource(string: &str) -> Option<String> {
     Some(formatted)
 }
 
-fn scrub_resource_path(path: &str) -> String {
+fn scrub_resource_filename(path: &str) -> String {
     let (mut base_path, mut extension) = path.rsplit_once('.').unwrap_or((path, ""));
     if extension.contains('/') {
         // Not really an extension
@@ -494,6 +512,20 @@ mod tests {
         "https://example.com/static/chunks/09876543211234567890",
         "resource.script",
         "https://example.com/*/*"
+    );
+
+    span_description_test!(
+        resource_next_chunks,
+        "/_next/static/chunks/12345-abcdef0123456789.js",
+        "resource.script",
+        "/_next/static/chunks/*-*.js"
+    );
+
+    span_description_test!(
+        resource_next_media,
+        "/_next/static/media/Some_Font-Bold.0123abcd.woff2",
+        "resource.css",
+        "/_next/static/media/Some_Font-Bold.*.woff2"
     );
 
     span_description_test!(
