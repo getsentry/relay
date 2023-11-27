@@ -2751,7 +2751,7 @@ impl EnvelopeProcessorService {
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block) => {
-                # {[cfg(feature = "processing")]
+                #[cfg(feature = "processing")] {
                     if self.inner.config.processing_enabled() $if_true
                 }
             };

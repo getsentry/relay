@@ -117,6 +117,8 @@ async fn inner(
     // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
     let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     let futures = valid_keys.map(|project_key| async move {
+        // No changes were made to the project states in V4, just global config, so we can
+        // accept V3 here.
         let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
             project_cache
                 .send(GetCachedProjectState::new(project_key))
@@ -174,7 +176,7 @@ async fn inner(
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V4
 }
 
 /// Endpoint handler for the project configs endpoint.
