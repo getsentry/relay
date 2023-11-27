@@ -1718,6 +1718,7 @@ impl EnvelopeProcessorService {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
+            ItemType::EventSpan => false,
 
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
