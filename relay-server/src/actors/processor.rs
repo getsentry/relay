@@ -2515,9 +2515,33 @@ impl EnvelopeProcessorService {
         });
     }
 
+    fn extract_span_metrics(&self, state: &mut ProcessEnvelopeState) {
+        let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
+            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
+            _ => return,
+        };
+        for item in state.managed_envelope.envelope().items() {
+            if item.ty() != &ItemType::OtelSpan {
+                continue;
+            }
+            if let Ok(otel_span) = serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
+            {
+                if let Ok(event_span) = self.validate_span(Annotated::new(otel_span.into())) {
+                    if let Some(span) = event_span.value() {
+                        crate::metrics_extraction::generic::extract_metrics(
+                            span,
+                            span_metrics_extraction_config,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
         let mut items: Vec<Item> = Vec::new();
+
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::OtelSpan => {
                 if let Ok(relay_span) =
@@ -2818,6 +2842,11 @@ impl EnvelopeProcessorService {
             if_processing!({
                 self.store_process_event(state)?;
             });
+        }
+
+        // Extract span metrics from standalone spans only
+        if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+            self.extract_span_metrics(state);
         }
 
         if_processing!({
