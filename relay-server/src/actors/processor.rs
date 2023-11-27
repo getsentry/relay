@@ -3107,20 +3107,17 @@ impl EnvelopeProcessorService {
             extraction_mode,
         } = message;
 
-        #[cfg(not(feature = "processing"))]
-        let (partitions, max_batch_size_bytes) = {
-            (
-                self.inner.config.metrics_partitions(),
-                self.inner.config.metrics_max_batch_size_bytes(),
-            )
-        };
-        #[cfg(feature = "processing")]
-        let (partitions, max_batch_size_bytes) = {
+        let (partitions, max_batch_size_bytes) = if self.inner.config.processing_enabled() {
             // Partitioning on processing relays does not make sense, they end up all
             // in the same Kafka topic anyways and the partition key is ignored.
             (
                 None,
                 self.inner.config.metrics_max_batch_size_bytes_processing(),
+            )
+        } else {
+            (
+                self.inner.config.metrics_partitions(),
+                self.inner.config.metrics_max_batch_size_bytes(),
             )
         };
 
