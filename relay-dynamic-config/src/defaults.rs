@@ -156,11 +156,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("span.", "system"),
                 ("", "transaction.method"),
                 ("", "transaction.op"),
-                ("", "resource.render_blocking_status"), // only set for resource spans
-                ("", "file_extension"),                  // only set for resource spans
-                ("", "ttid"),                            // only set for mobile spans
-                ("", "ttfd"),                            // only set for mobile spans
-                ("span.", "main_thread"),                // only set for mobile spans
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
@@ -181,14 +176,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         // Mobile-specific tags:
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: ["release", "device.class"] // TODO: sentry PR for static strings
-                .map(|key| TagSpec {
-                    key: key.into(),
-                    field: Some(format!("span.sentry_tags.{}", key)),
-                    value: None,
-                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
-                })
-                .into(),
+            tags: [
+                ("", "device.class"),
+                ("", "release"),
+                ("", "ttfd"),
+                ("", "ttid"),
+                ("span.", "main_thread"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
+                value: None,
+                condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
+            })
+            .into(),
         },
         // Resource-specific tags:
         TagMapping {
@@ -199,19 +200,33 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             ],
             tags: [
                 ("", "environment"),
+                ("", "file_extension"),
+                ("", "resource.render_blocking_status"),
+                ("", "transaction"),
                 ("span.", "description"),
                 ("span.", "domain"),
                 ("span.", "group"),
                 ("span.", "op"),
-                ("", "transaction"),
-                ("", "resource.render_blocking_status"),
-                ("", "file_extension"),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
                 field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
-                condition: None,
+                condition: Some(resource_condition.clone()),
+            })
+            .into(),
+        },
+        TagMapping {
+            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
+            tags: [
+                ("", "file_extension"),
+                ("", "resource.render_blocking_status"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
+                value: None,
+                condition: Some(resource_condition.clone()),
             })
             .into(),
         },
