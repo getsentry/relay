@@ -2352,12 +2352,16 @@ impl EnvelopeProcessorService {
                     serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
                 {
                     add_span(Annotated::new(otel_span.into()));
+                } else {
+                    relay_log::debug!("Failed to parse OTel span");
                 }
                 ItemAction::DropSilently
             }
             ItemType::EventSpan => {
                 if let Ok(event_span) = Annotated::<Span>::from_json_bytes(&item.payload()) {
                     add_span(event_span);
+                } else {
+                    relay_log::debug!("Failed to parse span");
                 }
                 ItemAction::DropSilently
             }

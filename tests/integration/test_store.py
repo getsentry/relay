@@ -8,8 +8,10 @@ import threading
 import pytest
 from datetime import datetime, timedelta, timezone
 
-from requests.exceptions import HTTPError
+
 from flask import abort, Response
+from requests.exceptions import HTTPError
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
 def test_store(mini_sentry, relay_chain):
@@ -1209,7 +1211,7 @@ def test_invalid_project_id(mini_sentry, relay):
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
-def test_spans(
+def test_span_extraction(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
@@ -1299,3 +1301,134 @@ def test_spans(
     }
 
     spans_consumer.assert_empty()
+
+
+def test_span_ingestion(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        # "projects:span-metrics-extraction",
+        # "projects:span-metrics-extraction-all-modules",
+    ]
+
+    # 1 - Send OTel span and sentry span via envelope
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="otel_span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
+                        "spanId": "e342abb1214ca181",
+                        "name": "my 1st OTel span",
+                        "startTimeUnixNano": 1697620454980000000,
+                        "endTimeUnixNano": 1697620454980078800,
+                    }
+                ).encode()
+            ),
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    # 2 - Send OTel span via endpoint
+    relay.send_otel_span(
+        project_id,
+        {
+            "traceId": "89143b0763095bd9c9955e8175d1fb24",
+            "spanId": "e342abb1214ca182",
+            "name": "my 2nd OTel span",
+            "startTimeUnixNano": 1697620454981000000,
+            "endTimeUnixNano": 1697620454981078800,
+        },
+    )
+
+    spans = list(spans_consumer.get_spans())
+    for span in spans:
+        del span["start_time"]
+        span["span"].pop("received", None)
+
+    spans.sort(
+        key=lambda msg: msg["span"].get("description", "")
+    )  # endpoint might overtake envelope
+
+    assert spans == [
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "span": {
+                "op": "before_first_display",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0,
+                "timestamp": 1597976302.0,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+        },
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "span": {
+                "data": {},
+                "description": "my 1st OTel span",
+                "exclusive_time": 0.0788,
+                "is_segment": True,
+                "parent_span_id": "",
+                "segment_id": "e342abb1214ca181",
+                "span_id": "e342abb1214ca181",
+                "start_timestamp": 1697620454.98,
+                "status": "ok",
+                "timestamp": 1697620454.980079,
+                "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            },
+        },
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "span": {
+                "data": {},
+                "description": "my 2nd OTel span",
+                "exclusive_time": 0.0788,
+                "is_segment": True,
+                "parent_span_id": "",
+                "segment_id": "e342abb1214ca182",
+                "span_id": "e342abb1214ca182",
+                "start_timestamp": 1697620454.981,
+                "status": "ok",
+                "timestamp": 1697620454.981079,
+                "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+            },
+        },
+    ]
+
+    metrics = list(metrics_consumer.get_metrics())
+
+    assert metrics == ["TODO"]
