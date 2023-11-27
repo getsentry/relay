@@ -2456,10 +2456,7 @@ impl EnvelopeProcessorService {
         add_span(transaction_span.into());
     }
 
-    /// Helper for [`Self::extract_spans`].
-    ///
     /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
-    #[cfg(feature = "processing")]
     fn validate_span(&self, mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
         let inner = span
             .value_mut()
@@ -2469,14 +2466,36 @@ impl EnvelopeProcessorService {
             ref exclusive_time,
             ref mut tags,
             ref mut sentry_tags,
+            ref mut start_timestamp,
+            ref mut timestamp,
+            ref mut span_id,
+            ref mut trace_id,
             ..
         } = inner;
-        // The following required fields are already validated by the `TransactionsProcessor`:
-        // - `timestamp`
-        // - `start_timestamp`
-        // - `trace_id`
-        // - `span_id`
-        //
+
+        trace_id
+            .value()
+            .ok_or(anyhow::anyhow!("span is missing trace_id"))?;
+        span_id
+            .value()
+            .ok_or(anyhow::anyhow!("span is missing span_id"))?;
+
+        match (start_timestamp.value(), timestamp.value()) {
+            (Some(start), Some(end)) => {
+                if end < start {
+                    return Err(anyhow::anyhow!(
+                        "end timestamp is smaller than start timestamp"
+                    ));
+                }
+            }
+            (_, None) => {
+                return Err(anyhow::anyhow!("timestamp hard-required for spans"));
+            }
+            (None, _) => {
+                return Err(anyhow::anyhow!("start_timestamp hard-required for spans"));
+            }
+        }
+
         // `is_segment` is set by `extract_span`.
         exclusive_time
             .value()
