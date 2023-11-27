@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
+use crate::actors::global_config;
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
@@ -39,7 +40,7 @@ type UpstreamQueryResult =
 #[serde(rename_all = "camelCase")]
 struct GetGlobalConfigResponse {
     #[serde(default)]
-    global: Option<GlobalConfig>,
+    global: Option<global_config::Status>,
 }
 
 /// The request to fetch a global config from upstream.
@@ -129,7 +130,7 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 }
 
 /// Describes the current fetching status of the [`GlobalConfig`] from the upstream.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub enum Status {
     /// Global config ready to be used by other services.
     ///
@@ -147,14 +148,6 @@ pub enum Status {
 impl Status {
     fn is_ready(&self) -> bool {
         matches!(self, Self::Ready(_))
-    }
-
-    /// Similar to Option::unwrap_or_default.
-    pub fn get_ready_or_default(self) -> Arc<GlobalConfig> {
-        match self {
-            Status::Ready(global_config) => global_config,
-            Status::Pending => Arc::default(),
-        }
     }
 }
 
@@ -257,15 +250,17 @@ impl GlobalConfigService {
             Ok(Ok(config)) => {
                 let mut success = false;
                 match config.global {
-                    Some(global_config) => {
+                    Some(ready @ Status::Ready(_)) => {
                         // Log the first time we receive a global config from upstream.
                         if !self.global_config_watch.borrow().is_ready() {
                             relay_log::info!("received global config from upstream");
                         }
-                        self.global_config_watch
-                            .send_replace(Status::Ready(Arc::new(global_config)));
+                        self.global_config_watch.send_replace(ready);
                         success = true;
                         self.last_fetched = Instant::now();
+                    }
+                    Some(Status::Pending) => {
+                        relay_log::info!("global config from upstream is not yet ready");
                     }
                     None => relay_log::error!("global config missing in upstream response"),
                 }

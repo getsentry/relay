@@ -80,7 +80,7 @@ struct GetProjectStatesResponseWrapper {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    global: Option<Arc<GlobalConfig>>,
+    global: Option<global_config::Status>,
 }
 
 /// Request payload of the project config endpoint.
@@ -130,13 +130,7 @@ async fn inner(
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
     let global_config = match inner.global {
-        true => Some(
-            state
-                .global_config()
-                .send(global_config::Get)
-                .await?
-                .get_ready_or_default(),
-        ),
+        true => Some(state.global_config().send(global_config::Get).await?),
         false => None,
     };
 
