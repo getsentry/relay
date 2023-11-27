@@ -1346,6 +1346,7 @@ def test_span_ingestion(
                         "span_id": "bd429c44b67a3eb1",
                         "start_timestamp": 1597976300.0000000,
                         "timestamp": 1597976302.0000000,
+                        "exclusive_time": 2.0,
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     },
                 ).encode()
@@ -1385,6 +1386,7 @@ def test_span_ingestion(
                 "span_id": "bd429c44b67a3eb1",
                 "start_timestamp": 1597976300.0,
                 "timestamp": 1597976302.0,
+                "exclusive_time": 2.0,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
             },
         },

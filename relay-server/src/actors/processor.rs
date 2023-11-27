@@ -2288,7 +2288,7 @@ impl EnvelopeProcessorService {
             let validated_span = match self.validate_span(annotated_span) {
                 Ok(span) => span,
                 Err(e) => {
-                    relay_log::error!("Invalid span: {e}");
+                    relay_log::error!("invalid span: {e}");
                     return;
                 }
             };
@@ -2310,20 +2310,16 @@ impl EnvelopeProcessorService {
             ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
             ItemType::Span if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
             ItemType::OtelSpan => {
-                if let Ok(otel_span) =
-                    serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
-                {
-                    add_span(Annotated::new(otel_span.into()));
-                } else {
-                    relay_log::debug!("Failed to parse OTel span");
+                match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
+                    Ok(otel_span) => add_span(Annotated::new(otel_span.into())),
+                    Err(err) => relay_log::debug!("failed to parse OTel span: {}", err),
                 }
                 ItemAction::DropSilently
             }
             ItemType::Span => {
-                if let Ok(event_span) = Annotated::<Span>::from_json_bytes(&item.payload()) {
-                    add_span(event_span);
-                } else {
-                    relay_log::debug!("Failed to parse span");
+                match Annotated::<Span>::from_json_bytes(&item.payload()) {
+                    Ok(event_span) => add_span(event_span),
+                    Err(err) => relay_log::debug!("failed to parse span: {}", err),
                 }
                 ItemAction::DropSilently
             }
