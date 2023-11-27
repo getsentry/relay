@@ -212,7 +212,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 key: format!("{prefix}{key}"),
                 field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
-                condition: None,
+                condition: Some(resource_condition.clone()),
             })
             .into(),
         },
