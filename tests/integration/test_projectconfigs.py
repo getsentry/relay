@@ -399,4 +399,4 @@ def test_get_global_config(mini_sentry, relay):
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
     data = get_response(relay, packed, signature, version="3")
 
-    assert data["global"] == GLOBAL_CONFIG
+    assert data["global"] == {"Ready": GLOBAL_CONFIG}
