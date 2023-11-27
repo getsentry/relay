@@ -221,6 +221,7 @@
 <a href="#221" id="221">221</a>
 <a href="#222" id="222">222</a>
 <a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -383,6 +384,7 @@
                 </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;file_extension&quot;</span>),                  <span class="comment">// only set for resource spans
                 </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttid&quot;</span>),                            <span class="comment">// only set for mobile spans
                 </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttfd&quot;</span>),                            <span class="comment">// only set for mobile spans
+                </span>(<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;main_thread&quot;</span>),                <span class="comment">// only set for mobile spans
             </span>]
             .map(|(prefix, key)| TagSpec {
                 key: <span class="macro">format!</span>(<span class="string">&quot;{prefix}{key}&quot;</span>),
