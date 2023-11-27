@@ -1037,10 +1037,6 @@ impl Project {
     /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
         let state = self.state_value()?;
-        self.build_scoping(&state)
-    }
-
-    fn build_scoping(&self, state: &ProjectState) -> Option<Scoping> {
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
