@@ -262,7 +262,10 @@ impl GlobalConfigService {
         match result {
             Ok(Ok(config)) => {
                 let mut success = false;
-                let is_ready = config.global_status.is_some_and(|stat| stat.is_ready());
+                let is_ready = config
+                    .global_status
+                    .map(|stat| stat.is_ready())
+                    .unwrap_or(true);
 
                 match config.global {
                     Some(global_config) if is_ready => {
