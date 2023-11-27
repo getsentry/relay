@@ -339,6 +339,13 @@ impl<'a> Default for NormalizationConfig<'a> {
     }
 }
 
+/// Normalizes an event, rejecting it if necessary.
+///
+/// Normalization consists of applying a series of transformations on the event
+/// payload based on the given configuration.
+///
+/// The returned [`ProcessingResult`] indicates whether the passed event should
+/// be ingested or dropped.
 pub fn normalize_event(
     event: &mut Annotated<Event>,
     config: &NormalizationConfig,

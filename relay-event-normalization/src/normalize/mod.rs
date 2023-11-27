@@ -47,10 +47,12 @@ impl BuiltinMeasurementKey {
         }
     }
 
+    /// Returns the name of the built in measurement key.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the unit of the built in measurement key.
     pub fn unit(&self) -> &MetricUnit {
         &self.unit
     }
