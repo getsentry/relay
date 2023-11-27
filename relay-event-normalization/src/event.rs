@@ -896,3 +896,1158 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
         measurements.insert("app_start_warm".to_string(), app_start_warm_value);
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use std::collections::BTreeMap;
+
+    use insta::assert_debug_snapshot;
+    use relay_event_schema::protocol::{
+        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
+    };
+    use relay_protocol::{Annotated, SerializableAnnotated};
+    use serde_json::json;
+
+    use super::*;
+    use crate::{
+        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
+        RawUserAgentInfo,
+    };
+
+    #[test]
+    fn test_normalize_dist_none() {
+        let mut dist = Annotated::default();
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), None);
+    }
+
+    #[test]
+    fn test_normalize_dist_empty() {
+        let mut dist = Annotated::new("".to_string());
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), None);
+    }
+
+    #[test]
+    fn test_normalize_dist_trim() {
+        let mut dist = Annotated::new(" foo  ".to_string());
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), Some(&"foo".to_string()));
+    }
+
+    #[test]
+    fn test_normalize_dist_whitespace() {
+        let mut dist = Annotated::new(" ".to_owned());
+        normalize_dist(&mut dist).unwrap();
+        assert_eq!(dist.value(), None);
+    }
+
+    #[test]
+    fn test_computed_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "frames_slow": {"value": 1},
+                "frames_frozen": {"value": 2},
+                "frames_total": {"value": 4},
+                "stall_total_time": {"value": 4000, "unit": "millisecond"}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        normalize_measurements(&mut event, None, None);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "frames_frozen": {
+              "value": 2.0,
+              "unit": "none",
+            },
+            "frames_frozen_rate": {
+              "value": 0.5,
+              "unit": "ratio",
+            },
+            "frames_slow": {
+              "value": 1.0,
+              "unit": "none",
+            },
+            "frames_slow_rate": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "frames_total": {
+              "value": 4.0,
+              "unit": "none",
+            },
+            "stall_percentage": {
+              "value": 0.8,
+              "unit": "ratio",
+            },
+            "stall_total_time": {
+              "value": 4000.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_filter_custom_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "my_custom_measurement_1": {"value": 123},
+                "frames_frozen": {"value": 666, "unit": "invalid_unit"},
+                "frames_slow": {"value": 1},
+                "my_custom_measurement_3": {"value": 456},
+                "my_custom_measurement_2": {"value": 789}
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let project_measurement_config: MeasurementsConfig = serde_json::from_value(json!({
+            "builtinMeasurements": [
+                {"name": "frames_frozen", "unit": "none"},
+                {"name": "frames_slow", "unit": "none"}
+            ],
+            "maxCustomMeasurements": 2,
+            "stray_key": "zzz"
+        }))
+        .unwrap();
+
+        let dynamic_measurement_config = DynamicMeasurementsConfig {
+            project: Some(&project_measurement_config),
+            global: None,
+        };
+
+        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
+
+        // Only two custom measurements are retained, in alphabetic order (1 and 2)
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "frames_slow": {
+              "value": 1.0,
+              "unit": "none",
+            },
+            "my_custom_measurement_1": {
+              "value": 123.0,
+              "unit": "none",
+            },
+            "my_custom_measurement_2": {
+              "value": 789.0,
+              "unit": "none",
+            },
+          },
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "Too many measurements: my_custom_measurement_3",
+                    },
+                  ],
+                ],
+                val: Some({
+                  "my_custom_measurement_3": {
+                    "unit": "none",
+                    "value": 456.0,
+                  },
+                }),
+              ))),
+            },
+          },
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_units() {
+        let mut measurements = Annotated::<Measurements>::from_json(
+            r#"{
+                "fcp": {"value": 1.1},
+                "stall_count": {"value": 3.3},
+                "foo": {"value": 8.8}
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r#"
+        Measurements(
+            {
+                "fcp": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+                "foo": Measurement {
+                    value: 8.8,
+                    unit: ~,
+                },
+                "stall_count": Measurement {
+                    value: 3.3,
+                    unit: ~,
+                },
+            },
+        )
+        "#);
+        normalize_units(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r#"
+        Measurements(
+            {
+                "fcp": Measurement {
+                    value: 1.1,
+                    unit: Duration(
+                        MilliSecond,
+                    ),
+                },
+                "foo": Measurement {
+                    value: 8.8,
+                    unit: None,
+                },
+                "stall_count": Measurement {
+                    value: 3.3,
+                    unit: None,
+                },
+            },
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_security_report() {
+        let mut event = Event {
+            csp: Annotated::from(Csp::default()),
+            ..Default::default()
+        };
+        let ipaddr = IpAddr("213.164.1.114".to_string());
+
+        let client_ip = Some(&ipaddr);
+        let user_agent = RawUserAgentInfo::new_test_dummy();
+
+        // This call should fill the event headers with info from the user_agent which is
+        // tested below.
+        normalize_security_report(&mut event, client_ip, &user_agent);
+
+        let headers = event
+            .request
+            .value_mut()
+            .get_or_insert_with(Request::default)
+            .headers
+            .value_mut()
+            .get_or_insert_with(Headers::default);
+
+        assert_eq!(
+            event.user.value().unwrap().ip_address,
+            Annotated::from(ipaddr)
+        );
+        assert_eq!(
+            headers.get_header(RawUserAgentInfo::USER_AGENT),
+            user_agent.user_agent
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA),
+            user_agent.client_hints.sec_ch_ua,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_MODEL),
+            user_agent.client_hints.sec_ch_ua_model,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM),
+            user_agent.client_hints.sec_ch_ua_platform,
+        );
+        assert_eq!(
+            headers.get_header(ClientHints::SEC_CH_UA_PLATFORM_VERSION),
+            user_agent.client_hints.sec_ch_ua_platform_version,
+        );
+
+        assert!(
+            std::mem::size_of_val(&ClientHints::<&str>::default()) == 64,
+            "If you add new fields, update the test accordingly"
+        );
+    }
+
+    #[test]
+    fn test_no_device_class() {
+        let mut event = Event {
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        let tags = &event.tags.value_mut().get_or_insert_with(Tags::default).0;
+        assert_eq!(None, tags.get("device_class"));
+    }
+
+    #[test]
+    fn test_apple_low_device_class() {
+        let mut event = Event {
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(DeviceContext {
+                    family: "iPhone".to_string().into(),
+                    model: "iPhone8,4".to_string().into(),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "1",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_apple_medium_device_class() {
+        let mut event = Event {
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(DeviceContext {
+                    family: "iPhone".to_string().into(),
+                    model: "iPhone12,8".to_string().into(),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "2",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_android_low_device_class() {
+        let mut event = Event {
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(DeviceContext {
+                    family: "android".to_string().into(),
+                    processor_frequency: 1000.into(),
+                    processor_count: 6.into(),
+                    memory_size: (2 * 1024 * 1024 * 1024).into(),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "1",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_android_medium_device_class() {
+        let mut event = Event {
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(DeviceContext {
+                    family: "android".to_string().into(),
+                    processor_frequency: 2000.into(),
+                    processor_count: 8.into(),
+                    memory_size: (6 * 1024 * 1024 * 1024).into(),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "2",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_android_high_device_class() {
+        let mut event = Event {
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(DeviceContext {
+                    family: "android".to_string().into(),
+                    processor_frequency: 2500.into(),
+                    processor_count: 8.into(),
+                    memory_size: (6 * 1024 * 1024 * 1024).into(),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "3",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_keeps_valid_measurement() {
+        let name = "lcp";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+
+        assert!(!is_measurement_dropped(name, measurement));
+    }
+
+    #[test]
+    fn test_drops_too_long_measurement_names() {
+        let name = "lcpppppppppppppppppppppppppppp";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+
+        assert!(is_measurement_dropped(name, measurement));
+    }
+
+    #[test]
+    fn test_drops_measurements_with_invalid_characters() {
+        let name = "i æm frøm nørwåy";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+
+        assert!(is_measurement_dropped(name, measurement));
+    }
+
+    fn is_measurement_dropped(name: &str, measurement: Measurement) -> bool {
+        let max_name_and_unit_len = Some(30);
+
+        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+        measurements.insert(name.to_string(), Annotated::new(measurement));
+
+        let mut measurements = Measurements(measurements);
+        let mut meta = Meta::default();
+        let measurements_config = MeasurementsConfig {
+            max_custom_measurements: 1,
+            ..Default::default()
+        };
+
+        let dynamic_config = DynamicMeasurementsConfig {
+            project: Some(&measurements_config),
+            global: None,
+        };
+
+        // Just for clarity.
+        // Checks that there is 1 measurement before processing.
+        assert_eq!(measurements.len(), 1);
+
+        remove_invalid_measurements(
+            &mut measurements,
+            &mut meta,
+            dynamic_config,
+            max_name_and_unit_len,
+        );
+
+        // Checks whether the measurement is dropped.
+        measurements.len() == 0
+    }
+
+    #[test]
+    fn test_normalize_app_start_measurements_does_not_add_measurements() {
+        let mut measurements = Annotated::<Measurements>::from_json(r###"{}"###)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {},
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {},
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_cold_measurements() {
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app.start.cold": {"value": 1.1}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app.start.cold": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_warm_measurements() {
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app.start.warm": {"value": 1.1}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app.start.warm": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app_start_warm": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_apple_high_device_class() {
+        let mut event = Event {
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(DeviceContext {
+                    family: "iPhone".to_string().into(),
+                    model: "iPhone15,3".to_string().into(),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            ..Default::default()
+        };
+        normalize_device_class(&mut event);
+        assert_debug_snapshot!(event.tags, @r#"
+        Tags(
+            PairList(
+                [
+                    TagEntry(
+                        "device.class",
+                        "3",
+                    ),
+                ],
+            ),
+        )
+        "#);
+    }
+
+    #[test]
+    fn test_filter_mobile_outliers() {
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app_start_warm": {"value": 180001}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        assert_eq!(measurements.len(), 1);
+        filter_mobile_outliers(&mut measurements);
+        assert_eq!(measurements.len(), 0);
+    }
+
+    #[test]
+    fn test_computed_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    // Test performance score is calculated correctly when the sum of weights is under 1.
+    // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
+    #[test]
+    fn test_computed_performance_score_with_under_normalized_weights() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.03,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.06,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.06,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.05,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    // Test performance score is calculated correctly when the sum of weights is over 1.
+    // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
+    #[test]
+    fn test_computed_performance_score_with_over_normalized_weights() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.30,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.60,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.60,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.50,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_missing_measurement() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
+    }
+}
