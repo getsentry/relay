@@ -264,9 +264,11 @@ fn scrub_resource(string: &str) -> Option<String> {
                 .unwrap_or_default();
             let last_segment = scrub_resource_filename(last_segment);
 
-            dbg!((&segments, &last_segment));
-
-            format!("{scheme}://{domain}/{segments}/{last_segment}")
+            if segments.is_empty() {
+                format!("{scheme}://{domain}/{last_segment}")
+            } else {
+                format!("{scheme}://{domain}/{segments}/{last_segment}")
+            }
         }
     };
 
@@ -504,14 +506,14 @@ mod tests {
         resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
-        "https://example.com/*/*.map"
+        "https://example.com/static/chunks/*.map"
     );
 
     span_description_test!(
         resource_script_numeric_filename,
         "https://example.com/static/chunks/09876543211234567890",
         "resource.script",
-        "https://example.com/*/*"
+        "https://example.com/static/chunks/*"
     );
 
     span_description_test!(
@@ -532,14 +534,14 @@ mod tests {
         resource_css,
         "https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css",
         "resource.css",
-        "https://example.com/*/dark_high_contrast-*.css"
+        "https://example.com/assets/dark_high_contrast-*.css"
     );
 
     span_description_test!(
         integer_in_resource,
         "https://example.com/assets/this_is-a_good_resource-123-scrub_me.js",
         "resource.css",
-        "https://example.com/*/*.js"
+        "https://example.com/assets/*.js"
     );
 
     span_description_test!(
@@ -553,14 +555,14 @@ mod tests {
         resource_query_params2,
         "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://*.domain.com/*/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "https://*.domain.com/*/guide.gif"
+        "https://*.domain.com/data/guide.gif"
     );
 
     span_description_test!(
@@ -574,14 +576,14 @@ mod tests {
         resource_vite,
         "webroot/assets/Profile-73f6525d.js",
         "resource.js",
-        "*/Profile-*.js"
+        "*/assets/Profile-*.js"
     );
 
     span_description_test!(
         resource_vite_css,
         "webroot/assets/Shop-1aff80f7.css",
         "resource.css",
-        "*/Shop-*.css"
+        "*/assets/Shop-*.css"
     );
 
     span_description_test!(
@@ -651,7 +653,7 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://*.domain.com/*/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
@@ -723,7 +725,7 @@ mod tests {
         resource_img_comma_with_extension,
         "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
         "resource.img",
-        "https://example.org/*/weird-stuff-*-*-*.jpg"
+        "https://example.org/*/media/*/weird-stuff-*-*-*.jpg"
     );
 
     span_description_test!(
