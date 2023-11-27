@@ -156,9 +156,10 @@ pub struct StoreConfig {
 
 /// The processor that normalizes events for processing and storage.
 ///
-/// This processor is a superset of [`NormalizeProcessor`], that runs additional and heavier
-/// normalization steps. These normalizations should ideally be performed on events that are likely
-/// to be ingested, after other functionality such as inbound filters have run.
+/// This processor is a superset of [basic normalization](crate::normalize_event),
+/// that runs additional and heavier normalization steps. These normalizations
+/// should ideally be performed on events that are likely to be ingested, after
+/// other functionality such as inbound filters have run.
 ///
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
 pub struct StoreProcessor<'a> {
@@ -214,7 +215,7 @@ impl<'a> Processor for StoreProcessor<'a> {
     }
 }
 
-/// Configuration for [`NormalizeProcessor`].
+/// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
 pub struct NormalizationConfig<'a> {
     /// The IP address of the SDK that sent the event.
