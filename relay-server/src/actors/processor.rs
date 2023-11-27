@@ -2191,6 +2191,7 @@ impl EnvelopeProcessorService {
     }
 
     /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
+    #[cfg(feature = "processing")]
     fn validate_span(&self, mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
         let inner = span
             .value_mut()
@@ -2275,59 +2276,28 @@ impl EnvelopeProcessorService {
         });
     }
 
-    fn extract_span_metrics(&self, state: &mut ProcessEnvelopeState) {
-        if state
-            .project_state
-            .has_feature(Feature::StandaloneSpanIngestion)
-        {
-            return;
-        }
+    #[cfg(feature = "processing")]
+    fn process_spans(&self, state: &mut ProcessEnvelopeState) {
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
             _ => return,
         };
-        let extract_span_metrics = |span: Annotated<Span>| {
-            let span = match self.validate_span(span) {
+        let mut items: Vec<Item> = Vec::new();
+        let mut add_span = |annotated_span: Annotated<Span>| {
+            let validated_span = match self.validate_span(annotated_span) {
                 Ok(span) => span,
                 Err(e) => {
                     relay_log::error!("Invalid span: {e}");
                     return;
                 }
             };
-            if let Some(span) = span.value() {
+            if let Some(span_value) = validated_span.value() {
                 crate::metrics_extraction::generic::extract_metrics(
-                    span,
+                    span_value,
                     span_metrics_extraction_config,
                 );
             }
-        };
-        for item in state.managed_envelope.envelope().items() {
-            if item.ty() == &ItemType::OtelSpan {
-                if let Ok(otel_span) =
-                    serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
-                {
-                    extract_span_metrics(Annotated::new(otel_span.into()));
-                }
-            } else if item.ty() == &ItemType::Span {
-                if let Ok(event_span) = Annotated::<Span>::from_json_bytes(&item.payload()) {
-                    extract_span_metrics(event_span);
-                }
-            }
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    fn process_spans(&self, state: &mut ProcessEnvelopeState) {
-        let mut items: Vec<Item> = Vec::new();
-        let mut add_span = |span: Annotated<Span>| {
-            let span = match self.validate_span(span) {
-                Ok(span) => span,
-                Err(e) => {
-                    relay_log::error!("Invalid span: {e}");
-                    return;
-                }
-            };
-            if let Ok(payload) = span.to_json() {
+            if let Ok(payload) = validated_span.to_json() {
                 let mut item = Item::new(ItemType::Span);
                 item.set_payload(ContentType::Json, payload);
                 items.push(item);
@@ -2336,7 +2306,6 @@ impl EnvelopeProcessorService {
         let standalone_span_ingestion_enabled = state
             .project_state
             .has_feature(Feature::StandaloneSpanIngestion);
-
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
             ItemType::Span if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
@@ -2660,11 +2629,6 @@ impl EnvelopeProcessorService {
             if_processing!({
                 self.store_process_event(state)?;
             });
-        }
-
-        // Extract span metrics from standalone spans only
-        if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
-            self.extract_span_metrics(state);
         }
 
         if_processing!({
