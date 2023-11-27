@@ -315,9 +315,7 @@ def mini_sentry(request):  # noqa
 
         version = flask_request.args.get("version")
 
-        print("hey")
         if version == "3" and flask_request.json.get("global"):
-            print("heyyy")
             global_ = GLOBAL_CONFIG
 
         if version in [None, "1"]:

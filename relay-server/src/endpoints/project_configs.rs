@@ -136,6 +136,8 @@ async fn inner(
             global_config::Status::Ready(global_config) => {
                 (Some(global_config), Some(StatusResponse::Ready))
             }
+            // Old relays expect to get a global config no matter what, even if it's not ready
+            // yet. We therefore give them a default global config.
             global_config::Status::Pending => (
                 Some(GlobalConfig::default().into()),
                 Some(StatusResponse::Pending),
