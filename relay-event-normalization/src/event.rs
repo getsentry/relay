@@ -27,7 +27,7 @@ use crate::{
     PerformanceScoreConfig, RawUserAgentInfo,
 };
 
-pub(crate) fn normalize(
+pub fn normalize(
     event: &mut Event,
     meta: &mut Meta,
     config: &NormalizeProcessorConfig,

@@ -207,3 +207,21 @@ impl<'a> Processor for StoreProcessor<'a> {
         Ok(())
     }
 }
+
+pub fn normalize_event(
+    event: &mut Annotated<Event>,
+    config: &NormalizeProcessorConfig,
+) -> ProcessingResult {
+    let Annotated(ref mut event, ref mut meta) = event;
+    let Some(ref mut event) = event else {
+        return Ok(());
+    };
+
+    let is_renormalize = config.is_renormalize;
+
+    if !is_renormalize {
+        event::normalize(event, meta, config)?;
+    }
+
+    Ok(())
+}
