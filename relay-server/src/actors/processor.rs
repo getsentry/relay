@@ -2542,6 +2542,12 @@ impl EnvelopeProcessorService {
     }
 
     fn extract_span_metrics(&self, state: &mut ProcessEnvelopeState) {
+        if state
+            .project_state
+            .has_feature(Feature::StandaloneSpanIngestion)
+        {
+            return;
+        }
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
             _ => return,
@@ -2593,7 +2599,13 @@ impl EnvelopeProcessorService {
                 items.push(item);
             }
         };
+        let standalone_span_ingestion_enabled = state
+            .project_state
+            .has_feature(Feature::StandaloneSpanIngestion);
+
         state.managed_envelope.retain_items(|item| match item.ty() {
+            ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
+            ItemType::EventSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
             ItemType::OtelSpan => {
                 if let Ok(otel_span) =
                     serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
