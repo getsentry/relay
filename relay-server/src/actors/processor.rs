@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
-use std::net;
 use std::net::IpAddr as NetIPAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -19,9 +18,7 @@ use relay_auth::RelayVersion;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{
-    ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
-};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
     nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
@@ -32,16 +29,15 @@ use relay_event_schema::processor::{self, process_value, ProcessingAction, Proce
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
-    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
-    Timestamp, TraceContext, UserReport, Values,
+    Replay, SecurityReportType, Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
+use relay_metrics::{Bucket, MergeBuckets, MetricMeta, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ReasonCode};
+use relay_quotas::{DataCategory, ReasonCode, Scoping};
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -59,7 +55,7 @@ use {
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::Span,
-    relay_metrics::Aggregator,
+    relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -68,7 +64,7 @@ use {
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::ProjectCache;
+use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -79,6 +75,8 @@ use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
 };
+
+mod session;
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -470,6 +468,15 @@ pub struct ProcessMetrics {
     pub sent_at: Option<DateTime<Utc>>,
 }
 
+/// Parses a list of metric meta items and pushes them to the project cache for aggregation.
+#[derive(Debug)]
+pub struct ProcessMetricMeta {
+    /// A list of metric meta items.
+    pub items: Vec<Item>,
+    /// The target project.
+    pub project_key: ProjectKey,
+}
+
 /// Applies HTTP content encoding to an envelope's payload.
 ///
 /// This message is a workaround for a single-threaded upstream service.
@@ -485,6 +492,18 @@ impl EncodeEnvelope {
     }
 }
 
+/// Encodes metric meta into an envelope and sends it upstream.
+///
+/// Upstream means directly into redis for processing relays
+/// and otherwise submitting the envelope with the envelope manager.
+#[derive(Debug)]
+pub struct EncodeMetricMeta {
+    /// Scoping of the meta.
+    pub scoping: Scoping,
+    /// The metric meta.
+    pub meta: MetricMeta,
+}
+
 /// Applies rate limits to metrics buckets and forwards them to the envelope manager.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
@@ -497,7 +516,9 @@ pub struct RateLimitBuckets {
 pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessMetrics(Box<ProcessMetrics>),
+    ProcessMetricMeta(Box<ProcessMetricMeta>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    EncodeMetricMeta(Box<EncodeMetricMeta>),
     #[cfg(feature = "processing")]
     RateLimitFlushBuckets(RateLimitBuckets),
 }
@@ -520,11 +541,27 @@ impl FromMessage<ProcessMetrics> for EnvelopeProcessor {
     }
 }
 
+impl FromMessage<ProcessMetricMeta> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: ProcessMetricMeta, _: ()) -> Self {
+        Self::ProcessMetricMeta(Box::new(message))
+    }
+}
+
 impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
     type Response = NoResponse;
 
     fn from_message(message: EncodeEnvelope, _: ()) -> Self {
         Self::EncodeEnvelope(Box::new(message))
+    }
+}
+
+impl FromMessage<EncodeMetricMeta> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeMetricMeta, _: ()) -> Self {
+        Self::EncodeMetricMeta(Box::new(message))
     }
 }
 
@@ -558,6 +595,8 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
+    #[cfg(feature = "processing")]
+    metric_meta_store: Option<RedisMetricMetaStore>,
 }
 
 impl EnvelopeProcessorService {
@@ -587,8 +626,8 @@ impl EnvelopeProcessorService {
             redis_pool: redis.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: redis
+                .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
-            config,
             envelope_manager,
             project_cache,
             outcome_aggregator,
@@ -596,315 +635,16 @@ impl EnvelopeProcessorService {
             geoip_lookup,
             #[cfg(feature = "processing")]
             aggregator,
+            #[cfg(feature = "processing")]
+            metric_meta_store: redis.clone().map(|pool| {
+                RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            }),
+            config,
         };
 
         Self {
             inner: Arc::new(inner),
         }
-    }
-
-    /// Returns Ok(true) if attributes were modified.
-    /// Returns Err if the session should be dropped.
-    fn validate_attributes(
-        &self,
-        client_addr: &Option<net::IpAddr>,
-        attributes: &mut SessionAttributes,
-    ) -> Result<bool, ()> {
-        let mut changed = false;
-
-        let release = &attributes.release;
-        if let Err(e) = relay_event_normalization::validate_release(release) {
-            relay_log::trace!(
-                error = &e as &dyn Error,
-                release,
-                "skipping session with invalid release"
-            );
-            return Err(());
-        }
-
-        if let Some(ref env) = attributes.environment {
-            if let Err(e) = relay_event_normalization::validate_environment(env) {
-                relay_log::trace!(
-                    error = &e as &dyn Error,
-                    env,
-                    "removing invalid environment"
-                );
-                attributes.environment = None;
-                changed = true;
-            }
-        }
-
-        if let Some(ref ip_address) = attributes.ip_address {
-            if ip_address.is_auto() {
-                attributes.ip_address = client_addr.map(IpAddr::from);
-                changed = true;
-            }
-        }
-
-        Ok(changed)
-    }
-
-    fn is_valid_session_timestamp(
-        &self,
-        received: DateTime<Utc>,
-        timestamp: DateTime<Utc>,
-    ) -> bool {
-        let max_age = SignedDuration::seconds(self.inner.config.max_session_secs_in_past());
-        if (received - timestamp) > max_age {
-            relay_log::trace!("skipping session older than {} days", max_age.num_days());
-            return false;
-        }
-
-        let max_future = SignedDuration::seconds(self.inner.config.max_secs_in_future());
-        if (timestamp - received) > max_future {
-            relay_log::trace!(
-                "skipping session more than {}s in the future",
-                max_future.num_seconds()
-            );
-            return false;
-        }
-
-        true
-    }
-
-    /// Returns true if the item should be kept.
-    #[allow(clippy::too_many_arguments)]
-    fn process_session(
-        &self,
-        item: &mut Item,
-        received: DateTime<Utc>,
-        client: Option<&str>,
-        client_addr: Option<net::IpAddr>,
-        metrics_config: SessionMetricsConfig,
-        clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Bucket>,
-    ) -> bool {
-        let mut changed = false;
-        let payload = item.payload();
-
-        // sessionupdate::parse is already tested
-        let mut session = match SessionUpdate::parse(&payload) {
-            Ok(session) => session,
-            Err(error) => {
-                relay_log::trace!(
-                    error = &error as &dyn Error,
-                    "skipping invalid session payload"
-                );
-                return false;
-            }
-        };
-
-        if session.sequence == u64::MAX {
-            relay_log::trace!("skipping session due to sequence overflow");
-            return false;
-        };
-
-        if clock_drift_processor.is_drifted() {
-            relay_log::trace!("applying clock drift correction to session");
-            clock_drift_processor.process_datetime(&mut session.started);
-            clock_drift_processor.process_datetime(&mut session.timestamp);
-            changed = true;
-        }
-
-        if session.timestamp < session.started {
-            relay_log::trace!("fixing session timestamp to {}", session.timestamp);
-            session.timestamp = session.started;
-            changed = true;
-        }
-
-        // Log the timestamp delay for all sessions after clock drift correction.
-        let session_delay = received - session.timestamp;
-        if session_delay > SignedDuration::minutes(1) {
-            metric!(
-                timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
-                category = "session",
-            );
-        }
-
-        // Validate timestamps
-        for t in [session.timestamp, session.started] {
-            if !self.is_valid_session_timestamp(received, t) {
-                return false;
-            }
-        }
-
-        // Validate attributes
-        match self.validate_attributes(&client_addr, &mut session.attributes) {
-            Err(_) => return false,
-            Ok(changed_attributes) => {
-                changed |= changed_attributes;
-            }
-        }
-
-        if self.inner.config.processing_enabled()
-            && matches!(session.status, SessionStatus::Unknown(_))
-        {
-            return false;
-        }
-
-        // Extract metrics if they haven't been extracted by a prior Relay
-        if metrics_config.is_enabled()
-            && !item.metrics_extracted()
-            && !matches!(session.status, SessionStatus::Unknown(_))
-        {
-            crate::metrics_extraction::sessions::extract_session_metrics(
-                &session.attributes,
-                &session,
-                client,
-                extracted_metrics,
-                metrics_config.should_extract_abnormal_mechanism(),
-            );
-            item.set_metrics_extracted(true);
-        }
-
-        // Drop the session if metrics have been extracted in this or a prior Relay
-        if metrics_config.should_drop() && item.metrics_extracted() {
-            return false;
-        }
-
-        if changed {
-            let json_string = match serde_json::to_string(&session) {
-                Ok(json) => json,
-                Err(err) => {
-                    relay_log::error!(error = &err as &dyn Error, "failed to serialize session");
-                    return false;
-                }
-            };
-
-            item.set_payload(ContentType::Json, json_string);
-        }
-
-        true
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn process_session_aggregates(
-        &self,
-        item: &mut Item,
-        received: DateTime<Utc>,
-        client: Option<&str>,
-        client_addr: Option<net::IpAddr>,
-        metrics_config: SessionMetricsConfig,
-        clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Bucket>,
-    ) -> bool {
-        let mut changed = false;
-        let payload = item.payload();
-
-        let mut session = match SessionAggregates::parse(&payload) {
-            Ok(session) => session,
-            Err(error) => {
-                relay_log::trace!(
-                    error = &error as &dyn Error,
-                    "skipping invalid sessions payload"
-                );
-                return false;
-            }
-        };
-
-        if clock_drift_processor.is_drifted() {
-            relay_log::trace!("applying clock drift correction to session");
-            for aggregate in &mut session.aggregates {
-                clock_drift_processor.process_datetime(&mut aggregate.started);
-            }
-            changed = true;
-        }
-
-        // Validate timestamps
-        session
-            .aggregates
-            .retain(|aggregate| self.is_valid_session_timestamp(received, aggregate.started));
-
-        // Aftter timestamp validation, aggregates could now be empty
-        if session.aggregates.is_empty() {
-            return false;
-        }
-
-        // Validate attributes
-        match self.validate_attributes(&client_addr, &mut session.attributes) {
-            Err(_) => return false,
-            Ok(changed_attributes) => {
-                changed |= changed_attributes;
-            }
-        }
-
-        // Extract metrics if they haven't been extracted by a prior Relay
-        if metrics_config.is_enabled() && !item.metrics_extracted() {
-            for aggregate in &session.aggregates {
-                crate::metrics_extraction::sessions::extract_session_metrics(
-                    &session.attributes,
-                    aggregate,
-                    client,
-                    extracted_metrics,
-                    metrics_config.should_extract_abnormal_mechanism(),
-                );
-                item.set_metrics_extracted(true);
-            }
-        }
-
-        // Drop the aggregate if metrics have been extracted in this or a prior Relay
-        if metrics_config.should_drop() && item.metrics_extracted() {
-            return false;
-        }
-
-        if changed {
-            let json_string = match serde_json::to_string(&session) {
-                Ok(json) => json,
-                Err(err) => {
-                    relay_log::error!(error = &err as &dyn Error, "failed to serialize session");
-                    return false;
-                }
-            };
-
-            item.set_payload(ContentType::Json, json_string);
-        }
-
-        true
-    }
-
-    /// Validates all sessions and session aggregates in the envelope, if any.
-    ///
-    /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
-    /// are out of range after clock drift correction.
-    fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let received = state.managed_envelope.received_at();
-        let extracted_metrics = &mut state.extracted_metrics.project_metrics;
-        let metrics_config = state.project_state.config().session_metrics;
-        let envelope = state.managed_envelope.envelope_mut();
-        let client = envelope.meta().client().map(|x| x.to_owned());
-        let client_addr = envelope.meta().client_addr();
-
-        let clock_drift_processor =
-            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
-
-        state.managed_envelope.retain_items(|item| {
-            let should_keep = match item.ty() {
-                ItemType::Session => self.process_session(
-                    item,
-                    received,
-                    client.as_deref(),
-                    client_addr,
-                    metrics_config,
-                    &clock_drift_processor,
-                    extracted_metrics,
-                ),
-                ItemType::Sessions => self.process_session_aggregates(
-                    item,
-                    received,
-                    client.as_deref(),
-                    client_addr,
-                    metrics_config,
-                    &clock_drift_processor,
-                    extracted_metrics,
-                ),
-                _ => true, // Keep all other item types
-            };
-            if should_keep {
-                ItemAction::Keep
-            } else {
-                ItemAction::DropSilently // sessions never log outcomes.
-            }
-        });
     }
 
     /// Validates and normalizes all user report items in the envelope.
@@ -1711,6 +1451,7 @@ impl EnvelopeProcessorService {
             ItemType::Sessions => false,
             ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
+            ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
             ItemType::ReplayEvent => false,
@@ -2757,7 +2498,7 @@ impl EnvelopeProcessorService {
             };
         }
 
-        self.process_sessions(state);
+        session::process(state, self.inner.config.clone());
         self.process_client_reports(state);
         self.process_user_reports(state);
         self.process_replays(state)?;
@@ -2981,6 +2722,52 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
+        let ProcessMetricMeta { items, project_key } = message;
+
+        for item in items {
+            if item.ty() != &ItemType::MetricMeta {
+                relay_log::error!(
+                    "invalid item of type {} passed to ProcessMetricMeta",
+                    item.ty()
+                );
+                continue;
+            }
+
+            let mut payload = item.payload();
+            match serde_json::from_slice::<MetricMeta>(&payload) {
+                Ok(meta) => {
+                    relay_log::trace!("adding metric metadata to project cache");
+                    self.inner
+                        .project_cache
+                        .send(AddMetricMeta { project_key, meta });
+                }
+                Err(error) => {
+                    metric!(counter(RelayCounters::MetricMetaParsingFailed) += 1);
+
+                    relay_log::with_scope(
+                        move |scope| {
+                            // truncate the payload to basically 200KiB, just in case
+                            payload.truncate(200_000);
+                            scope.add_attachment(relay_log::protocol::Attachment {
+                                buffer: payload.into(),
+                                filename: "payload.json".to_owned(),
+                                content_type: Some("application/json".to_owned()),
+                                ty: None,
+                            })
+                        },
+                        || {
+                            relay_log::error!(
+                                error = &error as &dyn Error,
+                                "failed to parse metric meta"
+                            )
+                        },
+                    );
+                }
+            }
+        }
+    }
+
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
@@ -3075,11 +2862,67 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled() {
+            return self.store_metric_meta(message);
+        }
+
+        self.encode_metric_meta(message);
+    }
+
+    fn encode_metric_meta(&self, message: EncodeMetricMeta) {
+        let EncodeMetricMeta { scoping, meta } = message;
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = crate::extractors::PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        };
+
+        let mut item = Item::new(ItemType::MetricMeta);
+        item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        envelope.add_item(item);
+        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy());
+
+        self.inner
+            .envelope_manager
+            .send(SubmitEnvelope { envelope });
+    }
+
+    #[cfg(feature = "processing")]
+    fn store_metric_meta(&self, message: EncodeMetricMeta) {
+        let EncodeMetricMeta { scoping, meta } = message;
+
+        let Some(ref metric_meta_store) = self.inner.metric_meta_store else {
+            return;
+        };
+
+        let r = metric_meta_store.store(scoping.organization_id, scoping.project_id, meta);
+        if let Err(error) = r {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                "failed to store metric meta in redis"
+            )
+        }
+    }
+
     fn handle_message(&self, message: EnvelopeProcessor) {
         match message {
             EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
             EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
+            EnvelopeProcessor::ProcessMetricMeta(message) => {
+                self.handle_process_metric_meta(*message)
+            }
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            EnvelopeProcessor::EncodeMetricMeta(message) => {
+                self.handle_encode_metric_meta(*message)
+            }
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitFlushBuckets(message) => {
                 self.handle_rate_limit_flush_buckets(message);
@@ -3128,7 +2971,6 @@ impl Service for EnvelopeProcessorService {
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
     use insta::assert_debug_snapshot;
@@ -3161,67 +3003,6 @@ mod tests {
 
     use super::*;
 
-    struct TestProcessSessionArguments<'a> {
-        item: Item,
-        received: DateTime<Utc>,
-        client: Option<&'a str>,
-        client_addr: Option<net::IpAddr>,
-        metrics_config: SessionMetricsConfig,
-        clock_drift_processor: ClockDriftProcessor,
-        extracted_metrics: Vec<Bucket>,
-    }
-
-    impl<'a> TestProcessSessionArguments<'a> {
-        fn run_session_producer(&mut self) -> bool {
-            let proc = create_test_processor(Default::default());
-            proc.process_session(
-                &mut self.item,
-                self.received,
-                self.client,
-                self.client_addr,
-                self.metrics_config,
-                &self.clock_drift_processor,
-                &mut self.extracted_metrics,
-            )
-        }
-
-        fn default() -> Self {
-            let mut item = Item::new(ItemType::Event);
-
-            let session = r#"{
-            "init": false,
-            "started": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "attrs": {
-                "release": "1.0.0"
-            },
-            "did": "user123",
-            "status": "this is not a valid status!",
-            "duration": 123.4
-        }"#;
-
-            item.set_payload(ContentType::Json, session);
-            let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
-
-            Self {
-                item,
-                received,
-                client: None,
-                client_addr: None,
-                metrics_config: serde_json::from_str(
-                    "
-        {
-            \"version\": 0,
-            \"drop\": true
-        }",
-                )
-                .unwrap(),
-                clock_drift_processor: ClockDriftProcessor::new(None, received),
-                extracted_metrics: vec![],
-            }
-        }
-    }
-
     fn dummy_reservoir() -> ReservoirEvaluator<'static> {
         ReservoirEvaluator::new(ReservoirCounters::default())
     }
@@ -3234,57 +3015,6 @@ mod tests {
             release: Annotated::new(LenientString(release.to_string())),
             ..Event::default()
         }
-    }
-
-    /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
-    /// other tests are valid.
-    #[tokio::test]
-    async fn test_process_session_keep_item() {
-        let mut args = TestProcessSessionArguments::default();
-        assert!(args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_invalid_json() {
-        let mut args = TestProcessSessionArguments::default();
-        args.item
-            .set_payload(ContentType::Json, "this isnt valid json");
-        assert!(!args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_sequence_overflow() {
-        let mut args = TestProcessSessionArguments::default();
-        args.item.set_payload(
-            ContentType::Json,
-            r#"{
-            "init": false,
-            "started": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "seq": 18446744073709551615,
-            "attrs": {
-                "release": "1.0.0"
-            },
-            "did": "user123",
-            "status": "this is not a valid status!",
-            "duration": 123.4
-        }"#,
-        );
-        assert!(!args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_invalid_timestamp() {
-        let mut args = TestProcessSessionArguments::default();
-        args.received = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
-        assert!(!args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_metrics_extracted() {
-        let mut args = TestProcessSessionArguments::default();
-        args.item.set_metrics_extracted(true);
-        assert!(!args.run_session_producer());
     }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
@@ -3577,6 +3307,8 @@ mod tests {
             geoip_lookup: None,
             #[cfg(feature = "processing")]
             aggregator,
+            #[cfg(feature = "processing")]
+            metric_meta_store: None,
         };
 
         EnvelopeProcessorService {
@@ -3599,6 +3331,8 @@ mod tests {
             geoip_lookup: None,
             #[cfg(feature = "processing")]
             aggregator: Addr::dummy(),
+            #[cfg(feature = "processing")]
+            metric_meta_store: None,
         };
 
         EnvelopeProcessorService {

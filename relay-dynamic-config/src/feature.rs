@@ -33,6 +33,9 @@ pub enum Feature {
     /// Enable processing profiles
     #[serde(rename = "organizations:profiling")]
     Profiling,
+    /// Enable metric metadata.
+    #[serde(rename = "organizations:metric-meta")]
+    MetricMeta,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

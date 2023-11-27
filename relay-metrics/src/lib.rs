@@ -69,6 +69,7 @@
 )]
 
 pub mod aggregator;
+pub mod meta;
 
 mod aggregatorservice;
 mod bucket;
@@ -78,5 +79,8 @@ mod statsd;
 
 pub use aggregatorservice::*;
 pub use bucket::*;
+#[cfg(feature = "redis")]
+pub use meta::RedisMetricMetaStore;
+pub use meta::{MetaAggregator, MetricMeta};
 pub use protocol::*;
 pub use router::*;
