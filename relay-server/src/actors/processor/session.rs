@@ -19,6 +19,53 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
+/// Validates all sessions and session aggregates in the envelope, if any.
+///
+/// Both are removed from the envelope if they contain invalid JSON or if their timestamps
+/// are out of range after clock drift correction.
+pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
+    let received = state.managed_envelope.received_at();
+    let extracted_metrics = &mut state.extracted_metrics.project_metrics;
+    let metrics_config = state.project_state.config().session_metrics;
+    let envelope = state.managed_envelope.envelope_mut();
+    let client = envelope.meta().client().map(|x| x.to_owned());
+    let client_addr = envelope.meta().client_addr();
+
+    let clock_drift_processor =
+        ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
+
+    state.managed_envelope.retain_items(|item| {
+        let should_keep = match item.ty() {
+            ItemType::Session => process_session(
+                item,
+                config.clone(),
+                received,
+                client.as_deref(),
+                client_addr,
+                metrics_config,
+                &clock_drift_processor,
+                extracted_metrics,
+            ),
+            ItemType::Sessions => process_session_aggregates(
+                item,
+                config.clone(),
+                received,
+                client.as_deref(),
+                client_addr,
+                metrics_config,
+                &clock_drift_processor,
+                extracted_metrics,
+            ),
+            _ => true, // Keep all other item types
+        };
+        if should_keep {
+            ItemAction::Keep
+        } else {
+            ItemAction::DropSilently // sessions never log outcomes.
+        }
+    });
+}
+
 /// Returns Ok(true) if attributes were modified.
 /// Returns Err if the session should be dropped.
 fn validate_attributes(
@@ -283,53 +330,6 @@ fn process_session_aggregates(
     }
 
     true
-}
-
-/// Validates all sessions and session aggregates in the envelope, if any.
-///
-/// Both are removed from the envelope if they contain invalid JSON or if their timestamps
-/// are out of range after clock drift correction.
-pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
-    let received = state.managed_envelope.received_at();
-    let extracted_metrics = &mut state.extracted_metrics.project_metrics;
-    let metrics_config = state.project_state.config().session_metrics;
-    let envelope = state.managed_envelope.envelope_mut();
-    let client = envelope.meta().client().map(|x| x.to_owned());
-    let client_addr = envelope.meta().client_addr();
-
-    let clock_drift_processor =
-        ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
-
-    state.managed_envelope.retain_items(|item| {
-        let should_keep = match item.ty() {
-            ItemType::Session => process_session(
-                item,
-                config.clone(),
-                received,
-                client.as_deref(),
-                client_addr,
-                metrics_config,
-                &clock_drift_processor,
-                extracted_metrics,
-            ),
-            ItemType::Sessions => process_session_aggregates(
-                item,
-                config.clone(),
-                received,
-                client.as_deref(),
-                client_addr,
-                metrics_config,
-                &clock_drift_processor,
-                extracted_metrics,
-            ),
-            _ => true, // Keep all other item types
-        };
-        if should_keep {
-            ItemAction::Keep
-        } else {
-            ItemAction::DropSilently // sessions never log outcomes.
-        }
-    });
 }
 
 #[cfg(test)]
