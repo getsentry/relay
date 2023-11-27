@@ -63,7 +63,7 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 mod tests {
     use chrono::{DateTime, Utc};
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
-    use relay_event_normalization::{NormalizeProcessor, NormalizeProcessorConfig};
+    use relay_event_normalization::{NormalizationConfig, NormalizeProcessor};
     use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
@@ -492,7 +492,7 @@ mod tests {
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+            &mut NormalizeProcessor::new(NormalizationConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
@@ -1015,7 +1015,7 @@ mod tests {
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+            &mut NormalizeProcessor::new(NormalizationConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
@@ -1073,7 +1073,7 @@ mod tests {
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+            &mut NormalizeProcessor::new(NormalizationConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 device_class_synthesis_config: true,

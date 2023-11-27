@@ -12,7 +12,7 @@ use once_cell::sync::OnceCell;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
-    GeoIpLookup, NormalizeProcessor, NormalizeProcessorConfig, RawUserAgentInfo, StoreConfig,
+    GeoIpLookup, NormalizationConfig, NormalizeProcessor, RawUserAgentInfo, StoreConfig,
     StoreProcessor,
 };
 use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     let processor = normalizer as *mut StoreProcessor;
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     let config = (*processor).config();
-    let normalization_config = NormalizeProcessorConfig {
+    let normalization_config = NormalizationConfig {
         client_ip: config.client_ip.as_ref(),
         user_agent: RawUserAgentInfo {
             user_agent: config.user_agent.as_deref(),

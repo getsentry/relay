@@ -30,7 +30,6 @@ pub mod utils;
 mod contexts;
 pub mod logentry;
 pub mod mechanism;
-mod processor;
 mod request;
 pub mod stacktrace;
 

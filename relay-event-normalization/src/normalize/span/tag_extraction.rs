@@ -571,7 +571,7 @@ mod tests {
     use relay_event_schema::protocol::{Event, Request};
     use relay_protocol::Annotated;
 
-    use crate::{NormalizeProcessor, NormalizeProcessorConfig};
+    use crate::{NormalizationConfig, NormalizeProcessor};
 
     use super::*;
 

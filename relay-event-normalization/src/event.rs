@@ -22,7 +22,7 @@ use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, schema, span, transactions, trimming, user_agent, BreakdownsConfig,
-    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, NormalizeProcessorConfig,
+    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, NormalizationConfig,
     PerformanceScoreConfig, RawUserAgentInfo,
 };
 use crate::{mechanism, stacktrace};
@@ -30,7 +30,7 @@ use crate::{mechanism, stacktrace};
 pub fn normalize(
     event: &mut Event,
     meta: &mut Meta,
-    config: &NormalizeProcessorConfig,
+    config: &NormalizationConfig,
 ) -> ProcessingResult {
     if config.is_renormalize {
         return Ok(());

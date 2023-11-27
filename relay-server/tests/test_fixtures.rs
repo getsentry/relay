@@ -1,7 +1,7 @@
 use std::fs;
 
 use relay_event_normalization::{
-    NormalizeProcessor, NormalizeProcessorConfig, StoreConfig, StoreProcessor,
+    NormalizationConfig, NormalizeProcessor, StoreConfig, StoreProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Event;

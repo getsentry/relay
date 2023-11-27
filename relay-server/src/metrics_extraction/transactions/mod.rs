@@ -434,7 +434,7 @@ mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
         set_default_transaction_source, BreakdownsConfig, DynamicMeasurementsConfig,
-        MeasurementsConfig, NormalizeProcessor, NormalizeProcessorConfig,
+        MeasurementsConfig, NormalizationConfig, NormalizeProcessor,
     };
     use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::User;
@@ -517,7 +517,7 @@ mod tests {
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+            &mut NormalizeProcessor::new(NormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
                 light_normalize_spans: true,
@@ -753,7 +753,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            &mut NormalizeProcessor::new(NormalizationConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();
@@ -879,7 +879,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            &mut NormalizeProcessor::new(NormalizationConfig::default()),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1053,7 +1053,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+            &mut NormalizeProcessor::new(NormalizationConfig {
                 measurements: Some(config),
                 ..Default::default()
             }),
@@ -1688,7 +1688,7 @@ mod tests {
         // Normalize first, to make sure that the metrics were computed:
         let _ = process_value(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            &mut NormalizeProcessor::new(NormalizationConfig::default()),
             ProcessingState::root(),
         );
 

@@ -24,8 +24,8 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
-    NormalizeProcessorConfig, TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig,
+    TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
@@ -2737,7 +2737,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = NormalizeProcessorConfig {
+            let config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -4332,7 +4332,7 @@ mod tests {
 
         relay_statsd::with_capturing_test_client(|| {
             utils::log_transaction_name_metrics(&mut event, |event| {
-                let config = NormalizeProcessorConfig {
+                let config = NormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
