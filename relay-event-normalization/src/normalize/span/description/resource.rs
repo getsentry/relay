@@ -34,6 +34,7 @@ pub static COMMON_PATH_SEGMENTS: Lazy<BTreeSet<&str>> = Lazy::new(|| {
         "img",
         "immutable",
         "js",
+        "lib",
         "libs",
         "media",
         "node_modules",
