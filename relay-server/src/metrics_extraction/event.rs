@@ -64,7 +64,6 @@ mod tests {
     use chrono::{DateTime, Utc};
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
     use relay_event_normalization::{normalize_event, NormalizationConfig};
-    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
     use std::collections::BTreeSet;

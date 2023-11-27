@@ -28,7 +28,7 @@ use relay_event_normalization::{
     NormalizationConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,

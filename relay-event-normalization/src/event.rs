@@ -821,11 +821,11 @@ fn remove_invalid_measurements(
 
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
-            if &builtin_measurement.name() == name {
+            if builtin_measurement.name() == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
                 // and just drop it instead.
-                return &builtin_measurement.unit() == &unit;
+                return builtin_measurement.unit() == unit;
             }
         }
 
