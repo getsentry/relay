@@ -1212,6 +1212,7 @@
 <a href="#1212" id="1212">1212</a>
 <a href="#1213" id="1213">1213</a>
 <a href="#1214" id="1214">1214</a>
+<a href="#1215" id="1215">1215</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2402,13 +2403,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_display_times_extracted() {
         <span class="kw">let </span>span = <span class="string">r#&quot;{
-            &quot;op&quot;: &quot;http.client&quot;,
+            &quot;op&quot;: &quot;ui.load&quot;,
             &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
             &quot;start_timestamp&quot;: 1597976300.0000000,
             &quot;timestamp&quot;: 1597976302.0000000,
             &quot;exclusive_time&quot;: 100,
             &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
             &quot;sentry_tags&quot;: {
+                &quot;mobile&quot;: &quot;true&quot;,
                 &quot;ttid&quot;: &quot;ttid&quot;,
                 &quot;ttfd&quot;: &quot;ttfd&quot;
             }
