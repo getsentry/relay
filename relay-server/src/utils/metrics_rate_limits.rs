@@ -73,8 +73,7 @@ pub fn extract_transaction_count(
     Some(TransactionCount { count, has_profile })
 }
 
-/// Wether to extract transaction and profile count based on the usage
-/// or duration metric.
+/// Wether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtractionMode {
     /// Use the usage count metric.

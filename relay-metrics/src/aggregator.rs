@@ -68,6 +68,7 @@ struct BucketKey {
 
 impl BucketKey {
     /// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
     /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
         BucketKeyRef {
@@ -110,6 +111,7 @@ struct BucketKeyRef<'a> {
 
 impl<'a> BucketKeyRef<'a> {
     /// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
     /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
         let mut hasher = FnvHasher::default();
