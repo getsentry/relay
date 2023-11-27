@@ -69,7 +69,7 @@ impl UpstreamQuery for GetGlobalConfig {
     }
 
     fn path(&self) -> std::borrow::Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
     }
 
     fn retry() -> bool {
