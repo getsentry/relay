@@ -1,15 +1,14 @@
 import json
 import os
 import queue
-from time import sleep
-import uuid
 import socket
 import threading
-import pytest
+import uuid
 from datetime import datetime, timedelta, timezone
+from time import sleep
 
-
-from flask import abort, Response
+import pytest
+from flask import Response, abort
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
@@ -230,8 +229,8 @@ def test_store_buffer_size(mini_sentry, relay):
 
 
 def test_store_max_concurrent_requests(mini_sentry, relay):
-    from time import sleep
     from threading import Semaphore
+    from time import sleep
 
     processing_store = False
     store_count = Semaphore()
@@ -1317,8 +1316,6 @@ def test_span_ingestion(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        # "projects:span-metrics-extraction",
-        # "projects:span-metrics-extraction-all-modules",
     ]
 
     # 1 - Send OTel span and sentry span via envelope
