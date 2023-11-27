@@ -3150,8 +3150,16 @@ impl EnvelopeProcessorService {
         }
     }
 
-    #[cfg(not(feature = "processing"))]
     fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled() {
+            return self.store_metric_meta(message);
+        }
+
+        self.encode_metric_meta(message);
+    }
+
+    fn encode_metric_meta(&self, message: EncodeMetricMeta) {
         let EncodeMetricMeta { scoping, meta } = message;
 
         let upstream = self.inner.config.upstream_descriptor();
@@ -3176,7 +3184,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
+    fn store_metric_meta(&self, message: EncodeMetricMeta) {
         let EncodeMetricMeta { scoping, meta } = message;
 
         let Some(ref metric_meta_store) = self.inner.metric_meta_store else {
