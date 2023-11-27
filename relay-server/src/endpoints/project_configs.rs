@@ -31,6 +31,11 @@ const ENDPOINT_V2: u16 = 2;
 /// returned, or a further poll ensues.
 const ENDPOINT_V3: u16 = 3;
 
+/// V3 version of this endpoint.
+///
+/// This version allows returning global config status.
+const ENDPOINT_V4: u16 = 4;
+
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
 struct VersionQuery {
