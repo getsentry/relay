@@ -111,6 +111,7 @@ async fn inner(
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
+
     // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
     let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     let futures = valid_keys.map(|project_key| async move {
