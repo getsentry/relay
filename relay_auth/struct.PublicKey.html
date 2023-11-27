@@ -9,7 +9,7 @@ header.</p>
     &amp;self,
     data: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.74.0/std/primitive.u8.html">u8</a>],
     sig: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.74.0/std/primitive.str.html">str</a>,
-    max_age: <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://docs.rs/chrono/latest/chrono/oldtime/struct.Duration.html" title="struct chrono::oldtime::Duration">Duration</a>&gt;
+    max_age: <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://docs.rs/chrono/latest/chrono/duration/struct.Duration.html" title="struct chrono::duration::Duration">Duration</a>&gt;
 ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.74.0/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Verifies a signature and checks the timestamp.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.unpack_meta" class="method"><a class="src rightside" href="../src/relay_auth/lib.rs.html#340-352">source</a><h4 class="code-header">pub fn <a href="#method.unpack_meta" class="fn">unpack_meta</a>&lt;D: <a class="trait" href="https://docs.rs/serde/1.0.189/serde/de/trait.DeserializeOwned.html" title="trait serde::de::DeserializeOwned">DeserializeOwned</a>&gt;(
     &amp;self,
@@ -20,7 +20,7 @@ header.</p>
     &amp;self,
     data: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.74.0/std/primitive.u8.html">u8</a>],
     signature: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.74.0/std/primitive.str.html">str</a>,
-    max_age: <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://docs.rs/chrono/latest/chrono/oldtime/struct.Duration.html" title="struct chrono::oldtime::Duration">Duration</a>&gt;
+    max_age: <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://docs.rs/chrono/latest/chrono/duration/struct.Duration.html" title="struct chrono::duration::Duration">Duration</a>&gt;
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;D, <a class="enum" href="enum.UnpackError.html" title="enum relay_auth::UnpackError">UnpackError</a>&gt;</h4></section></summary><div class="docblock"><p>Unpacks the data and verifies that it’s not too old, then
 throws away the wrapper.</p>
 <p>If no <code>max_age</code> is set, the embedded timestamp does not get validated.</p>

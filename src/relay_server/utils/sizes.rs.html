@@ -101,6 +101,7 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -168,6 +169,7 @@
             ItemType::UserReport =&gt; (),
             ItemType::Statsd =&gt; (),
             ItemType::MetricBuckets =&gt; (),
+            ItemType::MetricMeta =&gt; (),
             ItemType::Span =&gt; {
                 <span class="kw">if </span>item.len() &gt; config.max_span_size() {
                     <span class="kw">return </span><span class="bool-val">false</span>;

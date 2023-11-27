@@ -6,7 +6,7 @@ the response.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.bootstrap_unpack" class="method"><a class="src rightside" href="../src/relay_auth/lib.rs.html#576-584">source</a><h4 class="code-header">pub fn <a href="#method.bootstrap_unpack" class="fn">bootstrap_unpack</a>(
     data: &amp;[<a class="primitive" href="https://doc.rust-lang.org/1.74.0/std/primitive.u8.html">u8</a>],
     signature: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.74.0/std/primitive.str.html">str</a>,
-    max_age: <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://docs.rs/chrono/latest/chrono/oldtime/struct.Duration.html" title="struct chrono::oldtime::Duration">Duration</a>&gt;
+    max_age: <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://docs.rs/chrono/latest/chrono/duration/struct.Duration.html" title="struct chrono::duration::Duration">Duration</a>&gt;
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.74.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.RegisterRequest.html" title="struct relay_auth::RegisterRequest">RegisterRequest</a>, <a class="enum" href="enum.UnpackError.html" title="enum relay_auth::UnpackError">UnpackError</a>&gt;</h4></section></summary><div class="docblock"><p>Unpacks a signed register request for bootstrapping.</p>
 <p>This unpacks the embedded public key first, then verifies if the
 self signature was made by that public key.  If all is well then

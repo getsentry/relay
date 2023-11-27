@@ -1279,29 +1279,6 @@
 <a href="#1279" id="1279">1279</a>
 <a href="#1280" id="1280">1280</a>
 <a href="#1281" id="1281">1281</a>
-<a href="#1282" id="1282">1282</a>
-<a href="#1283" id="1283">1283</a>
-<a href="#1284" id="1284">1284</a>
-<a href="#1285" id="1285">1285</a>
-<a href="#1286" id="1286">1286</a>
-<a href="#1287" id="1287">1287</a>
-<a href="#1288" id="1288">1288</a>
-<a href="#1289" id="1289">1289</a>
-<a href="#1290" id="1290">1290</a>
-<a href="#1291" id="1291">1291</a>
-<a href="#1292" id="1292">1292</a>
-<a href="#1293" id="1293">1293</a>
-<a href="#1294" id="1294">1294</a>
-<a href="#1295" id="1295">1295</a>
-<a href="#1296" id="1296">1296</a>
-<a href="#1297" id="1297">1297</a>
-<a href="#1298" id="1298">1298</a>
-<a href="#1299" id="1299">1299</a>
-<a href="#1300" id="1300">1300</a>
-<a href="#1301" id="1301">1301</a>
-<a href="#1302" id="1302">1302</a>
-<a href="#1303" id="1303">1303</a>
-<a href="#1304" id="1304">1304</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::iter::FusedIterator;
 <span class="kw">use </span>std::{fmt, mem};
@@ -1703,29 +1680,6 @@
     })
 }
 
-<span class="doccomment">/// Parses an MRI from a string and a separate type.
-///
-/// The given string must be a part of the MRI, including the following components:
-///  - (optional) The namespace. If missing, it is defaulted to `&quot;custom&quot;`
-///  - (required) The metric name.
-///  - (optional) The unit. If missing, it is defaulted to &quot;none&quot;.
-///
-/// The metric type is never part of this string and must be supplied separately.
-</span><span class="kw">fn </span>parse_mri(string: <span class="kw-2">&amp;</span>str, ty: MetricType) -&gt; <span class="prelude-ty">Option</span>&lt;MetricResourceIdentifier&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
-    <span class="kw">let </span>(name_and_namespace, unit) = protocol::parse_name_unit(string)<span class="question-mark">?</span>;
-
-    <span class="kw">let </span>(raw_namespace, name) = name_and_namespace
-        .split_once(<span class="string">&#39;/&#39;</span>)
-        .unwrap_or((<span class="string">&quot;custom&quot;</span>, name_and_namespace));
-
-    <span class="prelude-val">Some</span>(MetricResourceIdentifier {
-        ty,
-        name: name.into(),
-        namespace: raw_namespace.parse().ok()<span class="question-mark">?</span>,
-        unit,
-    })
-}
-
 <span class="doccomment">/// Parses tags in the format `tag1,tag2:value`.
 ///
 /// Tag values are optional. For tags with missing values, an empty `&quot;&quot;` value is assumed.
@@ -1944,7 +1898,7 @@
         <span class="kw">let </span>(mri_str, values_str) = components.next()<span class="question-mark">?</span>.split_once(<span class="string">&#39;:&#39;</span>)<span class="question-mark">?</span>;
         <span class="kw">let </span>ty = components.next().and_then(|s| s.parse().ok())<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>mri = parse_mri(mri_str, ty)<span class="question-mark">?</span>;
+        <span class="kw">let </span>mri = MetricResourceIdentifier::parse_with_type(mri_str, ty).ok()<span class="question-mark">?</span>;
         <span class="kw">let </span>value = <span class="kw">match </span>ty {
             MetricType::Counter =&gt; BucketValue::Counter(parse_counter(values_str)<span class="question-mark">?</span>),
             MetricType::Distribution =&gt; BucketValue::Distribution(parse_distribution(values_str)<span class="question-mark">?</span>),

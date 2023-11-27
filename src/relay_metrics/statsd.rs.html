@@ -184,6 +184,15 @@
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -234,6 +243,12 @@
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BucketsDropped,
+    <span class="doccomment">/// Incremented every time the meta aggregator emitted an update that needs to be stored or
+    /// sent upstream.
+    </span>MetaAggregatorUpdate,
+    <span class="doccomment">/// Incremented every time a redis key is updated to store or update metadata.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+    </span>MetaRedisUpdate,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>MetricCounters {
@@ -242,6 +257,9 @@
             <span class="self">Self</span>::MergeHit =&gt; <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
             <span class="self">Self</span>::MergeMiss =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
             <span class="self">Self</span>::BucketsDropped =&gt; <span class="string">&quot;metrics.buckets.dropped&quot;</span>,
+            <span class="self">Self</span>::MetaAggregatorUpdate =&gt; <span class="string">&quot;metrics.meta.agg.update&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+            </span><span class="self">Self</span>::MetaRedisUpdate =&gt; <span class="string">&quot;metrics.meta.redis.update&quot;</span>,
         }
     }
 }

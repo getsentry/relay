@@ -102,6 +102,9 @@
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -137,6 +140,9 @@
     <span class="doccomment">/// Enable processing profiles
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
     </span>Profiling,
+    <span class="doccomment">/// Enable metric metadata.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:metric-meta&quot;</span>)]
+    </span>MetricMeta,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]

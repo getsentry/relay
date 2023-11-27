@@ -2188,6 +2188,26 @@
 <a href="#2188" id="2188">2188</a>
 <a href="#2189" id="2189">2189</a>
 <a href="#2190" id="2190">2190</a>
+<a href="#2191" id="2191">2191</a>
+<a href="#2192" id="2192">2192</a>
+<a href="#2193" id="2193">2193</a>
+<a href="#2194" id="2194">2194</a>
+<a href="#2195" id="2195">2195</a>
+<a href="#2196" id="2196">2196</a>
+<a href="#2197" id="2197">2197</a>
+<a href="#2198" id="2198">2198</a>
+<a href="#2199" id="2199">2199</a>
+<a href="#2200" id="2200">2200</a>
+<a href="#2201" id="2201">2201</a>
+<a href="#2202" id="2202">2202</a>
+<a href="#2203" id="2203">2203</a>
+<a href="#2204" id="2204">2204</a>
+<a href="#2205" id="2205">2205</a>
+<a href="#2206" id="2206">2206</a>
+<a href="#2207" id="2207">2207</a>
+<a href="#2208" id="2208">2208</a>
+<a href="#2209" id="2209">2209</a>
+<a href="#2210" id="2210">2210</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2692,6 +2712,14 @@
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     </span>sample_rate: f32,
+    <span class="doccomment">/// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    </span>meta_locations_expiry: u64,
+    <span class="doccomment">/// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    </span>meta_locations_max: usize,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Metrics {
@@ -2703,6 +2731,8 @@
             hostname_tag: <span class="prelude-val">None</span>,
             buffering: <span class="bool-val">true</span>,
             sample_rate: <span class="number">1.0</span>,
+            meta_locations_expiry: <span class="number">15 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>,
+            meta_locations_max: <span class="number">5</span>,
         }
     }
 }
@@ -3946,6 +3976,16 @@
     <span class="doccomment">/// Returns the global sample rate for all metrics.
     </span><span class="kw">pub fn </span>metrics_sample_rate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
         <span class="self">self</span>.values.metrics.sample_rate
+    }
+
+    <span class="doccomment">/// Returns the maximum amount of code locations per metric.
+    </span><span class="kw">pub fn </span>metrics_meta_locations_max(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.metrics.meta_locations_max
+    }
+
+    <span class="doccomment">/// Returns the expiry for code locations.
+    </span><span class="kw">pub fn </span>metrics_meta_locations_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_secs(<span class="self">self</span>.values.metrics.meta_locations_expiry)
     }
 
     <span class="doccomment">/// Returns the default timeout for all upstream HTTP requests.

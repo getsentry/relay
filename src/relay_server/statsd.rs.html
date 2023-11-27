@@ -662,6 +662,15 @@
 <a href="#662" id="662">662</a>
 <a href="#663" id="663">663</a>
 <a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1130,6 +1139,11 @@
     /// Failure can happen, for example, when there&#39;s a network error. Refer to
     /// [`UpstreamRequestError`](crate::actors::upstream::UpstreamRequestError) for all cases.
     </span>ProjectUpstreamFailed,
+    <span class="doccomment">/// Number of full metric data flushes.
+    ///
+    /// A full flush takes all contained items of the aggregator and flushes them upstream,
+    /// at best this happens once per freshly loaded project.
+    </span>ProjectStateFlushAllMetricMeta,
     <span class="doccomment">/// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -1206,6 +1220,8 @@
     </span>EvictingStaleProjectCaches,
     <span class="doccomment">/// Number of times that parsing a metrics bucket item from an envelope failed.
     </span>MetricBucketsParsingFailed,
+    <span class="doccomment">/// Number of times that parsing a metric meta item from an envelope failed.
+    </span>MetricMetaParsingFailed,
     <span class="doccomment">/// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     </span>MetricsTransactionNameExtracted,
     <span class="doccomment">/// Number of Events with an OpenTelemetry Context
@@ -1238,6 +1254,7 @@
             RelayCounters::ProjectStateGet =&gt; <span class="string">&quot;project_state.get&quot;</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">&quot;project_state.request&quot;</span>,
             RelayCounters::ProjectStateNoCache =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
+            RelayCounters::ProjectStateFlushAllMetricMeta =&gt; <span class="string">&quot;project_state.flush_all_metric_meta&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">&quot;project_state.redis.requests&quot;</span>,
             RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">&quot;project_upstream.completed&quot;</span>,
@@ -1254,6 +1271,7 @@
             RelayCounters::ResponsesStatusCodes =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
             RelayCounters::EvictingStaleProjectCaches =&gt; <span class="string">&quot;project_cache.eviction&quot;</span>,
             RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
+            RelayCounters::MetricMetaParsingFailed =&gt; <span class="string">&quot;metrics.meta.parsing_failed&quot;</span>,
             RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
             RelayCounters::OpenTelemetryEvent =&gt; <span class="string">&quot;event.opentelemetry&quot;</span>,
             RelayCounters::GlobalConfigFetched =&gt; <span class="string">&quot;global_config.fetch&quot;</span>,

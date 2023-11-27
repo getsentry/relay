@@ -1298,6 +1298,96 @@
 <a href="#1298" id="1298">1298</a>
 <a href="#1299" id="1299">1299</a>
 <a href="#1300" id="1300">1300</a>
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
+<a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
+<a href="#1311" id="1311">1311</a>
+<a href="#1312" id="1312">1312</a>
+<a href="#1313" id="1313">1313</a>
+<a href="#1314" id="1314">1314</a>
+<a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
+<a href="#1321" id="1321">1321</a>
+<a href="#1322" id="1322">1322</a>
+<a href="#1323" id="1323">1323</a>
+<a href="#1324" id="1324">1324</a>
+<a href="#1325" id="1325">1325</a>
+<a href="#1326" id="1326">1326</a>
+<a href="#1327" id="1327">1327</a>
+<a href="#1328" id="1328">1328</a>
+<a href="#1329" id="1329">1329</a>
+<a href="#1330" id="1330">1330</a>
+<a href="#1331" id="1331">1331</a>
+<a href="#1332" id="1332">1332</a>
+<a href="#1333" id="1333">1333</a>
+<a href="#1334" id="1334">1334</a>
+<a href="#1335" id="1335">1335</a>
+<a href="#1336" id="1336">1336</a>
+<a href="#1337" id="1337">1337</a>
+<a href="#1338" id="1338">1338</a>
+<a href="#1339" id="1339">1339</a>
+<a href="#1340" id="1340">1340</a>
+<a href="#1341" id="1341">1341</a>
+<a href="#1342" id="1342">1342</a>
+<a href="#1343" id="1343">1343</a>
+<a href="#1344" id="1344">1344</a>
+<a href="#1345" id="1345">1345</a>
+<a href="#1346" id="1346">1346</a>
+<a href="#1347" id="1347">1347</a>
+<a href="#1348" id="1348">1348</a>
+<a href="#1349" id="1349">1349</a>
+<a href="#1350" id="1350">1350</a>
+<a href="#1351" id="1351">1351</a>
+<a href="#1352" id="1352">1352</a>
+<a href="#1353" id="1353">1353</a>
+<a href="#1354" id="1354">1354</a>
+<a href="#1355" id="1355">1355</a>
+<a href="#1356" id="1356">1356</a>
+<a href="#1357" id="1357">1357</a>
+<a href="#1358" id="1358">1358</a>
+<a href="#1359" id="1359">1359</a>
+<a href="#1360" id="1360">1360</a>
+<a href="#1361" id="1361">1361</a>
+<a href="#1362" id="1362">1362</a>
+<a href="#1363" id="1363">1363</a>
+<a href="#1364" id="1364">1364</a>
+<a href="#1365" id="1365">1365</a>
+<a href="#1366" id="1366">1366</a>
+<a href="#1367" id="1367">1367</a>
+<a href="#1368" id="1368">1368</a>
+<a href="#1369" id="1369">1369</a>
+<a href="#1370" id="1370">1370</a>
+<a href="#1371" id="1371">1371</a>
+<a href="#1372" id="1372">1372</a>
+<a href="#1373" id="1373">1373</a>
+<a href="#1374" id="1374">1374</a>
+<a href="#1375" id="1375">1375</a>
+<a href="#1376" id="1376">1376</a>
+<a href="#1377" id="1377">1377</a>
+<a href="#1378" id="1378">1378</a>
+<a href="#1379" id="1379">1379</a>
+<a href="#1380" id="1380">1380</a>
+<a href="#1381" id="1381">1381</a>
+<a href="#1382" id="1382">1382</a>
+<a href="#1383" id="1383">1383</a>
+<a href="#1384" id="1384">1384</a>
+<a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1308,7 +1398,8 @@
 <span class="kw">use </span>relay_filter::matches_any_origin;
 <span class="kw">use </span>relay_metrics::aggregator::AggregatorConfig;
 <span class="kw">use </span>relay_metrics::{
-    aggregator, Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
+    aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
+    MetricResourceIdentifier,
 };
 <span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::evaluation::ReservoirCounters;
@@ -1321,9 +1412,9 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::EnvelopeProcessor;
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitBuckets;
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EncodeMetricMeta, EnvelopeProcessor};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
@@ -1737,6 +1828,8 @@
     rate_limits: RateLimits,
     last_no_cache: Instant,
     reservoir_counters: ReservoirCounters,
+    metric_meta_aggregator: MetaAggregator,
+    has_pending_metric_meta: bool,
 }
 
 <span class="kw">impl </span>Project {
@@ -1752,6 +1845,8 @@
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
+            metric_meta_aggregator: MetaAggregator::new(config.metrics_meta_locations_max()),
+            has_pending_metric_meta: <span class="bool-val">false</span>,
             config,
         }
     }
@@ -2005,6 +2100,83 @@
         }
     }
 
+    <span class="kw">pub fn </span>add_metric_meta(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        meta: MetricMeta,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+    ) {
+        <span class="kw">let </span>state = <span class="self">self</span>.state_value();
+
+        <span class="comment">// Only track metadata if the feature is enabled or we don&#39;t know yet whether it is enabled.
+        </span><span class="kw">if </span>!state.map_or(<span class="bool-val">true</span>, |state| state.has_feature(Feature::MetricMeta)) {
+            <span class="macro">relay_log::trace!</span>(
+                <span class="string">&quot;metric meta feature flag not enabled for project {}&quot;</span>,
+                <span class="self">self</span>.project_key
+            );
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(meta) = <span class="self">self</span>.metric_meta_aggregator.add(<span class="self">self</span>.project_key, meta) <span class="kw">else </span>{
+            <span class="comment">// Nothing to do. Which means there is also no pending data.
+            </span><span class="macro">relay_log::trace!</span>(<span class="string">&quot;metric meta aggregator already has data, nothing to send upstream&quot;</span>);
+            <span class="kw">return</span>;
+        };
+
+        <span class="kw">let </span>scoping = <span class="self">self</span>.scoping();
+        <span class="kw">match </span>scoping {
+            <span class="prelude-val">Some</span>(scoping) =&gt; {
+                <span class="comment">// We can only have a scoping if we also have a state, which means at this point feature
+                // flags are already checked.
+                </span>envelope_processor.send(EncodeMetricMeta { scoping, meta })
+            }
+            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.has_pending_metric_meta = <span class="bool-val">true</span>,
+        }
+    }
+
+    <span class="kw">fn </span>flush_metric_meta(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;) {
+        <span class="kw">if </span>!<span class="self">self</span>.has_pending_metric_meta {
+            <span class="kw">return</span>;
+        }
+        <span class="kw">let </span><span class="prelude-val">Some</span>(state) = <span class="self">self</span>.state_value() <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
+        <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
+
+        <span class="comment">// All relevant info has been gathered, consider us flushed.
+        </span><span class="self">self</span>.has_pending_metric_meta = <span class="bool-val">false</span>;
+
+        <span class="kw">if </span>!state.has_feature(Feature::MetricMeta) {
+            <span class="macro">relay_log::debug!</span>(
+                <span class="string">&quot;clearing metric meta aggregator, because project {} does not have feature flag enabled&quot;</span>,
+                <span class="self">self</span>.project_key,
+            );
+            <span class="comment">// Project/Org does not have the feature, forget everything.
+            </span><span class="self">self</span>.metric_meta_aggregator.clear(<span class="self">self</span>.project_key);
+            <span class="kw">return</span>;
+        }
+
+        <span class="comment">// Flush the entire aggregator containing all code locations for the project.
+        //
+        // There is the rare case when this flushes items which have already been flushed before.
+        // This happens only if we temporarily lose a previously valid and loaded project state
+        // and then reveive an update for the project state.
+        // While this is a possible occurence the effect should be relatively limited,
+        // especially since the final store does de-deuplication.
+        </span><span class="kw">for </span>meta <span class="kw">in </span><span class="self">self
+            </span>.metric_meta_aggregator
+            .get_all_relevant(<span class="self">self</span>.project_key)
+        {
+            <span class="macro">relay_log::debug!</span>(
+                <span class="string">&quot;flushing aggregated metric meta for project {}&quot;</span>,
+                <span class="self">self</span>.project_key
+            );
+            <span class="macro">metric!</span>(counter(RelayCounters::ProjectStateFlushAllMetricMeta) += <span class="number">1</span>);
+            envelope_processor.send(EncodeMetricMeta { scoping, meta });
+        }
+    }
+
     <span class="doccomment">/// Returns `true` if backoff expired and new attempt can be triggered.
     </span><span class="kw">fn </span>can_fetch(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.next_fetch_attempt
@@ -2213,7 +2385,7 @@
             </span><span class="kw">_ </span>=&gt; <span class="self">self</span>.set_state(
                 state.clone(),
                 aggregator,
-                envelope_processor,
+                envelope_processor.clone(),
                 outcome_aggregator,
             ),
         }
@@ -2235,6 +2407,14 @@
         </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;project state {} updated&quot;</span>, <span class="self">self</span>.project_key);
         channel.inner.send(state);
 
+        <span class="self">self</span>.after_state_updated(<span class="kw-2">&amp;</span>envelope_processor);
+    }
+
+    <span class="doccomment">/// Called after all state validations and after the project state is updated.
+    ///
+    /// See also: [`Self::update_state`].
+    </span><span class="kw">fn </span>after_state_updated(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope_processor: <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt;) {
+        <span class="self">self</span>.flush_metric_meta(envelope_processor);
         <span class="comment">// Check if the new sampling config got rid of any reservoir rules we have counters for.
         </span><span class="self">self</span>.remove_expired_reservoir_rules();
     }

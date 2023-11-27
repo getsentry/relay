@@ -391,7 +391,6 @@
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -507,7 +506,6 @@
     ///
     /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
     /// suitable for unit testing internals of the processing pipeline.
-    </span><span class="attr">#[cfg(test)]
     </span><span class="kw">pub fn </span>standalone(
         envelope: Box&lt;Envelope&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,

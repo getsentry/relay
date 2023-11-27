@@ -1791,6 +1791,20 @@
 <a href="#1791" id="1791">1791</a>
 <a href="#1792" id="1792">1792</a>
 <a href="#1793" id="1793">1793</a>
+<a href="#1794" id="1794">1794</a>
+<a href="#1795" id="1795">1795</a>
+<a href="#1796" id="1796">1796</a>
+<a href="#1797" id="1797">1797</a>
+<a href="#1798" id="1798">1798</a>
+<a href="#1799" id="1799">1799</a>
+<a href="#1800" id="1800">1800</a>
+<a href="#1801" id="1801">1801</a>
+<a href="#1802" id="1802">1802</a>
+<a href="#1803" id="1803">1803</a>
+<a href="#1804" id="1804">1804</a>
+<a href="#1805" id="1805">1805</a>
+<a href="#1806" id="1806">1806</a>
+<a href="#1807" id="1807">1807</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1895,6 +1909,8 @@
     </span>Statsd,
     <span class="doccomment">/// Buckets of preaggregated metrics encoded as JSON.
     </span>MetricBuckets,
+    <span class="doccomment">/// Additional metadata for metrics
+    </span>MetricMeta,
     <span class="doccomment">/// Client internal report (eg: outcomes).
     </span>ClientReport,
     <span class="doccomment">/// Profile event payload encoded as JSON.
@@ -1949,6 +1965,7 @@
             <span class="self">Self</span>::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
             <span class="self">Self</span>::Statsd =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;statsd&quot;</span>),
             <span class="self">Self</span>::MetricBuckets =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;metric_buckets&quot;</span>),
+            <span class="self">Self</span>::MetricMeta =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;metric_meta&quot;</span>),
             <span class="self">Self</span>::ClientReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;client_report&quot;</span>),
             <span class="self">Self</span>::Profile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;profile&quot;</span>),
             <span class="self">Self</span>::ReplayEvent =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;replay_event&quot;</span>),
@@ -1979,6 +1996,7 @@
             <span class="string">&quot;sessions&quot; </span>=&gt; <span class="self">Self</span>::Sessions,
             <span class="string">&quot;statsd&quot; </span>=&gt; <span class="self">Self</span>::Statsd,
             <span class="string">&quot;metric_buckets&quot; </span>=&gt; <span class="self">Self</span>::MetricBuckets,
+            <span class="string">&quot;metric_meta&quot; </span>=&gt; <span class="self">Self</span>::MetricMeta,
             <span class="string">&quot;client_report&quot; </span>=&gt; <span class="self">Self</span>::ClientReport,
             <span class="string">&quot;profile&quot; </span>=&gt; <span class="self">Self</span>::Profile,
             <span class="string">&quot;replay_event&quot; </span>=&gt; <span class="self">Self</span>::ReplayEvent,
@@ -2356,7 +2374,7 @@
             ItemType::UnrealReport =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
             ItemType::Attachment =&gt; <span class="prelude-val">Some</span>(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions =&gt; <span class="prelude-val">None</span>,
-            ItemType::Statsd | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta =&gt; <span class="prelude-val">None</span>,
             ItemType::FormData =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReportV2 =&gt; <span class="prelude-val">None</span>,
@@ -2538,6 +2556,7 @@
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
+            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
@@ -2572,6 +2591,7 @@
             ItemType::Sessions =&gt; <span class="bool-val">false</span>,
             ItemType::Statsd =&gt; <span class="bool-val">false</span>,
             ItemType::MetricBuckets =&gt; <span class="bool-val">false</span>,
+            ItemType::MetricMeta =&gt; <span class="bool-val">false</span>,
             ItemType::ClientReport =&gt; <span class="bool-val">false</span>,
             ItemType::ReplayRecording =&gt; <span class="bool-val">false</span>,
             ItemType::Profile =&gt; <span class="bool-val">true</span>,
@@ -2871,6 +2891,14 @@
     {
         <span class="kw">let </span>index = <span class="self">self</span>.items.iter().position(cond);
         index.map(|index| <span class="self">self</span>.items.swap_remove(index))
+    }
+
+    <span class="doccomment">/// Removes and returns the all items that match the given condition.
+    </span><span class="kw">pub fn </span>take_items_by&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>cond: F) -&gt; SmallVec&lt;[Item; <span class="number">3</span>]&gt;
+    <span class="kw">where
+        </span>F: FnMut(<span class="kw-2">&amp;</span>Item) -&gt; bool,
+    {
+        <span class="self">self</span>.items.drain_filter(|item| cond(item)).collect()
     }
 
     <span class="doccomment">/// Adds a new item to this envelope.
