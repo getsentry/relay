@@ -71,7 +71,7 @@ impl ProjectStateWrapper {
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections. This list is always empty before V3. If `global` is
-/// enabled, version 3 also responds with [`GlobalConfig`].
+/// enabled, version 3 also responds with [`GlobalConfig`](crate::actors::global_config).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
