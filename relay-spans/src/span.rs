@@ -164,18 +164,22 @@ impl From<OtelSpan> for EventSpan {
                 attribute.key
             };
             match attribute.value {
-                AnyValue::Array(_) => todo!(),
+                AnyValue::Array(_) => {}
                 AnyValue::Bool(v) => {
                     attributes.insert(key, Annotated::new(v.into()));
                 }
-                AnyValue::Bytes(_) => todo!(),
+                AnyValue::Bytes(v) => {
+                    if let Ok(v) = String::from_utf8(v.clone()) {
+                        attributes.insert(key, Annotated::new(v.into()));
+                    }
+                }
                 AnyValue::Double(v) => {
                     attributes.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Int(v) => {
                     attributes.insert(key, Annotated::new(v.into()));
                 }
-                AnyValue::Kvlist(_) => todo!(),
+                AnyValue::Kvlist(_) => {}
                 AnyValue::String(v) => {
                     attributes.insert(key, Annotated::new(v.into()));
                 }
