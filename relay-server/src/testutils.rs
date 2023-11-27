@@ -110,16 +110,18 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     #[cfg(feature = "processing")]
-    let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+    let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
     EnvelopeProcessorService::new(
         Arc::new(config),
+        #[cfg(feature = "processing")]
         None,
         envelope_manager,
         outcome_aggregator,
         project_cache,
         upstream_relay,
-        aggregator,
+        #[cfg(feature = "processing")]
+        _aggregator,
     )
 }
 
