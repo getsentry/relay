@@ -433,10 +433,9 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
-        set_default_transaction_source, BreakdownsConfig, DynamicMeasurementsConfig,
-        MeasurementsConfig, NormalizationConfig, NormalizeProcessor,
+        normalize_event, set_default_transaction_source, BreakdownsConfig,
+        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig,
     };
-    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
     use relay_protocol::Annotated;
@@ -515,15 +514,14 @@ mod tests {
         .unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        process_value(
+        normalize_event(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizationConfig {
+            &NormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
                 light_normalize_spans: true,
                 ..Default::default()
-            }),
-            ProcessingState::root(),
+            },
         )
         .unwrap();
 
@@ -751,12 +749,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        process_value(
-            &mut event,
-            &mut NormalizeProcessor::new(NormalizationConfig::default()),
-            ProcessingState::root(),
-        )
-        .unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -877,12 +870,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        process_value(
-            &mut event,
-            &mut NormalizeProcessor::new(NormalizationConfig::default()),
-            ProcessingState::root(),
-        )
-        .unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
 
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1051,13 +1039,12 @@ mod tests {
 
         let config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
 
-        process_value(
+        normalize_event(
             &mut event,
-            &mut NormalizeProcessor::new(NormalizationConfig {
+            &NormalizationConfig {
                 measurements: Some(config),
                 ..Default::default()
-            }),
-            ProcessingState::root(),
+            },
         )
         .unwrap();
 
@@ -1686,11 +1673,7 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
-        let _ = process_value(
-            &mut event,
-            &mut NormalizeProcessor::new(NormalizationConfig::default()),
-            ProcessingState::root(),
-        );
+        let _ = normalize_event(&mut event, &NormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {

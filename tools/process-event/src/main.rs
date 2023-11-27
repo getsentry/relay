@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use anyhow::{format_err, Context, Result};
 use clap::Parser;
 use relay_event_normalization::{
-    NormalizationConfig, NormalizeProcessor, StoreConfig, StoreProcessor,
+    normalize_event, NormalizationConfig, StoreConfig, StoreProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Event;
@@ -83,12 +83,8 @@ impl Cli {
         }
 
         if self.store {
-            process_value(
-                &mut event,
-                &mut NormalizeProcessor::new(NormalizationConfig::default()),
-                ProcessingState::root(),
-            )
-            .map_err(|e| format_err!("{e}"))?;
+            normalize_event(&mut event, &NormalizationConfig::default())
+                .map_err(|e| format_err!("{e}"))?;
             let mut processor = StoreProcessor::new(StoreConfig::default(), None);
             process_value(&mut event, &mut processor, ProcessingState::root())
                 .map_err(|e| format_err!("{e}"))

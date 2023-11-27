@@ -24,8 +24,8 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig,
-    TransactionNameConfig,
+    nel, normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
+    NormalizationConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
@@ -2783,12 +2783,7 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                process_value(
-                    event,
-                    &mut relay_event_normalization::NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
-                .map_err(|_| ProcessingError::InvalidTransaction)
+                normalize_event(event, &config).map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
 
@@ -3266,7 +3261,7 @@ mod tests {
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
     use relay_event_normalization::{
-        MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
+        normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
@@ -4344,11 +4339,7 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                process_value(
-                    event,
-                    &mut NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
+                normalize_event(event, &config)
             })
             .unwrap();
         })
