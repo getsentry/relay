@@ -33,7 +33,7 @@ use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
     IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
     Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
-    Timestamp, TraceContext, UserReport, Values,
+    Span, Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
@@ -58,7 +58,6 @@ use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::Span,
     relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
