@@ -1304,6 +1304,17 @@
 <a href="#1304" id="1304">1304</a>
 <a href="#1305" id="1305">1305</a>
 <a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
+<a href="#1311" id="1311">1311</a>
+<a href="#1312" id="1312">1312</a>
+<a href="#1313" id="1313">1313</a>
+<a href="#1314" id="1314">1314</a>
+<a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2026,6 +2037,7 @@
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>message = KafkaMessage::CheckIn(CheckInKafkaMessage {
+            message_type: CheckInMessageType::CheckIn,
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
@@ -2329,11 +2341,21 @@
     payload: Bytes,
 }
 
+<span class="attr">#[allow(dead_code)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
+</span><span class="kw">enum </span>CheckInMessageType {
+    ClockPulse,
+    CheckIn,
+}
+
 <span class="attr">#[derive(Debug, Serialize)]
 </span><span class="kw">struct </span>CheckInKafkaMessage {
     <span class="attr">#[serde(skip)]
     </span>routing_key_hint: <span class="prelude-ty">Option</span>&lt;Uuid&gt;,
 
+    <span class="doccomment">/// Used by the consumer to discrinminate the message.
+    </span>message_type: CheckInMessageType,
     <span class="doccomment">/// Raw event payload.
     </span>payload: Bytes,
     <span class="doccomment">/// Time at which the event was received by Relay.
