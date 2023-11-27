@@ -7,7 +7,7 @@ use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
 use relay_base_schema::project::ProjectKey;
-use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
 use crate::actors::global_config;
@@ -71,7 +71,7 @@ impl ProjectStateWrapper {
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections. This list is always empty before V3. If `global` is
-/// enabled, version 3 also responds with [`GlobalConfig`](crate::actors::global_config).
+/// enabled, version 3 also responds with [`GlobalConfig`].
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
@@ -79,7 +79,7 @@ struct GetProjectStatesResponseWrapper {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    global: Option<global_config::Status>,
+    global: Option<GlobalConfig>,
 }
 
 /// Request payload of the project config endpoint.

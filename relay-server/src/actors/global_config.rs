@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
+use crate::actors::global_config;
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
@@ -82,7 +83,7 @@ impl UpstreamQuery for GetGlobalConfig {
     }
 
     fn path(&self) -> std::borrow::Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
     }
 
     fn retry() -> bool {
@@ -275,7 +276,7 @@ impl GlobalConfigService {
                         success = true;
                         self.last_fetched = Instant::now();
                     }
-                    Some(_) => {
+                    Some(global_config) => {
                         relay_log::info!("global config from upstream is not yet ready");
                     }
                     None => relay_log::error!("global config missing in upstream response"),
