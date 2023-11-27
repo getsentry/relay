@@ -2506,12 +2506,17 @@ impl EnvelopeProcessorService {
     }
 
     fn filter_spans(&self, state: &mut ProcessEnvelopeState) {
-        let otel_span_ingestion_enabled =
-            state.project_state.has_feature(Feature::OtelSpanIngestion);
+        let standalone_span_ingestion_enabled = state
+            .project_state
+            .has_feature(Feature::StandaloneSpanIngestion);
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::OtelSpan if !otel_span_ingestion_enabled => {
-                relay_log::warn!("dropping span because feature is disabled");
-                ItemAction::DropSilently
+            ItemType::OtelSpan | ItemType::EventSpan => {
+                if !standalone_span_ingestion_enabled {
+                    relay_log::warn!("dropping span because feature is disabled");
+                    ItemAction::DropSilently
+                } else {
+                    ItemAction::Keep
+                }
             }
             _ => ItemAction::Keep,
         });
@@ -2522,19 +2527,31 @@ impl EnvelopeProcessorService {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
             _ => return,
         };
-        for item in state.managed_envelope.envelope().items() {
-            if item.ty() != &ItemType::OtelSpan {
-                continue;
+        let extract_span_metrics = |span: Annotated<Span>| {
+            let span = match self.validate_span(span) {
+                Ok(span) => span,
+                Err(e) => {
+                    relay_log::error!("Invalid span: {e}");
+                    return;
+                }
+            };
+            if let Some(span) = span.value() {
+                crate::metrics_extraction::generic::extract_metrics(
+                    span,
+                    span_metrics_extraction_config,
+                );
             }
-            if let Ok(otel_span) = serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
-            {
-                if let Ok(event_span) = self.validate_span(Annotated::new(otel_span.into())) {
-                    if let Some(span) = event_span.value() {
-                        crate::metrics_extraction::generic::extract_metrics(
-                            span,
-                            span_metrics_extraction_config,
-                        );
-                    }
+        };
+        for item in state.managed_envelope.envelope().items() {
+            if item.ty() == &ItemType::OtelSpan {
+                if let Ok(otel_span) =
+                    serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
+                {
+                    extract_span_metrics(Annotated::new(otel_span.into()));
+                }
+            } else if item.ty() == &ItemType::EventSpan {
+                if let Ok(event_span) = Annotated::<Span>::from_json_bytes(&item.payload()) {
+                    extract_span_metrics(event_span);
                 }
             }
         }
@@ -2543,19 +2560,32 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
         let mut items: Vec<Item> = Vec::new();
-
+        let mut add_span = |span: Annotated<Span>| {
+            let span = match self.validate_span(span) {
+                Ok(span) => span,
+                Err(e) => {
+                    relay_log::error!("Invalid span: {e}");
+                    return;
+                }
+            };
+            if let Ok(payload) = span.to_json() {
+                let mut item = Item::new(ItemType::Span);
+                item.set_payload(ContentType::Json, payload);
+                items.push(item);
+            }
+        };
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::OtelSpan => {
-                if let Ok(relay_span) =
+                if let Ok(otel_span) =
                     serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
                 {
-                    if let Ok(span) = self.validate_span(Annotated::new(relay_span.into())) {
-                        if let Ok(payload) = span.to_json() {
-                            let mut new_item = Item::new(ItemType::Span);
-                            new_item.set_payload(ContentType::Json, payload);
-                            items.push(new_item);
-                        }
-                    }
+                    add_span(Annotated::new(otel_span.into()));
+                }
+                ItemAction::DropSilently
+            }
+            ItemType::EventSpan => {
+                if let Ok(event_span) = Annotated::<Span>::from_json_bytes(&item.payload()) {
+                    add_span(event_span);
                 }
                 ItemAction::DropSilently
             }

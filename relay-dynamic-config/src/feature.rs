@@ -34,8 +34,8 @@ pub enum Feature {
     #[serde(rename = "organizations:profiling")]
     Profiling,
     /// Enable OTel span ingestion.
-    #[serde(rename = "organizations:otel-span-ingestion")]
-    OtelSpanIngestion,
+    #[serde(rename = "organizations:standalone-span-ingestion")]
+    StandaloneSpanIngestion,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
