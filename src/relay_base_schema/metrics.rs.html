@@ -361,25 +361,45 @@
 <a href="#361" id="361">361</a>
 <a href="#362" id="362">362</a>
 <a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Type definitions for Sentry metrics.
 
-</span><span class="kw">use </span>std::fmt;
+</span><span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>std::{borrow::Cow, fmt, sync::OnceLock};
 
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
 
-<span class="doccomment">/// Validates a metric name. This is the statsd name, i.e. without type or unit.
+<span class="doccomment">/// Validates a metric name and normalizes it. This is the statsd name, i.e. without type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores, slashes and periods.
-</span><span class="kw">pub fn </span>is_valid_metric_name(name: <span class="kw-2">&amp;</span>str) -&gt; bool {
-    <span class="kw">let </span><span class="kw-2">mut </span>iter = name.as_bytes().iter();
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(first_byte) = iter.next() {
-        <span class="kw">if </span>first_byte.is_ascii_alphabetic() {
-            <span class="kw">return </span>iter.all(|b| b.is_ascii_alphanumeric() || <span class="macro">matches!</span>(b, <span class="string">b&#39;.&#39; </span>| <span class="string">b&#39;_&#39; </span>| <span class="string">b&#39;/&#39;</span>));
-        }
+/// underscores, dashes, slashes and periods.
+///
+/// The function validates that the first character of the metric must be ASCII alphanumeric,
+/// later consecutive invalid characters in the name will be replaced with underscores.
+</span><span class="kw">pub fn </span>try_normalize_metric_name(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">&#39;_</span>, str&gt;&gt; {
+    <span class="kw">static </span>NORMALIZE_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
+
+    <span class="kw">if </span>!can_be_valid_metric_name(name) {
+        <span class="kw">return </span><span class="prelude-val">None</span>;
     }
-    <span class="bool-val">false
-</span>}
+
+    <span class="kw">let </span>normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new(<span class="string">&quot;[^a-zA-Z0-9_/.]+&quot;</span>).unwrap());
+    <span class="prelude-val">Some</span>(normalize_re.replace_all(name, <span class="string">&quot;_&quot;</span>))
+}
+
+<span class="doccomment">/// Returns whether [`try_normalize_metric_name`] can normalize the passed name.
+</span><span class="kw">pub fn </span>can_be_valid_metric_name(name: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    name.starts_with(|c: char| c.is_ascii_alphabetic())
+}
 
 <span class="doccomment">/// The unit of measurement of a metric value.
 ///

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["DurationUnit","FractionUnit","InformationUnit","MetricUnit"],"fn":["is_valid_metric_name"],"struct":["CustomUnit","ParseMetricUnitError"]};
+window.SIDEBAR_ITEMS = {"enum":["DurationUnit","FractionUnit","InformationUnit","MetricUnit"],"fn":["can_be_valid_metric_name","try_normalize_metric_name"],"struct":["CustomUnit","ParseMetricUnitError"]};

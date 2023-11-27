@@ -2332,8 +2332,8 @@
     </span><span class="kw">fn </span>test_parse_invalid_name() {
         <span class="kw">let </span>s = <span class="string">&quot;foo#bar:42|c&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
-        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp);
-        <span class="macro">assert!</span>(metric.is_err());
+        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">assert_eq!</span>(metric.name, <span class="string">&quot;c:custom/foo_bar@none&quot;</span>);
     }
 
     <span class="attr">#[test]

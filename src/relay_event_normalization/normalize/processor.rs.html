@@ -2220,6 +2220,8 @@
 <a href="#2220" id="2220">2220</a>
 <a href="#2221" id="2221">2221</a>
 <a href="#2222" id="2222">2222</a>
+<a href="#2223" id="2223">2223</a>
+<a href="#2224" id="2224">2224</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization processor.
 //!
 //! This processor is work in progress. The intention is to have a single
@@ -2236,7 +2238,9 @@
 <span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, Utc};
-<span class="kw">use </span>relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+<span class="kw">use </span>relay_base_schema::metrics::{
+    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
+};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_event_schema::processor::{
     <span class="self">self</span>, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
@@ -3181,7 +3185,7 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="bool-val">false</span>,
         };
 
-        <span class="kw">if </span>!is_valid_metric_name(name) {
+        <span class="kw">if </span>!can_be_valid_metric_name(name) {
             meta.add_error(Error::invalid(<span class="macro">format!</span>(
                 <span class="string">&quot;Metric name contains invalid characters: \&quot;{name}\&quot;&quot;
             </span>)));
