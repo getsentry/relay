@@ -33,9 +33,12 @@ pub enum Feature {
     /// Enable processing profiles
     #[serde(rename = "organizations:profiling")]
     Profiling,
-    /// Enable OTel span ingestion.
+    /// Enable standalone span ingestion.
     #[serde(rename = "organizations:standalone-span-ingestion")]
     StandaloneSpanIngestion,
+    /// Enable metric metadata.
+    #[serde(rename = "organizations:metric-meta")]
+    MetricMeta,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

@@ -113,7 +113,6 @@ impl ManagedEnvelope {
     ///
     /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
     /// suitable for unit testing internals of the processing pipeline.
-    #[cfg(test)]
     pub fn standalone(
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,

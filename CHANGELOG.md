@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+**Features**:
+
+- Ingest OpenTelemetry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
 - `normalize_performance_score` now handles `PerformanceScoreProfile` configs with zero weight components and component weight sums of any number greater than 0. ([#2756](https://github.com/getsentry/relay/pull/2756))
+
+**Internal**:
+
+- Add support for metric metadata. ([#2751](https://github.com/getsentry/relay/pull/2751))
 
 ## 23.11.1
 
@@ -37,7 +44,6 @@
 - Disable graphql scrubbing when datascrubbing is disabled. ([#2689](https://github.com/getsentry/relay/pull/2689))
 - Track when a span was received. ([#2688](https://github.com/getsentry/relay/pull/2688))
 - Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
-- Ingest OpenTelemetry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
 - Add `validate_pii_selector` to CABI for safe fields validation. ([#2687](https://github.com/getsentry/relay/pull/2687))
 - Do not scrub Prisma spans. ([#2711](https://github.com/getsentry/relay/pull/2711))
 - Count spans by op. ([#2712](https://github.com/getsentry/relay/pull/2712))
