@@ -14,8 +14,7 @@ use url::Url;
 
 use crate::span::description::{parse_query, scrub_span_description};
 use crate::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
-    http_status_code_from_span, MOBILE_SDKS,
+    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MOBILE_SDKS,
 };
 
 /// A list of supported span tags for tag extraction.
@@ -29,7 +28,6 @@ pub enum SpanTagKey {
     Transaction,
     TransactionMethod,
     TransactionOp,
-    HttpStatusCode,
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
@@ -51,6 +49,8 @@ pub enum SpanTagKey {
     TimeToInitialDisplay,
     /// Contributes to Time-To-Full-Display.
     TimeToFullDisplay,
+    /// File extension for resource spans.
+    FileExtension,
 }
 
 impl SpanTagKey {
@@ -65,7 +65,6 @@ impl SpanTagKey {
             SpanTagKey::Transaction => "transaction",
             SpanTagKey::TransactionMethod => "transaction.method",
             SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
 
@@ -83,6 +82,7 @@ impl SpanTagKey {
             SpanTagKey::System => "system",
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
+            SpanTagKey::FileExtension => "file_extension",
         }
     }
 }
@@ -190,13 +190,6 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if let Some(op) = extract_transaction_op(trace_context) {
             tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
         }
-    }
-
-    if let Some(transaction_http_status_code) = extract_http_status_code(event) {
-        tags.insert(
-            SpanTagKey::HttpStatusCode,
-            transaction_http_status_code.to_owned(),
-        );
     }
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
@@ -331,6 +324,17 @@ pub(crate) fn extract_tags(
             span_tags.insert(SpanTagKey::Group, span_group);
 
             let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            if span_op.starts_with("resource.") {
+                if let Some(ext) = truncated
+                    .rsplit('/')
+                    .next()
+                    .and_then(|last_segment| last_segment.rsplit_once('.'))
+                    .map(|(_, extension)| extension)
+                {
+                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                }
+            }
+
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 

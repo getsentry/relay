@@ -502,6 +502,14 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
+    /// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    meta_locations_expiry: u64,
+    /// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    meta_locations_max: usize,
 }
 
 impl Default for Metrics {
@@ -513,6 +521,8 @@ impl Default for Metrics {
             hostname_tag: None,
             buffering: true,
             sample_rate: 1.0,
+            meta_locations_expiry: 15 * 24 * 60 * 60,
+            meta_locations_max: 5,
         }
     }
 }
@@ -786,6 +796,11 @@ fn spool_envelopes_max_connections() -> u32 {
     20
 }
 
+/// Defaualt period for garbage collection in the spooler.
+fn spool_envelopes_check_interval() -> u64 {
+    60
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -809,6 +824,11 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
+
+    /// The interval for the internal check to run and issue specific to the spooler metrics and
+    /// errors.
+    #[serde(default = "spool_envelopes_check_interval")]
+    check_interval: u64,
 }
 
 impl Default for EnvelopeSpool {
@@ -819,6 +839,7 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
+            check_interval: spool_envelopes_check_interval(),
         }
     }
 }
@@ -1747,6 +1768,16 @@ impl Config {
         self.values.metrics.sample_rate
     }
 
+    /// Returns the maximum amount of code locations per metric.
+    pub fn metrics_meta_locations_max(&self) -> usize {
+        self.values.metrics.meta_locations_max
+    }
+
+    /// Returns the expiry for code locations.
+    pub fn metrics_meta_locations_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.metrics.meta_locations_expiry)
+    }
+
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
         Duration::from_secs(self.values.http.timeout.into())
@@ -1847,6 +1878,11 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
+    }
+
+    /// The interval to run the check.
+    pub fn spool_envelopes_check_interval(&self) -> Duration {
+        Duration::from_secs(self.values.spool.envelopes.check_interval)
     }
 
     /// Returns the maximum size of an event payload in bytes.

@@ -452,7 +452,7 @@ mod tests {
                     "timestamp": 1694732408.3145,
                     "start_timestamp": 1694732407.8367,
                     "exclusive_time": 477.800131,
-                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.css",
+                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.CSS",
                     "op": "resource.css",
                     "span_id": "97c0ef9770a02f9d",
                     "parent_span_id": "9756d8d7b2b364ff",

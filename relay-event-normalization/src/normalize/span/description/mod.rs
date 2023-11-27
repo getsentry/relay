@@ -23,6 +23,9 @@ static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwr
 /// Segments longer than this are treated as identifiers.
 const MAX_SEGMENT_LENGTH: usize = 25;
 
+/// Some bundlers attach characters to the end of a filename, try to catch those.
+const MAX_EXTENSION_LENGTH: usize = 10;
+
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
@@ -264,6 +267,14 @@ fn scrub_resource_path(path: &str) -> String {
     if extension.contains('/') {
         // Not really an extension
         base_path = path;
+        extension = "";
+    }
+
+    // Only accept short, clean file extensions.
+    if let Some(invalid) = extension.bytes().position(|c| !c.is_ascii_alphanumeric()) {
+        extension = &extension[..invalid];
+    }
+    if extension.len() > MAX_EXTENSION_LENGTH {
         extension = "";
     }
 
@@ -630,6 +641,27 @@ mod tests {
         "/page?action=name",
         "resource.script",
         "/page"
+    );
+
+    span_description_test!(
+        resource_script_with_long_extension,
+        "/path/to/file.thisismycustomfileextension2000",
+        "resource.script",
+        "/*/file"
+    );
+
+    span_description_test!(
+        resource_script_with_long_suffix,
+        "/path/to/file.js~ri~some-_-1,,thing-_-words%2Fhere~ri~",
+        "resource.script",
+        "/*/file.js"
+    );
+
+    span_description_test!(
+        resource_script_with_tilde_extension,
+        "/path/to/file.~~",
+        "resource.script",
+        "/*/file"
     );
 
     span_description_test!(

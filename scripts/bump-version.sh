@@ -20,7 +20,3 @@ TOML_FILES="$(git ls-files 'relay*/Cargo.toml' | grep -v cabi)"
 perl -pi -e "s/^version = .*\$/version = \"$NEW_VERSION\"/" $TOML_FILES
 
 cargo update -p relay
-
-CHANGE_DATE="$(date +'%Y-%m-%d' -d '3 years')"
-echo "Bumping Change Date to $CHANGE_DATE"
-sed -i -e "s/\(Change Date:\s*\)[-0-9]\+\$/\\1$CHANGE_DATE/" LICENSE
