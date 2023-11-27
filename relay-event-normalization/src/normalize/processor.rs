@@ -6,34 +6,14 @@
 //! and under different conditions, like light normalization and store
 //! processing. Having a single processor will make things simpler.
 
-use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeSet;
-
-use std::hash::{Hash, Hasher};
-use std::mem;
 use std::ops::Range;
 
-use chrono::{DateTime, Duration, Utc};
-use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_event_schema::processor::{
-    self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
-};
-use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, TraceContext, User,
-};
-use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
-use smallvec::SmallVec;
+use relay_event_schema::protocol::IpAddr;
 
-use crate::normalize::{mechanism, stacktrace};
-use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::timestamp::TimestampProcessor;
-use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, schema, span, transactions, trimming, user_agent, BreakdownsConfig,
-    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 

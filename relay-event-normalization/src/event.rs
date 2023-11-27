@@ -17,7 +17,6 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
-use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
@@ -26,6 +25,7 @@ use crate::{
     ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, NormalizeProcessorConfig,
     PerformanceScoreConfig, RawUserAgentInfo,
 };
+use crate::{mechanism, stacktrace};
 
 pub fn normalize(
     event: &mut Event,
@@ -821,11 +821,11 @@ fn remove_invalid_measurements(
 
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
-            if &builtin_measurement.name == name {
+            if &builtin_measurement.name() == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
                 // and just drop it instead.
-                return &builtin_measurement.unit == unit;
+                return &builtin_measurement.unit() == &unit;
             }
         }
 
@@ -1030,10 +1030,8 @@ mod tests {
         }))
         .unwrap();
 
-        let dynamic_measurement_config = DynamicMeasurementsConfig {
-            project: Some(&project_measurement_config),
-            global: None,
-        };
+        let dynamic_measurement_config =
+            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
 
         normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
 
@@ -1395,10 +1393,7 @@ mod tests {
             ..Default::default()
         };
 
-        let dynamic_config = DynamicMeasurementsConfig {
-            project: Some(&measurements_config),
-            global: None,
-        };
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
 
         // Just for clarity.
         // Checks that there is 1 measurement before processing.

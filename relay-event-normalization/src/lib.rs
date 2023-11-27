@@ -12,12 +12,13 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_event_schema::processor::{ProcessingResult, ProcessingState, Processor};
 use relay_event_schema::protocol::{Event, IpAddr, SpanAttribute};
-use relay_protocol::Meta;
+use relay_protocol::{Annotated, Meta};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 mod clock_drift;
+mod event;
 mod event_error;
 mod geo;
 mod legacy;

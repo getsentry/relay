@@ -28,11 +28,11 @@ pub mod user_agent;
 pub mod utils;
 
 mod contexts;
-mod logentry;
-mod mechanism;
+pub mod logentry;
+pub mod mechanism;
 mod processor;
 mod request;
-mod stacktrace;
+pub mod stacktrace;
 
 pub use processor::{NormalizeProcessor, NormalizeProcessorConfig};
 
@@ -51,6 +51,14 @@ impl BuiltinMeasurementKey {
             name: name.into(),
             unit,
         }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn unit(&self) -> &MetricUnit {
+        &self.unit
     }
 }
 
