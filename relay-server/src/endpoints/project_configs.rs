@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use axum::extract::Query;
 use axum::handler::Handler;
@@ -8,7 +7,7 @@ use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
 use relay_base_schema::project::ProjectKey;
-use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
+use relay_dynamic_config::ErrorBoundary;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::global_config;
