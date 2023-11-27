@@ -1,3 +1,5 @@
+//! Contains the sessions related processor code.
+
 use std::error::Error;
 use std::net;
 use std::sync::Arc;
@@ -399,22 +401,22 @@ mod tests {
 
     /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
     /// other tests are valid.
-    #[tokio::test]
-    async fn test_process_session_keep_item() {
+    #[test]
+    fn test_process_session_keep_item() {
         let mut args = TestProcessSessionArguments::default();
         assert!(args.run_session_producer());
     }
 
-    #[tokio::test]
-    async fn test_process_session_invalid_json() {
+    #[test]
+    fn test_process_session_invalid_json() {
         let mut args = TestProcessSessionArguments::default();
         args.item
             .set_payload(ContentType::Json, "this isnt valid json");
         assert!(!args.run_session_producer());
     }
 
-    #[tokio::test]
-    async fn test_process_session_sequence_overflow() {
+    #[test]
+    fn test_process_session_sequence_overflow() {
         let mut args = TestProcessSessionArguments::default();
         args.item.set_payload(
             ContentType::Json,
@@ -434,15 +436,15 @@ mod tests {
         assert!(!args.run_session_producer());
     }
 
-    #[tokio::test]
-    async fn test_process_session_invalid_timestamp() {
+    #[test]
+    fn test_process_session_invalid_timestamp() {
         let mut args = TestProcessSessionArguments::default();
         args.received = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
         assert!(!args.run_session_producer());
     }
 
-    #[tokio::test]
-    async fn test_process_session_metrics_extracted() {
+    #[test]
+    fn test_process_session_metrics_extracted() {
         let mut args = TestProcessSessionArguments::default();
         args.item.set_metrics_extracted(true);
         assert!(!args.run_session_producer());
