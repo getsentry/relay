@@ -28,10 +28,7 @@ pub mod user_agent;
 pub mod utils;
 
 mod contexts;
-pub mod logentry;
-pub mod mechanism;
 mod request;
-pub mod stacktrace;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
@@ -586,7 +583,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         meta: &mut Meta,
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        stacktrace::process_stacktrace(&mut stacktrace.0, meta)?;
+        crate::stacktrace::process_stacktrace(&mut stacktrace.0, meta)?;
         Ok(())
     }
 

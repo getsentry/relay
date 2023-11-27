@@ -271,7 +271,7 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
-    processor::apply(logentry, crate::normalize::logentry::normalize_logentry)
+    processor::apply(logentry, crate::logentry::normalize_logentry)
 }
 
 /// Ensures that the `release` and `dist` fields match up.
