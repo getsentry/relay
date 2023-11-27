@@ -145,7 +145,7 @@ impl ProjectState {
 
     /// Returns configuration options for the public key.
     pub fn get_public_key_config(&self) -> Option<&PublicKeyConfig> {
-        self.public_keys.get(0)
+        self.public_keys.first()
     }
 
     /// Returns `true` if the entire project should be considered
@@ -430,7 +430,6 @@ pub struct Project {
     backoff: RetryBackoff,
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
-    last_envelope_seen: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
     state: State,
@@ -447,7 +446,6 @@ impl Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
-            last_envelope_seen: Instant::now(),
             project_key: key,
             state: State::new(config.permissive_aggregator_config()),
             state_channel: None,
@@ -483,13 +481,13 @@ impl Project {
             return;
         };
 
-        let Some(config) = state.config.dynamic_sampling.as_ref() else {
+        let Some(ErrorBoundary::Ok(config)) = state.config.sampling.as_ref() else {
             return;
         };
 
         // Using try_lock to not slow down the project cache service.
         if let Ok(mut guard) = self.reservoir_counters.try_lock() {
-            guard.retain(|key, _| config.rules_v2.iter().any(|rule| rule.id == *key));
+            guard.retain(|key, _| config.rules.iter().any(|rule| rule.id == *key));
         }
     }
 
@@ -534,11 +532,6 @@ impl Project {
     /// The last time the project state was updated
     pub fn last_updated_at(&self) -> Instant {
         self.last_updated_at
-    }
-
-    /// The last time that this project was used for an incoming envelope.
-    pub fn last_envelope_seen_at(&self) -> Instant {
-        self.last_envelope_seen
     }
 
     /// Refresh the update time of the project in order to delay eviction.
@@ -901,9 +894,9 @@ impl Project {
             self.backoff.reset();
         }
 
-        let channel = match self.state_channel.take() {
-            Some(channel) => channel,
-            None => return,
+        let Some(channel) = self.state_channel.take() else {
+            relay_log::error!(tags.project_key = %self.project_key, "channel is missing for the state update");
+            return;
         };
 
         // If the channel has `no_cache` set but we are not a `no_cache` request, we have
@@ -982,9 +975,6 @@ impl Project {
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
-
-        // On every incoming envelope, which belongs to this project, update when it was last seen.
-        self.last_envelope_seen = envelope.start_time().into();
 
         if let Some(ref state) = state {
             scoping = state.scope_request(envelope.envelope().meta());
@@ -1139,7 +1129,7 @@ mod tests {
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it's the first attempt, we get Duration of 0.
+        //   it's the first attemt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active

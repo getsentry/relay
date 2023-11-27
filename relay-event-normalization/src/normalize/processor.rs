@@ -11,9 +11,11 @@ use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::ops::Range;
 
 use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
@@ -29,26 +31,134 @@ use crate::normalize::utils::validate_span;
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
-use crate::utils::MAX_DURATION_MOBILE_MS;
+use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, schema, span, transactions, trimming, user_agent, BreakdownsConfig,
-    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, RawUserAgentInfo,
+    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
-use crate::LightNormalizationConfig;
-
 /// Configuration for [`NormalizeProcessor`].
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct NormalizeProcessorConfig<'a> {
-    /// Light normalization config.
-    // XXX(iker): we should split this config appropriately.
-    light_config: LightNormalizationConfig<'a>,
+    /// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to the `user` context.
+    pub client_ip: Option<&'a IpAddr>,
+
+    /// The user-agent and client hints obtained from the submission request headers.
+    ///
+    /// Client hints are the preferred way to infer device, operating system, and browser
+    /// information should the event payload contain no such data. If no client hints are present,
+    /// normalization falls back to the user agent.
+    pub user_agent: RawUserAgentInfo<&'a str>,
+
+    /// The time at which the event was received in this Relay.
+    ///
+    /// This timestamp is persisted into the event payload.
+    pub received_at: Option<DateTime<Utc>>,
+
+    /// The maximum amount of seconds an event can be dated in the past.
+    ///
+    /// If the event's timestamp is older, the received timestamp is assumed.
+    pub max_secs_in_past: Option<i64>,
+
+    /// The maximum amount of seconds an event can be predated into the future.
+    ///
+    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
+    pub max_secs_in_future: Option<i64>,
+
+    /// Timestamp range in which a transaction must end.
+    ///
+    /// Transactions that finish outside of this range are considered invalid.
+    /// This check is skipped if no range is provided.
+    pub transaction_range: Option<Range<UnixTimestamp>>,
+
+    /// The maximum length for names of custom measurements.
+    ///
+    /// Measurements with longer names are removed from the transaction event and replaced with a
+    /// metadata entry.
+    pub max_name_and_unit_len: Option<usize>,
+
+    /// Configuration for measurement normalization in transaction events.
+    ///
+    /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
+    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+
+    /// Emit breakdowns based on given configuration.
+    pub breakdowns_config: Option<&'a BreakdownsConfig>,
+
+    /// When `Some(true)`, context information is extracted from the user agent.
+    pub normalize_user_agent: Option<bool>,
+
+    /// Configuration to apply to transaction names, especially around sanitizing.
+    pub transaction_name_config: TransactionNameConfig<'a>,
+
+    /// When `Some(true)`, it is assumed that the event has been normalized before.
+    ///
+    /// This disables certain normalizations, especially all that are not idempotent. The
+    /// renormalize mode is intended for the use in the processing pipeline, so an event modified
+    /// during ingestion can be validated against the schema and large data can be trimmed. However,
+    /// advanced normalizations such as inferring contexts or clock drift correction are disabled.
+    ///
+    /// `None` equals to `false`.
+    pub is_renormalize: bool,
+
+    /// When `true`, infers the device class from CPU and model.
+    pub device_class_synthesis_config: bool,
+
+    /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
+    pub enrich_spans: bool,
+
+    /// When `true`, computes and materializes attributes in spans based on the given configuration.
+    pub light_normalize_spans: bool,
+
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
+    pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
+
+    /// Configuration for replacing identifiers in the span description with placeholders.
+    ///
+    /// This is similar to `transaction_name_config`, but applies to span descriptions.
+    pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
+
+    /// Configuration for generating performance score measurements for web vitals
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
+
+    /// An initialized GeoIP lookup.
+    pub geoip_lookup: Option<&'a GeoIpLookup>,
+
+    /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.
+    ///
+    /// See the event schema for size declarations.
+    pub enable_trimming: bool,
 }
 
-impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
-    fn from(config: LightNormalizationConfig<'a>) -> Self {
+impl<'a> Default for NormalizeProcessorConfig<'a> {
+    fn default() -> Self {
         Self {
-            light_config: config,
+            client_ip: Default::default(),
+            user_agent: Default::default(),
+            received_at: Default::default(),
+            max_secs_in_past: Default::default(),
+            max_secs_in_future: Default::default(),
+            transaction_range: Default::default(),
+            max_name_and_unit_len: Default::default(),
+            breakdowns_config: Default::default(),
+            normalize_user_agent: Default::default(),
+            transaction_name_config: Default::default(),
+            is_renormalize: Default::default(),
+            device_class_synthesis_config: Default::default(),
+            enrich_spans: Default::default(),
+            light_normalize_spans: Default::default(),
+            max_tag_value_length: usize::MAX,
+            span_description_rules: Default::default(),
+            performance_score: Default::default(),
+            geoip_lookup: Default::default(),
+            enable_trimming: false,
+            measurements: None,
         }
     }
 }
@@ -67,6 +177,7 @@ pub struct NormalizeProcessor<'a> {
 }
 
 impl<'a> NormalizeProcessor<'a> {
+    /// Returns a new [`NormalizeProcessor`] with the given config.
     pub fn new(config: NormalizeProcessorConfig<'a>) -> Self {
         Self { config }
     }
@@ -79,10 +190,15 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if self.config.is_renormalize {
+            return Ok(());
+        }
+
+        // XXX(iker): processing child values should be the last step. The logic
+        // below this call is being moved (WIP) to the processor appropriately.
         event.process_child_values(self, state)?;
 
-        let config = &self.config.light_config;
-        if config.is_renormalize {
+        if self.config.is_renormalize {
             return Ok(());
         }
 
@@ -91,8 +207,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.transaction_name_config.clone(),
-            config.transaction_range.clone(),
+            self.config.transaction_name_config.clone(),
+            self.config.transaction_range.clone(),
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
@@ -102,20 +218,20 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, &config.user_agent);
+        normalize_security_report(event, self.config.client_ip, &self.config.user_agent);
 
         // Process NEL reports to ensure all props.
-        normalize_nel_report(event, config.client_ip);
+        normalize_nel_report(event, self.config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
             &mut event.request,
             &mut event.user,
             event.platform.as_str(),
-            config.client_ip,
+            self.config.client_ip,
         );
 
-        if let Some(geoip_lookup) = config.geoip_lookup {
+        if let Some(geoip_lookup) = self.config.geoip_lookup {
             if let Some(user) = event.user.value_mut() {
                 normalize_user_geoinfo(geoip_lookup, user)
             }
@@ -145,30 +261,31 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         normalize_timestamps(
             event,
             meta,
-            config.received_at,
-            config.max_secs_in_past,
-            config.max_secs_in_future,
+            self.config.received_at,
+            self.config.max_secs_in_past,
+            self.config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
 
         // TODO: Consider moving to store normalization
-        if config.device_class_synthesis_config {
+        if self.config.device_class_synthesis_config {
             normalize_device_class(event);
         }
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
-        normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
+        normalize_user_agent(event, self.config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(
             event,
-            config.measurements.clone(),
-            config.max_name_and_unit_len,
+            self.config.measurements.clone(),
+            self.config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
-        normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+        normalize_performance_score(event, self.config.performance_score);
+        normalize_breakdowns(event, self.config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
         processor::apply(&mut event.contexts, normalize_contexts)?;
 
-        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        if self.config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don't have many spans, but if this is no longer the
@@ -181,16 +298,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             );
         }
 
-        if config.enrich_spans {
+        if self.config.enrich_spans {
             extract_span_tags(
                 event,
                 &tag_extraction::Config {
-                    max_tag_value_size: config.max_tag_value_length,
+                    max_tag_value_size: self.config.max_tag_value_length,
                 },
             );
         }
 
-        if config.enable_trimming {
+        if self.config.enable_trimming {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(
                 event,
@@ -619,6 +736,81 @@ fn normalize_measurements(
     }
 }
 
+/// Computes performance score measurements.
+///
+/// This computes score from vital measurements, using config options to define how it is
+/// calculated.
+fn normalize_performance_score(
+    event: &mut Event,
+    performance_score: Option<&PerformanceScoreConfig>,
+) {
+    let Some(performance_score) = performance_score else {
+        return;
+    };
+    for profile in &performance_score.profiles {
+        if let Some(condition) = &profile.condition {
+            if !condition.matches(event) {
+                continue;
+            }
+            if let Some(measurements) = event.measurements.value_mut() {
+                let mut should_add_total = false;
+                if profile.score_components.iter().any(|c| {
+                    !measurements.contains_key(c.measurement.as_str())
+                        && c.weight.abs() >= f64::EPSILON
+                }) {
+                    // All measurements with a profile weight greater than 0 are required to exist
+                    // on the event. Skip calculating performance scores if a measurement with
+                    // weight is missing.
+                    break;
+                }
+                let mut score_total = 0.0;
+                let mut weight_total = 0.0;
+                for component in &profile.score_components {
+                    weight_total += component.weight;
+                }
+                for component in &profile.score_components {
+                    let normalized_component_weight = component.weight / weight_total;
+                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                        let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+                        let component_score = cdf * normalized_component_weight;
+                        score_total += component_score;
+                        should_add_total = true;
+
+                        measurements.insert(
+                            format!("score.{}", component.measurement),
+                            Measurement {
+                                value: component_score.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                    }
+                    measurements.insert(
+                        format!("score.weight.{}", component.measurement),
+                        Measurement {
+                            value: normalized_component_weight.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
+                }
+
+                if should_add_total {
+                    measurements.insert(
+                        "score.total".to_owned(),
+                        Measurement {
+                            value: score_total.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
+                }
+                break; // Measurements have successfully been added, skip any other profiles.
+            }
+        }
+    }
+}
+
 /// Compute additional measurements derived from existing ones.
 ///
 /// The added measurements are:
@@ -911,10 +1103,14 @@ mod tests {
 
     use crate::normalize::processor::{
         filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
-        normalize_dist, normalize_measurements, normalize_security_report, normalize_units,
-        remove_invalid_measurements, NormalizeProcessor, NormalizeProcessorConfig,
+        normalize_dist, normalize_measurements, normalize_performance_score,
+        normalize_security_report, normalize_units, remove_invalid_measurements,
+        NormalizeProcessor, NormalizeProcessorConfig,
     };
-    use crate::{ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, RawUserAgentInfo};
+    use crate::{
+        ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
+        RawUserAgentInfo,
+    };
 
     #[test]
     fn test_normalize_dist_none() {
@@ -1536,48 +1732,21 @@ mod tests {
     }
 
     #[test]
-    fn test_defaults_transaction_event_with_span_with_missing_op() {
-        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
-
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
-            timestamp: Annotated::new(end.into()),
-            start_timestamp: Annotated::new(start.into()),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
-                ),
-                start_timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
+    fn test_span_default_op_when_missing() {
+        let json = r#"{
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+}"#;
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
 
         process_value(
-            &mut event,
+            &mut span,
             &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
-
-        let span = get_value!(event.spans).unwrap().first().unwrap();
         assert_eq!(get_value!(span.op).unwrap(), &"default".to_owned());
     }
 
@@ -1706,7 +1875,7 @@ mod tests {
     }
 
     #[test]
-    fn test_renormalize_is_idempotent() {
+    fn test_renormalize_spans_is_idempotent() {
         let json = r#"{
   "start_timestamp": 1,
   "timestamp": 2,
@@ -1721,7 +1890,7 @@ mod tests {
         assert_eq!(get_value!(processed.op!), &"default".to_owned());
 
         let mut reprocess_config = processor_config.clone();
-        reprocess_config.light_config.is_renormalize = true;
+        reprocess_config.is_renormalize = true;
         let mut processor = NormalizeProcessor::new(processor_config.clone());
 
         let mut reprocessed = processed.clone();
@@ -1731,5 +1900,521 @@ mod tests {
         let mut reprocessed2 = reprocessed.clone();
         process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
         assert_eq!(reprocessed, reprocessed2);
+    }
+
+    #[test]
+    fn test_computed_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    // Test performance score is calculated correctly when the sum of weights is under 1.
+    // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
+    #[test]
+    fn test_computed_performance_score_with_under_normalized_weights() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.03,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.06,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.06,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.05,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    // Test performance score is calculated correctly when the sum of weights is over 1.
+    // The expected result should normalize the weights to a sum of 1 and scale the weight measurements accordingly.
+    #[test]
+    fn test_computed_performance_score_with_over_normalized_weights() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.30,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.60,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.60,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.50,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                        {
+                            "measurement": "ttfb",
+                            "weight": 0.0,
+                            "p10": 0.2,
+                            "p50": 0.4
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_missing_measurement() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
     }
 }

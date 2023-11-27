@@ -1,6 +1,6 @@
-use std::error::Error;
 use std::fmt;
 use std::hash::Hasher as _;
+use std::{borrow::Cow, error::Error};
 
 use hash32::{FnvHasher, Hasher as _};
 
@@ -234,7 +234,7 @@ pub struct MetricResourceIdentifier<'a> {
     pub namespace: MetricNamespace,
 
     /// The display name of the metric in the allowed character set.
-    pub name: &'a str,
+    pub name: Cow<'a, str>,
 
     /// The verbatim unit name of the metric value.
     ///
@@ -255,9 +255,19 @@ impl<'a> MetricResourceIdentifier<'a> {
         Ok(Self {
             ty,
             namespace: raw_namespace.parse()?,
-            name,
+            name: Cow::Borrowed(name),
             unit,
         })
+    }
+
+    /// Converts the MRI into an owned version with a static lifetime.
+    pub fn into_owned(self) -> MetricResourceIdentifier<'static> {
+        MetricResourceIdentifier {
+            ty: self.ty,
+            namespace: self.namespace,
+            name: Cow::Owned(self.name.into_owned()),
+            unit: self.unit,
+        }
     }
 }
 

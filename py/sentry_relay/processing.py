@@ -27,6 +27,7 @@ __all__ = [
     "pii_strip_event",
     "pii_selector_suggestions_from_event",
     "VALID_PLATFORMS",
+    "validate_rule_condition",
     "validate_sampling_condition",
     "validate_sampling_configuration",
     "validate_project_config",
@@ -237,11 +238,20 @@ def compare_version(a, b):
 
 def validate_sampling_condition(condition):
     """
-    Validate a dynamic rule condition. Used in dynamic sampling serializer.
-    The parameter is a string containing the rule condition as JSON.
+    Deprecated legacy alias. Please use ``validate_rule_condition`` instead.
+    """
+    return validate_rule_condition(condition)
+
+
+def validate_rule_condition(condition):
+    """
+    Validate a dynamic rule condition. Used by dynamic sampling, metric extraction, and metric
+    tagging.
+
+    :param condition: A string containing the condition encoded as JSON.
     """
     assert isinstance(condition, str)
-    raw_error = rustcall(lib.relay_validate_sampling_condition, encode_str(condition))
+    raw_error = rustcall(lib.relay_validate_rule_condition, encode_str(condition))
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)

@@ -29,7 +29,8 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         AWS\sSecurity\sScanner|     # AWS Security Scanner causing DisallowedHost errors in Django, see
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
-        HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
+        HubSpot\sCrawler|           # HubSpot web crawler (web-crawlers@hubspot.com)
+        Bytespider                  # Bytedance
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -114,6 +115,7 @@ mod tests {
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
             "AdsBot-Google (+http://www.google.com/adsbot.html)",
             "Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)",
+            "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)"
         ];
 
         for banned_user_agent in &user_agents {

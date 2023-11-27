@@ -1,6 +1,6 @@
 {
-  "rules": [],
-  "rulesV2": [
+  "version": 2,
+  "rules": [
     {
       "condition": {
         "op": "and",

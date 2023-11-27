@@ -7,22 +7,36 @@ use serde::{Deserialize, Serialize};
 
 use relay_protocol::RuleCondition;
 
+/// Maximum supported version of dynamic sampling.
+///
+/// The version is an integer scalar, incremented by one on each new version:
+///  - 1: Initial version that uses `rules_v2`.
+///  - 2: Moves back to `rules` and adds support for `RuleConfigs` with string comparisons.
+const SAMPLING_CONFIG_VERSION: u16 = 2;
+
 /// Represents the dynamic sampling configuration available to a project.
 ///
 /// Note: This comes from the organization data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SamplingConfig {
-    /// The ordered sampling rules for the project.
+    /// The required version to run dynamic sampling.
     ///
-    /// This field will remain here to serve only for old customer Relays to which we will
-    /// forward the sampling config. The idea is that those Relays will get the old rules as
-    /// empty array, which will result in them not sampling and forwarding sampling decisions to
-    /// upstream Relays.
-    #[serde(default, skip_deserializing)]
+    /// Defaults to legacy version (`1`) when missing.
+    #[serde(default = "SamplingConfig::legacy_version")]
+    pub version: u16,
+
+    /// The ordered sampling rules for the project.
+    #[serde(default)]
     pub rules: Vec<SamplingRule>,
 
-    /// The ordered sampling rules v2 for the project.
+    /// **Deprecated**. The ordered sampling rules for the project in legacy format.
+    ///
+    /// Removed in favor of `Self::rules` in version `2`. This field remains here to parse rules
+    /// from old Sentry instances and convert them into the new format. The legacy format contained
+    /// both an empty `rules` as well as the actual rules in `rules_v2`. During normalization, these
+    /// two arrays are merged together.
+    #[serde(default, skip_serializing)]
     pub rules_v2: Vec<SamplingRule>,
 
     /// Defines which population of items a dynamic sample rate applies to.
@@ -31,16 +45,43 @@ pub struct SamplingConfig {
 }
 
 impl SamplingConfig {
+    /// Creates an enabled configuration with empty defaults and the latest version.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Returns `true` if any of the rules in this configuration is unsupported.
     pub fn unsupported(&self) -> bool {
-        !self.rules_v2.iter().all(SamplingRule::supported)
+        debug_assert!(self.version > 1, "SamplingConfig not normalized");
+        self.version > SAMPLING_CONFIG_VERSION || !self.rules.iter().all(SamplingRule::supported)
     }
 
     /// Filters the sampling rules by the given [`RuleType`].
     pub fn filter_rules(&self, rule_type: RuleType) -> impl Iterator<Item = &SamplingRule> {
-        self.rules_v2
-            .iter()
-            .filter(move |rule| rule.ty == rule_type)
+        self.rules.iter().filter(move |rule| rule.ty == rule_type)
+    }
+
+    /// Upgrades legacy sampling configs into the latest format.
+    pub fn normalize(&mut self) {
+        if self.version == Self::legacy_version() {
+            self.rules.append(&mut self.rules_v2);
+            self.version = SAMPLING_CONFIG_VERSION;
+        }
+    }
+
+    const fn legacy_version() -> u16 {
+        1
+    }
+}
+
+impl Default for SamplingConfig {
+    fn default() -> Self {
+        Self {
+            version: SAMPLING_CONFIG_VERSION,
+            rules: vec![],
+            rules_v2: vec![],
+            mode: SamplingMode::default(),
+        }
     }
 }
 
@@ -422,20 +463,9 @@ mod tests {
     }
 
     #[test]
-    fn test_sampling_config_with_rules_and_rules_v2_deserialization() {
+    fn test_legacy_deserialization() {
         let serialized_rule = r#"{
-               "rules": [
-                  {
-                     "sampleRate": 0.5,
-                     "type": "trace",
-                     "active": true,
-                     "condition": {
-                        "op": "and",
-                        "inner": []
-                     },
-                     "id": 1000
-                 }
-               ],
+               "rules": [],
                "rulesV2": [
                   {
                      "samplingValue":{
@@ -453,22 +483,23 @@ mod tests {
                ],
                "mode": "received"
         }"#;
-        let config: SamplingConfig = serde_json::from_str(serialized_rule).unwrap();
+        let mut config: SamplingConfig = serde_json::from_str(serialized_rule).unwrap();
+        config.normalize();
 
         // We want to make sure that we serialize an empty array of rule, irrespectively of the
         // received payload.
-        assert!(config.rules.is_empty());
+        assert_eq!(config.version, SAMPLING_CONFIG_VERSION);
         assert_eq!(
-            config.rules_v2[0].sampling_value,
+            config.rules[0].sampling_value,
             SamplingValue::SampleRate { value: 0.5 }
         );
+        assert!(config.rules_v2.is_empty());
     }
 
     #[test]
     fn test_sampling_config_with_rules_and_rules_v2_serialization() {
         let config = SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![SamplingRule {
+            rules: vec![SamplingRule {
                 condition: RuleCondition::all(),
                 sampling_value: SamplingValue::Factor { value: 2.0 },
                 ty: RuleType::Transaction,
@@ -476,13 +507,13 @@ mod tests {
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
             }],
-            mode: SamplingMode::Received,
+            ..SamplingConfig::new()
         };
 
         let serialized_config = serde_json::to_string_pretty(&config).unwrap();
         let expected_serialized_config = r#"{
-  "rules": [],
-  "rulesV2": [
+  "version": 2,
+  "rules": [
     {
       "condition": {
         "op": "and",

@@ -407,7 +407,7 @@ fn parse_gauge(string: &str) -> Option<GaugeValue> {
 ///  - (optional) The unit. If missing, it is defaulted to "none".
 ///
 /// The metric type is never part of this string and must be supplied separately.
-fn parse_mri(string: &str, ty: MetricType) -> Option<MetricResourceIdentifier> {
+fn parse_mri(string: &str, ty: MetricType) -> Option<MetricResourceIdentifier<'_>> {
     let (name_and_namespace, unit) = protocol::parse_name_unit(string)?;
 
     let (raw_namespace, name) = name_and_namespace
@@ -416,7 +416,7 @@ fn parse_mri(string: &str, ty: MetricType) -> Option<MetricResourceIdentifier> {
 
     Some(MetricResourceIdentifier {
         ty,
-        name,
+        name: name.into(),
         namespace: raw_namespace.parse().ok()?,
         unit,
     })

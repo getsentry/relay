@@ -9,7 +9,13 @@ use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use crate::project::ProjectConfig;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*compiler*"];
+const DISABLED_DATABASES: &[&str] = &[
+    "*clickhouse*",
+    "*compile*",
+    "*mongodb*",
+    "*redis*",
+    "db.orm",
+];
 
 /// A list of span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
@@ -139,7 +145,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: [
                 ("", "environment"),
-                ("", "http.status_code"),
                 ("span.", "action"),
                 ("span.", "category"),
                 ("span.", "description"),
@@ -152,6 +157,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("", "transaction.method"),
                 ("", "transaction.op"),
                 ("", "resource.render_blocking_status"), // only set for resource spans
+                ("", "file_extension"),                  // only set for resource spans
                 ("", "ttid"),                            // only set for mobile spans
                 ("", "ttfd"),                            // only set for mobile spans
             ]
@@ -198,6 +204,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("span.", "op"),
                 ("", "transaction"),
                 ("", "resource.render_blocking_status"),
+                ("", "file_extension"),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
