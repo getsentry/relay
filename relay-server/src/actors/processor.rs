@@ -2280,8 +2280,8 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
-            _ => return,
+            ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
+            _ => None,
         };
         let mut items: Vec<Item> = Vec::new();
         let mut add_span = |annotated_span: Annotated<Span>| {
@@ -2292,11 +2292,10 @@ impl EnvelopeProcessorService {
                     return;
                 }
             };
-            if let Some(span_value) = validated_span.value() {
-                crate::metrics_extraction::generic::extract_metrics(
-                    span_value,
-                    span_metrics_extraction_config,
-                );
+            if let Some(config) = span_metrics_extraction_config {
+                if let Some(span_value) = validated_span.value() {
+                    crate::metrics_extraction::generic::extract_metrics(span_value, config);
+                }
             }
             if let Ok(payload) = validated_span.to_json() {
                 let mut item = Item::new(ItemType::Span);
