@@ -160,6 +160,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("", "file_extension"),                  // only set for resource spans
                 ("", "ttid"),                            // only set for mobile spans
                 ("", "ttfd"),                            // only set for mobile spans
+                ("span.", "main_thread"),                // only set for mobile spans
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
