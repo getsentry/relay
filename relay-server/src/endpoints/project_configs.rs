@@ -111,7 +111,6 @@ async fn inner(
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
-
     // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
     let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     let futures = valid_keys.map(|project_key| async move {
@@ -129,23 +128,22 @@ async fn inner(
         (project_key, state_result)
     });
 
-    let mut configs = HashMap::with_capacity(keys_len);
-    let mut pending = Vec::with_capacity(keys_len);
-    let (global, global_status) = match inner.global {
-        true => match state.global_config().send(global_config::Get).await? {
-            global_config::Status::Ready(global_config) => {
-                (Some(global_config), Some(StatusResponse::Ready))
-            }
+    let (global, global_status) = if inner.global {
+        match state.global_config().send(global_config::Get).await? {
+            global_config::Status::Ready(config) => (Some(config), Some(StatusResponse::Ready)),
             // Old relays expect to get a global config no matter what, even if it's not ready
             // yet. We therefore give them a default global config.
             global_config::Status::Pending => (
                 Some(GlobalConfig::default().into()),
                 Some(StatusResponse::Pending),
             ),
-        },
-        false => (None, None),
+        }
+    } else {
+        (None, None)
     };
 
+    let mut pending = Vec::with_capacity(keys_len);
+    let mut configs = HashMap::with_capacity(keys_len);
     for (project_key, state_result) in future::join_all(futures).await {
         let Some(project_state) = state_result? else {
             pending.push(project_key);

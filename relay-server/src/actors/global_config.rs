@@ -35,14 +35,13 @@ type UpstreamQueryResult =
     Result<Result<GetGlobalConfigResponse, UpstreamRequestError>, relay_system::SendError>;
 
 /// The response of a fetch of a global config from upstream.
-///
-/// Instead of using global_config::Status, we have the separate StatusResponse in order to not
-/// make breaking changes to the api.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetGlobalConfigResponse {
     #[serde(default)]
     global: Option<GlobalConfig>,
+    /// Instead of using [`Status`], we use StatusResponse as a separate field in order to not
+    /// make breaking changes to the api.
     global_status: Option<StatusResponse>,
 }
 
@@ -269,10 +268,7 @@ impl GlobalConfigService {
                 // No global status implies an outdated upstream, in that case, we fall back on
                 // the old behaviour of using the global config that we receive even if it might
                 // not be the valid one.
-                let is_ready = config
-                    .global_status
-                    .map(|stat| stat.is_ready())
-                    .unwrap_or(true);
+                let is_ready = config.global_status.map_or(true, |stat| stat.is_ready());
 
                 match config.global {
                     Some(global_config) if is_ready => {
@@ -281,7 +277,7 @@ impl GlobalConfigService {
                             relay_log::info!("received global config from upstream");
                         }
                         self.global_config_watch
-                            .send_replace(Status::Ready(global_config.into()));
+                            .send_replace(Status::Ready(Arc::new(global_config)));
                         success = true;
                         self.last_fetched = Instant::now();
                     }
