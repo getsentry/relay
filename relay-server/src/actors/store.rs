@@ -720,6 +720,7 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = KafkaMessage::CheckIn(CheckInKafkaMessage {
+            message_type: CheckInMessageType::CheckIn,
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
@@ -1023,11 +1024,21 @@ struct ProfileKafkaMessage {
     payload: Bytes,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CheckInMessageType {
+    ClockPulse,
+    CheckIn,
+}
+
 #[derive(Debug, Serialize)]
 struct CheckInKafkaMessage {
     #[serde(skip)]
     routing_key_hint: Option<Uuid>,
 
+    /// Used by the consumer to discrinminate the message.
+    message_type: CheckInMessageType,
     /// Raw event payload.
     payload: Bytes,
     /// Time at which the event was received by Relay.
