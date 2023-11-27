@@ -1051,8 +1051,8 @@ mod tests {
     fn test_parse_invalid_name() {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Bucket::parse(s.as_bytes(), timestamp);
-        assert!(metric.is_err());
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(metric.name, "c:custom/foo_bar@none");
     }
 
     #[test]

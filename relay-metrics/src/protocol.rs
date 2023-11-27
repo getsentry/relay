@@ -269,14 +269,18 @@ impl<'a> MetricResourceIdentifier<'a> {
     ) -> Result<Self, ParseMetricError> {
         let (name_and_namespace, unit) = parse_name_unit(string).ok_or(ParseMetricError(()))?;
 
-        let (raw_namespace, name) = name_and_namespace
-            .split_once('/')
-            .unwrap_or(("custom", name_and_namespace));
+        let (namespace, name) = match name_and_namespace.split_once('/') {
+            Some((raw_namespace, name)) => (raw_namespace.parse()?, name),
+            None => (MetricNamespace::Custom, name_and_namespace),
+        };
+
+        let name = relay_base_schema::metrics::try_normalize_metric_name(name)
+            .ok_or(ParseMetricError(()))?;
 
         Ok(MetricResourceIdentifier {
             ty,
-            name: Cow::Borrowed(name),
-            namespace: raw_namespace.parse()?,
+            name,
+            namespace,
             unit,
         })
     }
@@ -350,14 +354,11 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 
 /// Parses the `name[@unit]` part of a metric string.
 ///
-/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
-/// invalid.
+/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if value is invalid.
+/// The name is not normalized.
 fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
-    if !relay_base_schema::metrics::is_valid_metric_name(name) {
-        return None;
-    }
 
     let unit = match components.next() {
         Some(s) => s.parse().ok()?,
@@ -446,6 +447,53 @@ mod tests {
             },
         );
         assert!(MetricResourceIdentifier::parse("foo").is_err());
+    }
+
+    #[test]
+    fn test_invalid_names_should_normalize() {
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:f?o").unwrap().name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:f??o").unwrap().name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:föo").unwrap().name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/f?o")
+                .unwrap()
+                .name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/f??o")
+                .unwrap()
+                .name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/föo")
+                .unwrap()
+                .name,
+            "f_o"
+        );
+    }
+
+    #[test]
+    fn test_normalize_dash_to_underscore() {
+        assert_eq!(
+            MetricResourceIdentifier::parse("d:foo.bar.blob-size@second").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Distribution,
+                namespace: MetricNamespace::Custom,
+                name: "foo.bar.blob_size".into(),
+                unit: MetricUnit::Duration(DurationUnit::Second),
+            },
+        );
     }
 
     #[test]
