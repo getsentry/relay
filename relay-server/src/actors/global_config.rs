@@ -46,6 +46,7 @@ struct GetGlobalConfigResponse {
     global_status: Option<StatusResponse>,
 }
 
+/// A mirror of [`Status`] without the associated data for use in serialization.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StatusResponse {
@@ -146,7 +147,7 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 }
 
 /// Describes the current fetching status of the [`GlobalConfig`] from the upstream.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub enum Status {
     /// Global config ready to be used by other services.
     ///
