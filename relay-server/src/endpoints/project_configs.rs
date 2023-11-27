@@ -31,11 +31,6 @@ const ENDPOINT_V2: u16 = 2;
 /// returned, or a further poll ensues.
 const ENDPOINT_V3: u16 = 3;
 
-/// V3 version of this endpoint.
-///
-/// This version allows returning global config status.
-const ENDPOINT_V4: u16 = 4;
-
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
 struct VersionQuery {
@@ -117,8 +112,6 @@ async fn inner(
     // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
     let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
     let futures = valid_keys.map(|project_key| async move {
-        // No changes were made to the project states in V4, just global config, so we can
-        // accept V3 here.
         let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
             project_cache
                 .send(GetCachedProjectState::new(project_key))
@@ -176,7 +169,7 @@ async fn inner(
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V4
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
 }
 
 /// Endpoint handler for the project configs endpoint.

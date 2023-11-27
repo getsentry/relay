@@ -315,11 +315,8 @@ def mini_sentry(request):  # noqa
 
         version = flask_request.args.get("version")
 
-        if flask_request.json.get("global"):
-            if version == "3":
-                global_ = GLOBAL_CONFIG
-            elif version == "4":
-                global_ = {"Ready": GLOBAL_CONFIG}
+        if version == "3" and flask_request.json.get("global"):
+            global_ = GLOBAL_CONFIG
 
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:

@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
-use crate::actors::global_config;
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
@@ -40,7 +39,21 @@ type UpstreamQueryResult =
 #[serde(rename_all = "camelCase")]
 struct GetGlobalConfigResponse {
     #[serde(default)]
-    global: Option<global_config::Status>,
+    global: Option<GlobalConfig>,
+    global_status: Option<StatusResponse>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum StatusResponse {
+    Ready,
+    Pending,
+}
+
+impl StatusResponse {
+    pub fn is_ready(&self) -> bool {
+        matches!(self, &Self::Ready)
+    }
 }
 
 /// The request to fetch a global config from upstream.
@@ -249,17 +262,20 @@ impl GlobalConfigService {
         match result {
             Ok(Ok(config)) => {
                 let mut success = false;
+                let is_ready = config.global_status.is_some_and(|stat| stat.is_ready());
+
                 match config.global {
-                    Some(ready @ Status::Ready(_)) => {
+                    Some(global_config) if is_ready => {
                         // Log the first time we receive a global config from upstream.
                         if !self.global_config_watch.borrow().is_ready() {
                             relay_log::info!("received global config from upstream");
                         }
-                        self.global_config_watch.send_replace(ready);
+                        self.global_config_watch
+                            .send_replace(Status::Ready(global_config.into()));
                         success = true;
                         self.last_fetched = Instant::now();
                     }
-                    Some(Status::Pending) => {
+                    Some(_) => {
                         relay_log::info!("global config from upstream is not yet ready");
                     }
                     None => relay_log::error!("global config missing in upstream response"),
