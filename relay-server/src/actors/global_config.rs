@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
-use crate::actors::global_config;
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
@@ -46,7 +45,7 @@ struct GetGlobalConfigResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
-enum StatusResponse {
+pub enum StatusResponse {
     Ready,
     Pending,
 }
@@ -276,7 +275,7 @@ impl GlobalConfigService {
                         success = true;
                         self.last_fetched = Instant::now();
                     }
-                    Some(global_config) => {
+                    Some(_) => {
                         relay_log::info!("global config from upstream is not yet ready");
                     }
                     None => relay_log::error!("global config missing in upstream response"),

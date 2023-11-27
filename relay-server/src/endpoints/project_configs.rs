@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::extract::Query;
 use axum::handler::Handler;
@@ -10,7 +11,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::global_config;
+use crate::actors::global_config::{self, StatusResponse};
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
@@ -79,7 +80,9 @@ struct GetProjectStatesResponseWrapper {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    global: Option<GlobalConfig>,
+    global: Option<Arc<GlobalConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_status: Option<StatusResponse>,
 }
 
 /// Request payload of the project config endpoint.
@@ -128,9 +131,17 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
-    let global_config = match inner.global {
-        true => Some(state.global_config().send(global_config::Get).await?),
-        false => None,
+    let (global, global_status) = match inner.global {
+        true => match state.global_config().send(global_config::Get).await? {
+            global_config::Status::Ready(global_config) => {
+                (Some(global_config), Some(StatusResponse::Ready))
+            }
+            global_config::Status::Pending => (
+                Some(GlobalConfig::default().into()),
+                Some(StatusResponse::Pending),
+            ),
+        },
+        false => (None, None),
     };
 
     for (project_key, state_result) in future::join_all(futures).await {
@@ -163,7 +174,8 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global: global_config,
+        global,
+        global_status,
     }))
 }
 
