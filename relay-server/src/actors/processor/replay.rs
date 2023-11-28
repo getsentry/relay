@@ -1,3 +1,5 @@
+//! Replay related processor code.
+
 use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -20,7 +22,7 @@ use crate::envelope::{ContentType, ItemType};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
-/// Remove replays if the feature flag is not enabled.
+/// Removes replays if the feature flag is not enabled.
 pub fn process(
     state: &mut ProcessEnvelopeState,
     config: Arc<Config>,
