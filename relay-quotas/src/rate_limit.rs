@@ -2,7 +2,6 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
