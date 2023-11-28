@@ -1342,6 +1342,14 @@ def test_span_ingestion(
                         "name": "my 1st OTel span",
                         "startTimeUnixNano": 1697620454980000000,
                         "endTimeUnixNano": 1697620454980078800,
+                        "attributes": [
+                            {
+                                "key": "sentry.exclusive_time_ns",
+                                "value": {
+                                    "doubleValue": 78800,
+                                },
+                            }
+                        ],
                     }
                 ).encode()
             ),
@@ -1386,6 +1394,14 @@ def test_span_ingestion(
             "name": "my 2nd OTel span",
             "startTimeUnixNano": 1697620454981000000,
             "endTimeUnixNano": 1697620454981079900,
+            "attributes": [
+                {
+                    "key": "sentry.exclusive_time_ns",
+                    "value": {
+                        "doubleValue": 79900,
+                    },
+                }
+            ],
         },
     )
 
