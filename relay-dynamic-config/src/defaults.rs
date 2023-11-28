@@ -9,7 +9,13 @@ use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use crate::project::ProjectConfig;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*compiler*"];
+const DISABLED_DATABASES: &[&str] = &[
+    "*clickhouse*",
+    "*compile*",
+    "*mongodb*",
+    "*redis*",
+    "db.orm",
+];
 
 /// A list of span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
@@ -139,7 +145,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: [
                 ("", "environment"),
-                ("", "http.status_code"),
                 ("span.", "action"),
                 ("span.", "category"),
                 ("span.", "description"),
@@ -151,9 +156,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("span.", "system"),
                 ("", "transaction.method"),
                 ("", "transaction.op"),
-                ("", "resource.render_blocking_status"), // only set for resource spans
-                ("", "ttid"),                            // only set for mobile spans
-                ("", "ttfd"),                            // only set for mobile spans
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
@@ -174,14 +176,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         // Mobile-specific tags:
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: ["release", "device.class"] // TODO: sentry PR for static strings
-                .map(|key| TagSpec {
-                    key: key.into(),
-                    field: Some(format!("span.sentry_tags.{}", key)),
-                    value: None,
-                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
-                })
-                .into(),
+            tags: [
+                ("", "device.class"),
+                ("", "release"),
+                ("", "ttfd"),
+                ("", "ttid"),
+                ("span.", "main_thread"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
+                value: None,
+                condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
+            })
+            .into(),
         },
         // Resource-specific tags:
         TagMapping {
@@ -192,18 +200,33 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             ],
             tags: [
                 ("", "environment"),
+                ("", "file_extension"),
+                ("", "resource.render_blocking_status"),
+                ("", "transaction"),
                 ("span.", "description"),
                 ("span.", "domain"),
                 ("span.", "group"),
                 ("span.", "op"),
-                ("", "transaction"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
+                value: None,
+                condition: Some(resource_condition.clone()),
+            })
+            .into(),
+        },
+        TagMapping {
+            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
+            tags: [
+                ("", "file_extension"),
                 ("", "resource.render_blocking_status"),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
                 field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
-                condition: None,
+                condition: Some(resource_condition.clone()),
             })
             .into(),
         },

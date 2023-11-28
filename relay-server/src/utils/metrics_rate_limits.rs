@@ -67,19 +67,26 @@ pub fn extract_transaction_count(
         _ => 0,
     };
 
-    let has_profile =
-        matches!(mri.name, "usage" | "duration") && metric.tag(PROFILE_TAG) == Some("true");
+    let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
+        && metric.tag(PROFILE_TAG) == Some("true");
 
     Some(TransactionCount { count, has_profile })
 }
 
+/// Wether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtractionMode {
+    /// Use the usage count metric.
     Usage,
+    /// Use the duration distribution metric.
     Duration,
 }
 
 impl ExtractionMode {
+    /// Utility function for creating an [`ExtractionMode`].
+    ///
+    /// Returns [`ExtractionMode::Usage`] when passed `true`,
+    /// [`ExtractionMode::Duration`] otherwise.
     pub fn from_usage(usage: bool) -> Self {
         if usage {
             Self::Usage
@@ -89,9 +96,13 @@ impl ExtractionMode {
     }
 }
 
+/// Return value of [`extract_transaction_count`], containing the extracted
+/// count of transactions and wether they have associated profiles.
 #[derive(Debug, Clone, Copy)]
 pub struct TransactionCount {
+    /// Number of transactions.
     pub count: usize,
+    /// Whether the transactions have associated profiles.
     pub has_profile: bool,
 }
 

@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.8.38
+
+- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
+
+## 0.8.37
+
+- License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
+- Skip running `NormalizeProcessor` on renormalization. ([#2744](https://github.com/getsentry/relay/pull/2744))
+
+## 0.8.36
 
 - Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
 - Rename `validate_sampling_condition` to `validate_rule_condition`. ([#2720](https://github.com/getsentry/relay/pull/2720))

@@ -67,8 +67,9 @@ struct BucketKey {
 }
 
 impl BucketKey {
-    // Create a 64-bit hash of the bucket key using FnvHasher.
-    // This is used for partition key computation and statsd logging.
+    /// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
+    /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
         BucketKeyRef {
             project_key: self.project_key,
@@ -109,8 +110,9 @@ struct BucketKeyRef<'a> {
 }
 
 impl<'a> BucketKeyRef<'a> {
-    // Create a 64-bit hash of the bucket key using FnvHasher.
-    // This is used for partition key computation and statsd logging.
+    /// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
+    /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
         let mut hasher = FnvHasher::default();
         std::hash::Hash::hash(self, &mut hasher);
@@ -886,7 +888,7 @@ impl fmt::Debug for Aggregator {
     }
 }
 
-/// Split buckets into N logical partitions, determined by the bucket key.
+/// Splits buckets into N logical partitions, determined by the bucket key.
 pub fn partition_buckets(
     project_key: ProjectKey,
     buckets: Vec<Bucket>,

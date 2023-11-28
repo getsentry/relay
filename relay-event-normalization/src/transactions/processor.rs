@@ -3,11 +3,12 @@ use std::ops::Range;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
+use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
-use relay_event_schema::protocol::{Event, EventType, SpanStatus, TraceContext, TransactionSource};
+use relay_event_schema::protocol::{Event, Span, SpanStatus, TraceContext, TransactionSource};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
@@ -189,6 +190,85 @@ impl<'r> TransactionsProcessor<'r> {
                 "start_timestamp hard-required for transaction events",
             )),
         }
+    }
+}
+
+impl Processor for TransactionsProcessor<'_> {
+    fn process_event(
+        &mut self,
+        event: &mut Event,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if event.ty.value() != Some(&EventType::Transaction) {
+            return Ok(());
+        }
+
+        // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
+        // Relay doesn't reject events missing the transaction name. Instead, a default transaction
+        // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
+        // SDKs should avoid sending empty transaction names, setting a more contextual default
+        // value when possible.
+        if event.transaction.value().map_or(true, |s| s.is_empty()) {
+            event
+                .transaction
+                .set_value(Some("<unlabeled transaction>".to_owned()))
+        }
+
+        set_default_transaction_source(event);
+        self.normalize_transaction_name(event)?;
+        self.validate_transaction(event)?;
+        end_all_spans(event)?;
+
+        event.process_child_values(self, state)?;
+        Ok(())
+    }
+
+    fn process_span(
+        &mut self,
+        span: &mut Span,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        match (span.start_timestamp.value(), span.timestamp.value()) {
+            (Some(start), Some(end)) => {
+                if end < start {
+                    return Err(ProcessingAction::InvalidTransaction(
+                        "end timestamp in span is smaller than start timestamp",
+                    ));
+                }
+            }
+            (_, None) => {
+                // XXX: Maybe do the same as event.timestamp?
+                return Err(ProcessingAction::InvalidTransaction(
+                    "span is missing timestamp",
+                ));
+            }
+            (None, _) => {
+                // XXX: Maybe copy timestamp over?
+                return Err(ProcessingAction::InvalidTransaction(
+                    "span is missing start_timestamp",
+                ));
+            }
+        }
+
+        if span.trace_id.value().is_none() {
+            return Err(ProcessingAction::InvalidTransaction(
+                "span is missing trace_id",
+            ));
+        }
+
+        if span.span_id.value().is_none() {
+            return Err(ProcessingAction::InvalidTransaction(
+                "span is missing span_id",
+            ));
+        }
+
+        span.op.get_or_insert_with(|| "default".to_owned());
+
+        span.process_child_values(self, state)?;
+
+        Ok(())
     }
 }
 
@@ -377,85 +457,66 @@ fn end_all_spans(event: &mut Event) -> ProcessingResult {
     Ok(())
 }
 
-impl Processor for TransactionsProcessor<'_> {
-    fn process_event(
-        &mut self,
-        event: &mut Event,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            return Ok(());
-        }
-
-        // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
-        // Relay doesn't reject events missing the transaction name. Instead, a default transaction
-        // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
-        // SDKs should avoid sending empty transaction names, setting a more contextual default
-        // value when possible.
-        if event.transaction.value().map_or(true, |s| s.is_empty()) {
-            event
-                .transaction
-                .set_value(Some("<unlabeled transaction>".to_owned()))
-        }
-
-        set_default_transaction_source(event);
-        self.normalize_transaction_name(event)?;
-        self.validate_transaction(event)?;
-        end_all_spans(event)?;
-
-        event.process_child_values(self, state)?;
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use chrono::offset::TimeZone;
-    use chrono::{Duration, Utc};
+
+    use chrono::{Duration, TimeZone, Utc};
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
-    use relay_base_schema::events::EventType;
     use relay_common::glob2::LazyGlob;
-    use relay_event_schema::processor::{process_value, ProcessingState, Processor};
-    use relay_event_schema::protocol::{
-        ClientSdkInfo, Contexts, Span, SpanId, TraceId, TransactionSource,
-    };
-    use relay_protocol::{get_value, Meta, Object};
-    use similar_asserts::assert_eq;
-
-    use super::*;
+    use relay_event_schema::processor::process_value;
+    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, Span, SpanId, TraceId};
+    use relay_protocol::{assert_annotated_snapshot, get_value, Object};
 
     use crate::RedactionRule;
 
-    fn new_test_event() -> Annotated<Event> {
-        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
-        Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
-            start_timestamp: Annotated::new(start.into()),
-            timestamp: Annotated::new(end.into()),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
+    use super::*;
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_ok() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "ok"
+                }
             },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                start_timestamp: Annotated::new(start.into()),
-                timestamp: Annotated::new(end.into()),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                op: Annotated::new("db.statement".to_owned()),
-                ..Default::default()
-            })]),
-            ..Default::default()
-        })
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(!is_high_cardinality_sdk(&event.0.unwrap()));
+    }
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_error() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "internal_error"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(!event.meta().has_errors());
+
+        assert!(is_high_cardinality_sdk(&event.0.unwrap()));
     }
 
     #[test]
@@ -489,6 +550,36 @@ mod tests {
         );
     }
 
+    fn new_test_event() -> Annotated<Event> {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+        Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            start_timestamp: Annotated::new(start.into()),
+            timestamp: Annotated::new(end.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                start_timestamp: Annotated::new(start.into()),
+                timestamp: Annotated::new(end.into()),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                op: Annotated::new("db.statement".to_owned()),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        })
+    }
+
     #[test]
     fn test_discards_when_timestamp_out_of_range() {
         let mut event = new_test_event();
@@ -510,7 +601,7 @@ mod tests {
     fn test_replace_missing_timestamp() {
         let span = Span {
             start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(1968, 1, 1, 0, 0, 1).unwrap().into(),
+                Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 1).unwrap().into(),
             ),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
@@ -841,6 +932,202 @@ mod tests {
     }
 
     #[test]
+    fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut TransactionsProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing start_timestamp"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_trace_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut TransactionsProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing trace_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_span_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut TransactionsProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing span_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_defaults_transaction_event_with_span_with_missing_op() {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_annotated_snapshot!(event, @r#"
+        {
+          "type": "transaction",
+          "transaction": "/",
+          "transaction_info": {
+            "source": "unknown"
+          },
+          "timestamp": 946684810.0,
+          "start_timestamp": 946684800.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "http.server",
+              "type": "trace"
+            }
+          },
+          "spans": [
+            {
+              "timestamp": 946684810.0,
+              "start_timestamp": 946684800.0,
+              "op": "default",
+              "span_id": "fa90fdead5f74053",
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+            }
+          ]
+        }
+        "#);
+    }
+
+    #[test]
     fn test_default_transaction_source_unknown() {
         let mut event = Annotated::<Event>::from_json(
             r#"
@@ -937,53 +1224,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_high_cardinality_sdk_ruby_ok() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {
-                "trace": {
-                    "op": "rails.request",
-                    "status": "ok"
-                }
-            },
-            "sdk": {"name": "sentry.ruby"},
-            "modules": {"rack": "1.2.3"}
-        }
-        "#;
-        let event = Annotated::<Event>::from_json(json).unwrap();
-
-        assert!(!is_high_cardinality_sdk(&event.0.unwrap()));
-    }
-
-    #[test]
-    fn test_is_high_cardinality_sdk_ruby_error() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {
-                "trace": {
-                    "op": "rails.request",
-                    "status": "internal_error"
-                }
-            },
-            "sdk": {"name": "sentry.ruby"},
-            "modules": {"rack": "1.2.3"}
-        }
-        "#;
-        let event = Annotated::<Event>::from_json(json).unwrap();
-        assert!(!event.meta().has_errors());
-
-        assert!(is_high_cardinality_sdk(&event.0.unwrap()));
-    }
-
-    #[test]
     fn test_transaction_name_normalize() {
         let json = r#"
         {
@@ -1072,7 +1312,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
@@ -1231,7 +1470,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
@@ -1362,6 +1600,11 @@ mod tests {
     },
 ]"#);
 
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
         // Process again:
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1393,6 +1636,11 @@ mod tests {
         range: None,
     },
 ]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1528,6 +1776,11 @@ mod tests {
         range: None,
     },
 ]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1563,7 +1816,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
 
@@ -1600,6 +1852,11 @@ mod tests {
         range: None,
     },
 ]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1814,6 +2071,10 @@ mod tests {
         ),
     },
 ]"#);
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]

@@ -102,6 +102,8 @@ pub enum ItemType {
     Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
+    /// Additional metadata for metrics
+    MetricMeta,
     /// Client internal report (eg: outcomes).
     ClientReport,
     /// Profile event payload encoded as JSON.
@@ -156,6 +158,7 @@ impl fmt::Display for ItemType {
             Self::Sessions => write!(f, "sessions"),
             Self::Statsd => write!(f, "statsd"),
             Self::MetricBuckets => write!(f, "metric_buckets"),
+            Self::MetricMeta => write!(f, "metric_meta"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
@@ -186,6 +189,7 @@ impl std::str::FromStr for ItemType {
             "sessions" => Self::Sessions,
             "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
+            "metric_meta" => Self::MetricMeta,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
@@ -587,7 +591,7 @@ impl Item {
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Statsd | ItemType::MetricBuckets => None,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::UserReportV2 => None,
@@ -779,6 +783,7 @@ impl Item {
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
+            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
@@ -813,6 +818,7 @@ impl Item {
             ItemType::Sessions => false,
             ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
+            ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
@@ -1112,6 +1118,14 @@ impl Envelope {
     {
         let index = self.items.iter().position(cond);
         index.map(|index| self.items.swap_remove(index))
+    }
+
+    /// Removes and returns the all items that match the given condition.
+    pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items.drain_filter(|item| cond(item)).collect()
     }
 
     /// Adds a new item to this envelope.

@@ -24,13 +24,13 @@ mod legacy;
 mod normalize;
 mod regexes;
 mod remove_other;
-pub mod replay;
 mod schema;
 mod statsd;
 mod timestamp;
 mod transactions;
 mod trimming;
 
+pub mod replay;
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use transactions::*;
@@ -150,7 +150,7 @@ pub struct StoreConfig {
 
 /// The processor that normalizes events for processing and storage.
 ///
-/// This processor is a superset of [`light_normalize_event`], that runs additional and heavier
+/// This processor is a superset of [`NormalizeProcessor`], that runs additional and heavier
 /// normalization steps. These normalizations should ideally be performed on events that are likely
 /// to be ingested, after other functionality such as inbound filters have run.
 ///

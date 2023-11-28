@@ -669,6 +669,7 @@ impl Getter for Event {
             "contexts.device.brand" => self.context::<DeviceContext>()?.brand.as_str()?.into(),
             "contexts.device.charging" => self.context::<DeviceContext>()?.charging.value()?.into(),
             "contexts.device.family" => self.context::<DeviceContext>()?.family.as_str()?.into(),
+            "contexts.device.model" => self.context::<DeviceContext>()?.model.as_str()?.into(),
             "contexts.device.locale" => self.context::<DeviceContext>()?.locale.as_str()?.into(),
             "contexts.device.online" => self.context::<DeviceContext>()?.online.value()?.into(),
             "contexts.device.orientation" => self

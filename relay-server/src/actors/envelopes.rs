@@ -161,7 +161,6 @@ pub struct SendMetrics {
 pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
-    SendMetrics(SendMetrics),
 }
 
 impl relay_system::Interface for EnvelopeManager {}
@@ -179,14 +178,6 @@ impl FromMessage<SendClientReports> for EnvelopeManager {
 
     fn from_message(message: SendClientReports, _: ()) -> Self {
         Self::SendClientReports(message)
-    }
-}
-
-impl FromMessage<SendMetrics> for EnvelopeManager {
-    type Response = NoResponse;
-
-    fn from_message(message: SendMetrics, _: ()) -> Self {
-        Self::SendMetrics(message)
     }
 }
 
@@ -358,9 +349,6 @@ impl EnvelopeManagerService {
             buckets,
             scoping,
             extraction_mode,
-            max_batch_size_bytes,
-            partitions,
-            project_state,
         });
     }
 
@@ -402,9 +390,6 @@ impl EnvelopeManagerService {
             }
             EnvelopeManager::SendClientReports(message) => {
                 self.handle_send_client_reports(message).await;
-            }
-            EnvelopeManager::SendMetrics(message) => {
-                self.handle_send_metrics(message).await;
             }
         }
     }

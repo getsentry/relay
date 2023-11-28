@@ -11,16 +11,14 @@ use crate::bucket::Bucket;
 use crate::BucketValue;
 
 /// The fraction of size passed to [`BucketsView::by_size()`] at which buckets will be split. A value of
-/// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
+/// `2` means that all buckets smaller than half of `metrics_max_batch_size` will be moved in their entirety,
 /// and buckets larger will be split up.
 const BUCKET_SPLIT_FACTOR: usize = 32;
 
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
 
-/// Just an internal type representing an index into a slice of buckets.
-///
-/// Note: the meaning of fields depends on the context of the index.
+/// An internal type representing an index into a slice of buckets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Index {
     /// Index into the slice.
@@ -45,16 +43,23 @@ struct Index {
 /// Iterating over a [`BucketsView`] yields [`BucketView`] items,
 /// only the first and last elements may be partial buckets.
 ///
+/// In the above example `View 1` has a partial bucket at the end and
+/// `View 2` has a partial bucket in the beginning.
+///
 /// Using the above example, iterating over `View 1` yields the buckets:
 /// `[C:1], [C:12], [D:0, 1, 2, 3]`.
 pub struct BucketsView<'a> {
     /// Source slice of buckets.
     inner: &'a [Bucket],
-    /// Start index, slice index indicates bucket,
-    /// bucket index indicates offset in the selected bucket.
+    /// Start index.
+    ///
+    /// - Slice index indicates bucket.
+    /// - Bucket index indicates offset in the selected bucket.
     start: Index,
-    /// End index, slice index indicates exclusive end,
-    /// bucket index, indicates offset into the *next* bucket past the end.
+    /// End index.
+    ///
+    /// - Slice index indicates exclusive end.
+    /// - Bucket index, indicates offset into the *next* bucket past the end.
     end: Index,
 }
 
@@ -88,7 +93,7 @@ impl<'a> BucketsView<'a> {
         self.len() == 0
     }
 
-    /// Iterater over all buckets in the view.
+    /// Iterator over all buckets in the view.
     pub fn iter(&self) -> impl Iterator<Item = BucketView<'a>> {
         BucketsViewIter::new(self.inner, self.start, self.end)
     }
@@ -121,7 +126,7 @@ struct BucketsViewIter<'a> {
 impl<'a> BucketsViewIter<'a> {
     /// Creates a new iterator.
     ///
-    /// **Notes:** if `start` and `end` are not valid indices the iterator may panic.
+    /// Start and end must be valid indices or iterator may end early.
     fn new(inner: &'a [Bucket], start: Index, end: Index) -> Self {
         Self {
             inner,
@@ -145,18 +150,27 @@ impl<'a> Iterator for BucketsViewIter<'a> {
         }
 
         // This doesn't overflow because the last bucket in the inner slice will always have a 0 bucket index.
-        let next = &self.inner[self.current.slice];
+        debug_assert!(
+            self.current.slice < self.inner.len(),
+            "invariant violated, iterator pointing past the slice"
+        );
+        let next = self.inner.get(self.current.slice)?;
 
-        // Choose the bucket end, this will always the full bucket except if it is the last.
+        // Choose the bucket end, this will always be the full bucket except if it is the last.
         let end = match self.current.slice == self.end.slice {
             false => next.value.len(),
             true => self.end.bucket,
         };
 
         let next = BucketView::new(next).select(self.current.bucket..end);
+        let Some(next) = next else {
+            debug_assert!(false, "invariant violated, invalid bucket split");
+            relay_log::error!("Internal invariant violated, invalid bucket split, dropping all remaining buckets.");
+            return None;
+        };
 
         // Even if the current Bucket was partial, the next one will be full,
-        // except it is the last one.
+        // except if it is the last one.
         self.current = Index {
             slice: self.current.slice + 1,
             bucket: 0,
@@ -176,14 +190,14 @@ struct BucketsViewBySizeIter<'a> {
     current: Index,
     /// Terminal position.
     end: Index,
-    /// Maximum size of in bytes of each slice.
+    /// Maximum size in bytes of each slice.
     max_size_bytes: usize,
 }
 
 impl<'a> BucketsViewBySizeIter<'a> {
     /// Creates a new iterator.
     ///
-    /// **Notes:** if `start` and `end` are not valid indices the iterator may panic.
+    /// Start and end must be valid indices or iterator may end early.
     fn new(inner: &'a [Bucket], start: Index, end: Index, max_size_bytes: usize) -> Self {
         Self {
             inner,
@@ -210,10 +224,22 @@ impl<'a> Iterator for BucketsViewBySizeIter<'a> {
             }
 
             // Select next potential bucket,
-            // this won't overflow because `end` will never go past the slice and
+            // this should never overflow because `end` will never go past the slice and
             // we just validated that current is constrained by end.
-            let bucket = &self.inner[self.current.slice];
+            debug_assert!(
+                self.current.slice < self.inner.len(),
+                "invariant violated, iterator pointing past the slice"
+            );
+            let bucket = self.inner.get(self.current.slice)?;
+
+            // Selection should never fail, because either we select the entire range,
+            // or we previously already split the bucket, which means this range is good.
             let bucket = BucketView::new(bucket).select(self.current.bucket..bucket.value.len());
+            let Some(bucket) = bucket else {
+                debug_assert!(false, "internal invariant violated, invalid bucket split");
+                relay_log::error!("Internal invariant violated, invalid bucket split, dropping all remaining buckets.");
+                return None;
+            };
 
             match split_at(
                 &bucket,
@@ -296,6 +322,7 @@ pub struct BucketView<'a> {
 
 impl<'a> BucketView<'a> {
     /// Creates a new bucket view of a bucket.
+    ///
     /// The resulting view contains the entire bucket.
     pub fn new(bucket: &'a Bucket) -> Self {
         Self {
@@ -363,24 +390,21 @@ impl<'a> BucketView<'a> {
 
     /// Selects a sub-view of the current view.
     ///
-    /// # Panics
-    ///
-    /// Function panics when:
-    /// * the passed range is not contained in the current view.
-    /// * trying to split a counter or gauage bucket
-    pub fn select(mut self, range: Range<usize>) -> Self {
-        assert!(
-            range.start >= self.range.start,
-            "range not contained in view"
-        );
-        assert!(range.end <= self.range.end, "range not contained in view");
-        assert!(
-            self.can_split() || range == (0..self.inner.value.len()),
-            "attempt to split unsplittable bucket"
-        );
+    /// Returns `None` when:
+    /// - the passed range is not contained in the current view.
+    /// - trying to split a counter or gauge bucket.
+    pub fn select(mut self, range: Range<usize>) -> Option<Self> {
+        if range.start < self.range.start || range.end > self.range.end {
+            return None;
+        }
+
+        // Make sure the bucket can be split, or the entire bucket range is passed.
+        if !self.can_split() && range != (0..self.inner.value.len()) {
+            return None;
+        }
 
         self.range = range;
-        self
+        Some(self)
     }
 
     /// Whether the bucket can be split into multiple.
@@ -603,17 +627,17 @@ enum SplitDecision {
 /// This is an approximate function. The bucket is not actually serialized, but rather its
 /// footprint is estimated through the number of data points contained. See
 /// `estimate_size` for more information.
-fn split_at(bucket: &BucketView<'_>, size: usize, min_split_size: usize) -> SplitDecision {
+fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> SplitDecision {
     // If there's enough space for the entire bucket, do not perform a split.
     let bucket_size = estimate_size(bucket);
-    if size >= bucket_size {
+    if max_size >= bucket_size {
         return SplitDecision::BucketFits(bucket_size);
     }
 
     // If the bucket key can't even fit into the remaining length, move the entire bucket into
     // the right-hand side.
     let own_size = estimate_base_size(bucket);
-    if size < (own_size + AVG_VALUE_SIZE) {
+    if max_size < (own_size + AVG_VALUE_SIZE) {
         // split_at must not be zero
         return SplitDecision::MoveToNextBatch;
     }
@@ -624,7 +648,7 @@ fn split_at(bucket: &BucketView<'_>, size: usize, min_split_size: usize) -> Spli
 
     // Perform a split with the remaining space after adding the key. We assume an average
     // length of 8 bytes per value and compute the number of items fitting into the left side.
-    let split_at = (size - own_size) / AVG_VALUE_SIZE;
+    let split_at = (max_size - own_size) / AVG_VALUE_SIZE;
 
     SplitDecision::Split(split_at)
 }
@@ -657,7 +681,7 @@ mod tests {
     fn test_bucket_view_select_counter() {
         let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let view = BucketView::new(&bucket).select(0..1);
+        let view = BucketView::new(&bucket).select(0..1).unwrap();
         assert_eq!(view.len(), 1);
         assert_eq!(
             serde_json::to_string(&view).unwrap(),
@@ -669,30 +693,25 @@ mod tests {
     fn test_bucket_view_select_invalid_counter() {
         let bucket = Bucket::parse(b"b0:1|c", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..0);
-        select_fail(0..2);
-        select_fail(1..1);
+        assert!(BucketView::new(&bucket).select(0..0).is_none());
+        assert!(BucketView::new(&bucket).select(0..2).is_none());
+        assert!(BucketView::new(&bucket).select(1..1).is_none());
     }
 
     #[test]
     fn test_bucket_view_select_distribution() {
         let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let view = BucketView::new(&bucket).select(0..3);
+        let view = BucketView::new(&bucket).select(0..3).unwrap();
         assert_eq!(view.len(), 3);
         assert_eq!(
             view.value(),
             BucketViewValue::Distribution(&[1.0, 2.0, 3.0])
         );
-        let view = BucketView::new(&bucket).select(1..3);
+        let view = BucketView::new(&bucket).select(1..3).unwrap();
         assert_eq!(view.len(), 2);
         assert_eq!(view.value(), BucketViewValue::Distribution(&[2.0, 3.0]));
-        let view = BucketView::new(&bucket).select(1..5);
+        let view = BucketView::new(&bucket).select(1..5).unwrap();
         assert_eq!(view.len(), 4);
         assert_eq!(
             view.value(),
@@ -704,14 +723,9 @@ mod tests {
     fn test_bucket_view_select_invalid_distribution() {
         let bucket = Bucket::parse(b"b2:1:2:3:5:5|d", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..6);
-        select_fail(5..6);
-        select_fail(77..99);
+        assert!(BucketView::new(&bucket).select(0..6).is_none());
+        assert!(BucketView::new(&bucket).select(5..6).is_none());
+        assert!(BucketView::new(&bucket).select(77..99).is_none());
     }
 
     #[test]
@@ -719,13 +733,13 @@ mod tests {
         let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
         let s = [42, 75].into();
 
-        let view = BucketView::new(&bucket).select(0..2);
+        let view = BucketView::new(&bucket).select(0..2).unwrap();
         assert_eq!(view.len(), 2);
         assert_eq!(view.value(), BucketViewValue::Set(SetView::new(&s, 0..2)));
-        let view = BucketView::new(&bucket).select(1..2);
+        let view = BucketView::new(&bucket).select(1..2).unwrap();
         assert_eq!(view.len(), 1);
         assert_eq!(view.value(), BucketViewValue::Set(SetView::new(&s, 1..2)));
-        let view = BucketView::new(&bucket).select(0..1);
+        let view = BucketView::new(&bucket).select(0..1).unwrap();
         assert_eq!(view.len(), 1);
         assert_eq!(view.value(), BucketViewValue::Set(SetView::new(&s, 0..1)));
     }
@@ -734,13 +748,9 @@ mod tests {
     fn test_bucket_view_select_invalid_set() {
         let bucket = Bucket::parse(b"b3:42:75|s", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..3);
-        select_fail(2..5);
+        assert!(BucketView::new(&bucket).select(0..3).is_none());
+        assert!(BucketView::new(&bucket).select(2..5).is_none());
+        assert!(BucketView::new(&bucket).select(77..99).is_none());
     }
 
     #[test]
@@ -748,7 +758,7 @@ mod tests {
         let bucket =
             Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let view = BucketView::new(&bucket).select(0..5);
+        let view = BucketView::new(&bucket).select(0..5).unwrap();
         assert_eq!(view.len(), 5);
         assert_eq!(
             view.value(),
@@ -767,15 +777,10 @@ mod tests {
         let bucket =
             Bucket::parse(b"b4:25:17:42:220:85|g", UnixTimestamp::from_secs(5000)).unwrap();
 
-        let select_fail = |range| {
-            let view = BucketView::new(&bucket);
-            std::panic::catch_unwind(|| view.select(range)).expect_err("expected to panic")
-        };
-
-        select_fail(0..1);
-        select_fail(0..4);
-        select_fail(5..5);
-        select_fail(5..6);
+        assert!(BucketView::new(&bucket).select(0..1).is_none());
+        assert!(BucketView::new(&bucket).select(0..4).is_none());
+        assert!(BucketView::new(&bucket).select(5..5).is_none());
+        assert!(BucketView::new(&bucket).select(5..6).is_none());
     }
 
     #[test]

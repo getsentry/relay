@@ -1,4 +1,5 @@
 //! Span description scrubbing logic.
+mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 pub use sql::parse_query;
@@ -13,6 +14,7 @@ use url::Url;
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
+use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 /// Dummy URL used to parse relative URLs.
@@ -22,6 +24,9 @@ static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwr
 ///
 /// Segments longer than this are treated as identifiers.
 const MAX_SEGMENT_LENGTH: usize = 25;
+
+/// Some bundlers attach characters to the end of a filename, try to catch those.
+const MAX_EXTENSION_LENGTH: usize = 10;
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
@@ -233,19 +238,37 @@ fn scrub_resource(string: &str) -> Option<String> {
             return Some("browser-extension://*".to_owned());
         }
         scheme => {
-            let segments = url.path_segments();
-            let segment_count = segments.map(|s| s.count()).unwrap_or_default();
             let domain = url
                 .domain()
                 .and_then(|d| normalize_domain(d, url.port()))
                 .unwrap_or("".into());
+            let segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
+            let mut output_segments = vec![];
+            for (i, segment) in url.path_segments().into_iter().flatten().enumerate() {
+                if i + 1 == segment_count {
+                    break;
+                }
+                if COMMON_PATH_SEGMENTS.contains(segment) {
+                    output_segments.push(segment);
+                } else if !output_segments.last().is_some_and(|s| *s == "*") {
+                    // only one asterisk
+                    output_segments.push("*");
+                }
+            }
+
+            let segments = output_segments.join("/");
+
             let last_segment = url
                 .path_segments()
                 .and_then(|s| s.last())
                 .unwrap_or_default();
-            let sep = if segment_count > 1 { "*/" } else { "" };
-            let last_segment = scrub_resource_path(last_segment);
-            format!("{scheme}://{domain}/{sep}{last_segment}")
+            let last_segment = scrub_resource_filename(last_segment);
+
+            if segments.is_empty() {
+                format!("{scheme}://{domain}/{last_segment}")
+            } else {
+                format!("{scheme}://{domain}/{segments}/{last_segment}")
+            }
         }
     };
 
@@ -259,11 +282,19 @@ fn scrub_resource(string: &str) -> Option<String> {
     Some(formatted)
 }
 
-fn scrub_resource_path(path: &str) -> String {
+fn scrub_resource_filename(path: &str) -> String {
     let (mut base_path, mut extension) = path.rsplit_once('.').unwrap_or((path, ""));
     if extension.contains('/') {
         // Not really an extension
         base_path = path;
+        extension = "";
+    }
+
+    // Only accept short, clean file extensions.
+    if let Some(invalid) = extension.bytes().position(|c| !c.is_ascii_alphanumeric()) {
+        extension = &extension[..invalid];
+    }
+    if extension.len() > MAX_EXTENSION_LENGTH {
         extension = "";
     }
 
@@ -475,28 +506,42 @@ mod tests {
         resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
-        "https://example.com/*/*.map"
+        "https://example.com/static/chunks/*.map"
     );
 
     span_description_test!(
         resource_script_numeric_filename,
         "https://example.com/static/chunks/09876543211234567890",
         "resource.script",
-        "https://example.com/*/*"
+        "https://example.com/static/chunks/*"
+    );
+
+    span_description_test!(
+        resource_next_chunks,
+        "/_next/static/chunks/12345-abcdef0123456789.js",
+        "resource.script",
+        "/_next/static/chunks/*-*.js"
+    );
+
+    span_description_test!(
+        resource_next_media,
+        "/_next/static/media/Some_Font-Bold.0123abcd.woff2",
+        "resource.css",
+        "/_next/static/media/Some_Font-Bold.*.woff2"
     );
 
     span_description_test!(
         resource_css,
         "https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css",
         "resource.css",
-        "https://example.com/*/dark_high_contrast-*.css"
+        "https://example.com/assets/dark_high_contrast-*.css"
     );
 
     span_description_test!(
         integer_in_resource,
         "https://example.com/assets/this_is-a_good_resource-123-scrub_me.js",
         "resource.css",
-        "https://example.com/*/*.js"
+        "https://example.com/assets/*.js"
     );
 
     span_description_test!(
@@ -510,14 +555,14 @@ mod tests {
         resource_query_params2,
         "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://*.domain.com/*/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "https://*.domain.com/*/guide.gif"
+        "https://*.domain.com/data/guide.gif"
     );
 
     span_description_test!(
@@ -531,14 +576,14 @@ mod tests {
         resource_vite,
         "webroot/assets/Profile-73f6525d.js",
         "resource.js",
-        "*/Profile-*.js"
+        "*/assets/Profile-*.js"
     );
 
     span_description_test!(
         resource_vite_css,
         "webroot/assets/Shop-1aff80f7.css",
         "resource.css",
-        "*/Shop-*.css"
+        "*/assets/Shop-*.css"
     );
 
     span_description_test!(
@@ -608,7 +653,7 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://*.domain.com/*/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
@@ -630,6 +675,27 @@ mod tests {
         "/page?action=name",
         "resource.script",
         "/page"
+    );
+
+    span_description_test!(
+        resource_script_with_long_extension,
+        "/path/to/file.thisismycustomfileextension2000",
+        "resource.script",
+        "/*/file"
+    );
+
+    span_description_test!(
+        resource_script_with_long_suffix,
+        "/path/to/file.js~ri~some-_-1,,thing-_-words%2Fhere~ri~",
+        "resource.script",
+        "/*/file.js"
+    );
+
+    span_description_test!(
+        resource_script_with_tilde_extension,
+        "/path/to/file.~~",
+        "resource.script",
+        "/*/file"
     );
 
     span_description_test!(
@@ -659,7 +725,7 @@ mod tests {
         resource_img_comma_with_extension,
         "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
         "resource.img",
-        "https://example.org/*/weird-stuff-*-*-*.jpg"
+        "https://example.org/*/media/*/weird-stuff-*-*-*.jpg"
     );
 
     span_description_test!(

@@ -4,10 +4,10 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.10.1"
+version = "23.11.2"
 edition = "2021"
 build = "build.rs"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 
 [features]
@@ -26,6 +26,7 @@ processing = [
     "bytes/serde",
     "relay-config/processing",
     "relay-kafka/producer",
+    "relay-metrics/redis",
     "relay-quotas/redis",
     "relay-redis/impl",
     "relay-sampling/redis",
@@ -49,7 +50,8 @@ chrono = { workspace = true, features = ["clock"] }
 data-encoding = "2.3.3"
 flate2 = "1.0.19"
 futures = { workspace = true }
-hashbrown = "0.13.2"
+hash32 = { workspace = true }
+hashbrown = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { version = "0.1.1" }
 mime = "0.3.16"
@@ -90,7 +92,7 @@ rmp-serde = "1.1.1"
 rust-embed = { version = "8.0.0", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-smallvec = { workspace = true }
+smallvec = { workspace = true, features = ["drain_filter"]  }
 sqlx = { version = "0.7.0", features = [
     "macros",
     "migrate",
@@ -118,7 +120,7 @@ uuid = { workspace = true, features = ["v5"] }
 zstd = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util", "time"] }
+tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
 relay-event-schema = { path = "../relay-event-schema", features = [
     "jsonschema",

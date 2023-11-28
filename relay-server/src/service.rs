@@ -142,7 +142,6 @@ impl ServiceState {
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
-            global_config.clone(),
             upstream_relay.clone(),
             test_store.clone(),
             #[cfg(feature = "processing")]
@@ -176,6 +175,7 @@ impl ServiceState {
             project_cache.clone(),
             test_store.clone(),
             upstream_relay.clone(),
+            global_config.clone(),
         );
         let guard = runtimes.project.enter();
         ProjectCacheService::new(

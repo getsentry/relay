@@ -1,6 +1,19 @@
 local STAGE_NAME = 'deploy-pops';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
+local region_pops = {
+  de: [
+    'de-pop-1',
+    'de-pop-2',
+  ],
+  us: [
+    'us-pop-1',
+    'us-pop-2',
+    'us-pop-3',
+    'us-pop-4',
+  ],
+};
+
 // Create a gocd job that will run the deploy-pop script
 local deploy_pop_job(region) =
   {
@@ -21,7 +34,7 @@ local deploy_pop_jobs(regions) =
     for region in regions
   };
 
-local us_pops_stage() =
+local pops_stage(region) =
   {
     [STAGE_NAME]: {
       fetch_materials: true,
@@ -48,13 +61,9 @@ local us_pops_stage() =
     },
   } {
     [STAGE_NAME]+: {
-      jobs+: deploy_pop_jobs([
-        'us',
-        'us-pop-1',
-        'us-pop-2',
-        'us-pop-3',
-        'us-pop-4',
-      ]),
+      jobs+: deploy_pop_jobs(
+        [region] + region_pops[region]
+      ),
     },
   };
 
@@ -70,8 +79,8 @@ local generic_pops_stage(region) =
 // of clusters, other regions only deploy to a single cluster.
 {
   stages(region)::
-    if region == 'us' then
-      [us_pops_stage()]
+    if region == 'us' || region == 'de' then
+      [pops_stage(region)]
     else
       [generic_pops_stage(region)],
 }
