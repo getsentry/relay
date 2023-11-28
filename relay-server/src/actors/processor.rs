@@ -53,7 +53,7 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_event_normalization::{span, StoreConfig, StoreProcessor},
+    relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_event_schema::protocol::Span,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -77,6 +77,7 @@ use crate::utils::{
 };
 
 mod session;
+mod span;
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -2110,6 +2111,7 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
+        use relay_event_normalization::span::tag_extraction;
         // Only extract spans from transactions (not errors).
         if state.event_type() != Some(EventType::Transaction) {
             return;
@@ -2180,7 +2182,7 @@ impl EnvelopeProcessorService {
         }
 
         // Extract tags to add to this span as well
-        let shared_tags = span::tag_extraction::extract_shared_tags(event);
+        let shared_tags = tag_extraction::extract_shared_tags(event);
         transaction_span.sentry_tags = Annotated::new(
             shared_tags
                 .clone()
@@ -2279,8 +2281,7 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
-        use relay_event_normalization::span::tag_extraction;
-
+        use crate::actors::processor::span::normalize_span;
         use crate::metrics_extraction::generic::extract_metrics;
 
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
@@ -2310,24 +2311,18 @@ impl EnvelopeProcessorService {
                 _ => return ItemAction::Keep,
             };
 
-            let Some(span) = annotated_span.value_mut() else {
-                return ItemAction::DropSilently;
-            };
-
             // TODO: Add missing normalization steps (see light_normalize_event).
-            let config = tag_extraction::Config {
-                max_tag_value_size: self
-                    .inner
+            normalize_span(
+                &mut annotated_span,
+                self.inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
-            };
-            let tags = tag_extraction::extract_tags(span, &config, None, None);
-            span.sentry_tags = Annotated::new(
-                tags.into_iter()
-                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                    .collect(),
             );
+
+            let Some(span) = annotated_span.value_mut() else {
+                return ItemAction::DropSilently;
+            };
 
             if let Some(config) = span_metrics_extraction_config {
                 let metrics = extract_metrics(span, config);
@@ -2341,7 +2336,14 @@ impl EnvelopeProcessorService {
 
             // TODO: rate limiting
 
-            // TODO: validation for kafka (move to kafka service)
+            // Validate for kafka (TODO: this should be moved to kafka producer)
+            let annotated_span = match self.validate_span(annotated_span) {
+                Ok(res) => res,
+                Err(err) => {
+                    relay_log::error!("invalid span: {err}");
+                    return ItemAction::DropSilently;
+                }
+            };
 
             // Write back:
             let mut new_item = Item::new(ItemType::Span);
@@ -2358,30 +2360,6 @@ impl EnvelopeProcessorService {
 
             ItemAction::Keep
         });
-
-        // state.managed_envelope.retain_items(|item| match item.ty() {
-        //     ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
-        //     ItemType::Span if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
-        //     ItemType::OtelSpan => {
-        //         match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
-        //             Ok(otel_span) => add_span(Annotated::new(otel_span.into())),
-        //             Err(err) => relay_log::debug!("failed to parse OTel span: {}", err),
-        //         }
-        //         ItemAction::DropSilently
-        //     }
-        //     ItemType::Span => {
-        //         match Annotated::<Span>::from_json_bytes(&item.payload()) {
-        //             Ok(event_span) => add_span(event_span),
-        //             Err(err) => relay_log::debug!("failed to parse span: {}", err),
-        //         }
-        //         ItemAction::DropSilently
-        //     }
-        //     _ => ItemAction::Keep,
-        // });
-        // let envelope = state.managed_envelope.envelope_mut();
-        // for item in items {
-        //     envelope.add_item(item);
-        // }
     }
 
     /// Computes the sampling decision on the incoming event
