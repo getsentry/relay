@@ -40,8 +40,8 @@ type UpstreamQueryResult =
 struct GetGlobalConfigResponse {
     #[serde(default)]
     global: Option<GlobalConfig>,
-    /// Instead of using [`Status`], we use StatusResponse as a separate field in order to not
-    /// make breaking changes to the api.
+    // Instead of using [`Status`], we use StatusResponse as a separate field in order to not
+    // make breaking changes to the api.
     global_status: Option<StatusResponse>,
 }
 
