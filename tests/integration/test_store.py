@@ -1344,8 +1344,19 @@ def test_span_ingestion(
             payload=PayloadRef(
                 bytes=json.dumps(
                     {
-                        "op": "before_first_display",
+                        "description": "https://example.com/blah.js",
+                        "is_segment": False,
+                        "op": "resource.script",
                         "span_id": "bd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "sentry_tags": {
+                            "category": "resource",
+                            "description": "https://example.com/blah.js",
+                            "group": "37e3d9fab1ae9162",
+                            "op": "resource.script",
+                            "transaction": "hi",
+                            "transaction.op": "hi",
+                        },
                         "start_timestamp": 1597976300.0000000,
                         "timestamp": 1597976302.0000000,
                         "exclusive_time": 2.0,
@@ -1384,7 +1395,18 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "span": {
-                "op": "before_first_display",
+                "description": "https://example.com/blah.js",
+                "is_segment": False,
+                "op": "resource.script",
+                "segment_id": "968cff94913ebb07",
+                "sentry_tags": {
+                    "category": "resource",
+                    "description": "https://example.com/blah.js",
+                    "group": "37e3d9fab1ae9162",
+                    "op": "resource.script",
+                    "transaction": "hi",
+                    "transaction.op": "hi",
+                },
                 "span_id": "bd429c44b67a3eb1",
                 "start_timestamp": 1597976300.0,
                 "timestamp": 1597976302.0,
@@ -1432,4 +1454,25 @@ def test_span_ingestion(
 
     metrics = list(metrics_consumer.get_metrics())
 
-    assert metrics == ["TODO"]
+    assert metrics == [
+        {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "retention_days": 90,
+            "project_id": 42,
+            "tags": {
+                "transaction": "hi",
+            },
+            "type": "d",
+            "value": [2.0],
+        },
+        {
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "org_id": 1,
+            "retention_days": 90,
+            "project_id": 42,
+            "tags": {},
+            "type": "d",
+            "value": [2.0],
+        },
+    ]
