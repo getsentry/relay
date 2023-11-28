@@ -2279,6 +2279,8 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
+        use crate::metrics_extraction::generic::extract_metrics;
+
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
@@ -2294,7 +2296,8 @@ impl EnvelopeProcessorService {
             };
             if let Some(config) = span_metrics_extraction_config {
                 if let Some(span_value) = validated_span.value() {
-                    crate::metrics_extraction::generic::extract_metrics(span_value, config);
+                    let metrics = extract_metrics(span_value, config);
+                    state.extracted_metrics.project_metrics.extend(metrics);
                 }
             }
             if let Ok(payload) = validated_span.to_json() {

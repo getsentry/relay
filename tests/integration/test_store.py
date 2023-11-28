@@ -1311,7 +1311,16 @@ def test_span_ingestion(
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
 
-    relay = relay_with_processing()
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+            }
+        }
+    )
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
@@ -1349,7 +1358,7 @@ def test_span_ingestion(
                         "op": "resource.script",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
-                        "sentry_tags": {
+                        "sentry_tags": {  # TODO: sentry tags are set by relay
                             "category": "resource",
                             "description": "https://example.com/blah.js",
                             "group": "37e3d9fab1ae9162",
@@ -1376,7 +1385,7 @@ def test_span_ingestion(
             "spanId": "e342abb1214ca182",
             "name": "my 2nd OTel span",
             "startTimeUnixNano": 1697620454981000000,
-            "endTimeUnixNano": 1697620454981078800,
+            "endTimeUnixNano": 1697620454981079900,
         },
     )
 
@@ -1439,40 +1448,99 @@ def test_span_ingestion(
             "span": {
                 "data": {},
                 "description": "my 2nd OTel span",
-                "exclusive_time": 0.0788,
+                "exclusive_time": 0.0799,
                 "is_segment": True,
                 "parent_span_id": "",
                 "segment_id": "e342abb1214ca182",
                 "span_id": "e342abb1214ca182",
                 "start_timestamp": 1697620454.981,
                 "status": "ok",
-                "timestamp": 1697620454.981079,
+                "timestamp": 1697620454.98108,
                 "trace_id": "89143b0763095bd9c9955e8175d1fb24",
             },
         },
     ]
 
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items())))
+    for metric in metrics:
+        try:
+            metric["value"].sort()
+        except AttributeError:
+            pass
 
     assert metrics == [
         {
-            "name": "d:spans/exclusive_time@millisecond",
             "org_id": 1,
-            "retention_days": 90,
             "project_id": 42,
-            "tags": {
-                "transaction": "hi",
-            },
-            "type": "d",
-            "value": [2.0],
+            "name": "c:spans/count_per_op@none",
+            "type": "c",
+            "value": 2.0,
+            "timestamp": 1697620454,
+            "tags": {},
+            "retention_days": 90,
         },
         {
-            "name": "d:spans/exclusive_time_light@millisecond",
             "org_id": 1,
-            "retention_days": 90,
             "project_id": 42,
-            "tags": {},
+            "name": "c:spans/count_per_op@none",
+            "type": "c",
+            "value": 1.0,
+            "timestamp": 1597976302,
+            "tags": {"span.category": "resource", "span.op": "resource.script"},
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time@millisecond",
             "type": "d",
             "value": [2.0],
+            "timestamp": 1597976302,
+            "tags": {
+                "span.category": "resource",
+                "span.description": "https://example.com/blah.js",
+                "span.group": "37e3d9fab1ae9162",
+                "span.op": "resource.script",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time@millisecond",
+            "type": "d",
+            "value": [0.0788, 0.0799],
+            "timestamp": 1697620454,
+            "tags": {"span.status": "ok"},
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "type": "d",
+            "value": [2.0],
+            "timestamp": 1597976302,
+            "tags": {
+                "span.category": "resource",
+                "span.description": "https://example.com/blah.js",
+                "span.group": "37e3d9fab1ae9162",
+                "span.op": "resource.script",
+                "transaction.op": "hi",
+            },
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "type": "d",
+            "value": [0.0788, 0.0799],
+            "timestamp": 1697620454,
+            "tags": {"span.status": "ok"},
+            "retention_days": 90,
         },
     ]
