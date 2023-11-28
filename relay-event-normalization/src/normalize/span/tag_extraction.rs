@@ -118,7 +118,7 @@ impl std::fmt::Display for RenderBlockingStatus {
 }
 
 /// Configuration for span tag extraction.
-pub(crate) struct Config {
+pub struct Config {
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
 }
@@ -209,7 +209,7 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-pub(crate) fn extract_tags(
+pub fn extract_tags(
     span: &Span,
     config: &Config,
     initial_display: Option<Timestamp>,

@@ -2279,59 +2279,109 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
+        use relay_event_normalization::span::tag_extraction;
+
         use crate::metrics_extraction::generic::extract_metrics;
 
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
         };
-        let mut items: Vec<Item> = Vec::new();
-        let mut add_span = |annotated_span: Annotated<Span>| {
-            let validated_span = match self.validate_span(annotated_span) {
-                Ok(span) => span,
-                Err(e) => {
-                    relay_log::error!("invalid span: {e}");
-                    return;
+
+        state.managed_envelope.retain_items(|item| {
+            let mut annotated_span = match item.ty() {
+                ItemType::OtelSpan => {
+                    match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
+                        Ok(otel_span) => Annotated::new(otel_span.into()),
+                        Err(err) => {
+                            relay_log::debug!("failed to parse OTel span: {}", err);
+                            return ItemAction::DropSilently;
+                        }
+                    }
+                }
+                ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
+                    Ok(span) => span,
+                    Err(err) => {
+                        relay_log::debug!("failed to parse span: {}", err);
+                        return ItemAction::DropSilently;
+                    }
+                },
+
+                _ => return ItemAction::Keep,
+            };
+
+            let Some(span) = annotated_span.value_mut() else {
+                return ItemAction::DropSilently;
+            };
+
+            // TODO: Add missing normalization steps (see light_normalize_event).
+            let config = tag_extraction::Config {
+                max_tag_value_size: self
+                    .inner
+                    .config
+                    .aggregator_config_for(MetricNamespace::Spans)
+                    .max_tag_value_length,
+            };
+            let tags = tag_extraction::extract_tags(span, &config, None, None);
+            span.sentry_tags = Annotated::new(
+                tags.into_iter()
+                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                    .collect(),
+            );
+
+            if let Some(config) = span_metrics_extraction_config {
+                let metrics = extract_metrics(span, config);
+                state.extracted_metrics.project_metrics.extend(metrics);
+            }
+
+            // TODO: dynamic sampling
+
+            // TODO: retain processor
+            // TODO: pii processor
+
+            // TODO: rate limiting
+
+            // TODO: validation for kafka (move to kafka service)
+
+            // Write back:
+            let mut new_item = Item::new(ItemType::Span);
+            let payload = match annotated_span.to_json() {
+                Ok(payload) => payload,
+                Err(err) => {
+                    relay_log::debug!("failed to serialize span: {}", err);
+                    return ItemAction::DropSilently;
                 }
             };
-            if let Some(config) = span_metrics_extraction_config {
-                if let Some(span_value) = validated_span.value() {
-                    let metrics = extract_metrics(span_value, config);
-                    state.extracted_metrics.project_metrics.extend(metrics);
-                }
-            }
-            if let Ok(payload) = validated_span.to_json() {
-                let mut item = Item::new(ItemType::Span);
-                item.set_payload(ContentType::Json, payload);
-                items.push(item);
-            }
-        };
-        let standalone_span_ingestion_enabled = state
-            .project_state
-            .has_feature(Feature::StandaloneSpanIngestion);
-        state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
-            ItemType::Span if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
-            ItemType::OtelSpan => {
-                match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
-                    Ok(otel_span) => add_span(Annotated::new(otel_span.into())),
-                    Err(err) => relay_log::debug!("failed to parse OTel span: {}", err),
-                }
-                ItemAction::DropSilently
-            }
-            ItemType::Span => {
-                match Annotated::<Span>::from_json_bytes(&item.payload()) {
-                    Ok(event_span) => add_span(event_span),
-                    Err(err) => relay_log::debug!("failed to parse span: {}", err),
-                }
-                ItemAction::DropSilently
-            }
-            _ => ItemAction::Keep,
+            new_item.set_payload(ContentType::Json, payload);
+
+            *item = new_item;
+
+            ItemAction::Keep
         });
-        let envelope = state.managed_envelope.envelope_mut();
-        for item in items {
-            envelope.add_item(item);
-        }
+
+        // state.managed_envelope.retain_items(|item| match item.ty() {
+        //     ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
+        //     ItemType::Span if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
+        //     ItemType::OtelSpan => {
+        //         match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
+        //             Ok(otel_span) => add_span(Annotated::new(otel_span.into())),
+        //             Err(err) => relay_log::debug!("failed to parse OTel span: {}", err),
+        //         }
+        //         ItemAction::DropSilently
+        //     }
+        //     ItemType::Span => {
+        //         match Annotated::<Span>::from_json_bytes(&item.payload()) {
+        //             Ok(event_span) => add_span(event_span),
+        //             Err(err) => relay_log::debug!("failed to parse span: {}", err),
+        //         }
+        //         ItemAction::DropSilently
+        //     }
+        //     _ => ItemAction::Keep,
+        // });
+        // let envelope = state.managed_envelope.envelope_mut();
+        // for item in items {
+        //     envelope.add_item(item);
+        // }
     }
 
     /// Computes the sampling decision on the incoming event
