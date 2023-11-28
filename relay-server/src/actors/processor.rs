@@ -2281,13 +2281,14 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
-        use crate::actors::processor::span::normalize_span;
+        use crate::actors::processor::span::{normalize_span, NormalizeSpanConfig};
         use crate::metrics_extraction::generic::extract_metrics;
 
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
         };
+        let received_at = state.managed_envelope.received_at();
 
         state.managed_envelope.retain_items(|item| {
             let mut annotated_span = match item.ty() {
@@ -2311,14 +2312,23 @@ impl EnvelopeProcessorService {
                 _ => return ItemAction::Keep,
             };
 
-            // TODO: Add missing normalization steps (see light_normalize_event).
-            normalize_span(
-                &mut annotated_span,
-                self.inner
+            let config = NormalizeSpanConfig {
+                received_at,
+                max_secs_in_past: self.inner.config.max_secs_in_past(),
+                max_secs_in_future: self.inner.config.max_secs_in_future(),
+                max_tag_value_length: self
+                    .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
-            );
+            };
+            let mut annotated_span = match normalize_span(annotated_span, config) {
+                Ok(s) => s,
+                Err(e) => {
+                    relay_log::debug!("failed to normalize span: {}", e);
+                    return ItemAction::DropSilently;
+                }
+            };
 
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::DropSilently;
