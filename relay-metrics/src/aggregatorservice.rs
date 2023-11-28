@@ -90,6 +90,20 @@ pub struct AggregatorServiceConfig {
     /// This prevents flushing all buckets from a bucket interval at the same
     /// time by computing an offset from the hash of the given key.
     pub shift_key: ShiftKey,
+
+    // TODO(dav1dde): move these config values to a better spot
+    /// The approximate maximum number of bytes submitted within one flush cycle.
+    ///
+    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
+    /// the cumulative length of their keys, and the number of raw values. Since final serialization
+    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// left to hard limits.
+    pub max_flush_bytes: usize,
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    pub flush_partitions: Option<u64>,
 }
 
 impl Default for AggregatorServiceConfig {
@@ -106,6 +120,8 @@ impl Default for AggregatorServiceConfig {
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
             shift_key: ShiftKey::default(),
+            max_flush_bytes: 5_000_000, // 5 MB
+            flush_partitions: None,
         }
     }
 }
