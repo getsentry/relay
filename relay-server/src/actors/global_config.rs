@@ -46,7 +46,7 @@ struct GetGlobalConfigResponse {
 }
 
 /// A mirror of [`Status`] without the associated data for use in serialization.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StatusResponse {
     Ready,
@@ -54,8 +54,8 @@ pub enum StatusResponse {
 }
 
 impl StatusResponse {
-    pub fn is_ready(&self) -> bool {
-        matches!(self, &Self::Ready)
+    pub fn is_ready(self) -> bool {
+        matches!(self, Self::Ready)
     }
 }
 
