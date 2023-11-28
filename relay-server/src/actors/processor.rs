@@ -2291,7 +2291,7 @@ impl EnvelopeProcessorService {
         let received_at = state.managed_envelope.received_at();
 
         state.managed_envelope.retain_items(|item| {
-            let mut annotated_span = match item.ty() {
+            let annotated_span = match item.ty() {
                 ItemType::OtelSpan => {
                     match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
                         Ok(otel_span) => Annotated::new(otel_span.into()),

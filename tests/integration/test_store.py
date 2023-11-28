@@ -1329,6 +1329,9 @@ def test_span_ingestion(
         "projects:span-metrics-extraction-all-modules",
     ]
 
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - timedelta(milliseconds=500)
+
     # 1 - Send OTel span and sentry span via envelope
     envelope = Envelope()
     envelope.add_item(
@@ -1340,8 +1343,8 @@ def test_span_ingestion(
                         "traceId": "89143b0763095bd9c9955e8175d1fb23",
                         "spanId": "e342abb1214ca181",
                         "name": "my 1st OTel span",
-                        "startTimeUnixNano": 1697620454980000000,
-                        "endTimeUnixNano": 1697620454980078800,
+                        "startTimeUnixNano": int(start.timestamp() * 1_000_000_000),
+                        "endTimeUnixNano": int(end.timestamp() * 1_000_000_000),
                     }
                 ).encode()
             ),
@@ -1358,9 +1361,8 @@ def test_span_ingestion(
                         "op": "resource.script",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
-                        "start_timestamp": 1597976300.0000000,
-                        "timestamp": 1597976302.0000000,
-                        "exclusive_time": 2.0,
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     },
                 ).encode()
@@ -1376,8 +1378,8 @@ def test_span_ingestion(
             "traceId": "89143b0763095bd9c9955e8175d1fb24",
             "spanId": "e342abb1214ca182",
             "name": "my 2nd OTel span",
-            "startTimeUnixNano": 1697620454981000000,
-            "endTimeUnixNano": 1697620454981079900,
+            "startTimeUnixNano": int(start.timestamp() * 1_000_000_000) + 2,
+            "endTimeUnixNano": int(end.timestamp() * 1_000_000_000) + 3,
         },
     )
 
@@ -1409,9 +1411,9 @@ def test_span_ingestion(
                     "op": "resource.script",
                 },
                 "span_id": "bd429c44b67a3eb1",
-                "start_timestamp": 1597976300.0,
-                "timestamp": 1597976302.0,
-                "exclusive_time": 2.0,
+                "start_timestamp": start.timestamp(),
+                "timestamp": end.timestamp() + 1,
+                "exclusive_time": 1500.0,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
             },
         },
@@ -1422,15 +1424,16 @@ def test_span_ingestion(
             "span": {
                 "data": {},
                 "description": "my 1st OTel span",
-                "exclusive_time": 0.0788,
+                "exclusive_time": 500.0,
                 "is_segment": True,
+                "op": "default",
                 "parent_span_id": "",
                 "segment_id": "e342abb1214ca181",
-                "sentry_tags": {},
+                "sentry_tags": {"op": "default"},
                 "span_id": "e342abb1214ca181",
-                "start_timestamp": 1697620454.98,
+                "start_timestamp": start.timestamp(),
                 "status": "ok",
-                "timestamp": 1697620454.980079,
+                "timestamp": end.timestamp(),
                 "trace_id": "89143b0763095bd9c9955e8175d1fb23",
             },
         },
@@ -1441,15 +1444,16 @@ def test_span_ingestion(
             "span": {
                 "data": {},
                 "description": "my 2nd OTel span",
-                "exclusive_time": 0.0799,
+                "exclusive_time": 500.000001,
                 "is_segment": True,
+                "op": "default",
                 "parent_span_id": "",
                 "segment_id": "e342abb1214ca182",
-                "sentry_tags": {},
+                "sentry_tags": {"op": "default"},
                 "span_id": "e342abb1214ca182",
-                "start_timestamp": 1697620454.981,
+                "start_timestamp": start.timestamp(),
                 "status": "ok",
-                "timestamp": 1697620454.98108,
+                "timestamp": end.timestamp(),
                 "trace_id": "89143b0763095bd9c9955e8175d1fb24",
             },
         },
@@ -1463,15 +1467,17 @@ def test_span_ingestion(
         except AttributeError:
             pass
 
+    expected_timestamp = int(end.timestamp())
+
     assert metrics == [
         {
             "org_id": 1,
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
             "type": "c",
-            "value": 2.0,
-            "timestamp": 1697620454,
-            "tags": {},
+            "value": 1.0,
+            "timestamp": expected_timestamp + 1,
+            "tags": {"span.category": "resource", "span.op": "resource.script"},
             "retention_days": 90,
         },
         {
@@ -1479,9 +1485,9 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
             "type": "c",
-            "value": 1.0,
-            "timestamp": 1597976302,
-            "tags": {"span.category": "resource", "span.op": "resource.script"},
+            "value": 2.0,
+            "timestamp": expected_timestamp,
+            "tags": {"span.op": "default"},
             "retention_days": 90,
         },
         {
@@ -1489,8 +1495,8 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "type": "d",
-            "value": [2.0],
-            "timestamp": 1597976302,
+            "value": [1500.0],
+            "timestamp": expected_timestamp + 1,
             "tags": {
                 "file_extension": "js",
                 "span.category": "resource",
@@ -1506,9 +1512,9 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "type": "d",
-            "value": [0.0788, 0.0799],
-            "timestamp": 1697620454,
-            "tags": {"span.status": "ok"},
+            "value": [500.0, 500.000001],
+            "timestamp": expected_timestamp,
+            "tags": {"span.status": "ok", "span.op": "default"},
             "retention_days": 90,
         },
         {
@@ -1516,8 +1522,8 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time_light@millisecond",
             "type": "d",
-            "value": [2.0],
-            "timestamp": 1597976302,
+            "value": [1500.0],
+            "timestamp": expected_timestamp + 1,
             "tags": {
                 "file_extension": "js",
                 "span.category": "resource",
@@ -1533,9 +1539,12 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time_light@millisecond",
             "type": "d",
-            "value": [0.0788, 0.0799],
-            "timestamp": 1697620454,
-            "tags": {"span.status": "ok"},
+            "value": [500.0, 500.000001],
+            "timestamp": expected_timestamp,
+            "tags": {
+                "span.op": "default",
+                "span.status": "ok",
+            },
             "retention_days": 90,
         },
     ]

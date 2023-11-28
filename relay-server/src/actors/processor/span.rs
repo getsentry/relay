@@ -1,20 +1,23 @@
 //! Processor code related to standalone spans.
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
-use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::NormalizeProcessorConfig;
-use relay_event_schema::processor::{process_value, ProcessValue, ProcessingState};
-use relay_event_schema::protocol::{Context, ContextInner, Contexts, Event, Span, TraceContext};
-use relay_metrics::MetricNamespace;
+use relay_event_schema::processor::{process_value, ProcessingState};
+use relay_event_schema::protocol::{Contexts, Event, Span, TraceContext};
+
 use relay_protocol::Annotated;
 
 use crate::actors::processor::ProcessingError;
 
-/// TODO: docs
+/// Config needed to normalize a standalone span.
 pub struct NormalizeSpanConfig {
+    /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
+    /// The maximum amount of seconds an event can be dated in the past.
     pub max_secs_in_past: i64,
+    /// The maximum amount of seconds an event can be predated into the future.
     pub max_secs_in_future: i64,
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_length: usize,
 }
 
@@ -73,11 +76,20 @@ pub fn normalize_span(
         ProcessingState::root(),
     )?;
 
+    // Take the span back from the event
     match pseudo_event
         .into_value()
         .and_then(|e| e.spans.into_value().and_then(|mut spans| spans.pop()))
     {
-        Some(annotated_span) => Ok(annotated_span),
+        Some(mut annotated_span) => {
+            // HACK remove auto-generated transaction tag:
+            if let Some(span) = annotated_span.value_mut() {
+                if let Some(tags) = span.sentry_tags.value_mut() {
+                    tags.remove("transaction");
+                }
+            }
+            Ok(annotated_span)
+        }
         None => Err(ProcessingError::NoEventPayload),
     }
 }
