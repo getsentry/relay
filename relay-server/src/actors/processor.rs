@@ -55,6 +55,7 @@ use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::metrics_extraction::generic::extract_metrics,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
+    relay_event_normalization::span as span_normalization,
     relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_event_schema::protocol::Span,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
@@ -2114,7 +2115,6 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
-        use relay_event_normalization::span::tag_extraction;
         // Only extract spans from transactions (not errors).
         if state.event_type() != Some(EventType::Transaction) {
             return;
@@ -2185,7 +2185,7 @@ impl EnvelopeProcessorService {
         }
 
         // Extract tags to add to this span as well
-        let shared_tags = tag_extraction::extract_shared_tags(event);
+        let shared_tags = span_normalization::tag_extraction::extract_shared_tags(event);
         transaction_span.sentry_tags = Annotated::new(
             shared_tags
                 .clone()
