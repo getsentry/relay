@@ -16,7 +16,7 @@ use crate::actors::processor::ProcessEnvelopeState;
 use crate::envelope::ItemType;
 use crate::utils::ItemAction;
 
-/// Remove profiles from the envelope if they can not be parsed
+/// Removes profiles from the envelope if they can not be parsed.
 pub fn filter(state: &mut ProcessEnvelopeState) {
     let transaction_count: usize = state
         .managed_envelope
@@ -66,7 +66,7 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState) {
     }
 }
 
-/// Process profiles and set the profile ID in the profile context on the transaction if successful
+/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
 pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
