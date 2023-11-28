@@ -1363,6 +1363,7 @@ def test_span_ingestion(
                         "segment_id": "968cff94913ebb07",
                         "start_timestamp": start.timestamp(),
                         "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     },
                 ).encode()
@@ -1413,7 +1414,7 @@ def test_span_ingestion(
                 "span_id": "bd429c44b67a3eb1",
                 "start_timestamp": start.timestamp(),
                 "timestamp": end.timestamp() + 1,
-                "exclusive_time": 1500.0,
+                "exclusive_time": 345.0,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
             },
         },

@@ -2325,7 +2325,7 @@ impl EnvelopeProcessorService {
             let mut annotated_span = match normalize_span(annotated_span, config) {
                 Ok(s) => s,
                 Err(e) => {
-                    relay_log::debug!("failed to normalize span: {}", e);
+                    relay_log::debug!("invalid span: {}", e);
                     return ItemAction::DropSilently;
                 }
             };
