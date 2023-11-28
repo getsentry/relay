@@ -3,6 +3,7 @@
 **Unreleased**
 
 - Return global config ready status to downstream relays. ([#2765](https://github.com/getsentry/relay/pull/2765))
+- Partition and split metric buckets just before sending. Log outcomes for metrics. ([#2682](https://github.com/getsentry/relay/pull/2682))
 
 ## 23.11.2
 

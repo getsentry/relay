@@ -934,6 +934,14 @@ fn default_max_rate_limit() -> Option<u32> {
     Some(300) // 5 minutes
 }
 
+fn default_metrics_max_batch_size() -> ByteSize {
+    ByteSize::mebibytes(5)
+}
+
+fn default_metrics_max_batch_size_processing() -> ByteSize {
+    ByteSize::kibibytes(100)
+}
+
 /// Controls Sentry-internal event processing.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
@@ -989,6 +997,23 @@ pub struct Processing {
     /// Maximum rate limit to report to clients.
     #[serde(default = "default_max_rate_limit")]
     pub max_rate_limit: Option<u32>,
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    #[serde(default)]
+    pub metrics_partitions: Option<u64>,
+    /// The approximate maximum number of bytes submitted in one metrics batch.
+    ///
+    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
+    /// the cumulative length of their keys, and the number of raw values. Since final serialization
+    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// left to hard limits.
+    #[serde(default = "default_metrics_max_batch_size")]
+    pub metrics_max_batch_size: ByteSize,
+    /// The approximate maximum number of bytes submitted in one metrics batch on processing relays.
+    #[serde(default = "default_metrics_max_batch_size_processing")]
+    pub metrics_max_batch_size_processing: ByteSize,
 }
 
 impl Default for Processing {
@@ -1007,6 +1032,9 @@ impl Default for Processing {
             attachment_chunk_size: default_chunk_size(),
             projectconfig_cache_prefix: default_projectconfig_cache_prefix(),
             max_rate_limit: default_max_rate_limit(),
+            metrics_partitions: None,
+            metrics_max_batch_size: default_metrics_max_batch_size(),
+            metrics_max_batch_size_processing: default_metrics_max_batch_size_processing(),
         }
     }
 }
@@ -2057,6 +2085,24 @@ impl Config {
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
         self.values.processing.attachment_chunk_size.as_bytes()
+    }
+
+    /// Amount of metric partitions.
+    pub fn metrics_partitions(&self) -> Option<u64> {
+        self.values.processing.metrics_partitions
+    }
+
+    /// Maximum metrics batch size in bytes.
+    pub fn metrics_max_batch_size_bytes(&self) -> usize {
+        self.values.processing.metrics_max_batch_size.as_bytes()
+    }
+
+    /// Maximum metrics batch size in bytes for processing relays.
+    pub fn metrics_max_batch_size_bytes_processing(&self) -> usize {
+        self.values
+            .processing
+            .metrics_max_batch_size_processing
+            .as_bytes()
     }
 
     /// Default prefix to use when looking up project configs in Redis. This is only done when

@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::io::Write;
-use std::net::IpAddr as NetIPAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -16,8 +15,7 @@ use relay_auth::RelayVersion;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
-use relay_event_normalization::replay::{self, ReplayError};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
     nel, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
     NormalizeProcessorConfig, TransactionNameConfig,
@@ -26,17 +24,17 @@ use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo, Replay,
+    LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
     SecurityReportType, Timestamp, TraceContext, Values,
 };
 use relay_filter::FilterStatKey;
+use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, MergeBuckets, MetricMeta, MetricNamespace};
+use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, Scoping};
-use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
     MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
@@ -63,17 +61,20 @@ use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError,
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
+use crate::actors::test_store::TestStore;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
+    self, extract_transaction_count, ChunkedFormDataAggregator, ExtractionMode, FormDataIter,
+    ItemAction, ManagedEnvelope, SamplingResult,
 };
 
+mod replay;
 mod report;
 mod session;
 
@@ -453,6 +454,17 @@ impl EncodeEnvelope {
     }
 }
 
+/// Encodes metrics into an envelope ready to be sent upstream.
+#[derive(Debug)]
+pub struct EncodeMetrics {
+    /// The metric buckets to encode.
+    pub buckets: Vec<Bucket>,
+    /// Scoping for metric buckets.
+    pub scoping: Scoping,
+    /// Transaction metrics extraction mode.
+    pub extraction_mode: ExtractionMode,
+}
+
 /// Encodes metric meta into an envelope and sends it upstream.
 ///
 /// Upstream means directly into redis for processing relays
@@ -479,9 +491,10 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     ProcessMetricMeta(Box<ProcessMetricMeta>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    EncodeMetrics(Box<EncodeMetrics>),
     EncodeMetricMeta(Box<EncodeMetricMeta>),
     #[cfg(feature = "processing")]
-    RateLimitFlushBuckets(RateLimitBuckets),
+    RateLimitBuckets(RateLimitBuckets),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -518,6 +531,14 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
     }
 }
 
+impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeMetrics, _: ()) -> Self {
+        Self::EncodeMetrics(Box::new(message))
+    }
+}
+
 impl FromMessage<EncodeMetricMeta> for EnvelopeProcessor {
     type Response = NoResponse;
 
@@ -531,7 +552,7 @@ impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
     fn from_message(message: RateLimitBuckets, _: ()) -> Self {
-        Self::RateLimitFlushBuckets(message)
+        Self::RateLimitBuckets(message)
     }
 }
 
@@ -553,6 +574,7 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
+    test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
@@ -570,6 +592,7 @@ impl EnvelopeProcessorService {
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
+        test_store: Addr<TestStore>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -593,6 +616,7 @@ impl EnvelopeProcessorService {
             project_cache,
             outcome_aggregator,
             upstream_relay,
+            test_store,
             geoip_lookup,
             #[cfg(feature = "processing")]
             aggregator,
@@ -729,137 +753,6 @@ impl EnvelopeProcessorService {
                 }
             }
         }
-    }
-
-    /// Remove replays if the feature flag is not enabled.
-    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let project_state = &state.project_state;
-        let replays_enabled = project_state.has_feature(Feature::SessionReplay);
-        let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
-
-        let meta = state.envelope().meta().clone();
-        let client_addr = meta.client_addr();
-        let event_id = state.envelope().event_id();
-
-        let limit = self.inner.config.max_replay_uncompressed_size();
-        let config = project_state.config();
-        let datascrubbing_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
-            .as_ref();
-        let mut scrubber =
-            RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
-
-        let user_agent = &RawUserAgentInfo {
-            user_agent: meta.user_agent(),
-            client_hints: meta.client_hints().as_deref(),
-        };
-
-        state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::ReplayEvent => {
-                if !replays_enabled {
-                    return ItemAction::DropSilently;
-                }
-
-                match self.process_replay_event(&item.payload(), config, client_addr, user_agent) {
-                    Ok(replay) => match replay.to_json() {
-                        Ok(json) => {
-                            item.set_payload(ContentType::Json, json);
-                            ItemAction::Keep
-                        }
-                        Err(error) => {
-                            relay_log::error!(
-                                error = &error as &dyn Error,
-                                "failed to serialize replay"
-                            );
-                            ItemAction::Keep
-                        }
-                    },
-                    Err(error) => {
-                        relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
-                        ItemAction::Drop(Outcome::Invalid(match error {
-                            ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
-                            ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
-                            ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
-                            ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
-                        }))
-                    }
-                }
-            }
-            ItemType::ReplayRecording => {
-                if !replays_enabled {
-                    return ItemAction::DropSilently;
-                }
-
-                // XXX: Processing is there just for data scrubbing. Skip the entire expensive
-                // processing step if we do not need to scrub.
-                if !scrubbing_enabled || scrubber.is_empty() {
-                    return ItemAction::Keep;
-                }
-
-                // Limit expansion of recordings to the max replay size. The payload is
-                // decompressed temporarily and then immediately re-compressed. However, to
-                // limit memory pressure, we use the replay limit as a good overall limit for
-                // allocations.
-                let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                    scrubber.process_recording(&item.payload())
-                });
-
-                match parsed_recording {
-                    Ok(recording) => {
-                        item.set_payload(ContentType::OctetStream, recording);
-                        ItemAction::Keep
-                    }
-                    Err(e) => {
-                        relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                        ItemAction::Drop(Outcome::Invalid(
-                            DiscardReason::InvalidReplayRecordingEvent,
-                        ))
-                    }
-                }
-            }
-            _ => ItemAction::Keep,
-        });
-
-        Ok(())
-    }
-
-    /// Validates, normalizes, and scrubs PII from a replay event.
-    fn process_replay_event(
-        &self,
-        payload: &Bytes,
-        config: &ProjectConfig,
-        client_ip: Option<NetIPAddr>,
-        user_agent: &RawUserAgentInfo<&str>,
-    ) -> Result<Annotated<Replay>, ReplayError> {
-        let mut replay =
-            Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
-
-        if let Some(replay_value) = replay.value_mut() {
-            replay::validate(replay_value)?;
-            replay::normalize(replay_value, client_ip, user_agent);
-        } else {
-            return Err(ReplayError::NoContent);
-        }
-
-        if let Some(ref config) = config.pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(&mut replay, &mut processor, ProcessingState::root())
-                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
-        }
-
-        let pii_config = config
-            .datascrubbing_settings
-            .pii_config()
-            .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
-        if let Some(config) = pii_config {
-            let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(&mut replay, &mut processor, ProcessingState::root())
-                .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
-        }
-
-        Ok(replay)
     }
 
     /// Creates and initializes the processing state.
@@ -2286,7 +2179,7 @@ impl EnvelopeProcessorService {
             self.inner.config.clone(),
             self.inner.outcome_aggregator.clone(),
         );
-        self.process_replays(state)?;
+        replay::process(state, self.inner.config.clone())?;
         self.filter_profiles(state);
 
         if state.creates_event() {
@@ -2555,12 +2448,10 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
+    fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
         use relay_quotas::ItemScoping;
 
-        let RateLimitBuckets {
-            mut bucket_limiter, ..
-        } = message;
+        let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
 
@@ -2647,6 +2538,66 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_encode_metrics(&self, message: EncodeMetrics) {
+        let EncodeMetrics {
+            buckets,
+            scoping,
+            extraction_mode,
+        } = message;
+
+        let (partitions, max_batch_size_bytes) = if self.inner.config.processing_enabled() {
+            // Partitioning on processing relays does not make sense, they end up all
+            // in the same Kafka topic anyways and the partition key is ignored.
+            (
+                None,
+                self.inner.config.metrics_max_batch_size_bytes_processing(),
+            )
+        } else {
+            (
+                self.inner.config.metrics_partitions(),
+                self.inner.config.metrics_max_batch_size_bytes(),
+            )
+        };
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        };
+        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
+        {
+            let mut num_batches = 0;
+
+            for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
+                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+                envelope.add_item(create_metrics_item(&batch, extraction_mode));
+
+                let mut envelope = ManagedEnvelope::standalone(
+                    envelope,
+                    self.inner.outcome_aggregator.clone(),
+                    self.inner.test_store.clone(),
+                );
+                envelope.set_partition_key(partition_key).scope(scoping);
+
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                );
+
+                self.inner
+                    .envelope_manager
+                    .send(SubmitEnvelope { envelope });
+
+                num_batches += 1;
+            }
+
+            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
+        }
+    }
+
     fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
@@ -2705,12 +2656,13 @@ impl EnvelopeProcessorService {
                 self.handle_process_metric_meta(*message)
             }
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            EnvelopeProcessor::EncodeMetrics(message) => self.handle_encode_metrics(*message),
             EnvelopeProcessor::EncodeMetricMeta(message) => {
                 self.handle_encode_metric_meta(*message)
             }
             #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitFlushBuckets(message) => {
-                self.handle_rate_limit_flush_buckets(message);
+            EnvelopeProcessor::RateLimitBuckets(message) => {
+                self.handle_rate_limit_buckets(message);
             }
         }
     }
@@ -2753,6 +2705,26 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
+fn create_metrics_item(buckets: &BucketsView<'_>, extraction_mode: ExtractionMode) -> Item {
+    let source_quantities = buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
+        .fold(SourceQuantities::default(), |acc, c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+
+            SourceQuantities {
+                transactions: acc.transactions + c.count,
+                profiles: acc.profiles + profile_count,
+            }
+        });
+
+    let mut item = Item::new(ItemType::MetricBuckets);
+    item.set_source_quantities(source_quantities);
+    item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+
+    item
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -2762,6 +2734,7 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
+    use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{
         MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
     };
@@ -3075,6 +3048,7 @@ mod tests {
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
+            test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
             rate_limiter: None,
             #[cfg(feature = "processing")]
