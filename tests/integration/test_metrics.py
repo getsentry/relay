@@ -172,7 +172,7 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
     relay_config = {
         "processing": {
             "max_session_secs_in_past": forever,
-            "metrics_max_batch_size_processing": max_batch_size,
+            "metrics_max_batch_size": max_batch_size,
         },
         "aggregator": {
             "bucket_interval": 1,
