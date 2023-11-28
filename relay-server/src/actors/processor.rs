@@ -7,11 +7,9 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
-use chrono::{DateTime, Duration as SignedDuration, Utc};
+use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use once_cell::sync::OnceCell;
-use relay_auth::RelayVersion;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
@@ -23,8 +21,7 @@ use relay_event_normalization::{
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
-    Contexts, Event, EventType, IpAddr, Metrics, NetworkReportError, OtelContext, RelayInfo,
-    Timestamp, TraceContext,
+    Contexts, Event, EventType, IpAddr, Metrics, NetworkReportError, TraceContext,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::partition_buckets;
@@ -32,7 +29,7 @@ use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
-use relay_protocol::{Annotated, Array, Empty, FromValue, Value};
+use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -66,7 +63,7 @@ use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
-use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
 };
@@ -784,139 +781,6 @@ impl EnvelopeProcessorService {
             state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
             utils::process_apple_crash_report(event, &item.payload());
         }
-    }
-
-    fn finalize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let is_transaction = state.event_type() == Some(EventType::Transaction);
-        let envelope = state.managed_envelope.envelope_mut();
-
-        let event = match state.event.value_mut() {
-            Some(event) => event,
-            None if !self.inner.config.processing_enabled() => return Ok(()),
-            None => return Err(ProcessingError::NoEventPayload),
-        };
-
-        if !self.inner.config.processing_enabled() {
-            static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
-            let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
-
-            event
-                .ingest_path
-                .get_or_insert_with(Default::default)
-                .push(Annotated::new(RelayInfo {
-                    version: Annotated::new(my_version.clone()),
-                    public_key: self
-                        .inner
-                        .config
-                        .public_key()
-                        .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
-                    other: Default::default(),
-                }));
-        }
-
-        // Event id is set statically in the ingest path.
-        let event_id = envelope.event_id().unwrap_or_default();
-        debug_assert!(!event_id.is_nil());
-
-        // Ensure that the event id in the payload is consistent with the envelope. If an event
-        // id was ingested, this will already be the case. Otherwise, this will insert a new
-        // event id. To be defensive, we always overwrite to ensure consistency.
-        event.id = Annotated::new(event_id);
-
-        // In processing mode, also write metrics into the event. Most metrics have already been
-        // collected at this state, except for the combined size of all attachments.
-        if self.inner.config.processing_enabled() {
-            let mut metrics = std::mem::take(&mut state.metrics);
-
-            let attachment_size = envelope
-                .items()
-                .filter(|item| item.attachment_type() == Some(&AttachmentType::Attachment))
-                .map(|item| item.len() as u64)
-                .sum::<u64>();
-
-            if attachment_size > 0 {
-                metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
-            }
-
-            let sample_rates = state
-                .sample_rates
-                .take()
-                .and_then(|value| Array::from_value(Annotated::new(value)).into_value());
-
-            if let Some(rates) = sample_rates {
-                metrics
-                    .sample_rates
-                    .get_or_insert_with(Array::new)
-                    .extend(rates)
-            }
-
-            event._metrics = Annotated::new(metrics);
-
-            if event.ty.value() == Some(&EventType::Transaction) {
-                metric!(
-                    counter(RelayCounters::EventTransaction) += 1,
-                    source = utils::transaction_source_tag(event),
-                    platform =
-                        PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
-                    contains_slashes =
-                        if event.transaction.as_str().unwrap_or_default().contains('/') {
-                            "true"
-                        } else {
-                            "false"
-                        }
-                );
-
-                let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
-                metric!(
-                    histogram(RelayHistograms::EventSpans) = span_count,
-                    sdk = envelope.meta().client_name().unwrap_or("proprietary"),
-                    platform = event.platform.as_str().unwrap_or("other"),
-                );
-
-                let has_otel = event
-                    .contexts
-                    .value()
-                    .map_or(false, |contexts| contexts.contains::<OtelContext>());
-
-                if has_otel {
-                    metric!(
-                        counter(RelayCounters::OpenTelemetryEvent) += 1,
-                        sdk = envelope.meta().client_name().unwrap_or("proprietary"),
-                        platform = event.platform.as_str().unwrap_or("other"),
-                    );
-                }
-            }
-        }
-
-        // TODO: Temporary workaround before processing. Experimental SDKs relied on a buggy
-        // clock drift correction that assumes the event timestamp is the sent_at time. This
-        // should be removed as soon as legacy ingestion has been removed.
-        let sent_at = match envelope.sent_at() {
-            Some(sent_at) => Some(sent_at),
-            None if is_transaction => event.timestamp.value().copied().map(Timestamp::into_inner),
-            None => None,
-        };
-
-        let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
-            .at_least(MINIMUM_CLOCK_DRIFT);
-        processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
-            .map_err(|_| ProcessingError::InvalidTransaction)?;
-
-        // Log timestamp delays for all events after clock drift correction. This happens before
-        // store processing, which could modify the timestamp if it exceeds a threshold. We are
-        // interested in the actual delay before this correction.
-        if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-            let event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
-            if event_delay > SignedDuration::minutes(1) {
-                let category = state.event_category().unwrap_or(DataCategory::Unknown);
-                metric!(
-                    timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
-                    category = category.name(),
-                );
-            }
-        }
-
-        Ok(())
     }
 
     #[cfg(feature = "processing")]
@@ -1704,7 +1568,7 @@ impl EnvelopeProcessorService {
                 self.create_placeholders(state);
             });
 
-            self.finalize_event(state)?;
+            event::finalize(state, self.inner.config.clone())?;
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
             self.filter_event(state)?;
