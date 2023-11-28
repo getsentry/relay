@@ -1329,8 +1329,9 @@ def test_span_ingestion(
         "projects:span-metrics-extraction-all-modules",
     ]
 
+    duration = timedelta(milliseconds=500)
     end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
-    start = end - timedelta(milliseconds=500)
+    start = end - duration
 
     # 1 - Send OTel span and sentry span via envelope
     envelope = Envelope()
@@ -1345,6 +1346,14 @@ def test_span_ingestion(
                         "name": "my 1st OTel span",
                         "startTimeUnixNano": int(start.timestamp() * 1_000_000_000),
                         "endTimeUnixNano": int(end.timestamp() * 1_000_000_000),
+                        "attributes": [
+                            {
+                                "key": "sentry.exclusive_time_ns",
+                                "value": {
+                                    "intValue": int(duration.total_seconds() * 1e9),
+                                },
+                            }
+                        ],
                     }
                 ).encode()
             ),
@@ -1357,7 +1366,6 @@ def test_span_ingestion(
                 bytes=json.dumps(
                     {
                         "description": "https://example.com/p/blah.js",
-                        "is_segment": False,
                         "op": "resource.script",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
@@ -1380,6 +1388,14 @@ def test_span_ingestion(
             "name": "my 2nd OTel span",
             "startTimeUnixNano": int(start.timestamp() * 1_000_000_000) + 2,
             "endTimeUnixNano": int(end.timestamp() * 1_000_000_000) + 3,
+            "attributes": [
+                {
+                    "key": "sentry.exclusive_time_ns",
+                    "value": {
+                        "intValue": int((duration.total_seconds() + 1) * 1e9),
+                    },
+                }
+            ],
         },
     )
 
@@ -1399,7 +1415,8 @@ def test_span_ingestion(
             "retention_days": 90,
             "span": {
                 "description": "https://example.com/p/blah.js",
-                "is_segment": False,
+                "exclusive_time": 1500.0,
+                "is_segment": True,
                 "op": "resource.script",
                 "segment_id": "968cff94913ebb07",
                 "sentry_tags": {
@@ -1413,7 +1430,6 @@ def test_span_ingestion(
                 "span_id": "bd429c44b67a3eb1",
                 "start_timestamp": start.timestamp(),
                 "timestamp": end.timestamp() + 1,
-                "exclusive_time": 1500.0,
                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
             },
         },

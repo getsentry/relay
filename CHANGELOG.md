@@ -5,7 +5,19 @@
 **Features**:
 
 - Ingest OpenTelemetry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
+- Partition and split metric buckets just before sending. Log outcomes for metrics. ([#2682](https://github.com/getsentry/relay/pull/2682))
+
+**Internal**:
+
+- Support source context in metric code locations metadata entries. ([#2781](https://github.com/getsentry/relay/pull/2781))
+
+## 23.11.2
+
 - `normalize_performance_score` now handles `PerformanceScoreProfile` configs with zero weight components and component weight sums of any number greater than 0. ([#2756](https://github.com/getsentry/relay/pull/2756))
+
+**Features**:
+
+- Normalize invalid metric names. ([#2769](https://github.com/getsentry/relay/pull/2769))
 
 **Internal**:
 

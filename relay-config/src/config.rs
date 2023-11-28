@@ -2059,6 +2059,18 @@ impl Config {
         self.values.processing.attachment_chunk_size.as_bytes()
     }
 
+    /// Amount of metric partitions.
+    pub fn metrics_partitions(&self) -> Option<u64> {
+        // TODO(dav1dde): move config to a better place
+        self.values.aggregator.flush_partitions
+    }
+
+    /// Maximum metrics batch size in bytes.
+    pub fn metrics_max_batch_size_bytes(&self) -> usize {
+        // TODO(dav1dde): move config to a better place
+        self.values.aggregator.max_flush_bytes
+    }
+
     /// Default prefix to use when looking up project configs in Redis. This is only done when
     /// Relay is in processing mode.
     pub fn projectconfig_cache_prefix(&self) -> &str {

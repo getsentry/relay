@@ -153,16 +153,26 @@ impl OtelSpan {
 
 impl From<OtelSpan> for EventSpan {
     fn from(from: OtelSpan) -> Self {
-        let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
-        let exclusive_time = (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
+        let mut exclusive_time_ms = 0f64;
         let mut attributes: Object<Value> = Object::new();
         let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
+        let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
         for attribute in from.attributes.clone() {
             let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
                 key.to_string()
             } else {
                 attribute.key
             };
+            if key == "exclusive_time_ns" {
+                let value = match attribute.value {
+                    AnyValue::Int(v) => v as f64,
+                    AnyValue::Double(v) => v,
+                    AnyValue::String(v) => v.parse::<f64>().unwrap_or_default(),
+                    _ => 0f64,
+                };
+                exclusive_time_ms = value / 1e6f64;
+                continue;
+            }
             match attribute.value {
                 AnyValue::Array(_) => {}
                 AnyValue::Bool(v) => {
@@ -188,10 +198,8 @@ impl From<OtelSpan> for EventSpan {
         let mut span = EventSpan {
             data: attributes.into(),
             description: from.name.clone().into(),
-            exclusive_time: exclusive_time.into(),
-            is_segment: from.parent_span_id.is_empty().into(),
+            exclusive_time: exclusive_time_ms.into(),
             parent_span_id: SpanId(from.parent_span_id.clone()).into(),
-            received: Timestamp(Utc::now()).into(),
             span_id: SpanId(from.span_id.clone()).into(),
             start_timestamp: Timestamp(start_timestamp).into(),
             timestamp: Timestamp(end_timestamp).into(),
