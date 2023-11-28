@@ -1,8 +1,11 @@
 #[cfg(feature = "processing")]
 use {
-    crate::envelope::ContentType, crate::envelope::Item, relay_dynamic_config::ErrorBoundary,
-    relay_event_normalization::span::tag_extraction, relay_event_schema::protocol::EventType,
-    relay_event_schema::protocol::Span, relay_protocol::Annotated, relay_protocol::Empty,
+    crate::envelope::{ContentType, Item},
+    chrono::{TimeZone, Utc},
+    relay_dynamic_config::ErrorBoundary,
+    relay_event_normalization::span::tag_extraction,
+    relay_event_schema::protocol::{EventType, Span, Timestamp},
+    relay_protocol::{Annotated, Empty},
     std::error::Error,
 };
 
@@ -38,19 +41,26 @@ pub fn process(state: &mut ProcessEnvelopeState) {
     };
     let mut items: Vec<Item> = Vec::new();
     let mut add_span = |annotated_span: Annotated<Span>| {
-        let validated_span = match validate(annotated_span) {
+        let mut validated_span = match validate(annotated_span) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!("invalid span: {e}");
                 return;
             }
         };
+
         if let Some(config) = span_metrics_extraction_config {
             if let Some(span_value) = validated_span.value() {
                 let metrics = extract_metrics(span_value, config);
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
         }
+
+        if let Some(span) = validated_span.value_mut() {
+            span.received = Timestamp(Utc::now()).into();
+            span.is_segment = span.parent_span_id.is_empty().into();
+        }
+
         if let Ok(payload) = validated_span.to_json() {
             let mut item = Item::new(ItemType::Span);
             item.set_payload(ContentType::Json, payload);
