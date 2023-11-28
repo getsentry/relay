@@ -8,7 +8,6 @@ use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_event_schema::protocol::ClientReport;
-use relay_metrics::Bucket;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
@@ -16,7 +15,6 @@ use tokio::sync::oneshot;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{EncodeEnvelope, EnvelopeProcessor};
-use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{ProjectCache, UpdateRateLimits};
 #[cfg(feature = "processing")]
 use crate::actors::store::{Store, StoreEnvelope, StoreError};
@@ -28,9 +26,7 @@ use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http::{HttpError, Request, RequestBuilder, Response};
 use crate::statsd::RelayHistograms;
-use crate::utils::{ExtractionMode, ManagedEnvelope};
-
-use super::processor::EncodeMetrics;
+use crate::utils::ManagedEnvelope;
 
 /// Error created while handling [`SendEnvelope`].
 #[derive(Debug, thiserror::Error)]

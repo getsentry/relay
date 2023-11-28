@@ -20,7 +20,6 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitBuckets;

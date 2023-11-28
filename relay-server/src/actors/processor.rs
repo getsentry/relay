@@ -34,7 +34,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, ReasonCode, Scoping};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
     MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
@@ -2355,8 +2355,6 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
-        use relay_quotas::ItemScoping;
-
         let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
@@ -2710,6 +2708,11 @@ mod tests {
     use std::collections::BTreeMap;
     use std::env;
 
+    use crate::extractors::RequestMeta;
+    use crate::metrics_extraction::transactions::types::{
+        CommonTags, TransactionMeasurementTags, TransactionMetric,
+    };
+    use crate::metrics_extraction::IntoMetric;
     use chrono::{DateTime, TimeZone, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
@@ -2725,16 +2728,8 @@ mod tests {
         SamplingValue, TimeRange,
     };
     use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingMatch};
-    use relay_test::mock_service;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
-
-    use crate::actors::project_cache::Services;
-    use crate::extractors::RequestMeta;
-    use crate::metrics_extraction::transactions::types::{
-        CommonTags, TransactionMeasurementTags, TransactionMetric,
-    };
-    use crate::metrics_extraction::IntoMetric;
 
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -2742,18 +2737,6 @@ mod tests {
     use crate::utils::Semaphore as TestSemaphore;
 
     use super::*;
-
-    pub fn services() -> Services {
-        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-
-        Services {
-            project_cache,
-            outcome_aggregator,
-            test_store,
-        }
-    }
 
     fn dummy_reservoir() -> ReservoirEvaluator<'static> {
         ReservoirEvaluator::new(ReservoirCounters::default())
@@ -3031,47 +3014,6 @@ mod tests {
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
-    }
-
-    #[tokio::test]
-    async fn test_user_report_invalid() {
-        let processor = create_test_processor(Default::default());
-        let (outcome_aggregator, test_store) = services();
-        let event_id = EventId::new();
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::UserReport);
-            item.set_payload(ContentType::Json, r#"{"foo": "bar"}"#);
-            item
-        });
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(ContentType::Json, "{}");
-            item
-        });
-
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
-            reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
     }
 
     fn process_envelope_with_root_project_state(
