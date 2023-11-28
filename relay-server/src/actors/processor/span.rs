@@ -1,7 +1,7 @@
 #[cfg(feature = "processing")]
 use {
     crate::envelope::{ContentType, Item},
-    chrono::{TimeZone, Utc},
+    chrono::Utc,
     relay_dynamic_config::ErrorBoundary,
     relay_event_normalization::span::tag_extraction,
     relay_event_schema::protocol::{EventType, Span, Timestamp},
