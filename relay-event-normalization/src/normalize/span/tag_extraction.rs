@@ -14,7 +14,8 @@ use url::Url;
 
 use crate::span::description::{parse_query, scrub_span_description};
 use crate::utils::{
-    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MOBILE_SDKS,
+    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
+    MOBILE_SDKS,
 };
 
 /// A list of supported span tags for tag extraction.
@@ -51,6 +52,8 @@ pub enum SpanTagKey {
     TimeToFullDisplay,
     /// File extension for resource spans.
     FileExtension,
+    /// Span started on main thread.
+    MainTread,
 }
 
 impl SpanTagKey {
@@ -83,6 +86,7 @@ impl SpanTagKey {
             SpanTagKey::TimeToFullDisplay => "ttfd",
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
+            SpanTagKey::MainTread => "main_thread",
         }
     }
 }
@@ -128,6 +132,9 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
+    let is_mobile = shared_tags
+        .get(&SpanTagKey::Mobile)
+        .is_some_and(|v| v.as_str() == "true");
 
     let Some(spans) = event.spans.value_mut() else {
         return;
@@ -141,7 +148,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             continue;
         };
 
-        let tags = extract_tags(span, config, ttid, ttfd);
+        let tags = extract_tags(span, config, ttid, ttfd, is_mobile);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -214,6 +221,7 @@ pub(crate) fn extract_tags(
     config: &Config,
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
+    is_mobile: bool,
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
@@ -382,6 +390,19 @@ pub(crate) fn extract_tags(
 
     if let Some(status_code) = http_status_code_from_span(span) {
         span_tags.insert(SpanTagKey::StatusCode, status_code);
+    }
+
+    if is_mobile {
+        if let Some(thread_name) = span
+            .data
+            .value()
+            .and_then(|data| data.get("thread.name"))
+            .and_then(|value| value.as_str())
+        {
+            if thread_name == MAIN_THREAD_NAME {
+                span_tags.insert(SpanTagKey::MainTread, "true".to_owned());
+            }
+        }
     }
 
     if let Some(end_time) = span.timestamp.value() {
@@ -955,5 +976,83 @@ LIMIT 1
             tags.get("http.response_transfer_size").unwrap().as_str(),
             Some("3.3"),
         );
+    }
+
+    #[test]
+    fn test_main_thread() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "android",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "sdk": {"name": "sentry.java.android"},
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "ui.load",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "thread.id": 1,
+                            "thread.name": "main"
+                        }
+                    },
+                    {
+                        "op": "ui.load",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "thread.id": 2,
+                            "thread.name": "not main"
+                        }
+                    },
+                    {
+                        "op": "file.write",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span = &event.spans.value().unwrap()[0];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
+
+        let span = &event.spans.value().unwrap()[1];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(tags.get("main_thread"), None);
+
+        let span = &event.spans.value().unwrap()[2];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(tags.get("main_thread"), None);
     }
 }

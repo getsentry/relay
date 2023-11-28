@@ -1,8 +1,5 @@
-use std::collections::BTreeMap;
-use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
-use std::net;
 use std::net::IpAddr as NetIPAddr;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -19,9 +16,7 @@ use relay_auth::RelayVersion;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{
-    ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
-};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
     nel, normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
@@ -30,18 +25,18 @@ use relay_event_normalization::{
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
-    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
-    Timestamp, TraceContext, UserReport, Values,
+    Breadcrumb, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
+    LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo, Replay,
+    SecurityReportType, Timestamp, TraceContext, Values,
 };
 use relay_filter::FilterStatKey;
+use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, MergeBuckets, MetricMeta, MetricNamespace};
+use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, Scoping};
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -70,15 +65,21 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
+    self, extract_transaction_count, ChunkedFormDataAggregator, ExtractionMode, FormDataIter,
+    ItemAction, ManagedEnvelope, SamplingResult,
 };
+
+use super::test_store::TestStore;
+
+mod report;
+mod session;
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -376,44 +377,6 @@ impl<'a> ProcessEnvelopeState<'a> {
     }
 }
 
-/// Fields of client reports that map to specific [`Outcome`]s without content.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum ClientReportField {
-    /// The event has been filtered by an inbound data filter.
-    Filtered,
-
-    /// The event has been filtered by a sampling rule.
-    FilteredSampling,
-
-    /// The event has been rate limited.
-    RateLimited,
-
-    /// The event has already been discarded on the client side.
-    ClientDiscard,
-}
-
-/// Parse an outcome from an outcome ID and a reason string.
-///
-/// Currently only used to reconstruct outcomes encoded in client reports.
-fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
-    match field {
-        ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
-            Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
-                .map(Outcome::FilteredSampling)
-                .map_err(|_| ()),
-            None => Err(()),
-        },
-        ClientReportField::ClientDiscard => Ok(Outcome::ClientDiscard(reason.into())),
-        ClientReportField::Filtered => Ok(Outcome::Filtered(
-            FilterStatKey::try_from(reason).map_err(|_| ())?,
-        )),
-        ClientReportField::RateLimited => Ok(Outcome::RateLimited(match reason {
-            "" => None,
-            other => Some(ReasonCode::new(other)),
-        })),
-    }
-}
-
 /// Response of the [`ProcessEnvelope`] message.
 #[cfg_attr(not(feature = "processing"), allow(dead_code))]
 pub struct ProcessEnvelopeResponse {
@@ -494,6 +457,17 @@ impl EncodeEnvelope {
     }
 }
 
+/// Encodes metrics into an envelope ready to be sent upstream.
+#[derive(Debug)]
+pub struct EncodeMetrics {
+    /// The metric buckets to encode.
+    pub buckets: Vec<Bucket>,
+    /// Scoping for metric buckets.
+    pub scoping: Scoping,
+    /// Transaction metrics extraction mode.
+    pub extraction_mode: ExtractionMode,
+}
+
 /// Encodes metric meta into an envelope and sends it upstream.
 ///
 /// Upstream means directly into redis for processing relays
@@ -520,9 +494,10 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     ProcessMetricMeta(Box<ProcessMetricMeta>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    EncodeMetrics(Box<EncodeMetrics>),
     EncodeMetricMeta(Box<EncodeMetricMeta>),
     #[cfg(feature = "processing")]
-    RateLimitFlushBuckets(RateLimitBuckets),
+    RateLimitBuckets(RateLimitBuckets),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -559,6 +534,14 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
     }
 }
 
+impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeMetrics, _: ()) -> Self {
+        Self::EncodeMetrics(Box::new(message))
+    }
+}
+
 impl FromMessage<EncodeMetricMeta> for EnvelopeProcessor {
     type Response = NoResponse;
 
@@ -572,7 +555,7 @@ impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
     fn from_message(message: RateLimitBuckets, _: ()) -> Self {
-        Self::RateLimitFlushBuckets(message)
+        Self::RateLimitBuckets(message)
     }
 }
 
@@ -594,6 +577,7 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
+    test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
@@ -611,6 +595,7 @@ impl EnvelopeProcessorService {
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
+        test_store: Addr<TestStore>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -634,6 +619,7 @@ impl EnvelopeProcessorService {
             project_cache,
             outcome_aggregator,
             upstream_relay,
+            test_store,
             geoip_lookup,
             #[cfg(feature = "processing")]
             aggregator,
@@ -646,489 +632,6 @@ impl EnvelopeProcessorService {
 
         Self {
             inner: Arc::new(inner),
-        }
-    }
-
-    /// Returns Ok(true) if attributes were modified.
-    /// Returns Err if the session should be dropped.
-    fn validate_attributes(
-        &self,
-        client_addr: &Option<net::IpAddr>,
-        attributes: &mut SessionAttributes,
-    ) -> Result<bool, ()> {
-        let mut changed = false;
-
-        let release = &attributes.release;
-        if let Err(e) = relay_event_normalization::validate_release(release) {
-            relay_log::trace!(
-                error = &e as &dyn Error,
-                release,
-                "skipping session with invalid release"
-            );
-            return Err(());
-        }
-
-        if let Some(ref env) = attributes.environment {
-            if let Err(e) = relay_event_normalization::validate_environment(env) {
-                relay_log::trace!(
-                    error = &e as &dyn Error,
-                    env,
-                    "removing invalid environment"
-                );
-                attributes.environment = None;
-                changed = true;
-            }
-        }
-
-        if let Some(ref ip_address) = attributes.ip_address {
-            if ip_address.is_auto() {
-                attributes.ip_address = client_addr.map(IpAddr::from);
-                changed = true;
-            }
-        }
-
-        Ok(changed)
-    }
-
-    fn is_valid_session_timestamp(
-        &self,
-        received: DateTime<Utc>,
-        timestamp: DateTime<Utc>,
-    ) -> bool {
-        let max_age = SignedDuration::seconds(self.inner.config.max_session_secs_in_past());
-        if (received - timestamp) > max_age {
-            relay_log::trace!("skipping session older than {} days", max_age.num_days());
-            return false;
-        }
-
-        let max_future = SignedDuration::seconds(self.inner.config.max_secs_in_future());
-        if (timestamp - received) > max_future {
-            relay_log::trace!(
-                "skipping session more than {}s in the future",
-                max_future.num_seconds()
-            );
-            return false;
-        }
-
-        true
-    }
-
-    /// Returns true if the item should be kept.
-    #[allow(clippy::too_many_arguments)]
-    fn process_session(
-        &self,
-        item: &mut Item,
-        received: DateTime<Utc>,
-        client: Option<&str>,
-        client_addr: Option<net::IpAddr>,
-        metrics_config: SessionMetricsConfig,
-        clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Bucket>,
-    ) -> bool {
-        let mut changed = false;
-        let payload = item.payload();
-
-        // sessionupdate::parse is already tested
-        let mut session = match SessionUpdate::parse(&payload) {
-            Ok(session) => session,
-            Err(error) => {
-                relay_log::trace!(
-                    error = &error as &dyn Error,
-                    "skipping invalid session payload"
-                );
-                return false;
-            }
-        };
-
-        if session.sequence == u64::MAX {
-            relay_log::trace!("skipping session due to sequence overflow");
-            return false;
-        };
-
-        if clock_drift_processor.is_drifted() {
-            relay_log::trace!("applying clock drift correction to session");
-            clock_drift_processor.process_datetime(&mut session.started);
-            clock_drift_processor.process_datetime(&mut session.timestamp);
-            changed = true;
-        }
-
-        if session.timestamp < session.started {
-            relay_log::trace!("fixing session timestamp to {}", session.timestamp);
-            session.timestamp = session.started;
-            changed = true;
-        }
-
-        // Log the timestamp delay for all sessions after clock drift correction.
-        let session_delay = received - session.timestamp;
-        if session_delay > SignedDuration::minutes(1) {
-            metric!(
-                timer(RelayTimers::TimestampDelay) = session_delay.to_std().unwrap(),
-                category = "session",
-            );
-        }
-
-        // Validate timestamps
-        for t in [session.timestamp, session.started] {
-            if !self.is_valid_session_timestamp(received, t) {
-                return false;
-            }
-        }
-
-        // Validate attributes
-        match self.validate_attributes(&client_addr, &mut session.attributes) {
-            Err(_) => return false,
-            Ok(changed_attributes) => {
-                changed |= changed_attributes;
-            }
-        }
-
-        if self.inner.config.processing_enabled()
-            && matches!(session.status, SessionStatus::Unknown(_))
-        {
-            return false;
-        }
-
-        // Extract metrics if they haven't been extracted by a prior Relay
-        if metrics_config.is_enabled()
-            && !item.metrics_extracted()
-            && !matches!(session.status, SessionStatus::Unknown(_))
-        {
-            crate::metrics_extraction::sessions::extract_session_metrics(
-                &session.attributes,
-                &session,
-                client,
-                extracted_metrics,
-                metrics_config.should_extract_abnormal_mechanism(),
-            );
-            item.set_metrics_extracted(true);
-        }
-
-        // Drop the session if metrics have been extracted in this or a prior Relay
-        if metrics_config.should_drop() && item.metrics_extracted() {
-            return false;
-        }
-
-        if changed {
-            let json_string = match serde_json::to_string(&session) {
-                Ok(json) => json,
-                Err(err) => {
-                    relay_log::error!(error = &err as &dyn Error, "failed to serialize session");
-                    return false;
-                }
-            };
-
-            item.set_payload(ContentType::Json, json_string);
-        }
-
-        true
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn process_session_aggregates(
-        &self,
-        item: &mut Item,
-        received: DateTime<Utc>,
-        client: Option<&str>,
-        client_addr: Option<net::IpAddr>,
-        metrics_config: SessionMetricsConfig,
-        clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Bucket>,
-    ) -> bool {
-        let mut changed = false;
-        let payload = item.payload();
-
-        let mut session = match SessionAggregates::parse(&payload) {
-            Ok(session) => session,
-            Err(error) => {
-                relay_log::trace!(
-                    error = &error as &dyn Error,
-                    "skipping invalid sessions payload"
-                );
-                return false;
-            }
-        };
-
-        if clock_drift_processor.is_drifted() {
-            relay_log::trace!("applying clock drift correction to session");
-            for aggregate in &mut session.aggregates {
-                clock_drift_processor.process_datetime(&mut aggregate.started);
-            }
-            changed = true;
-        }
-
-        // Validate timestamps
-        session
-            .aggregates
-            .retain(|aggregate| self.is_valid_session_timestamp(received, aggregate.started));
-
-        // Aftter timestamp validation, aggregates could now be empty
-        if session.aggregates.is_empty() {
-            return false;
-        }
-
-        // Validate attributes
-        match self.validate_attributes(&client_addr, &mut session.attributes) {
-            Err(_) => return false,
-            Ok(changed_attributes) => {
-                changed |= changed_attributes;
-            }
-        }
-
-        // Extract metrics if they haven't been extracted by a prior Relay
-        if metrics_config.is_enabled() && !item.metrics_extracted() {
-            for aggregate in &session.aggregates {
-                crate::metrics_extraction::sessions::extract_session_metrics(
-                    &session.attributes,
-                    aggregate,
-                    client,
-                    extracted_metrics,
-                    metrics_config.should_extract_abnormal_mechanism(),
-                );
-                item.set_metrics_extracted(true);
-            }
-        }
-
-        // Drop the aggregate if metrics have been extracted in this or a prior Relay
-        if metrics_config.should_drop() && item.metrics_extracted() {
-            return false;
-        }
-
-        if changed {
-            let json_string = match serde_json::to_string(&session) {
-                Ok(json) => json,
-                Err(err) => {
-                    relay_log::error!(error = &err as &dyn Error, "failed to serialize session");
-                    return false;
-                }
-            };
-
-            item.set_payload(ContentType::Json, json_string);
-        }
-
-        true
-    }
-
-    /// Validates all sessions and session aggregates in the envelope, if any.
-    ///
-    /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
-    /// are out of range after clock drift correction.
-    fn process_sessions(&self, state: &mut ProcessEnvelopeState) {
-        let received = state.managed_envelope.received_at();
-        let extracted_metrics = &mut state.extracted_metrics.project_metrics;
-        let metrics_config = state.project_state.config().session_metrics;
-        let envelope = state.managed_envelope.envelope_mut();
-        let client = envelope.meta().client().map(|x| x.to_owned());
-        let client_addr = envelope.meta().client_addr();
-
-        let clock_drift_processor =
-            ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
-
-        state.managed_envelope.retain_items(|item| {
-            let should_keep = match item.ty() {
-                ItemType::Session => self.process_session(
-                    item,
-                    received,
-                    client.as_deref(),
-                    client_addr,
-                    metrics_config,
-                    &clock_drift_processor,
-                    extracted_metrics,
-                ),
-                ItemType::Sessions => self.process_session_aggregates(
-                    item,
-                    received,
-                    client.as_deref(),
-                    client_addr,
-                    metrics_config,
-                    &clock_drift_processor,
-                    extracted_metrics,
-                ),
-                _ => true, // Keep all other item types
-            };
-            if should_keep {
-                ItemAction::Keep
-            } else {
-                ItemAction::DropSilently // sessions never log outcomes.
-            }
-        });
-    }
-
-    /// Validates and normalizes all user report items in the envelope.
-    ///
-    /// User feedback items are removed from the envelope if they contain invalid JSON or if the
-    /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-    /// is written back into the item.
-    fn process_user_reports(&self, state: &mut ProcessEnvelopeState) {
-        state.managed_envelope.retain_items(|item| {
-            if item.ty() != &ItemType::UserReport {
-                return ItemAction::Keep;
-            };
-
-            let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
-                Ok(session) => session,
-                Err(error) => {
-                    relay_log::error!(error = &error as &dyn Error, "failed to store user report");
-                    return ItemAction::DropSilently;
-                }
-            };
-
-            let json_string = match serde_json::to_string(&report) {
-                Ok(json) => json,
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to serialize user report"
-                    );
-                    return ItemAction::DropSilently;
-                }
-            };
-
-            item.set_payload(ContentType::Json, json_string);
-            ItemAction::Keep
-        });
-    }
-
-    /// Validates and extracts client reports.
-    ///
-    /// At the moment client reports are primarily used to transfer outcomes from
-    /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
-    /// system.
-    fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
-        // if client outcomes are disabled we leave the the client reports unprocessed
-        // and pass them on.
-        if !self.inner.config.emit_outcomes().any() || !self.inner.config.emit_client_outcomes() {
-            // if a processing relay has client outcomes disabled we drop them.
-            if self.inner.config.processing_enabled() {
-                state.managed_envelope.retain_items(|item| match item.ty() {
-                    ItemType::ClientReport => ItemAction::DropSilently,
-                    _ => ItemAction::Keep,
-                });
-            }
-            return;
-        }
-
-        let mut timestamp = None;
-        let mut output_events = BTreeMap::new();
-        let received = state.managed_envelope.received_at();
-
-        let clock_drift_processor = ClockDriftProcessor::new(state.envelope().sent_at(), received)
-            .at_least(MINIMUM_CLOCK_DRIFT);
-
-        // we're going through all client reports but we're effectively just merging
-        // them into the first one.
-        state.managed_envelope.retain_items(|item| {
-            if item.ty() != &ItemType::ClientReport {
-                return ItemAction::Keep;
-            };
-            match ClientReport::parse(&item.payload()) {
-                Ok(ClientReport {
-                    timestamp: report_timestamp,
-                    discarded_events,
-                    rate_limited_events,
-                    filtered_events,
-                    filtered_sampling_events,
-                }) => {
-                    // Glue all discarded events together and give them the appropriate outcome type
-                    let input_events = discarded_events
-                        .into_iter()
-                        .map(|discarded_event| (ClientReportField::ClientDiscard, discarded_event))
-                        .chain(
-                            filtered_events.into_iter().map(|discarded_event| {
-                                (ClientReportField::Filtered, discarded_event)
-                            }),
-                        )
-                        .chain(filtered_sampling_events.into_iter().map(|discarded_event| {
-                            (ClientReportField::FilteredSampling, discarded_event)
-                        }))
-                        .chain(rate_limited_events.into_iter().map(|discarded_event| {
-                            (ClientReportField::RateLimited, discarded_event)
-                        }));
-
-                    for (outcome_type, discarded_event) in input_events {
-                        if discarded_event.reason.len() > 200 {
-                            relay_log::trace!("ignored client outcome with an overlong reason");
-                            continue;
-                        }
-                        *output_events
-                            .entry((
-                                outcome_type,
-                                discarded_event.reason,
-                                discarded_event.category,
-                            ))
-                            .or_insert(0) += discarded_event.quantity;
-                    }
-                    if let Some(ts) = report_timestamp {
-                        timestamp.get_or_insert(ts);
-                    }
-                }
-                Err(err) => {
-                    relay_log::trace!(error = &err as &dyn Error, "invalid client report received")
-                }
-            }
-            ItemAction::DropSilently
-        });
-
-        if output_events.is_empty() {
-            return;
-        }
-
-        let timestamp =
-            timestamp.get_or_insert_with(|| UnixTimestamp::from_secs(received.timestamp() as u64));
-
-        if clock_drift_processor.is_drifted() {
-            relay_log::trace!("applying clock drift correction to client report");
-            clock_drift_processor.process_timestamp(timestamp);
-        }
-
-        let max_age = SignedDuration::seconds(self.inner.config.max_secs_in_past());
-        // also if we unable to parse the timestamp, we assume it's way too old here.
-        let in_past = timestamp
-            .as_datetime()
-            .map(|ts| (received - ts) > max_age)
-            .unwrap_or(true);
-        if in_past {
-            relay_log::trace!(
-                "skipping client outcomes older than {} days",
-                max_age.num_days()
-            );
-            return;
-        }
-
-        let max_future = SignedDuration::seconds(self.inner.config.max_secs_in_future());
-        // also if we unable to parse the timestamp, we assume it's way far in the future here.
-        let in_future = timestamp
-            .as_datetime()
-            .map(|ts| (ts - received) > max_future)
-            .unwrap_or(true);
-        if in_future {
-            relay_log::trace!(
-                "skipping client outcomes more than {}s in the future",
-                max_future.num_seconds()
-            );
-            return;
-        }
-
-        for ((outcome_type, reason, category), quantity) in output_events.into_iter() {
-            let outcome = match outcome_from_parts(outcome_type, &reason) {
-                Ok(outcome) => outcome,
-                Err(_) => {
-                    relay_log::trace!(?outcome_type, reason, "invalid outcome combination");
-                    continue;
-                }
-            };
-
-            self.inner.outcome_aggregator.send(TrackOutcome {
-                // If we get to this point, the unwrap should not be used anymore, since we know by
-                // now that the timestamp can be parsed, but just incase we fallback to UTC current
-                // `DateTime`.
-                timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
-                scoping: state.managed_envelope.scoping(),
-                outcome,
-                event_id: None,
-                remote_addr: None, // omitting the client address allows for better aggregation
-                category,
-                quantity,
-            });
         }
     }
 
@@ -2799,9 +2302,12 @@ impl EnvelopeProcessorService {
             };
         }
 
-        self.process_sessions(state);
-        self.process_client_reports(state);
-        self.process_user_reports(state);
+        session::process(state, self.inner.config.clone());
+        report::process(
+            state,
+            self.inner.config.clone(),
+            self.inner.outcome_aggregator.clone(),
+        );
         self.process_replays(state)?;
         self.filter_profiles(state);
 
@@ -3035,7 +2541,7 @@ impl EnvelopeProcessorService {
                 continue;
             }
 
-            let payload = item.payload();
+            let mut payload = item.payload();
             match serde_json::from_slice::<MetricMeta>(&payload) {
                 Ok(meta) => {
                     relay_log::trace!("adding metric metadata to project cache");
@@ -3044,8 +2550,26 @@ impl EnvelopeProcessorService {
                         .send(AddMetricMeta { project_key, meta });
                 }
                 Err(error) => {
-                    relay_log::debug!(error = &error as &dyn Error, "failed to parse metric meta",);
                     metric!(counter(RelayCounters::MetricMetaParsingFailed) += 1);
+
+                    relay_log::with_scope(
+                        move |scope| {
+                            // truncate the payload to basically 200KiB, just in case
+                            payload.truncate(200_000);
+                            scope.add_attachment(relay_log::protocol::Attachment {
+                                buffer: payload.into(),
+                                filename: "payload.json".to_owned(),
+                                content_type: Some("application/json".to_owned()),
+                                ty: None,
+                            })
+                        },
+                        || {
+                            relay_log::error!(
+                                error = &error as &dyn Error,
+                                "failed to parse metric meta"
+                            )
+                        },
+                    );
                 }
             }
         }
@@ -3053,12 +2577,10 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
+    fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
         use relay_quotas::ItemScoping;
 
-        let RateLimitBuckets {
-            mut bucket_limiter, ..
-        } = message;
+        let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
 
@@ -3145,6 +2667,66 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_encode_metrics(&self, message: EncodeMetrics) {
+        let EncodeMetrics {
+            buckets,
+            scoping,
+            extraction_mode,
+        } = message;
+
+        let (partitions, max_batch_size_bytes) = if self.inner.config.processing_enabled() {
+            // Partitioning on processing relays does not make sense, they end up all
+            // in the same Kafka topic anyways and the partition key is ignored.
+            (
+                None,
+                self.inner.config.metrics_max_batch_size_bytes_processing(),
+            )
+        } else {
+            (
+                self.inner.config.metrics_partitions(),
+                self.inner.config.metrics_max_batch_size_bytes(),
+            )
+        };
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        };
+        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
+        {
+            let mut num_batches = 0;
+
+            for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
+                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+                envelope.add_item(create_metrics_item(&batch, extraction_mode));
+
+                let mut envelope = ManagedEnvelope::standalone(
+                    envelope,
+                    self.inner.outcome_aggregator.clone(),
+                    self.inner.test_store.clone(),
+                );
+                envelope.set_partition_key(partition_key).scope(scoping);
+
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                );
+
+                self.inner
+                    .envelope_manager
+                    .send(SubmitEnvelope { envelope });
+
+                num_batches += 1;
+            }
+
+            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
+        }
+    }
+
     fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
@@ -3203,12 +2785,13 @@ impl EnvelopeProcessorService {
                 self.handle_process_metric_meta(*message)
             }
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            EnvelopeProcessor::EncodeMetrics(message) => self.handle_encode_metrics(*message),
             EnvelopeProcessor::EncodeMetricMeta(message) => {
                 self.handle_encode_metric_meta(*message)
             }
             #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitFlushBuckets(message) => {
-                self.handle_rate_limit_flush_buckets(message);
+            EnvelopeProcessor::RateLimitBuckets(message) => {
+                self.handle_rate_limit_buckets(message);
             }
         }
     }
@@ -3251,10 +2834,30 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
+fn create_metrics_item(buckets: &BucketsView<'_>, extraction_mode: ExtractionMode) -> Item {
+    let source_quantities = buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
+        .fold(SourceQuantities::default(), |acc, c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+
+            SourceQuantities {
+                transactions: acc.transactions + c.count,
+                profiles: acc.profiles + profile_count,
+            }
+        });
+
+    let mut item = Item::new(ItemType::MetricBuckets);
+    item.set_source_quantities(source_quantities);
+    item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+
+    item
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::env;
-    use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
     use insta::assert_debug_snapshot;
@@ -3271,82 +2874,21 @@ mod tests {
         SamplingValue, TimeRange,
     };
     use relay_sampling::evaluation::SamplingMatch;
-    use relay_test::mock_service;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
 
-    use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
     use crate::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
 
-    use crate::testutils::{new_envelope, state_with_rule_and_condition};
+    use crate::testutils::{
+        self, create_test_processor, new_envelope, state_with_rule_and_condition,
+    };
     use crate::utils::Semaphore as TestSemaphore;
 
     use super::*;
-
-    struct TestProcessSessionArguments<'a> {
-        item: Item,
-        received: DateTime<Utc>,
-        client: Option<&'a str>,
-        client_addr: Option<net::IpAddr>,
-        metrics_config: SessionMetricsConfig,
-        clock_drift_processor: ClockDriftProcessor,
-        extracted_metrics: Vec<Bucket>,
-    }
-
-    impl<'a> TestProcessSessionArguments<'a> {
-        fn run_session_producer(&mut self) -> bool {
-            let proc = create_test_processor(Default::default());
-            proc.process_session(
-                &mut self.item,
-                self.received,
-                self.client,
-                self.client_addr,
-                self.metrics_config,
-                &self.clock_drift_processor,
-                &mut self.extracted_metrics,
-            )
-        }
-
-        fn default() -> Self {
-            let mut item = Item::new(ItemType::Event);
-
-            let session = r#"{
-            "init": false,
-            "started": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "attrs": {
-                "release": "1.0.0"
-            },
-            "did": "user123",
-            "status": "this is not a valid status!",
-            "duration": 123.4
-        }"#;
-
-            item.set_payload(ContentType::Json, session);
-            let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
-
-            Self {
-                item,
-                received,
-                client: None,
-                client_addr: None,
-                metrics_config: serde_json::from_str(
-                    "
-        {
-            \"version\": 0,
-            \"drop\": true
-        }",
-                )
-                .unwrap(),
-                clock_drift_processor: ClockDriftProcessor::new(None, received),
-                extracted_metrics: vec![],
-            }
-        }
-    }
 
     fn dummy_reservoir() -> ReservoirEvaluator<'static> {
         ReservoirEvaluator::new(ReservoirCounters::default())
@@ -3360,57 +2902,6 @@ mod tests {
             release: Annotated::new(LenientString(release.to_string())),
             ..Event::default()
         }
-    }
-
-    /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
-    /// other tests are valid.
-    #[tokio::test]
-    async fn test_process_session_keep_item() {
-        let mut args = TestProcessSessionArguments::default();
-        assert!(args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_invalid_json() {
-        let mut args = TestProcessSessionArguments::default();
-        args.item
-            .set_payload(ContentType::Json, "this isnt valid json");
-        assert!(!args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_sequence_overflow() {
-        let mut args = TestProcessSessionArguments::default();
-        args.item.set_payload(
-            ContentType::Json,
-            r#"{
-            "init": false,
-            "started": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "seq": 18446744073709551615,
-            "attrs": {
-                "release": "1.0.0"
-            },
-            "did": "user123",
-            "status": "this is not a valid status!",
-            "duration": 123.4
-        }"#,
-        );
-        assert!(!args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_invalid_timestamp() {
-        let mut args = TestProcessSessionArguments::default();
-        args.received = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
-        assert!(!args.run_session_producer());
-    }
-
-    #[tokio::test]
-    async fn test_process_session_metrics_extracted() {
-        let mut args = TestProcessSessionArguments::default();
-        args.item.set_metrics_extracted(true);
-        assert!(!args.run_session_producer());
     }
 
     fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
@@ -3443,16 +2934,10 @@ mod tests {
             .unwrap()
     }
 
-    fn services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-        (outcome_aggregator, test_store)
-    }
-
     #[tokio::test]
     async fn test_dsc_respects_metrics_extracted() {
         relay_test::setup();
-        let (outcome_aggregator, test_store) = services();
+        let (outcome_aggregator, test_store) = testutils::processor_services();
 
         let config = Config::from_json_value(serde_json::json!({
             "processing": {
@@ -3683,35 +3168,6 @@ mod tests {
         result.expect("event_from_attachments");
     }
 
-    fn create_test_processor(config: Config) -> EnvelopeProcessorService {
-        let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
-        let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        #[cfg(feature = "processing")]
-        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
-        let inner = InnerProcessor {
-            config: Arc::new(config),
-            envelope_manager,
-            project_cache,
-            outcome_aggregator,
-            upstream_relay,
-            #[cfg(feature = "processing")]
-            rate_limiter: None,
-            #[cfg(feature = "processing")]
-            redis_pool: None,
-            geoip_lookup: None,
-            #[cfg(feature = "processing")]
-            aggregator,
-            #[cfg(feature = "processing")]
-            metric_meta_store: None,
-        };
-
-        EnvelopeProcessorService {
-            inner: Arc::new(inner),
-        }
-    }
-
     /// Creates test processor that can be initialized in sync tests.
     fn create_test_processor_sync(config: Config) -> EnvelopeProcessorService {
         let inner = InnerProcessor {
@@ -3720,6 +3176,7 @@ mod tests {
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
+            test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
             rate_limiter: None,
             #[cfg(feature = "processing")]
@@ -3736,53 +3193,12 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_user_report_invalid() {
-        let processor = create_test_processor(Default::default());
-        let (outcome_aggregator, test_store) = services();
-        let event_id = EventId::new();
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::UserReport);
-            item.set_payload(ContentType::Json, r#"{"foo": "bar"}"#);
-            item
-        });
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(ContentType::Json, "{}");
-            item
-        });
-
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
-            reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
-    }
-
     fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
         sampling_project_state: Option<Arc<ProjectState>>,
     ) -> Envelope {
         let processor = create_test_processor(Default::default());
-        let (outcome_aggregator, test_store) = services();
+        let (outcome_aggregator, test_store) = testutils::processor_services();
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
@@ -3952,7 +3368,7 @@ mod tests {
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
         let processor = create_test_processor(Default::default());
-        let (outcome_aggregator, test_store) = services();
+        let (outcome_aggregator, test_store) = testutils::processor_services();
         let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
@@ -4031,163 +3447,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_client_report_removal() {
-        relay_test::setup();
-        let (outcome_aggregator, test_store) = services();
-
-        let config = Config::from_json_value(serde_json::json!({
-            "outcomes": {
-                "emit_outcomes": true,
-                "emit_client_outcomes": true
-            }
-        }))
-        .unwrap();
-
-        let processor = create_test_processor(config);
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(None, request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::ClientReport);
-            item.set_payload(
-                ContentType::Json,
-                r#"
-                    {
-                        "discarded_events": [
-                            ["queue_full", "error", 42]
-                        ]
-                    }
-                "#,
-            );
-            item
-        });
-
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
-            reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        assert!(envelope_response.envelope.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_client_report_forwarding() {
-        relay_test::setup();
-        let (outcome_aggregator, test_store) = services();
-
-        let config = Config::from_json_value(serde_json::json!({
-            "outcomes": {
-                "emit_outcomes": false,
-                // a relay need to emit outcomes at all to not process.
-                "emit_client_outcomes": true
-            }
-        }))
-        .unwrap();
-
-        let processor = create_test_processor(config);
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(None, request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::ClientReport);
-            item.set_payload(
-                ContentType::Json,
-                r#"
-                    {
-                        "discarded_events": [
-                            ["queue_full", "error", 42]
-                        ]
-                    }
-                "#,
-            );
-            item
-        });
-
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
-            reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let item = ctx.envelope().items().next().unwrap();
-        assert_eq!(item.ty(), &ItemType::ClientReport);
-
-        ctx.accept(); // do not try to capture or emit outcomes
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "processing")]
-    async fn test_client_report_removal_in_processing() {
-        relay_test::setup();
-        let (outcome_aggregator, test_store) = services();
-
-        let config = Config::from_json_value(serde_json::json!({
-            "outcomes": {
-                "emit_outcomes": true,
-                "emit_client_outcomes": false,
-            },
-            "processing": {
-                "enabled": true,
-                "kafka_config": [],
-            }
-        }))
-        .unwrap();
-
-        let processor = create_test_processor(config);
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(None, request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::ClientReport);
-            item.set_payload(
-                ContentType::Json,
-                r#"
-                    {
-                        "discarded_events": [
-                            ["queue_full", "error", 42]
-                        ]
-                    }
-                "#,
-            );
-            item
-        });
-
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            project_state: Arc::new(ProjectState::allowed()),
-            sampling_project_state: None,
-            reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        assert!(envelope_response.envelope.is_none());
-    }
-
     #[test]
     #[cfg(feature = "processing")]
     fn test_unprintable_fields() {
@@ -4220,76 +3479,6 @@ mod tests {
             ..Default::default()
         });
         assert!(!has_unprintable_fields(&event));
-    }
-
-    #[test]
-    fn test_from_outcome_type_sampled() {
-        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "adsf").is_err());
-
-        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:").is_err());
-
-        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo").is_err());
-
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
-            Err(())
-        ));
-
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:;"),
-            Err(())
-        ));
-
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab;12"),
-            Err(())
-        ));
-
-        assert_eq!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
-            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
-                RuleId(123),
-                RuleId(456),
-            ])))
-        );
-
-        assert_eq!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
-            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![RuleId(123)])))
-        );
-    }
-
-    #[test]
-    fn test_from_outcome_type_filtered() {
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::Filtered, "error-message"),
-            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
-        ));
-
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::Filtered, "hydration-error"),
-            Ok(Outcome::Filtered(FilterStatKey::GenericFilter(_)))
-        ));
-    }
-
-    #[test]
-    fn test_from_outcome_type_client_discard() {
-        assert_eq!(
-            outcome_from_parts(ClientReportField::ClientDiscard, "foo_reason").unwrap(),
-            Outcome::ClientDiscard("foo_reason".into())
-        );
-    }
-
-    #[test]
-    fn test_from_outcome_type_rate_limited() {
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::RateLimited, ""),
-            Ok(Outcome::RateLimited(None))
-        ));
-        assert_eq!(
-            outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
-            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
-        );
     }
 
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
