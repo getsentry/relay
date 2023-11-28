@@ -1,11 +1,19 @@
+use std::sync::Arc;
+
 use bytes::Bytes;
+use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::EventId;
 use relay_protocol::RuleCondition;
 use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
+use relay_system::Addr;
+use relay_test::mock_service;
 
+use crate::actors::outcome::TrackOutcome;
+use crate::actors::processor::EnvelopeProcessorService;
 use crate::actors::project::ProjectState;
+use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 
@@ -94,4 +102,31 @@ pub fn empty_envelope() -> Box<Envelope> {
         .unwrap();
 
     Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
+}
+
+pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+    let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
+    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+    let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+    let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+    #[cfg(feature = "processing")]
+    let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+
+    EnvelopeProcessorService::new(
+        Arc::new(config),
+        #[cfg(feature = "processing")]
+        None,
+        envelope_manager,
+        outcome_aggregator,
+        project_cache,
+        upstream_relay,
+        #[cfg(feature = "processing")]
+        _aggregator,
+    )
+}
+
+pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
+    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+    let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+    (outcome_aggregator, test_store)
 }
