@@ -1,8 +1,9 @@
-use std::error::Error;
 use std::fmt;
 use std::hash::Hasher as _;
+use std::{borrow::Cow, error::Error};
 
 use hash32::{FnvHasher, Hasher as _};
+use serde::{Deserialize, Serialize};
 
 #[doc(inline)]
 pub use relay_base_schema::metrics::{
@@ -215,7 +216,7 @@ impl fmt::Display for MetricNamespace {
 /// let mri = MetricResourceIdentifier::parse(string).expect("should parse");
 /// assert_eq!(mri.to_string(), string);
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MetricResourceIdentifier<'a> {
     /// The type of a metric, determining its aggregation and evaluation.
     ///
@@ -234,7 +235,7 @@ pub struct MetricResourceIdentifier<'a> {
     pub namespace: MetricNamespace,
 
     /// The display name of the metric in the allowed character set.
-    pub name: &'a str,
+    pub name: Cow<'a, str>,
 
     /// The verbatim unit name of the metric value.
     ///
@@ -249,15 +250,73 @@ impl<'a> MetricResourceIdentifier<'a> {
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
-        let (raw_namespace, rest) = rest.split_once('/').ok_or(ParseMetricError(()))?;
-        let (name, unit) = parse_name_unit(rest).ok_or(ParseMetricError(()))?;
+        Self::parse_with_type(rest, ty)
+    }
 
-        Ok(Self {
+    /// Parses an MRI from a string and a separate type.
+    ///
+    /// The given string must be a part of the MRI, including the following components:
+    ///  - (optional) The namespace. If missing, it is defaulted to `"custom"`
+    ///  - (required) The metric name.
+    ///  - (optional) The unit. If missing, it is defaulted to "none".
+    ///
+    /// The metric type is never part of this string and must be supplied separately.
+    ///
+    /// This is exposed to the crate for [`crate::Bucket::parse_str`].
+    pub(crate) fn parse_with_type(
+        string: &'a str,
+        ty: MetricType,
+    ) -> Result<Self, ParseMetricError> {
+        let (name_and_namespace, unit) = parse_name_unit(string).ok_or(ParseMetricError(()))?;
+
+        let (namespace, name) = match name_and_namespace.split_once('/') {
+            Some((raw_namespace, name)) => (raw_namespace.parse()?, name),
+            None => (MetricNamespace::Custom, name_and_namespace),
+        };
+
+        let name = relay_base_schema::metrics::try_normalize_metric_name(name)
+            .ok_or(ParseMetricError(()))?;
+
+        Ok(MetricResourceIdentifier {
             ty,
-            namespace: raw_namespace.parse()?,
             name,
+            namespace,
             unit,
         })
+    }
+
+    /// Converts the MRI into an owned version with a static lifetime.
+    pub fn into_owned(self) -> MetricResourceIdentifier<'static> {
+        MetricResourceIdentifier {
+            ty: self.ty,
+            namespace: self.namespace,
+            name: Cow::Owned(self.name.into_owned()),
+            unit: self.unit,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for MetricResourceIdentifier<'static> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Deserialize without allocation, if possible.
+        let string = <Cow<'de, str>>::deserialize(deserializer)?;
+        let result = MetricResourceIdentifier::parse(&string)
+            .map_err(serde::de::Error::custom)?
+            .into_owned();
+
+        Ok(result)
+    }
+}
+
+impl Serialize for MetricResourceIdentifier<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -295,14 +354,11 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 
 /// Parses the `name[@unit]` part of a metric string.
 ///
-/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
-/// invalid.
-pub(crate) fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
+/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if value is invalid.
+/// The name is not normalized.
+fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
-    if !relay_base_schema::metrics::is_valid_metric_name(name) {
-        return None;
-    }
 
     let unit = match components.next() {
         Some(s) => s.parse().ok()?,
@@ -332,5 +388,141 @@ mod tests {
     fn test_sizeof_unit() {
         assert_eq!(std::mem::size_of::<MetricUnit>(), 16);
         assert_eq!(std::mem::align_of::<MetricUnit>(), 1);
+    }
+
+    #[test]
+    fn test_parse_mri_lenient() {
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:foo@none").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::None,
+            },
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:foo").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::None,
+            },
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/foo").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::None,
+            },
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/foo@millisecond").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::Duration(DurationUnit::MilliSecond),
+            },
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:something/foo").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Unsupported,
+                name: "foo".into(),
+                unit: MetricUnit::None,
+            },
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:foo@something").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::Custom(CustomUnit::parse("something").unwrap()),
+            },
+        );
+        assert!(MetricResourceIdentifier::parse("foo").is_err());
+    }
+
+    #[test]
+    fn test_invalid_names_should_normalize() {
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:f?o").unwrap().name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:f??o").unwrap().name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:föo").unwrap().name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/f?o")
+                .unwrap()
+                .name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/f??o")
+                .unwrap()
+                .name,
+            "f_o"
+        );
+        assert_eq!(
+            MetricResourceIdentifier::parse("c:custom/föo")
+                .unwrap()
+                .name,
+            "f_o"
+        );
+    }
+
+    #[test]
+    fn test_normalize_dash_to_underscore() {
+        assert_eq!(
+            MetricResourceIdentifier::parse("d:foo.bar.blob-size@second").unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Distribution,
+                namespace: MetricNamespace::Custom,
+                name: "foo.bar.blob_size".into(),
+                unit: MetricUnit::Duration(DurationUnit::Second),
+            },
+        );
+    }
+
+    #[test]
+    fn test_deserialize_mri() {
+        assert_eq!(
+            serde_json::from_str::<MetricResourceIdentifier<'static>>(
+                "\"c:custom/foo@millisecond\""
+            )
+            .unwrap(),
+            MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::Duration(DurationUnit::MilliSecond),
+            },
+        );
+    }
+
+    #[test]
+    fn test_serialize() {
+        assert_eq!(
+            serde_json::to_string(&MetricResourceIdentifier {
+                ty: MetricType::Counter,
+                namespace: MetricNamespace::Custom,
+                name: "foo".into(),
+                unit: MetricUnit::Duration(DurationUnit::MilliSecond),
+            })
+            .unwrap(),
+            "\"c:custom/foo@millisecond\"".to_owned(),
+        );
     }
 }

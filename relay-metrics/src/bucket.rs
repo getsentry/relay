@@ -399,29 +399,6 @@ fn parse_gauge(string: &str) -> Option<GaugeValue> {
     })
 }
 
-/// Parses an MRI from a string and a separate type.
-///
-/// The given string must be a part of the MRI, including the following components:
-///  - (optional) The namespace. If missing, it is defaulted to `"custom"`
-///  - (required) The metric name.
-///  - (optional) The unit. If missing, it is defaulted to "none".
-///
-/// The metric type is never part of this string and must be supplied separately.
-fn parse_mri(string: &str, ty: MetricType) -> Option<MetricResourceIdentifier> {
-    let (name_and_namespace, unit) = protocol::parse_name_unit(string)?;
-
-    let (raw_namespace, name) = name_and_namespace
-        .split_once('/')
-        .unwrap_or(("custom", name_and_namespace));
-
-    Some(MetricResourceIdentifier {
-        ty,
-        name,
-        namespace: raw_namespace.parse().ok()?,
-        unit,
-    })
-}
-
 /// Parses tags in the format `tag1,tag2:value`.
 ///
 /// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
@@ -640,7 +617,7 @@ impl Bucket {
         let (mri_str, values_str) = components.next()?.split_once(':')?;
         let ty = components.next().and_then(|s| s.parse().ok())?;
 
-        let mri = parse_mri(mri_str, ty)?;
+        let mri = MetricResourceIdentifier::parse_with_type(mri_str, ty).ok()?;
         let value = match ty {
             MetricType::Counter => BucketValue::Counter(parse_counter(values_str)?),
             MetricType::Distribution => BucketValue::Distribution(parse_distribution(values_str)?),
@@ -1074,8 +1051,8 @@ mod tests {
     fn test_parse_invalid_name() {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Bucket::parse(s.as_bytes(), timestamp);
-        assert!(metric.is_err());
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(metric.name, "c:custom/foo_bar@none");
     }
 
     #[test]

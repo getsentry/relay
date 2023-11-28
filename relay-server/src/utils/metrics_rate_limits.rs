@@ -67,8 +67,8 @@ pub fn extract_transaction_count(
         _ => 0,
     };
 
-    let has_profile =
-        matches!(mri.name, "usage" | "duration") && metric.tag(PROFILE_TAG) == Some("true");
+    let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
+        && metric.tag(PROFILE_TAG) == Some("true");
 
     Some(TransactionCount { count, has_profile })
 }

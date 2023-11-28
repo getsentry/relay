@@ -502,6 +502,14 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
+    /// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    meta_locations_expiry: u64,
+    /// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    meta_locations_max: usize,
 }
 
 impl Default for Metrics {
@@ -513,6 +521,8 @@ impl Default for Metrics {
             hostname_tag: None,
             buffering: true,
             sample_rate: 1.0,
+            meta_locations_expiry: 15 * 24 * 60 * 60,
+            meta_locations_max: 5,
         }
     }
 }
@@ -1784,6 +1794,16 @@ impl Config {
     /// Returns the global sample rate for all metrics.
     pub fn metrics_sample_rate(&self) -> f32 {
         self.values.metrics.sample_rate
+    }
+
+    /// Returns the maximum amount of code locations per metric.
+    pub fn metrics_meta_locations_max(&self) -> usize {
+        self.values.metrics.meta_locations_max
+    }
+
+    /// Returns the expiry for code locations.
+    pub fn metrics_meta_locations_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.metrics.meta_locations_expiry)
     }
 
     /// Returns the default timeout for all upstream HTTP requests.

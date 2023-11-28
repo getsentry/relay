@@ -48,6 +48,12 @@ pub enum MetricCounters {
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsDropped,
+    /// Incremented every time the meta aggregator emitted an update that needs to be stored or
+    /// sent upstream.
+    MetaAggregatorUpdate,
+    /// Incremented every time a redis key is updated to store or update metadata.
+    #[cfg(feature = "redis")]
+    MetaRedisUpdate,
 }
 
 impl CounterMetric for MetricCounters {
@@ -56,6 +62,9 @@ impl CounterMetric for MetricCounters {
             Self::MergeHit => "metrics.buckets.merge.hit",
             Self::MergeMiss => "metrics.buckets.merge.miss",
             Self::BucketsDropped => "metrics.buckets.dropped",
+            Self::MetaAggregatorUpdate => "metrics.meta.agg.update",
+            #[cfg(feature = "redis")]
+            Self::MetaRedisUpdate => "metrics.meta.redis.update",
         }
     }
 }
