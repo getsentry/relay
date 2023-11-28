@@ -51,7 +51,9 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
+    crate::actors::processor::span::{normalize_span, NormalizeSpanConfig},
     crate::actors::project_cache::UpdateRateLimits,
+    crate::metrics_extraction::generic::extract_metrics,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_event_schema::protocol::Span,
@@ -2282,9 +2284,6 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
-        use crate::actors::processor::span::{normalize_span, NormalizeSpanConfig};
-        use crate::metrics_extraction::generic::extract_metrics;
-
         let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
