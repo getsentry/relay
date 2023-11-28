@@ -35,6 +35,10 @@ use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProce
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
+use relay_sampling::config::{RuleType, SamplingMode};
+use relay_sampling::evaluation::{
+    MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
+};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -67,10 +71,8 @@ use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, extract_transaction_count, ChunkedFormDataAggregator, ExtractionMode, FormDataIter,
-    ItemAction, ManagedEnvelope, SamplingResult,
+    ManagedEnvelope, SamplingResult,
 };
-
-use super::test_store::TestStore;
 
 mod profile;
 mod replay;
@@ -462,6 +464,8 @@ pub struct EncodeMetrics {
     pub scoping: Scoping,
     /// Transaction metrics extraction mode.
     pub extraction_mode: ExtractionMode,
+
+    pub project_state: Arc<ProjectState>,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -2482,9 +2486,7 @@ impl EnvelopeProcessorService {
         let EncodeMetrics {
             buckets,
             scoping,
-            max_batch_size_bytes,
             extraction_mode,
-            partitions,
             project_state,
         } = message;
 
@@ -2722,10 +2724,12 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule,
         SamplingValue, TimeRange,
     };
-    use relay_sampling::evaluation::SamplingMatch;
+    use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingMatch};
+    use relay_test::mock_service;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
 
+    use crate::actors::project_cache::Services;
     use crate::extractors::RequestMeta;
     use crate::metrics_extraction::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
@@ -2738,6 +2742,18 @@ mod tests {
     use crate::utils::Semaphore as TestSemaphore;
 
     use super::*;
+
+    pub fn services() -> Services {
+        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+
+        Services {
+            project_cache,
+            outcome_aggregator,
+            test_store,
+        }
+    }
 
     fn dummy_reservoir() -> ReservoirEvaluator<'static> {
         ReservoirEvaluator::new(ReservoirCounters::default())
@@ -3015,37 +3031,6 @@ mod tests {
 
         // regression test to ensure we don't fail parsing an empty file
         result.expect("event_from_attachments");
-    }
-
-    fn create_test_processor(config: Config) -> EnvelopeProcessorService {
-        let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
-        let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
-        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-        #[cfg(feature = "processing")]
-        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
-        let inner = InnerProcessor {
-            config: Arc::new(config),
-            envelope_manager,
-            project_cache,
-            outcome_aggregator,
-            #[cfg(feature = "processing")]
-            aggregator,
-            upstream_relay,
-            test_store,
-            #[cfg(feature = "processing")]
-            rate_limiter: None,
-            #[cfg(feature = "processing")]
-            redis_pool: None,
-            geoip_lookup: None,
-            metric_meta_store: todo!(),
-        };
-
-        EnvelopeProcessorService {
-            inner: Arc::new(inner),
-        }
     }
 
     #[tokio::test]

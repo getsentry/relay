@@ -140,22 +140,6 @@ pub struct SendClientReports {
     pub scoping: Scoping,
 }
 
-/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
-///
-/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
-/// failed buckets.
-#[derive(Debug)]
-pub struct SendMetrics {
-    /// The pre-aggregated metric buckets.
-    pub buckets: Vec<Bucket>,
-    /// Scoping information for the metrics.
-    pub scoping: Scoping,
-    /// Transaction extraction mode.
-    pub extraction_mode: ExtractionMode,
-
-    pub project_state: Arc<ProjectState>,
-}
-
 /// Dispatch service for generating and submitting Envelopes.
 #[derive(Debug)]
 pub enum EnvelopeManager {
@@ -322,34 +306,6 @@ impl EnvelopeManagerService {
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
         }
-    }
-
-    async fn handle_send_metrics(&self, message: SendMetrics) {
-        let SendMetrics {
-            buckets,
-            scoping,
-            extraction_mode,
-            project_state,
-        } = message;
-
-        #[allow(unused_mut)]
-        let mut partitions = self.config.metrics_partitions();
-        #[allow(unused_mut)]
-        let mut max_batch_size_bytes = self.config.metrics_max_batch_size_bytes();
-
-        #[cfg(feature = "processing")]
-        if self.store_forwarder.is_some() {
-            // Partitioning on processing relays does not make sense, they end up all
-            // in the same Kafka topic anyways and the partition key is ignored.
-            partitions = None;
-            max_batch_size_bytes = self.config.metrics_max_batch_size_bytes_processing();
-        }
-
-        self.enveloper_processor.send(EncodeMetrics {
-            buckets,
-            scoping,
-            extraction_mode,
-        });
     }
 
     async fn handle_send_client_reports(&self, message: SendClientReports) {

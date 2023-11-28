@@ -20,6 +20,7 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
+use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitBuckets;
@@ -1111,7 +1112,6 @@ impl Project {
     pub fn flush_buckets(
         &mut self,
         project_cache: Addr<ProjectCache>,
-        envelope_manager: Addr<EnvelopeManager>,
         envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
     ) {
@@ -1139,6 +1139,7 @@ impl Project {
                 buckets,
                 scoping,
                 extraction_mode,
+                project_state,
             });
         }
     }

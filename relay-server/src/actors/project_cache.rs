@@ -887,7 +887,7 @@ impl ProjectCacheBroker {
         let project_cache = self.services.project_cache.clone();
 
         self.get_or_create_project(message.project_key)
-            .flush_buckets(project_cache, envelope_processor, message.buckets, todo!());
+            .flush_buckets(project_cache, envelope_processor, message.buckets);
     }
 
     fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {

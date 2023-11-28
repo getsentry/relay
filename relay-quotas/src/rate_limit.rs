@@ -231,13 +231,6 @@ impl RateLimits {
         !self.is_limited()
     }
 
-    /// like is_ok but with a datacategory.
-    pub fn is_category_ok(&self, category: &DataCategory) -> bool {
-        !self
-            .iter()
-            .any(|limit| limit.categories.contains(category) && !limit.retry_after.expired())
-    }
-
     /// Returns `true` if this instance contains active rate limits.
     pub fn is_limited(&self) -> bool {
         self.iter().any(|limit| !limit.retry_after.expired())

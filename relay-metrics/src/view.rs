@@ -19,6 +19,8 @@ const BUCKET_SPLIT_FACTOR: usize = 32;
 const AVG_VALUE_SIZE: usize = 8;
 
 /// An internal type representing an index into a slice of buckets.
+///
+/// Note: the meaning of fields depends on the context of the index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Index {
     /// Index into the slice.
