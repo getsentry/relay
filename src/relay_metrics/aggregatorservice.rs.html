@@ -522,6 +522,22 @@
 <a href="#522" id="522">522</a>
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
@@ -614,6 +630,20 @@
     /// This prevents flushing all buckets from a bucket interval at the same
     /// time by computing an offset from the hash of the given key.
     </span><span class="kw">pub </span>shift_key: ShiftKey,
+
+    <span class="comment">// TODO(dav1dde): move these config values to a better spot
+    </span><span class="doccomment">/// The approximate maximum number of bytes submitted within one flush cycle.
+    ///
+    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
+    /// the cumulative length of their keys, and the number of raw values. Since final serialization
+    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// left to hard limits.
+    </span><span class="kw">pub </span>max_flush_bytes: usize,
+    <span class="doccomment">/// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    </span><span class="kw">pub </span>flush_partitions: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AggregatorServiceConfig {
@@ -630,6 +660,8 @@
             max_tag_value_length: <span class="number">200</span>,
             max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
             shift_key: ShiftKey::default(),
+            max_flush_bytes: <span class="number">5_000_000</span>, <span class="comment">// 5 MB
+            </span>flush_partitions: <span class="prelude-val">None</span>,
         }
     }
 }
