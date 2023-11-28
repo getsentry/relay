@@ -77,6 +77,7 @@ use crate::utils::{
 };
 
 mod session;
+#[cfg(feature = "processing")]
 mod span;
 
 /// The minimum clock drift for correction to apply.
