@@ -98,6 +98,15 @@
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -148,6 +157,15 @@
     <span class="doccomment">/// The line number.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>lineno: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="doccomment">/// Source code leading up to `lineno`.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>pre_context: Vec&lt;String&gt;,
+    <span class="doccomment">/// Source code of the current line (`lineno`).
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>context_line: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// Source code of the lines after `lineno`.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>post_context: Vec&lt;String&gt;,
 }
 
 <span class="doccomment">/// A Unix timestamp that is truncated to the start of the day.
