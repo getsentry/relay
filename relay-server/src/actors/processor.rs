@@ -30,8 +30,9 @@ use relay_event_schema::protocol::{
     SecurityReportType, Timestamp, TraceContext, Values,
 };
 use relay_filter::FilterStatKey;
+use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, MergeBuckets, MetricMeta, MetricNamespace};
+use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -64,15 +65,18 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
+    self, extract_transaction_count, ChunkedFormDataAggregator, ExtractionMode, FormDataIter,
+    ItemAction, ManagedEnvelope, SamplingResult,
 };
+
+use super::test_store::TestStore;
 
 mod report;
 mod session;
@@ -453,6 +457,17 @@ impl EncodeEnvelope {
     }
 }
 
+/// Encodes metrics into an envelope ready to be sent upstream.
+#[derive(Debug)]
+pub struct EncodeMetrics {
+    /// The metric buckets to encode.
+    pub buckets: Vec<Bucket>,
+    /// Scoping for metric buckets.
+    pub scoping: Scoping,
+    /// Transaction metrics extraction mode.
+    pub extraction_mode: ExtractionMode,
+}
+
 /// Encodes metric meta into an envelope and sends it upstream.
 ///
 /// Upstream means directly into redis for processing relays
@@ -479,9 +494,10 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     ProcessMetricMeta(Box<ProcessMetricMeta>),
     EncodeEnvelope(Box<EncodeEnvelope>),
+    EncodeMetrics(Box<EncodeMetrics>),
     EncodeMetricMeta(Box<EncodeMetricMeta>),
     #[cfg(feature = "processing")]
-    RateLimitFlushBuckets(RateLimitBuckets),
+    RateLimitBuckets(RateLimitBuckets),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -518,6 +534,14 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
     }
 }
 
+impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeMetrics, _: ()) -> Self {
+        Self::EncodeMetrics(Box::new(message))
+    }
+}
+
 impl FromMessage<EncodeMetricMeta> for EnvelopeProcessor {
     type Response = NoResponse;
 
@@ -531,7 +555,7 @@ impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
     fn from_message(message: RateLimitBuckets, _: ()) -> Self {
-        Self::RateLimitFlushBuckets(message)
+        Self::RateLimitBuckets(message)
     }
 }
 
@@ -553,6 +577,7 @@ struct InnerProcessor {
     #[cfg(feature = "processing")]
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
+    test_store: Addr<TestStore>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
@@ -570,6 +595,7 @@ impl EnvelopeProcessorService {
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
+        test_store: Addr<TestStore>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -593,6 +619,7 @@ impl EnvelopeProcessorService {
             project_cache,
             outcome_aggregator,
             upstream_relay,
+            test_store,
             geoip_lookup,
             #[cfg(feature = "processing")]
             aggregator,
@@ -2555,12 +2582,10 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
+    fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
         use relay_quotas::ItemScoping;
 
-        let RateLimitBuckets {
-            mut bucket_limiter, ..
-        } = message;
+        let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
 
@@ -2647,6 +2672,66 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_encode_metrics(&self, message: EncodeMetrics) {
+        let EncodeMetrics {
+            buckets,
+            scoping,
+            extraction_mode,
+        } = message;
+
+        let (partitions, max_batch_size_bytes) = if self.inner.config.processing_enabled() {
+            // Partitioning on processing relays does not make sense, they end up all
+            // in the same Kafka topic anyways and the partition key is ignored.
+            (
+                None,
+                self.inner.config.metrics_max_batch_size_bytes_processing(),
+            )
+        } else {
+            (
+                self.inner.config.metrics_partitions(),
+                self.inner.config.metrics_max_batch_size_bytes(),
+            )
+        };
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        };
+        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
+        {
+            let mut num_batches = 0;
+
+            for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
+                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+                envelope.add_item(create_metrics_item(&batch, extraction_mode));
+
+                let mut envelope = ManagedEnvelope::standalone(
+                    envelope,
+                    self.inner.outcome_aggregator.clone(),
+                    self.inner.test_store.clone(),
+                );
+                envelope.set_partition_key(partition_key).scope(scoping);
+
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                );
+
+                self.inner
+                    .envelope_manager
+                    .send(SubmitEnvelope { envelope });
+
+                num_batches += 1;
+            }
+
+            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
+        }
+    }
+
     fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
@@ -2705,12 +2790,13 @@ impl EnvelopeProcessorService {
                 self.handle_process_metric_meta(*message)
             }
             EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
+            EnvelopeProcessor::EncodeMetrics(message) => self.handle_encode_metrics(*message),
             EnvelopeProcessor::EncodeMetricMeta(message) => {
                 self.handle_encode_metric_meta(*message)
             }
             #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitFlushBuckets(message) => {
-                self.handle_rate_limit_flush_buckets(message);
+            EnvelopeProcessor::RateLimitBuckets(message) => {
+                self.handle_rate_limit_buckets(message);
             }
         }
     }
@@ -2751,6 +2837,26 @@ impl Service for EnvelopeProcessorService {
             }
         });
     }
+}
+
+fn create_metrics_item(buckets: &BucketsView<'_>, extraction_mode: ExtractionMode) -> Item {
+    let source_quantities = buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
+        .fold(SourceQuantities::default(), |acc, c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+
+            SourceQuantities {
+                transactions: acc.transactions + c.count,
+                profiles: acc.profiles + profile_count,
+            }
+        });
+
+    let mut item = Item::new(ItemType::MetricBuckets);
+    item.set_source_quantities(source_quantities);
+    item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+
+    item
 }
 
 #[cfg(test)]
@@ -3075,6 +3181,7 @@ mod tests {
             project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
+            test_store: Addr::dummy(),
             #[cfg(feature = "processing")]
             rate_limiter: None,
             #[cfg(feature = "processing")]
