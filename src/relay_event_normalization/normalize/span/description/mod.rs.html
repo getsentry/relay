@@ -824,8 +824,43 @@
 <a href="#824" id="824">824</a>
 <a href="#825" id="825">825</a>
 <a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
-</span><span class="kw">mod </span>sql;
+</span><span class="kw">mod </span>resource;
+<span class="kw">mod </span>sql;
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">pub use </span>sql::parse_query;
 
@@ -839,6 +874,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
+<span class="kw">use </span><span class="kw">crate</span>::span::description::resource::COMMON_PATH_SEGMENTS;
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 <span class="doccomment">/// Dummy URL used to parse relative URLs.
@@ -1062,19 +1098,37 @@
             <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="string">&quot;browser-extension://*&quot;</span>.to_owned());
         }
         scheme =&gt; {
-            <span class="kw">let </span>segments = url.path_segments();
-            <span class="kw">let </span>segment_count = segments.map(|s| s.count()).unwrap_or_default();
             <span class="kw">let </span>domain = url
                 .domain()
                 .and_then(|d| normalize_domain(d, url.port()))
                 .unwrap_or(<span class="string">&quot;&quot;</span>.into());
+            <span class="kw">let </span>segment_count = url.path_segments().map(|s| s.count()).unwrap_or_default();
+            <span class="kw">let </span><span class="kw-2">mut </span>output_segments = <span class="macro">vec!</span>[];
+            <span class="kw">for </span>(i, segment) <span class="kw">in </span>url.path_segments().into_iter().flatten().enumerate() {
+                <span class="kw">if </span>i + <span class="number">1 </span>== segment_count {
+                    <span class="kw">break</span>;
+                }
+                <span class="kw">if </span>COMMON_PATH_SEGMENTS.contains(segment) {
+                    output_segments.push(segment);
+                } <span class="kw">else if </span>!output_segments.last().is_some_and(|s| <span class="kw-2">*</span>s == <span class="string">&quot;*&quot;</span>) {
+                    <span class="comment">// only one asterisk
+                    </span>output_segments.push(<span class="string">&quot;*&quot;</span>);
+                }
+            }
+
+            <span class="kw">let </span>segments = output_segments.join(<span class="string">&quot;/&quot;</span>);
+
             <span class="kw">let </span>last_segment = url
                 .path_segments()
                 .and_then(|s| s.last())
                 .unwrap_or_default();
-            <span class="kw">let </span>sep = <span class="kw">if </span>segment_count &gt; <span class="number">1 </span>{ <span class="string">&quot;*/&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;&quot; </span>};
-            <span class="kw">let </span>last_segment = scrub_resource_path(last_segment);
-            <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}/{sep}{last_segment}&quot;</span>)
+            <span class="kw">let </span>last_segment = scrub_resource_filename(last_segment);
+
+            <span class="kw">if </span>segments.is_empty() {
+                <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}/{last_segment}&quot;</span>)
+            } <span class="kw">else </span>{
+                <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}/{segments}/{last_segment}&quot;</span>)
+            }
         }
     };
 
@@ -1088,7 +1142,7 @@
     <span class="prelude-val">Some</span>(formatted)
 }
 
-<span class="kw">fn </span>scrub_resource_path(path: <span class="kw-2">&amp;</span>str) -&gt; String {
+<span class="kw">fn </span>scrub_resource_filename(path: <span class="kw-2">&amp;</span>str) -&gt; String {
     <span class="kw">let </span>(<span class="kw-2">mut </span>base_path, <span class="kw-2">mut </span>extension) = path.rsplit_once(<span class="string">&#39;.&#39;</span>).unwrap_or((path, <span class="string">&quot;&quot;</span>));
     <span class="kw">if </span>extension.contains(<span class="string">&#39;/&#39;</span>) {
         <span class="comment">// Not really an extension
@@ -1312,28 +1366,42 @@
         resource_script,
         <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.com/*/*.map&quot;
+        <span class="string">&quot;https://example.com/static/chunks/*.map&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_numeric_filename,
         <span class="string">&quot;https://example.com/static/chunks/09876543211234567890&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.com/*/*&quot;
+        <span class="string">&quot;https://example.com/static/chunks/*&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_next_chunks,
+        <span class="string">&quot;/_next/static/chunks/12345-abcdef0123456789.js&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
+        <span class="string">&quot;/_next/static/chunks/*-*.js&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_next_media,
+        <span class="string">&quot;/_next/static/media/Some_Font-Bold.0123abcd.woff2&quot;</span>,
+        <span class="string">&quot;resource.css&quot;</span>,
+        <span class="string">&quot;/_next/static/media/Some_Font-Bold.*.woff2&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_css,
         <span class="string">&quot;https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;https://example.com/*/dark_high_contrast-*.css&quot;
+        <span class="string">&quot;https://example.com/assets/dark_high_contrast-*.css&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         integer_in_resource,
         <span class="string">&quot;https://example.com/assets/this_is-a_good_resource-123-scrub_me.js&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;https://example.com/*/*.js&quot;
+        <span class="string">&quot;https://example.com/assets/*.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1347,14 +1415,14 @@
         resource_query_params2,
         <span class="string">&quot;https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/*/guide*.gif&quot;
+        <span class="string">&quot;https://*.domain.com/data/guide*.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_no_ids,
         <span class="string">&quot;https://data.domain.com/data/guide.gif&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/*/guide.gif&quot;
+        <span class="string">&quot;https://*.domain.com/data/guide.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1368,14 +1436,14 @@
         resource_vite,
         <span class="string">&quot;webroot/assets/Profile-73f6525d.js&quot;</span>,
         <span class="string">&quot;resource.js&quot;</span>,
-        <span class="string">&quot;*/Profile-*.js&quot;
+        <span class="string">&quot;*/assets/Profile-*.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_vite_css,
         <span class="string">&quot;webroot/assets/Shop-1aff80f7.css&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;*/Shop-*.css&quot;
+        <span class="string">&quot;*/assets/Shop-*.css&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1445,7 +1513,7 @@
         resource_url_with_fragment,
         <span class="string">&quot;https://data.domain.com/data/guide123.gif#url=someotherurl&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/*/guide*.gif&quot;
+        <span class="string">&quot;https://*.domain.com/data/guide*.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1517,7 +1585,7 @@
         resource_img_comma_with_extension,
         <span class="string">&quot;https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://example.org/*/weird-stuff-*-*-*.jpg&quot;
+        <span class="string">&quot;https://example.org/*/media/*/weird-stuff-*-*-*.jpg&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
