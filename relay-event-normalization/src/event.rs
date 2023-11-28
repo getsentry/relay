@@ -27,15 +27,15 @@ use crate::{
 };
 use crate::{mechanism, stacktrace};
 
+/// Normalizes the given event based on the given config.
+///
+/// The returned [`ProcessingResult`] indicates whether the passed event should
+/// be ingested or dropped.
 pub fn normalize(
     event: &mut Event,
     meta: &mut Meta,
     config: &NormalizationConfig,
 ) -> ProcessingResult {
-    if config.is_renormalize {
-        return Ok(());
-    }
-
     // Validate and normalize transaction
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
