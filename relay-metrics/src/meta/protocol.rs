@@ -48,6 +48,15 @@ pub struct Location {
     /// The line number.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lineno: Option<u64>,
+    /// Source code leading up to `lineno`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pre_context: Vec<String>,
+    /// Source code of the current line (`lineno`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_line: Option<String>,
+    /// Source code of the lines after `lineno`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub post_context: Vec<String>,
 }
 
 /// A Unix timestamp that is truncated to the start of the day.

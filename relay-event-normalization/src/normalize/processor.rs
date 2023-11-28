@@ -14,7 +14,9 @@ use std::mem;
 use std::ops::Range;
 
 use chrono::{DateTime, Duration, Utc};
-use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+use relay_base_schema::metrics::{
+    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
+};
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
@@ -959,7 +961,7 @@ fn remove_invalid_measurements(
             None => return false,
         };
 
-        if !is_valid_metric_name(name) {
+        if !can_be_valid_metric_name(name) {
             meta.add_error(Error::invalid(format!(
                 "Metric name contains invalid characters: \"{name}\""
             )));

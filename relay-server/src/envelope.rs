@@ -488,6 +488,18 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// Contains the amount of events this item was generated and aggregated from.
+    ///
+    /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
+    /// aggregated from (currently) transactions and profiles.
+    ///
+    /// This information can not be directly inferred from the item itself anymore.
+    /// The amount of events this item/metric represents is instead stored here.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    source_quantities: Option<SourceQuantities>,
+
     /// A list of cumulative sample rates applied to this event.
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
@@ -509,6 +521,17 @@ pub struct ItemHeaders {
     other: BTreeMap<String, Value>,
 }
 
+/// Container for item quantities that the item was derived from.
+///
+/// For example a metric bucket may be derived and aggregated from multiple transactions.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SourceQuantities {
+    /// Transaction quantity.
+    pub transactions: usize,
+    /// Profile quantity.
+    pub profiles: usize,
+}
+
 #[derive(Clone, Debug)]
 pub struct Item {
     headers: ItemHeaders,
@@ -527,6 +550,7 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
+                source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
@@ -673,6 +697,16 @@ impl Item {
     /// Removes sample rates from the headers, if any.
     pub fn take_sample_rates(&mut self) -> Option<Value> {
         self.headers.sample_rates.take()
+    }
+
+    /// Returns the contained source quantities.
+    pub fn source_quantities(&self) -> Option<SourceQuantities> {
+        self.headers.source_quantities
+    }
+
+    /// Sets new source quantities.
+    pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
+        self.headers.source_quantities = Some(source_quantities);
     }
 
     /// Sets sample rates for this item.
@@ -1362,6 +1396,20 @@ mod tests {
         item.set_routing_hint(uuid);
 
         assert_eq!(item.routing_hint(), Some(uuid));
+    }
+
+    #[test]
+    fn test_item_source_quantities() {
+        let mut item = Item::new(ItemType::MetricBuckets);
+        assert!(item.source_quantities().is_none());
+
+        let source_quantities = SourceQuantities {
+            transactions: 12,
+            ..Default::default()
+        };
+        item.set_source_quantities(source_quantities);
+
+        assert_eq!(item.source_quantities(), Some(source_quantities));
     }
 
     #[test]

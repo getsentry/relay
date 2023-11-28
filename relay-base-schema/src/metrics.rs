@@ -1,21 +1,31 @@
 //! Type definitions for Sentry metrics.
 
-use std::fmt;
+use regex::Regex;
+use std::{borrow::Cow, fmt, sync::OnceLock};
 
 use relay_protocol::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
 
-/// Validates a metric name. This is the statsd name, i.e. without type or unit.
+/// Validates a metric name and normalizes it. This is the statsd name, i.e. without type or unit.
 ///
 /// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores, slashes and periods.
-pub fn is_valid_metric_name(name: &str) -> bool {
-    let mut iter = name.as_bytes().iter();
-    if let Some(first_byte) = iter.next() {
-        if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
-        }
+/// underscores, dashes, slashes and periods.
+///
+/// The function validates that the first character of the metric must be ASCII alphanumeric,
+/// later consecutive invalid characters in the name will be replaced with underscores.
+pub fn try_normalize_metric_name(name: &str) -> Option<Cow<'_, str>> {
+    static NORMALIZE_RE: OnceLock<Regex> = OnceLock::new();
+
+    if !can_be_valid_metric_name(name) {
+        return None;
     }
-    false
+
+    let normalize_re = NORMALIZE_RE.get_or_init(|| Regex::new("[^a-zA-Z0-9_/.]+").unwrap());
+    Some(normalize_re.replace_all(name, "_"))
+}
+
+/// Returns whether [`try_normalize_metric_name`] can normalize the passed name.
+pub fn can_be_valid_metric_name(name: &str) -> bool {
+    name.starts_with(|c: char| c.is_ascii_alphabetic())
 }
 
 /// The unit of measurement of a metric value.
