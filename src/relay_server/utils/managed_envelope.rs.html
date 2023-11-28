@@ -391,6 +391,34 @@
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -452,6 +480,7 @@
     summary: EnvelopeSummary,
     scoping: Scoping,
     slot: <span class="prelude-ty">Option</span>&lt;SemaphorePermit&gt;,
+    partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     done: bool,
 }
 
@@ -495,23 +524,12 @@
                 summary,
                 scoping,
                 slot,
+                partition_key: <span class="prelude-val">None</span>,
                 done: <span class="bool-val">false</span>,
             },
             outcome_aggregator,
             test_store,
         }
-    }
-
-    <span class="doccomment">/// Creates a standalone envelope for testing purposes.
-    ///
-    /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
-    /// suitable for unit testing internals of the processing pipeline.
-    </span><span class="kw">pub fn </span>standalone(
-        envelope: Box&lt;Envelope&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        test_store: Addr&lt;TestStore&gt;,
-    ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>, outcome_aggregator, test_store)
     }
 
     <span class="attr">#[cfg(test)]
@@ -523,6 +541,21 @@
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>, outcome_aggregator, test_store);
         envelope.context.done = <span class="bool-val">true</span>;
         envelope
+    }
+
+    <span class="doccomment">/// Creates a new managed envelope like [`new`](Self::new) but without a queue permit.
+    ///
+    /// This is suitable for aggregated metrics. Metrics live outside the lifecycle of a normal
+    /// event. They are extracted, aggregated and regularily flushed, after the
+    /// source event has already been processed.
+    ///
+    /// The constructor is also suitable for unit testing internals of the processing pipeline.
+    </span><span class="kw">pub fn </span>standalone(
+        envelope: Box&lt;Envelope&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        test_store: Addr&lt;TestStore&gt;,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new_internal(envelope, <span class="prelude-val">None</span>, outcome_aggregator, test_store)
     }
 
     <span class="doccomment">/// Computes a managed envelope from the given envelope and binds it to the processing queue.
@@ -688,6 +721,7 @@
                     tags.has_attachments = summary.attachment_quantity &gt; <span class="number">0</span>,
                     tags.has_sessions = summary.session_quantity &gt; <span class="number">0</span>,
                     tags.has_profiles = summary.profile_quantity &gt; <span class="number">0</span>,
+                    tags.has_transactions = summary.secondary_transaction_quantity &gt; <span class="number">0</span>,
                     tags.has_replays = summary.replay_quantity &gt; <span class="number">0</span>,
                     tags.has_checkins = summary.checkin_quantity &gt; <span class="number">0</span>,
                     tags.event_category = <span class="question-mark">?</span>summary.event_category,
@@ -716,13 +750,26 @@
 
         <span class="kw">if </span><span class="self">self</span>.context.summary.profile_quantity &gt; <span class="number">0 </span>{
             <span class="self">self</span>.track_outcome(
-                outcome,
+                outcome.clone(),
                 <span class="kw">if </span><span class="self">self</span>.use_index_category() {
                     DataCategory::ProfileIndexed
                 } <span class="kw">else </span>{
                     DataCategory::Profile
                 },
                 <span class="self">self</span>.context.summary.profile_quantity,
+            );
+        }
+
+        <span class="comment">// Track outcomes for attached secondary transactions, e.g. extracted from metrics.
+        //
+        // Primary transaction count is already tracked through the event category
+        // (see: `Self::event_category()`).
+        </span><span class="kw">if </span><span class="self">self</span>.context.summary.secondary_transaction_quantity &gt; <span class="number">0 </span>{
+            <span class="self">self</span>.track_outcome(
+                outcome,
+                <span class="comment">// Secondary transaction counts are never indexed transactions
+                </span>DataCategory::Transaction,
+                <span class="self">self</span>.context.summary.secondary_transaction_quantity,
             );
         }
 
@@ -733,6 +780,15 @@
     </span><span class="kw">pub fn </span>scoping(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Scoping {
         <span class="self">self</span>.context.scoping
     }
+
+    <span class="kw">pub fn </span>partition_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
+        <span class="self">self</span>.context.partition_key
+    }
+
+    <span class="kw">pub fn </span>set_partition_key(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="self">self</span>.context.partition_key = partition_key;
+        <span class="self">self
+    </span>}
 
     <span class="kw">pub fn </span>meta(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RequestMeta {
         <span class="self">self</span>.envelope().meta()

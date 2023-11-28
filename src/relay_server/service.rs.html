@@ -467,6 +467,7 @@
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
+            test_store.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>aggregator.clone(),
         )
@@ -475,7 +476,6 @@
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_manager_service = EnvelopeManagerService::new(
             config.clone(),
-            aggregator.clone(),
             processor.clone(),
             project_cache.clone(),
             test_store.clone(),

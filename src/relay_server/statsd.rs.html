@@ -671,6 +671,14 @@
 <a href="#671" id="671">671</a>
 <a href="#672" id="672">672</a>
 <a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -745,6 +753,12 @@
     /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
     /// always be one.
     </span>BufferDequeueAttempts,
+    <span class="doccomment">/// The number of batches emitted per partition.
+    </span>BatchesPerPartition,
+    <span class="doccomment">/// The number of buckets in a batch emitted.
+    ///
+    /// This corresponds to the number of buckets that will end up in an envelope.
+    </span>BucketsPerBatch,
     <span class="doccomment">/// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -833,6 +847,8 @@
             RelayHistograms::EnvelopeQueueSizePct =&gt; <span class="string">&quot;event.queue_size.pct&quot;</span>,
             RelayHistograms::EnvelopeQueueSize =&gt; <span class="string">&quot;event.queue_size&quot;</span>,
             RelayHistograms::EventSpans =&gt; <span class="string">&quot;event.spans&quot;</span>,
+            RelayHistograms::BatchesPerPartition =&gt; <span class="string">&quot;metrics.buckets.batches_per_partition&quot;</span>,
+            RelayHistograms::BucketsPerBatch =&gt; <span class="string">&quot;metrics.buckets.per_batch&quot;</span>,
             RelayHistograms::BufferEnvelopesMemoryBytes =&gt; <span class="string">&quot;buffer.envelopes_mem&quot;</span>,
             RelayHistograms::BufferDiskSize =&gt; <span class="string">&quot;buffer.disk_size&quot;</span>,
             RelayHistograms::BufferDequeueAttempts =&gt; <span class="string">&quot;buffer.dequeue_attempts&quot;</span>,

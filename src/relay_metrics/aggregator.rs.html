@@ -1471,6 +1471,24 @@
 <a href="#1471" id="1471">1471</a>
 <a href="#1472" id="1472">1472</a>
 <a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1540,12 +1558,17 @@
 }
 
 <span class="kw">impl </span>BucketKey {
-    <span class="comment">// Create a 64-bit hash of the bucket key using FnvHasher.
-    // This is used for partition key computation and statsd logging.
+    <span class="doccomment">/// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
+    /// This is used for partition key computation and statsd logging.
     </span><span class="kw">fn </span>hash64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-        std::hash::Hash::hash(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>hasher);
-        hasher.finish()
+        BucketKeyRef {
+            project_key: <span class="self">self</span>.project_key,
+            timestamp: <span class="self">self</span>.timestamp,
+            metric_name: <span class="kw-2">&amp;</span><span class="self">self</span>.metric_name,
+            tags: <span class="kw-2">&amp;</span><span class="self">self</span>.tags,
+        }
+        .hash64()
     }
 
     <span class="doccomment">/// Estimates the number of bytes needed to encode the bucket key.
@@ -1562,6 +1585,29 @@
             <span class="prelude-val">Ok</span>(mri) =&gt; mri.namespace,
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; MetricNamespace::Unsupported,
         }
+    }
+}
+
+<span class="doccomment">/// Pendant to [`BucketKey`] for referenced data, not owned data.
+///
+/// This makes it possible to compute a hash for a [`Bucket`]
+/// without destructing the bucket into a [`BucketKey`].
+</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+</span><span class="kw">struct </span>BucketKeyRef&lt;<span class="lifetime">&#39;a</span>&gt; {
+    project_key: ProjectKey,
+    timestamp: UnixTimestamp,
+    metric_name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    tags: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeMap&lt;String, String&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; BucketKeyRef&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
+    /// This is used for partition key computation and statsd logging.
+    </span><span class="kw">fn </span>hash64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
+        std::hash::Hash::hash(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>hasher);
+        hasher.finish()
     }
 }
 
@@ -1821,14 +1867,6 @@
     }
 }
 
-<span class="doccomment">/// A Bucket and its hashed key.
-/// This is cheaper to pass around than a (BucketKey, Bucket) pair.
-</span><span class="kw">pub struct </span>HashedBucket {
-    <span class="comment">// This is only public because pop_flush_buckets is used in benchmark.
-    </span>hashed_key: u64,
-    bucket: Bucket,
-}
-
 <span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>CostTracker {
     total_cost: usize,
@@ -1986,7 +2024,7 @@
     <span class="doccomment">/// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    </span><span class="kw">pub fn </span>pop_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, force: bool) -&gt; HashMap&lt;ProjectKey, Vec&lt;HashedBucket&gt;&gt; {
+    </span><span class="kw">pub fn </span>pop_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, force: bool) -&gt; HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt; {
         <span class="macro">relay_statsd::metric!</span>(
             gauge(MetricGauges::Buckets) = <span class="self">self</span>.bucket_count() <span class="kw">as </span>u64,
             aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
@@ -1999,7 +2037,7 @@
             aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
         );
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = HashMap::&lt;ProjectKey, Vec&lt;HashedBucket&gt;&gt;::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>buckets = HashMap::new();
         <span class="kw">let </span><span class="kw-2">mut </span>stats = HashMap::new();
 
         <span class="macro">relay_statsd::metric!</span>(
@@ -2031,11 +2069,8 @@
 
                         buckets
                             .entry(key.project_key)
-                            .or_default()
-                            .push(HashedBucket {
-                                hashed_key: key.hash64(),
-                                bucket,
-                            });
+                            .or_insert_with(Vec::new)
+                            .push(bucket);
 
                         <span class="bool-val">false
                     </span>} <span class="kw">else </span>{
@@ -2318,35 +2353,6 @@
         }
     }
 
-    <span class="doccomment">/// Split buckets into N logical partitions, determined by the bucket key.
-    </span><span class="kw">pub fn </span>partition_buckets(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        buckets: Vec&lt;HashedBucket&gt;,
-        flush_partitions: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    ) -&gt; BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt; {
-        <span class="kw">let </span>flush_partitions = <span class="kw">match </span>flush_partitions {
-            <span class="prelude-val">None </span>=&gt; {
-                <span class="kw">return </span>BTreeMap::from([(<span class="prelude-val">None</span>, buckets.into_iter().map(|x| x.bucket).collect())]);
-            }
-            <span class="prelude-val">Some</span>(x) =&gt; x.max(<span class="number">1</span>), <span class="comment">// handle 0,
-        </span>};
-        <span class="kw">let </span><span class="kw-2">mut </span>partitions = BTreeMap::&lt;<span class="kw">_</span>, Vec&lt;Bucket&gt;&gt;::new();
-        <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
-            <span class="kw">let </span>partition_key = bucket.hashed_key % flush_partitions;
-            partitions
-                .entry(<span class="prelude-val">Some</span>(partition_key))
-                .or_default()
-                .push(bucket.bucket);
-
-            <span class="comment">// Log the distribution of buckets over partition key
-            </span><span class="macro">relay_statsd::metric!</span>(
-                histogram(MetricHistograms::PartitionKeys) = partition_key <span class="kw">as </span>f64,
-                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-            );
-        }
-        partitions
-    }
-
     <span class="doccomment">/// Create a new aggregator.
     </span><span class="kw">pub fn </span>new(config: AggregatorConfig) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::named(<span class="string">&quot;default&quot;</span>.to_owned(), config)
@@ -2371,6 +2377,36 @@
             .field(<span class="string">&quot;receiver&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;Recipient&lt;FlushBuckets&gt;&quot;</span>))
             .finish()
     }
+}
+
+<span class="doccomment">/// Splits buckets into N logical partitions, determined by the bucket key.
+</span><span class="kw">pub fn </span>partition_buckets(
+    project_key: ProjectKey,
+    buckets: Vec&lt;Bucket&gt;,
+    flush_partitions: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+) -&gt; BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt; {
+    <span class="kw">let </span>flush_partitions = <span class="kw">match </span>flush_partitions {
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span>BTreeMap::from([(<span class="prelude-val">None</span>, buckets)]),
+        <span class="prelude-val">Some</span>(x) =&gt; x.max(<span class="number">1</span>), <span class="comment">// handle 0,
+    </span>};
+    <span class="kw">let </span><span class="kw-2">mut </span>partitions = BTreeMap::&lt;<span class="kw">_</span>, Vec&lt;Bucket&gt;&gt;::new();
+    <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
+        <span class="kw">let </span>key = BucketKeyRef {
+            project_key,
+            timestamp: bucket.timestamp,
+            metric_name: <span class="kw-2">&amp;</span>bucket.name,
+            tags: <span class="kw-2">&amp;</span>bucket.tags,
+        };
+
+        <span class="kw">let </span>partition_key = key.hash64() % flush_partitions;
+        partitions
+            .entry(<span class="prelude-val">Some</span>(partition_key))
+            .or_default()
+            .push(bucket);
+
+        <span class="macro">relay_statsd::metric!</span>(histogram(MetricHistograms::PartitionKeys) = partition_key);
+    }
+    partitions
 }
 
 <span class="attr">#[cfg(test)]

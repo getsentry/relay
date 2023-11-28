@@ -1805,6 +1805,54 @@
 <a href="#1805" id="1805">1805</a>
 <a href="#1806" id="1806">1806</a>
 <a href="#1807" id="1807">1807</a>
+<a href="#1808" id="1808">1808</a>
+<a href="#1809" id="1809">1809</a>
+<a href="#1810" id="1810">1810</a>
+<a href="#1811" id="1811">1811</a>
+<a href="#1812" id="1812">1812</a>
+<a href="#1813" id="1813">1813</a>
+<a href="#1814" id="1814">1814</a>
+<a href="#1815" id="1815">1815</a>
+<a href="#1816" id="1816">1816</a>
+<a href="#1817" id="1817">1817</a>
+<a href="#1818" id="1818">1818</a>
+<a href="#1819" id="1819">1819</a>
+<a href="#1820" id="1820">1820</a>
+<a href="#1821" id="1821">1821</a>
+<a href="#1822" id="1822">1822</a>
+<a href="#1823" id="1823">1823</a>
+<a href="#1824" id="1824">1824</a>
+<a href="#1825" id="1825">1825</a>
+<a href="#1826" id="1826">1826</a>
+<a href="#1827" id="1827">1827</a>
+<a href="#1828" id="1828">1828</a>
+<a href="#1829" id="1829">1829</a>
+<a href="#1830" id="1830">1830</a>
+<a href="#1831" id="1831">1831</a>
+<a href="#1832" id="1832">1832</a>
+<a href="#1833" id="1833">1833</a>
+<a href="#1834" id="1834">1834</a>
+<a href="#1835" id="1835">1835</a>
+<a href="#1836" id="1836">1836</a>
+<a href="#1837" id="1837">1837</a>
+<a href="#1838" id="1838">1838</a>
+<a href="#1839" id="1839">1839</a>
+<a href="#1840" id="1840">1840</a>
+<a href="#1841" id="1841">1841</a>
+<a href="#1842" id="1842">1842</a>
+<a href="#1843" id="1843">1843</a>
+<a href="#1844" id="1844">1844</a>
+<a href="#1845" id="1845">1845</a>
+<a href="#1846" id="1846">1846</a>
+<a href="#1847" id="1847">1847</a>
+<a href="#1848" id="1848">1848</a>
+<a href="#1849" id="1849">1849</a>
+<a href="#1850" id="1850">1850</a>
+<a href="#1851" id="1851">1851</a>
+<a href="#1852" id="1852">1852</a>
+<a href="#1853" id="1853">1853</a>
+<a href="#1854" id="1854">1854</a>
+<a href="#1855" id="1855">1855</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2291,6 +2339,18 @@
     </span><span class="attr">#[serde(default, skip)]
     </span>rate_limited: bool,
 
+    <span class="doccomment">/// Contains the amount of events this item was generated and aggregated from.
+    ///
+    /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
+    /// aggregated from (currently) transactions and profiles.
+    ///
+    /// This information can not be directly inferred from the item itself anymore.
+    /// The amount of events this item/metric represents is instead stored here.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    </span><span class="attr">#[serde(default, skip)]
+    </span>source_quantities: <span class="prelude-ty">Option</span>&lt;SourceQuantities&gt;,
+
     <span class="doccomment">/// A list of cumulative sample rates applied to this event.
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
@@ -2312,6 +2372,17 @@
     </span>other: BTreeMap&lt;String, Value&gt;,
 }
 
+<span class="doccomment">/// Container for item quantities that the item was derived from.
+///
+/// For example a metric bucket may be derived and aggregated from multiple transactions.
+</span><span class="attr">#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+</span><span class="kw">pub struct </span>SourceQuantities {
+    <span class="doccomment">/// Transaction quantity.
+    </span><span class="kw">pub </span>transactions: usize,
+    <span class="doccomment">/// Profile quantity.
+    </span><span class="kw">pub </span>profiles: usize,
+}
+
 <span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>Item {
     headers: ItemHeaders,
@@ -2330,6 +2401,7 @@
                 filename: <span class="prelude-val">None</span>,
                 routing_hint: <span class="prelude-val">None</span>,
                 rate_limited: <span class="bool-val">false</span>,
+                source_quantities: <span class="prelude-val">None</span>,
                 sample_rates: <span class="prelude-val">None</span>,
                 other: BTreeMap::new(),
                 metrics_extracted: <span class="bool-val">false</span>,
@@ -2475,6 +2547,16 @@
     <span class="doccomment">/// Removes sample rates from the headers, if any.
     </span><span class="kw">pub fn </span>take_sample_rates(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Value&gt; {
         <span class="self">self</span>.headers.sample_rates.take()
+    }
+
+    <span class="doccomment">/// Returns the contained source quantities.
+    </span><span class="kw">pub fn </span>source_quantities(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;SourceQuantities&gt; {
+        <span class="self">self</span>.headers.source_quantities
+    }
+
+    <span class="doccomment">/// Sets new source quantities.
+    </span><span class="kw">pub fn </span>set_source_quantities(<span class="kw-2">&amp;mut </span><span class="self">self</span>, source_quantities: SourceQuantities) {
+        <span class="self">self</span>.headers.source_quantities = <span class="prelude-val">Some</span>(source_quantities);
     }
 
     <span class="doccomment">/// Sets sample rates for this item.
@@ -3162,6 +3244,20 @@
         item.set_routing_hint(uuid);
 
         <span class="macro">assert_eq!</span>(item.routing_hint(), <span class="prelude-val">Some</span>(uuid));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_item_source_quantities() {
+        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
+        <span class="macro">assert!</span>(item.source_quantities().is_none());
+
+        <span class="kw">let </span>source_quantities = SourceQuantities {
+            transactions: <span class="number">12</span>,
+            ..Default::default()
+        };
+        item.set_source_quantities(source_quantities);
+
+        <span class="macro">assert_eq!</span>(item.source_quantities(), <span class="prelude-val">Some</span>(source_quantities));
     }
 
     <span class="attr">#[test]

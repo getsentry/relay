@@ -84,6 +84,8 @@
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.
 //!
 //! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
@@ -162,6 +164,7 @@
 <span class="kw">mod </span>protocol;
 <span class="kw">mod </span>router;
 <span class="kw">mod </span>statsd;
+<span class="kw">mod </span>view;
 
 <span class="kw">pub use </span>aggregatorservice::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>bucket::<span class="kw-2">*</span>;
@@ -170,4 +173,5 @@
 <span class="kw">pub use </span>meta::{MetaAggregator, MetricMeta};
 <span class="kw">pub use </span>protocol::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>router::<span class="kw-2">*</span>;
+<span class="kw">pub use </span>view::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>

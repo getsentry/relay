@@ -366,66 +366,6 @@
 <a href="#366" id="366">366</a>
 <a href="#367" id="367">367</a>
 <a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::future::Future;
@@ -436,7 +376,6 @@
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
 <span class="kw">use </span>relay_event_schema::protocol::ClientReport;
-<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, MergeBuckets};
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse};
@@ -565,26 +504,11 @@
     </span><span class="kw">pub </span>scoping: Scoping,
 }
 
-<span class="doccomment">/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
-///
-/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
-/// failed buckets.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>SendMetrics {
-    <span class="doccomment">/// The pre-aggregated metric buckets.
-    </span><span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
-    <span class="doccomment">/// Scoping information for the metrics.
-    </span><span class="kw">pub </span>scoping: Scoping,
-    <span class="doccomment">/// The key of the logical partition to send the metrics to.
-    </span><span class="kw">pub </span>partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-}
-
 <span class="doccomment">/// Dispatch service for generating and submitting Envelopes.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>EnvelopeManager {
     SubmitEnvelope(Box&lt;SubmitEnvelope&gt;),
     SendClientReports(SendClientReports),
-    SendMetrics(SendMetrics),
 }
 
 <span class="kw">impl </span>relay_system::Interface <span class="kw">for </span>EnvelopeManager {}
@@ -605,14 +529,6 @@
     }
 }
 
-<span class="kw">impl </span>FromMessage&lt;SendMetrics&gt; <span class="kw">for </span>EnvelopeManager {
-    <span class="kw">type </span>Response = NoResponse;
-
-    <span class="kw">fn </span>from_message(message: SendMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::SendMetrics(message)
-    }
-}
-
 <span class="doccomment">/// Service implementing the [`EnvelopeManager`] interface.
 ///
 /// This service will produce envelopes to one the following backends:
@@ -624,7 +540,6 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EnvelopeManagerService {
     config: Arc&lt;Config&gt;,
-    aggregator: Addr&lt;Aggregator&gt;,
     enveloper_processor: Addr&lt;EnvelopeProcessor&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
     test_store: Addr&lt;TestStore&gt;,
@@ -637,7 +552,6 @@
     <span class="doccomment">/// Creates a new instance of the [`EnvelopeManager`] service.
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
-        aggregator: Addr&lt;Aggregator&gt;,
         enveloper_processor: Addr&lt;EnvelopeProcessor&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
         test_store: Addr&lt;TestStore&gt;,
@@ -645,7 +559,6 @@
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
-            aggregator,
             enveloper_processor,
             project_cache,
             test_store,
@@ -666,7 +579,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
         scoping: Scoping,
-        partition_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
+        partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SendEnvelopeError&gt; {
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span>{
@@ -708,7 +621,7 @@
             http_encoding: <span class="self">self</span>.config.http_encoding(),
             response_sender: tx,
             project_key: scoping.project_key,
-            partition_key,
+            partition_key: partition_key.map(|k| k.to_string()),
         };
 
         <span class="kw">if let </span>HttpEncoding::Identity = request.http_encoding {
@@ -728,9 +641,13 @@
         <span class="kw">let </span>SubmitEnvelope { <span class="kw-2">mut </span>envelope } = message;
 
         <span class="kw">let </span>scoping = envelope.scoping();
+        <span class="kw">let </span>partition_key = envelope.partition_key();
 
         <span class="kw">let </span>inner_envelope = envelope.take_envelope();
-        <span class="kw">match </span><span class="self">self</span>.submit_envelope(inner_envelope, scoping, <span class="prelude-val">None</span>).<span class="kw">await </span>{
+        <span class="kw">match </span><span class="self">self
+            </span>.submit_envelope(inner_envelope, scoping, partition_key)
+            .<span class="kw">await
+        </span>{
             <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
                 envelope.accept();
             }
@@ -752,40 +669,6 @@
                 );
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
-        }
-    }
-
-    <span class="kw">async fn </span>handle_send_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SendMetrics) {
-        <span class="kw">let </span>SendMetrics {
-            buckets,
-            scoping,
-            partition_key,
-        } = message;
-
-        <span class="kw">let </span>upstream = <span class="self">self</span>.config.upstream_descriptor();
-        <span class="kw">let </span>dsn = PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: <span class="string">&quot;&quot;</span>.to_owned(),
-            project_id: <span class="prelude-val">Some</span>(scoping.project_id),
-        };
-
-        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn));
-        envelope.add_item(item);
-
-        <span class="kw">let </span>partition_key = partition_key.map(|x| x.to_string());
-        <span class="kw">let </span>result = <span class="self">self</span>.submit_envelope(envelope, scoping, partition_key).<span class="kw">await</span>;
-        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = result {
-            <span class="macro">relay_log::trace!</span>(
-                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                <span class="string">&quot;failed to submit the envelope, merging buckets back&quot;</span>,
-            );
-            <span class="self">self</span>.aggregator
-                .send(MergeBuckets::new(scoping.project_key, buckets));
         }
     }
 
@@ -827,9 +710,6 @@
             }
             EnvelopeManager::SendClientReports(message) =&gt; {
                 <span class="self">self</span>.handle_send_client_reports(message).<span class="kw">await</span>;
-            }
-            EnvelopeManager::SendMetrics(message) =&gt; {
-                <span class="self">self</span>.handle_send_metrics(message).<span class="kw">await</span>;
             }
         }
     }

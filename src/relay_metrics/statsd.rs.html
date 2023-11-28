@@ -175,24 +175,6 @@
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -316,27 +298,11 @@
     ///    time period (`false`) or after the initial delay has expired (`true`).
     </span>BucketsDelay,
 
-    <span class="doccomment">/// The number of batches emitted per partition by [`crate::aggregator::Aggregator`].
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
-    </span>BatchesPerPartition,
-
-    <span class="doccomment">/// The number of buckets in a batch emitted by [`crate::aggregator::Aggregator`].
-    ///
-    /// This corresponds to the number of buckets that will end up in an envelope.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
-    </span>BucketsPerBatch,
-
-    <span class="doccomment">/// Distribution of flush buckets over partition keys.
+    <span class="doccomment">///
+    /// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>PartitionKeys,
 
     <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.
@@ -351,8 +317,6 @@
             <span class="self">Self</span>::BucketsFlushed =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
             <span class="self">Self</span>::BucketsFlushedPerProject =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
             <span class="self">Self</span>::BucketsDelay =&gt; <span class="string">&quot;metrics.buckets.delay&quot;</span>,
-            <span class="self">Self</span>::BatchesPerPartition =&gt; <span class="string">&quot;metrics.buckets.batches_per_partition&quot;</span>,
-            <span class="self">Self</span>::BucketsPerBatch =&gt; <span class="string">&quot;metrics.buckets.per_batch&quot;</span>,
             <span class="self">Self</span>::PartitionKeys =&gt; <span class="string">&quot;metrics.buckets.partition_keys&quot;</span>,
             <span class="self">Self</span>::InvalidBucketTimestamp =&gt; <span class="string">&quot;metrics.buckets.invalid_timestamp&quot;</span>,
         }
