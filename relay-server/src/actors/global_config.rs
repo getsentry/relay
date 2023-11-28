@@ -42,6 +42,7 @@ struct GetGlobalConfigResponse {
     global: Option<GlobalConfig>,
     // Instead of using [`Status`], we use StatusResponse as a separate field in order to not
     // make breaking changes to the api.
+    #[serde(default)]
     global_status: Option<StatusResponse>,
 }
 
@@ -263,13 +264,13 @@ impl GlobalConfigService {
     /// global config is valid and contains the expected data.
     fn handle_result(&mut self, result: UpstreamQueryResult) {
         match result {
-            Ok(Ok(config)) => {
+            Ok(Ok(response)) => {
                 let mut success = false;
                 // Older relays won't send a global status, in that case, we will pretend like the
                 // default global config is an up to date one, because that was the old behaviour.
-                let is_ready = config.global_status.map_or(true, |stat| stat.is_ready());
+                let is_ready = response.global_status.map_or(true, |stat| stat.is_ready());
 
-                match config.global {
+                match response.global {
                     Some(global_config) if is_ready => {
                         // Log the first time we receive a global config from upstream.
                         if !self.global_config_watch.borrow().is_ready() {
@@ -280,9 +281,7 @@ impl GlobalConfigService {
                         success = true;
                         self.last_fetched = Instant::now();
                     }
-                    Some(_) => {
-                        relay_log::info!("global config from upstream is not yet ready");
-                    }
+                    Some(_) => relay_log::info!("global config from upstream is not yet ready"),
                     None => relay_log::error!("global config missing in upstream response"),
                 }
                 metric!(
