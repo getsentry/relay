@@ -265,9 +265,8 @@ impl GlobalConfigService {
         match result {
             Ok(Ok(config)) => {
                 let mut success = false;
-                // No global status implies an outdated upstream, in that case, we fall back on
-                // the old behaviour of using the global config that we receive even if it might
-                // not be the valid one.
+                // Older relays won't send a global status, in that case, we will pretend like the
+                // default global config is an up to date one, because that was the old behaviour.
                 let is_ready = config.global_status.map_or(true, |stat| stat.is_ready());
 
                 match config.global {
