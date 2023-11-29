@@ -1019,12 +1019,11 @@
 <a href="#1019" id="1019">1019</a>
 <a href="#1020" id="1020">1020</a>
 <a href="#1021" id="1021">1021</a>
-<a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
 <span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_event_schema::protocol::{Addr, EventId};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -1094,7 +1093,7 @@
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-</span><span class="kw">struct </span>Profile {
+</span><span class="kw">pub struct </span>SampleProfile {
     samples: Vec&lt;Sample&gt;,
     stacks: Vec&lt;Vec&lt;usize&gt;&gt;,
     frames: Vec&lt;Frame&gt;,
@@ -1107,7 +1106,42 @@
     </span>queue_metadata: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, QueueMetadata&gt;&gt;,
 }
 
-<span class="kw">impl </span>Profile {
+<span class="kw">impl </span>SampleProfile {
+    <span class="doccomment">/// Ensures valid profiler or returns an error.
+    ///
+    /// Mutates the profile. Removes invalid samples and threads.
+    /// Throws an error if the profile is malformed.
+    /// Removes extra metadata that are not referenced in the samples.
+    ///
+    /// profile.normalize(&quot;cocoa&quot;, &quot;arm64e&quot;)
+    </span><span class="kw">pub fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>, platform: <span class="kw-2">&amp;</span>str, architecture: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProfileError&gt; {
+        <span class="comment">// Clean samples before running the checks.
+        </span><span class="self">self</span>.remove_idle_samples_at_the_edge();
+        <span class="self">self</span>.remove_single_samples_per_thread();
+
+        <span class="kw">if </span><span class="self">self</span>.samples.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
+        }
+
+        <span class="kw">if </span>!<span class="self">self</span>.all_stacks_referenced_by_samples_exist() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::MalformedSamples);
+        }
+
+        <span class="kw">if </span>!<span class="self">self</span>.all_frames_referenced_by_stacks_exist() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::MalformedStacks);
+        }
+
+        <span class="kw">if </span><span class="self">self</span>.is_above_max_duration() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::DurationIsTooLong);
+        }
+
+        <span class="self">self</span>.strip_pointer_authentication_code(platform, architecture);
+        <span class="self">self</span>.remove_unreferenced_threads();
+        <span class="self">self</span>.remove_unreferenced_queues();
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>strip_pointer_authentication_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, platform: <span class="kw-2">&amp;</span>str, architecture: <span class="kw-2">&amp;</span>str) {
         <span class="kw">let </span>addr = <span class="kw">match </span>(platform, architecture) {
             <span class="comment">// https://github.com/microsoft/plcrashreporter/blob/748087386cfc517936315c107f722b146b0ad1ab/Source/PLCrashAsyncThread_arm.c#L84
@@ -1116,6 +1150,97 @@
         };
         <span class="kw">for </span>frame <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.frames {
             frame.strip_pointer_authentication_code(addr);
+        }
+    }
+
+    <span class="kw">fn </span>remove_idle_samples_at_the_edge(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span><span class="kw-2">mut </span>active_ranges: HashMap&lt;u64, Range&lt;usize&gt;&gt; = HashMap::new();
+
+        <span class="kw">for </span>(i, sample) <span class="kw">in </span><span class="self">self</span>.samples.iter().enumerate() {
+            <span class="kw">if </span>!<span class="self">self
+                </span>.stacks
+                .get(sample.stack_id)
+                .is_some_and(|stack| !stack.is_empty())
+            {
+                <span class="kw">continue</span>;
+            }
+
+            active_ranges
+                .entry(sample.thread_id)
+                .and_modify(|range| range.end = i + <span class="number">1</span>)
+                .or_insert(i..i + <span class="number">1</span>);
+        }
+
+        <span class="self">self</span>.samples = <span class="self">self
+            </span>.samples
+            .drain(..)
+            .enumerate()
+            .filter(|(i, sample)| {
+                active_ranges
+                    .get(<span class="kw-2">&amp;</span>sample.thread_id)
+                    .is_some_and(|range| range.contains(i))
+            })
+            .map(|(<span class="kw">_</span>, sample)| sample)
+            .collect();
+    }
+
+    <span class="doccomment">/// Removes a sample when it&#39;s the only sample on its thread
+    </span><span class="kw">fn </span>remove_single_samples_per_thread(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>sample_count_by_thread_id = <span class="kw-2">&amp;</span><span class="self">self
+            </span>.samples
+            .iter()
+            .counts_by(|sample| sample.thread_id)
+            <span class="comment">// Only keep data from threads with more than 1 sample so we can calculate a duration
+            </span>.into_iter()
+            .filter(|(<span class="kw">_</span>, count)| <span class="kw-2">*</span>count &gt; <span class="number">1</span>)
+            .collect::&lt;HashMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;();
+
+        <span class="self">self</span>.samples
+            .retain(|sample| sample_count_by_thread_id.contains_key(<span class="kw-2">&amp;</span>sample.thread_id));
+    }
+
+    <span class="doccomment">/// Checks that all stacks referenced by the samples exist in the stacks.
+    </span><span class="kw">fn </span>all_stacks_referenced_by_samples_exist(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.samples
+            .iter()
+            .all(|sample| <span class="self">self</span>.stacks.get(sample.stack_id).is_some())
+    }
+
+    <span class="doccomment">/// Checks that all frames referenced by the stacks exist in the frames.
+    </span><span class="kw">fn </span>all_frames_referenced_by_stacks_exist(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.stacks.iter().all(|stack| {
+            stack
+                .iter()
+                .all(|frame_id| <span class="self">self</span>.frames.get(<span class="kw-2">*</span>frame_id).is_some())
+        })
+    }
+
+    <span class="doccomment">/// Checks if the last sample was recorded within the max profile duration.
+    </span><span class="kw">fn </span>is_above_max_duration(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.samples.last().map_or(<span class="bool-val">false</span>, |sample| {
+            sample.elapsed_since_start_ns &gt; MAX_PROFILE_DURATION_NS
+        })
+    }
+
+    <span class="kw">fn </span>remove_unreferenced_threads(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_metadata) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.thread_metadata {
+            <span class="kw">let </span>thread_ids = <span class="self">self
+                </span>.samples
+                .iter()
+                .map(|sample| sample.thread_id.to_string())
+                .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+            thread_metadata.retain(|thread_id, <span class="kw">_</span>| thread_ids.contains(thread_id));
+        }
+    }
+
+    <span class="kw">fn </span>remove_unreferenced_queues(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(queue_metadata) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.queue_metadata {
+            <span class="kw">let </span>queue_addresses = <span class="self">self
+                </span>.samples
+                .iter()
+                .filter_map(|sample| sample.queue_address.as_ref())
+                .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+            queue_metadata.retain(|queue_address, <span class="kw">_</span>| queue_addresses.contains(<span class="kw-2">&amp;</span>queue_address));
         }
     }
 }
@@ -1199,15 +1324,15 @@
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-</span><span class="kw">pub struct </span>SampleProfile {
+</span><span class="kw">pub struct </span>ProfilingEvent {
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>measurements: <span class="prelude-ty">Option</span>&lt;HashMap&lt;String, Measurement&gt;&gt;,
     <span class="attr">#[serde(flatten)]
     </span>metadata: ProfileMetadata,
-    profile: Profile,
+    profile: SampleProfile,
 }
 
-<span class="kw">impl </span>SampleProfile {
+<span class="kw">impl </span>ProfilingEvent {
     <span class="kw">fn </span>valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.metadata.platform.as_str() {
             <span class="string">&quot;cocoa&quot; </span>=&gt; {
@@ -1220,121 +1345,11 @@
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
         }
     }
-
-    <span class="kw">fn </span>check_samples(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.profile.samples {
-            <span class="kw">if </span><span class="self">self</span>.profile.stacks.get(sample.stack_id).is_none() {
-                <span class="kw">return </span><span class="bool-val">false</span>;
-            }
-        }
-        <span class="bool-val">true
-    </span>}
-
-    <span class="kw">fn </span>check_stacks(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">for </span>stack <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.profile.stacks {
-            <span class="kw">for </span>frame_id <span class="kw">in </span>stack {
-                <span class="kw">if </span><span class="self">self</span>.profile.frames.get(<span class="kw-2">*</span>frame_id).is_none() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
-        }
-        <span class="bool-val">true
-    </span>}
-
-    <span class="kw">fn </span>is_above_max_duration(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sample) = <span class="kw-2">&amp;</span><span class="self">self</span>.profile.samples.last() {
-            <span class="kw">return </span>sample.elapsed_since_start_ns &gt; MAX_PROFILE_DURATION_NS;
-        }
-        <span class="bool-val">false
-    </span>}
-
-    <span class="doccomment">/// Removes a sample when it&#39;s the only sample on its thread
-    </span><span class="kw">fn </span>remove_single_samples_per_thread(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>sample_count_by_thread_id: HashMap&lt;u64, u32&gt; = HashMap::new();
-
-        <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.profile.samples {
-            <span class="kw-2">*</span>sample_count_by_thread_id
-                .entry(sample.thread_id)
-                .or_default() += <span class="number">1</span>;
-        }
-
-        <span class="comment">// Only keep data from threads with more than 1 sample so we can calculate a duration
-        </span>sample_count_by_thread_id.retain(|<span class="kw">_</span>, count| <span class="kw-2">*</span>count &gt; <span class="number">1</span>);
-
-        <span class="self">self</span>.profile
-            .samples
-            .retain(|sample| sample_count_by_thread_id.contains_key(<span class="kw-2">&amp;</span>sample.thread_id));
-    }
-
-    <span class="kw">fn </span>strip_pointer_authentication_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.profile.strip_pointer_authentication_code(
-            <span class="kw-2">&amp;</span><span class="self">self</span>.metadata.platform,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.metadata.device.architecture,
-        );
-    }
-
-    <span class="kw">fn </span>remove_idle_samples_at_the_edge(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>active_ranges: HashMap&lt;u64, Range&lt;usize&gt;&gt; = HashMap::new();
-
-        <span class="kw">for </span>(i, sample) <span class="kw">in </span><span class="self">self</span>.profile.samples.iter().enumerate() {
-            <span class="kw">let </span>is_active = <span class="kw">match </span><span class="self">self</span>.profile.stacks.get(sample.stack_id) {
-                <span class="prelude-val">Some</span>(stack) =&gt; !stack.is_empty(),
-                <span class="prelude-val">None </span>=&gt; <span class="bool-val">true</span>,
-            };
-
-            <span class="kw">if </span>!is_active {
-                <span class="kw">continue</span>;
-            }
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = active_ranges.get_mut(<span class="kw-2">&amp;</span>sample.thread_id) {
-                range.end = i + <span class="number">1</span>;
-            } <span class="kw">else </span>{
-                active_ranges.insert(sample.thread_id, i..i + <span class="number">1</span>);
-            }
-        }
-
-        <span class="self">self</span>.profile.samples = <span class="self">self
-            </span>.profile
-            .samples
-            .drain(..)
-            .enumerate()
-            .filter(|(i, sample)| {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = active_ranges.get(<span class="kw-2">&amp;</span>sample.thread_id) {
-                    range.contains(i)
-                } <span class="kw">else </span>{
-                    <span class="bool-val">false
-                </span>}
-            })
-            .map(|(<span class="kw">_</span>, sample)| sample)
-            .collect();
-    }
-
-    <span class="kw">fn </span>cleanup_thread_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_metadata) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile.thread_metadata {
-            <span class="kw">let </span><span class="kw-2">mut </span>thread_ids: HashSet&lt;String&gt; = HashSet::new();
-            <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.profile.samples {
-                thread_ids.insert(sample.thread_id.to_string());
-            }
-            thread_metadata.retain(|thread_id, <span class="kw">_</span>| thread_ids.contains(thread_id));
-        }
-    }
-
-    <span class="kw">fn </span>cleanup_queue_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(queue_metadata) = <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile.queue_metadata {
-            <span class="kw">let </span><span class="kw-2">mut </span>queue_addresses: HashSet&lt;<span class="kw-2">&amp;</span>String&gt; = HashSet::new();
-            <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.profile.samples {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(queue_address) = <span class="kw-2">&amp;</span>sample.queue_address {
-                    queue_addresses.insert(queue_address);
-                }
-            }
-            queue_metadata.retain(|queue_address, <span class="kw">_</span>| queue_addresses.contains(<span class="kw-2">&amp;</span>queue_address));
-        }
-    }
 }
 
-<span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;SampleProfile, ProfileError&gt; {
+<span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;ProfilingEvent, ProfileError&gt; {
     <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>serde_json::Deserializer::from_slice(payload);
-    <span class="kw">let </span><span class="kw-2">mut </span>profile: SampleProfile =
+    <span class="kw">let </span><span class="kw-2">mut </span>profile: ProfilingEvent =
         serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>!profile.valid() {
@@ -1363,29 +1378,10 @@
         });
     }
 
-    <span class="comment">// Clean samples before running the checks.
-    </span>profile.remove_idle_samples_at_the_edge();
-    profile.remove_single_samples_per_thread();
-
-    <span class="kw">if </span>profile.profile.samples.is_empty() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::NotEnoughSamples);
-    }
-
-    <span class="kw">if </span>!profile.check_samples() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::MalformedSamples);
-    }
-
-    <span class="kw">if </span>!profile.check_stacks() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::MalformedStacks);
-    }
-
-    <span class="kw">if </span>profile.is_above_max_duration() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::DurationIsTooLong);
-    }
-
-    profile.strip_pointer_authentication_code();
-    profile.cleanup_thread_metadata();
-    profile.cleanup_queue_metadata();
+    profile.profile.normalize(
+        profile.metadata.platform.as_str(),
+        profile.metadata.device.architecture.as_str(),
+    )<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(profile)
 }
@@ -1445,8 +1441,8 @@
         <span class="macro">assert!</span>(profile.is_ok());
     }
 
-    <span class="kw">fn </span>generate_profile() -&gt; SampleProfile {
-        SampleProfile {
+    <span class="kw">fn </span>generate_profile() -&gt; ProfilingEvent {
+        ProfilingEvent {
             measurements: <span class="prelude-val">None</span>,
             metadata: ProfileMetadata {
                 debug_meta: Option::None,
@@ -1475,7 +1471,7 @@
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
             },
-            profile: Profile {
+            profile: SampleProfile {
                 queue_metadata: <span class="prelude-val">Some</span>(HashMap::new()),
                 samples: Vec::new(),
                 stacks: Vec::new(),
@@ -1517,7 +1513,7 @@
             },
         ]);
 
-        profile.remove_single_samples_per_thread();
+        profile.profile.remove_single_samples_per_thread();
 
         <span class="macro">assert!</span>(profile.profile.samples.len() == <span class="number">2</span>);
     }
@@ -1820,7 +1816,7 @@
             },
         ];
 
-        profile.remove_idle_samples_at_the_edge();
+        profile.profile.remove_idle_samples_at_the_edge();
 
         <span class="kw">let </span><span class="kw-2">mut </span>sample_count_by_thread_id: HashMap&lt;u64, u32&gt; = HashMap::new();
 
@@ -1917,8 +1913,8 @@
             },
         ]);
 
-        profile.cleanup_thread_metadata();
-        profile.cleanup_queue_metadata();
+        profile.profile.remove_unreferenced_threads();
+        profile.profile.remove_unreferenced_queues();
 
         <span class="macro">assert_eq!</span>(profile.profile.thread_metadata.unwrap().len(), <span class="number">2</span>);
         <span class="macro">assert_eq!</span>(profile.profile.queue_metadata.unwrap().len(), <span class="number">1</span>);
@@ -1937,7 +1933,7 @@
 
         <span class="kw">let </span>payload = profile_json.unwrap();
         <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>serde_json::Deserializer::from_slice(<span class="kw-2">&amp;</span>payload[..]);
-        <span class="kw">let </span>output: SampleProfile = serde_path_to_error::deserialize(d)
+        <span class="kw">let </span>output: ProfilingEvent = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
         <span class="macro">assert_eq!</span>(
@@ -1965,7 +1961,7 @@
             },
         ]);
 
-        <span class="macro">assert!</span>(!profile.is_above_max_duration());
+        <span class="macro">assert!</span>(!profile.profile.is_above_max_duration());
     }
 
     <span class="attr">#[test]
@@ -1987,7 +1983,7 @@
             },
         ]);
 
-        <span class="macro">assert!</span>(profile.is_above_max_duration());
+        <span class="macro">assert!</span>(profile.profile.is_above_max_duration());
     }
 
     <span class="attr">#[test]
