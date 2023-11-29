@@ -464,8 +464,9 @@ pub struct EncodeMetrics {
     pub scoping: Scoping,
     /// Transaction metrics extraction mode.
     pub extraction_mode: ExtractionMode,
-
+    /// Project state for extracting quotas.
     pub project_state: Arc<ProjectState>,
+
     pub rate_limits: RateLimits,
 }
 

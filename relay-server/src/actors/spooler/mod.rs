@@ -1017,7 +1017,7 @@ mod tests {
 
     use super::*;
 
-    pub fn services() -> Services {
+    fn services() -> Services {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
