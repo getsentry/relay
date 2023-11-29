@@ -112,59 +112,67 @@ pub struct OtelSpan {
     pub status: Status,
 }
 
-impl OtelSpan {
-    /// sentry_status() returns a status as defined by Sentry based on the span status.
-    pub fn sentry_status(&self) -> &'static str {
-        let status_code = self.status.code.clone();
-
-        if status_code == StatusCode::Unset || status_code == StatusCode::Ok {
-            return "ok";
-        }
-
-        if let Some(code) = self
-            .attributes
-            .clone()
-            .into_iter()
-            .find(|a| a.key == "http.status_code")
-        {
-            if let Some(code_value) = code.value.to_i64() {
-                if let Some(sentry_status) = status_codes::HTTP.get(&code_value) {
-                    return sentry_status;
-                }
-            }
-        }
-
-        if let Some(code) = self
-            .attributes
-            .clone()
-            .into_iter()
-            .find(|a| a.key == "rpc.grpc.status_code")
-        {
-            if let Some(code_value) = code.value.to_i64() {
-                if let Some(sentry_status) = status_codes::GRPC.get(&code_value) {
-                    return sentry_status;
-                }
-            }
-        }
-
-        "unknown_error"
+/// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
+fn convert_from_otel_to_sentry_status(
+    status_code: StatusCode,
+    http_status_code: Option<&KeyValue>,
+    grpc_status_code: Option<&KeyValue>,
+) -> SpanStatus {
+    if status_code == StatusCode::Unset || status_code == StatusCode::Ok {
+        return SpanStatus::Ok;
     }
+
+    if let Some(status_code_value) = http_status_code {
+        if let Some(code_value) = status_code_value.value.to_i64() {
+            if let Some(sentry_status) = status_codes::HTTP.get(&code_value) {
+                if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
+                    return span_status;
+                }
+            }
+        }
+    }
+
+    if let Some(status_code_value) = grpc_status_code {
+        if let Some(code_value) = status_code_value.value.to_i64() {
+            if let Some(sentry_status) = status_codes::GRPC.get(&code_value) {
+                if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
+                    return span_status;
+                }
+            }
+        }
+    }
+
+    SpanStatus::Unknown
 }
 
 impl From<OtelSpan> for EventSpan {
     fn from(from: OtelSpan) -> Self {
         let mut exclusive_time_ms = 0f64;
-        let mut attributes: Object<Value> = Object::new();
+        let mut data: Object<Value> = Object::new();
         let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
         let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
-        for attribute in from.attributes.clone() {
+        let OtelSpan {
+            trace_id,
+            span_id,
+            parent_span_id,
+            name,
+            attributes,
+            status,
+            ..
+        } = from;
+        let segment_id = if parent_span_id.is_empty() {
+            Annotated::new(SpanId(span_id.clone()))
+        } else {
+            Annotated::empty()
+        };
+        for attribute in attributes.iter() {
             let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
                 key.to_string()
             } else {
-                attribute.key
+                attribute.key.clone()
             };
             if key == "exclusive_time_ns" {
-                let value = match attribute.value {
+                let value = match attribute.value.clone() {
                     AnyValue::Int(v) => v as f64,
                     AnyValue::Double(v) => v,
                     AnyValue::String(v) => v.parse::<f64>().unwrap_or_default(),
@@ -173,46 +181,47 @@ impl From<OtelSpan> for EventSpan {
                 exclusive_time_ms = value / 1e6f64;
                 continue;
             }
-            match attribute.value {
+            match attribute.value.clone() {
                 AnyValue::Array(_) => {}
                 AnyValue::Bool(v) => {
-                    attributes.insert(key, Annotated::new(v.into()));
+                    data.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Bytes(v) => {
                     if let Ok(v) = String::from_utf8(v.clone()) {
-                        attributes.insert(key, Annotated::new(v.into()));
+                        data.insert(key, Annotated::new(v.into()));
                     }
                 }
                 AnyValue::Double(v) => {
-                    attributes.insert(key, Annotated::new(v.into()));
+                    data.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Int(v) => {
-                    attributes.insert(key, Annotated::new(v.into()));
+                    data.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Kvlist(_) => {}
                 AnyValue::String(v) => {
-                    attributes.insert(key, Annotated::new(v.into()));
+                    data.insert(key, Annotated::new(v.into()));
                 }
             };
         }
-        let mut span = EventSpan {
-            data: attributes.into(),
-            description: from.name.clone().into(),
+        let http_status_code = attributes.iter().find(|a| a.key == "http.status_code");
+        let grpc_status_code = attributes.iter().find(|a| a.key == "rpc.grpc.status_code");
+        EventSpan {
+            data: data.into(),
+            description: name.into(),
             exclusive_time: exclusive_time_ms.into(),
-            parent_span_id: SpanId(from.parent_span_id.clone()).into(),
-            span_id: SpanId(from.span_id.clone()).into(),
+            parent_span_id: SpanId(parent_span_id.clone()).into(),
+            segment_id,
+            span_id: Annotated::new(SpanId(span_id)),
             start_timestamp: Timestamp(start_timestamp).into(),
+            status: Annotated::new(convert_from_otel_to_sentry_status(
+                status.code,
+                http_status_code,
+                grpc_status_code,
+            )),
             timestamp: Timestamp(end_timestamp).into(),
-            trace_id: TraceId(from.trace_id.clone()).into(),
+            trace_id: TraceId(trace_id).into(),
             ..Default::default()
-        };
-        if let Ok(status) = SpanStatus::from_str(from.sentry_status()) {
-            span.status = status.into();
         }
-        if from.parent_span_id.is_empty() {
-            span.segment_id = span.span_id.clone();
-        }
-        span
     }
 }
 
@@ -296,8 +305,8 @@ pub struct Status {
     pub code: StatusCode,
 }
 
-#[derive(Clone, Debug, Deserialize_repr, Default, PartialEq)]
-#[repr(u32)]
+#[derive(Clone, Copy, Debug, Deserialize_repr, Default, PartialEq)]
+#[repr(u8)]
 pub enum StatusCode {
     /// The default status.
     #[default]
