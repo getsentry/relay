@@ -1225,6 +1225,13 @@
 <a href="#1225" id="1225">1225</a>
 <a href="#1226" id="1226">1226</a>
 <a href="#1227" id="1227">1227</a>
+<a href="#1228" id="1228">1228</a>
+<a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
+<a href="#1234" id="1234">1234</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1717,6 +1724,13 @@
     /// This value should not be ingested and will be overwritten by the store normalizer.
     </span><span class="attr">#[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>_metrics: Annotated&lt;Metrics&gt;,
+
+    <span class="doccomment">/// Temporary protocol support for metric summaries.
+    ///
+    /// This shall move to a stable location once we have stabilized the
+    /// interface.  This is intentionally not typed today.
+    </span><span class="attr">#[metastructure(omit_from_schema)]
+    </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;true&quot;</span>)]
