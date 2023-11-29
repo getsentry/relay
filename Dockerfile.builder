@@ -4,8 +4,6 @@ FROM centos:7 AS relay-deps
 # Rust version must be provided by the caller.
 ARG RUST_TOOLCHAIN_VERSION
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
-ARG OPENSSL_VERSION=3.0.12
-ENV OPENSSL_VERSION=${OPENSSL_VERSION}
 
 RUN yum -y update \
     && yum -y install centos-release-scl epel-release \
@@ -17,7 +15,6 @@ RUN yum -y update \
     && yum clean all \
     && rm -rf /var/cache/yum \
     && ln -s /usr/bin/cmake3 /usr/bin/cmake
-
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
