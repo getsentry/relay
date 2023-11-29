@@ -1461,7 +1461,7 @@ def test_span_ingestion(
             "span": {
                 "data": {},
                 "description": "my 2nd OTel span",
-                "exclusive_time": 500.000001,
+                "exclusive_time": 1500.0,
                 "is_segment": True,
                 "op": "default",
                 "parent_span_id": "",

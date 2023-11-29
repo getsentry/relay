@@ -1,5 +1,6 @@
 //! Processor code related to standalone spans.
 
+use chrono::{DateTime, Utc};
 use relay_dynamic_config::Feature;
 use relay_metrics::UnixTimestamp;
 
@@ -42,6 +43,8 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
 #[cfg(feature = "processing")]
 #[derive(Clone, Debug)]
 pub struct NormalizeSpanConfig {
+    /// The time at which the event was received in this Relay.
+    pub received_at: DateTime<Utc>,
     /// Allowed time range for transactions.
     pub transaction_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
@@ -59,6 +62,7 @@ fn normalize(
     };
 
     let NormalizeSpanConfig {
+        received_at,
         transaction_range,
         max_tag_value_size,
     } = config;
@@ -88,9 +92,18 @@ fn normalize(
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
+    span.is_segment = Annotated::new(span.parent_span_id.is_empty());
+    span.received = Annotated::new(received_at.into());
+
+    // Tag extraction:
     let config = tag_extraction::Config { max_tag_value_size };
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    tag_extraction::extract_tags(span, &config, None, None, is_mobile);
+    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile);
+    span.sentry_tags = Annotated::new(
+        tags.into_iter()
+            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+            .collect(),
+    );
 
     process_value(
         annotated_span,
@@ -111,6 +124,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     };
 
     let config = NormalizeSpanConfig {
+        received_at: state.managed_envelope.received_at(),
         transaction_range: AggregatorConfig::from(
             config.aggregator_config_for(MetricNamespace::Transactions),
         )
