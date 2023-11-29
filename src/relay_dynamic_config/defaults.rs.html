@@ -368,7 +368,7 @@
             mri: <span class="string">&quot;c:spans/count_per_op@none&quot;</span>.into(),
             field: <span class="prelude-val">None</span>,
             condition: <span class="prelude-val">Some</span>(duration_condition.clone()),
-            tags: [<span class="string">&quot;category&quot;</span>, <span class="string">&quot;op&quot;</span>]
+            tags: [<span class="string">&quot;category&quot;</span>, <span class="string">&quot;op&quot;</span>, <span class="string">&quot;system&quot;</span>]
                 .map(|key| TagSpec {
                     key: <span class="macro">format!</span>(<span class="string">&quot;span.{key}&quot;</span>),
                     field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.sentry_tags.{key}&quot;</span>)),
