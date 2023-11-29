@@ -48,6 +48,7 @@ impl MetaAggregator {
     pub fn add(&mut self, project_key: ProjectKey, meta: MetricMeta) -> Option<MetricMeta> {
         let mut send_upstream = HashMap::new();
 
+        let mut total = 0;
         for (mri, items) in meta.mapping {
             let scope = Scope {
                 timestamp: meta.timestamp,
@@ -55,10 +56,13 @@ impl MetaAggregator {
                 mri,
             };
 
+            total += items.len();
             if let Some(items) = self.add_scoped(&scope, items) {
                 send_upstream.insert(scope.mri, items);
             }
         }
+
+        relay_statsd::metric!(counter(MetricCounters::MetaAggregatorItems) += total as i64);
 
         if send_upstream.is_empty() {
             return None;
