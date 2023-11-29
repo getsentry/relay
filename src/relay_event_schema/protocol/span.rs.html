@@ -263,14 +263,36 @@
 <a href="#263" id="263">263</a>
 <a href="#264" id="264">264</a>
 <a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    Event, EventId, JsonLenientString, OperationType, OriginType, ProfileContext, SpanId,
-    SpanStatus, Timestamp, TraceContext, TraceId,
+    Event, EventId, JsonLenientString, Measurements, OperationType, OriginType, ProfileContext,
+    SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -340,6 +362,11 @@
 
     <span class="doccomment">/// Timestamp when the span has been received by Sentry.
     </span><span class="kw">pub </span>received: Annotated&lt;Timestamp&gt;,
+
+    <span class="doccomment">/// Measurements which holds observed values such as web vitals.
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
+    </span><span class="kw">pub </span>measurements: Annotated&lt;Measurements&gt;,
 
     <span class="comment">// TODO remove retain when the api stabilizes
     </span><span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -416,8 +443,10 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::Measurement;
     <span class="kw">use </span>chrono::{TimeZone, Utc};
     <span class="kw">use </span>insta::assert_debug_snapshot;
+    <span class="kw">use </span>relay_base_schema::metrics::{InformationUnit, MetricUnit};
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -433,9 +462,22 @@
   &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
   &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
   &quot;status&quot;: &quot;ok&quot;,
-  &quot;origin&quot;: &quot;auto.http&quot;
+  &quot;origin&quot;: &quot;auto.http&quot;,
+  &quot;measurements&quot;: {
+    &quot;memory&quot;: {
+      &quot;value&quot;: 9001.0,
+      &quot;unit&quot;: &quot;byte&quot;
+    }
+  }
 }&quot;#</span>;
-
+        <span class="kw">let </span><span class="kw-2">mut </span>measurements = Object::new();
+        measurements.insert(
+            <span class="string">&quot;memory&quot;</span>.into(),
+            Annotated::new(Measurement {
+                value: Annotated::new(<span class="number">9001.0</span>),
+                unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
+            }),
+        );
         <span class="kw">let </span>span = Annotated::new(Span {
             timestamp: Annotated::new(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -448,6 +490,7 @@
             span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74052&quot;</span>.into())),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new(<span class="string">&quot;auto.http&quot;</span>.to_owned()),
+            measurements: Annotated::new(Measurements(measurements)),
             ..Default::default()
         });
         <span class="macro">assert_eq!</span>(json, span.to_json_pretty().unwrap());
@@ -523,6 +566,7 @@
             data: ~,
             sentry_tags: ~,
             received: ~,
+            measurements: ~,
             other: {},
         }
         &quot;###</span>);
