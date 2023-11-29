@@ -1362,7 +1362,6 @@ def test_span_ingestion(
                 bytes=json.dumps(
                     {
                         "description": "https://example.com/blah.js",
-                        "is_segment": False,
                         "op": "resource.script",
                         "span_id": "bd429c44b67a3eb1",
                         "segment_id": "968cff94913ebb07",
@@ -1421,7 +1420,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "span": {
                 "description": "https://example.com/blah.js",
-                "is_segment": False,
+                "is_segment": True,
                 "op": "resource.script",
                 "segment_id": "968cff94913ebb07",
                 "sentry_tags": {
