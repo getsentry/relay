@@ -736,7 +736,7 @@ fn normalize_performance_score(
                 if profile.score_components.iter().any(|c| {
                     !measurements.contains_key(c.measurement.as_str())
                         && c.weight.abs() >= f64::EPSILON
-                        && !c.optional.unwrap_or(false)
+                        && !c.optional
                 }) {
                     // All non-optional measurements with a profile weight greater than 0 are
                     // required to exist on the event. Skip calculating performance scores if
@@ -747,8 +747,7 @@ fn normalize_performance_score(
                 let mut weight_total = 0.0;
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
-                    if component.optional.is_some()
-                        && component.optional.unwrap()
+                    if component.optional
                         && !measurements.contains_key(component.measurement.as_str())
                     {
                         continue;
