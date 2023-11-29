@@ -43,102 +43,6 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
     });
 }
 
-/// Config needed to normalize a standalone span.
-#[cfg(feature = "processing")]
-#[derive(Clone, Debug)]
-struct NormalizeSpanConfig {
-    /// The time at which the event was received in this Relay.
-    pub received_at: DateTime<Utc>,
-    /// Allowed time range for transactions.
-    pub transaction_range: std::ops::Range<UnixTimestamp>,
-    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    pub max_tag_value_size: usize,
-}
-
-/// Normalizes a standalone span.
-#[cfg(feature = "processing")]
-fn normalize(
-    annotated_span: &mut Annotated<Span>,
-    config: NormalizeSpanConfig,
-) -> Result<(), ProcessingError> {
-    use relay_event_normalization::{
-        SchemaProcessor, TimestampProcessor, TransactionsProcessor, TrimmingProcessor,
-    };
-
-    let NormalizeSpanConfig {
-        received_at,
-        transaction_range,
-        max_tag_value_size,
-    } = config;
-
-    // This follows the steps of `NormalizeProcessor::process_event`.
-    // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
-    // `process` on it.
-
-    process_value(
-        annotated_span,
-        &mut SchemaProcessor,
-        ProcessingState::root(),
-    )?;
-
-    process_value(
-        annotated_span,
-        &mut TimestampProcessor,
-        ProcessingState::root(),
-    )?;
-
-    process_value(
-        annotated_span,
-        &mut TransactionsProcessor::new(Default::default(), Some(transaction_range)),
-        ProcessingState::root(),
-    )?;
-
-    let Some(span) = annotated_span.value_mut() else {
-        return Err(ProcessingError::NoEventPayload);
-    };
-    span.is_segment = Annotated::new(span.parent_span_id.is_empty());
-    span.received = Annotated::new(received_at.into());
-
-    // Tag extraction:
-    let config = tag_extraction::Config { max_tag_value_size };
-    let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile);
-    span.sentry_tags = Annotated::new(
-        tags.into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
-
-    process_value(
-        annotated_span,
-        &mut TrimmingProcessor::new(),
-        ProcessingState::root(),
-    )?;
-
-    Ok(())
-}
-
-#[cfg(feature = "processing")]
-fn scrub(
-    annotated_span: &mut Annotated<Span>,
-    project_config: &ProjectConfig,
-) -> Result<(), ProcessingError> {
-    if let Some(ref config) = project_config.pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        process_value(annotated_span, &mut processor, ProcessingState::root())?;
-    }
-    let pii_config = project_config
-        .datascrubbing_settings
-        .pii_config()
-        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-    if let Some(config) = pii_config {
-        let mut processor = PiiProcessor::new(config.compiled());
-        process_value(annotated_span, &mut processor, ProcessingState::root())?;
-    }
-
-    Ok(())
-}
-
 #[cfg(feature = "processing")]
 pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     use relay_event_normalization::RemoveOtherProcessor;
@@ -237,103 +141,6 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     });
 }
 
-/// We do not extract spans with missing fields if those fields are required on the Kafka topic.
-#[cfg(feature = "processing")]
-pub fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
-    let inner = span
-        .value_mut()
-        .as_mut()
-        .ok_or(anyhow::anyhow!("empty span"))?;
-    let Span {
-        ref exclusive_time,
-        ref mut tags,
-        ref mut sentry_tags,
-        ref mut start_timestamp,
-        ref mut timestamp,
-        ref mut span_id,
-        ref mut trace_id,
-        ..
-    } = inner;
-
-    trace_id
-        .value()
-        .ok_or(anyhow::anyhow!("span is missing trace_id"))?;
-    span_id
-        .value()
-        .ok_or(anyhow::anyhow!("span is missing span_id"))?;
-
-    match (start_timestamp.value(), timestamp.value()) {
-        (Some(start), Some(end)) => {
-            if end < start {
-                return Err(anyhow::anyhow!(
-                    "end timestamp is smaller than start timestamp"
-                ));
-            }
-        }
-        (_, None) => {
-            return Err(anyhow::anyhow!("timestamp hard-required for spans"));
-        }
-        (None, _) => {
-            return Err(anyhow::anyhow!("start_timestamp hard-required for spans"));
-        }
-    }
-
-    // `is_segment` is set by `extract_span`.
-    exclusive_time
-        .value()
-        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
-
-    if let Some(sentry_tags) = sentry_tags.value_mut() {
-        sentry_tags.retain(|key, value| match value.value() {
-            Some(s) => {
-                match key.as_str() {
-                    "group" => {
-                        // Only allow up to 16-char hex strings in group.
-                        s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
-                    }
-                    "status_code" => s.parse::<u16>().is_ok(),
-                    _ => true,
-                }
-            }
-            // Drop empty string values.
-            None => false,
-        });
-    }
-    if let Some(tags) = tags.value_mut() {
-        tags.retain(|_, value| !value.value().is_empty())
-    }
-
-    Ok(span)
-}
-
-#[cfg(feature = "processing")]
-fn is_allowed(span: &Span) -> bool {
-    let Some(op) = span.op.value() else {
-        return false;
-    };
-    let Some(description) = span.description.value() else {
-        return false;
-    };
-    let system: &str = span
-        .data
-        .value()
-        .and_then(|v| v.get("span.system"))
-        .and_then(|system| system.as_str())
-        .unwrap_or_default();
-    op.contains("resource.script")
-        || op.contains("resource.css")
-        || op == "http.client"
-        || op.starts_with("app.")
-        || op.starts_with("ui.load")
-        || op.starts_with("file")
-        || op.starts_with("db")
-            && !(op.contains("clickhouse")
-                || op.contains("mongodb")
-                || op.contains("redis")
-                || op.contains("compiler"))
-            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb"))
-}
-
 #[cfg(feature = "processing")]
 pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
     // Only extract spans from transactions (not errors).
@@ -415,4 +222,197 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             .collect(),
     );
     add_span(transaction_span.into());
+}
+
+/// Config needed to normalize a standalone span.
+#[cfg(feature = "processing")]
+#[derive(Clone, Debug)]
+struct NormalizeSpanConfig {
+    /// The time at which the event was received in this Relay.
+    pub received_at: DateTime<Utc>,
+    /// Allowed time range for transactions.
+    pub transaction_range: std::ops::Range<UnixTimestamp>,
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
+    pub max_tag_value_size: usize,
+}
+
+/// Normalizes a standalone span.
+#[cfg(feature = "processing")]
+fn normalize(
+    annotated_span: &mut Annotated<Span>,
+    config: NormalizeSpanConfig,
+) -> Result<(), ProcessingError> {
+    use relay_event_normalization::{
+        SchemaProcessor, TimestampProcessor, TransactionsProcessor, TrimmingProcessor,
+    };
+
+    let NormalizeSpanConfig {
+        received_at,
+        transaction_range,
+        max_tag_value_size,
+    } = config;
+
+    // This follows the steps of `NormalizeProcessor::process_event`.
+    // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
+    // `process` on it.
+
+    process_value(
+        annotated_span,
+        &mut SchemaProcessor,
+        ProcessingState::root(),
+    )?;
+
+    process_value(
+        annotated_span,
+        &mut TimestampProcessor,
+        ProcessingState::root(),
+    )?;
+
+    process_value(
+        annotated_span,
+        &mut TransactionsProcessor::new(Default::default(), Some(transaction_range)),
+        ProcessingState::root(),
+    )?;
+
+    let Some(span) = annotated_span.value_mut() else {
+        return Err(ProcessingError::NoEventPayload);
+    };
+    span.is_segment = Annotated::new(span.parent_span_id.is_empty());
+    span.received = Annotated::new(received_at.into());
+
+    // Tag extraction:
+    let config = tag_extraction::Config { max_tag_value_size };
+    let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
+    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile);
+    span.sentry_tags = Annotated::new(
+        tags.into_iter()
+            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+            .collect(),
+    );
+
+    process_value(
+        annotated_span,
+        &mut TrimmingProcessor::new(),
+        ProcessingState::root(),
+    )?;
+
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
+fn scrub(
+    annotated_span: &mut Annotated<Span>,
+    project_config: &ProjectConfig,
+) -> Result<(), ProcessingError> {
+    if let Some(ref config) = project_config.pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(annotated_span, &mut processor, ProcessingState::root())?;
+    }
+    let pii_config = project_config
+        .datascrubbing_settings
+        .pii_config()
+        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+    if let Some(config) = pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(annotated_span, &mut processor, ProcessingState::root())?;
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
+fn is_allowed(span: &Span) -> bool {
+    let Some(op) = span.op.value() else {
+        return false;
+    };
+    let Some(description) = span.description.value() else {
+        return false;
+    };
+    let system: &str = span
+        .data
+        .value()
+        .and_then(|v| v.get("span.system"))
+        .and_then(|system| system.as_str())
+        .unwrap_or_default();
+    op.contains("resource.script")
+        || op.contains("resource.css")
+        || op == "http.client"
+        || op.starts_with("app.")
+        || op.starts_with("ui.load")
+        || op.starts_with("file")
+        || op.starts_with("db")
+            && !(op.contains("clickhouse")
+                || op.contains("mongodb")
+                || op.contains("redis")
+                || op.contains("compiler"))
+            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb"))
+}
+
+/// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
+#[cfg(feature = "processing")]
+fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
+    let inner = span
+        .value_mut()
+        .as_mut()
+        .ok_or(anyhow::anyhow!("empty span"))?;
+    let Span {
+        ref exclusive_time,
+        ref mut tags,
+        ref mut sentry_tags,
+        ref mut start_timestamp,
+        ref mut timestamp,
+        ref mut span_id,
+        ref mut trace_id,
+        ..
+    } = inner;
+
+    trace_id
+        .value()
+        .ok_or(anyhow::anyhow!("span is missing trace_id"))?;
+    span_id
+        .value()
+        .ok_or(anyhow::anyhow!("span is missing span_id"))?;
+
+    match (start_timestamp.value(), timestamp.value()) {
+        (Some(start), Some(end)) => {
+            if end < start {
+                return Err(anyhow::anyhow!(
+                    "end timestamp is smaller than start timestamp"
+                ));
+            }
+        }
+        (_, None) => {
+            return Err(anyhow::anyhow!("timestamp hard-required for spans"));
+        }
+        (None, _) => {
+            return Err(anyhow::anyhow!("start_timestamp hard-required for spans"));
+        }
+    }
+
+    // `is_segment` is set by `extract_span`.
+    exclusive_time
+        .value()
+        .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
+
+    if let Some(sentry_tags) = sentry_tags.value_mut() {
+        sentry_tags.retain(|key, value| match value.value() {
+            Some(s) => {
+                match key.as_str() {
+                    "group" => {
+                        // Only allow up to 16-char hex strings in group.
+                        s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
+                    }
+                    "status_code" => s.parse::<u16>().is_ok(),
+                    _ => true,
+                }
+            }
+            // Drop empty string values.
+            None => false,
+        });
+    }
+    if let Some(tags) = tags.value_mut() {
+        tags.retain(|_, value| !value.value().is_empty())
+    }
+
+    Ok(span)
 }
