@@ -1,7 +1,9 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::{
+    Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
+};
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
@@ -34,6 +36,76 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
 
 const PROFILE_TAG: &str = "has_profile";
 
+/// Extracts the transaction count from a metric.
+///
+/// If the metric was extracted from a or multiple transaction, it returns the amount
+/// of datapoints contained in the bucket.
+///
+/// Additionally tracks whether the transactions also contained profiling information.
+///
+/// Returns `None` if the metric was not extracted from transactions.
+pub fn extract_transaction_count(
+    metric: &BucketView<'_>,
+    mode: ExtractionMode,
+) -> Option<TransactionCount> {
+    let mri = match MetricResourceIdentifier::parse(metric.name()) {
+        Ok(mri) => mri,
+        Err(_) => {
+            relay_log::error!("invalid MRI: {}", metric.name());
+            return None;
+        }
+    };
+
+    if mri.namespace != MetricNamespace::Transactions {
+        return None;
+    }
+
+    let usage = matches!(mode, ExtractionMode::Usage);
+    let count = match metric.value() {
+        BucketViewValue::Counter(c) if usage && mri.name == "usage" => c as usize,
+        BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
+        _ => 0,
+    };
+
+    let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
+        && metric.tag(PROFILE_TAG) == Some("true");
+
+    Some(TransactionCount { count, has_profile })
+}
+
+/// Wether to extract transaction and profile count based on the usage or duration metric.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtractionMode {
+    /// Use the usage count metric.
+    Usage,
+    /// Use the duration distribution metric.
+    Duration,
+}
+
+impl ExtractionMode {
+    /// Utility function for creating an [`ExtractionMode`].
+    ///
+    /// Returns [`ExtractionMode::Usage`] when passed `true`,
+    /// [`ExtractionMode::Duration`] otherwise.
+    pub fn from_usage(usage: bool) -> Self {
+        if usage {
+            Self::Usage
+        } else {
+            Self::Duration
+        }
+    }
+}
+
+/// Return value of [`extract_transaction_count`], containing the extracted
+/// count of transactions and wether they have associated profiles.
+#[derive(Debug, Clone, Copy)]
+pub struct TransactionCount {
+    /// Number of transactions.
+    pub count: usize,
+    /// Whether the transactions have associated profiles.
+    pub has_profile: bool,
+}
+
 impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
@@ -42,60 +114,29 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         buckets: Vec<Bucket>,
         quotas: Q,
         scoping: Scoping,
-        usage: bool,
+        mode: ExtractionMode,
     ) -> Result<Self, Vec<Bucket>> {
         let counts: Vec<_> = buckets
             .iter()
-            .map(|metric| {
-                let mri = match MetricResourceIdentifier::parse(&metric.name) {
-                    Ok(mri) => mri,
-                    Err(_) => {
-                        relay_log::error!("invalid MRI: {}", metric.name);
-                        return None;
-                    }
-                };
-
-                // Keep all metrics that are not transaction related:
-                if mri.namespace != MetricNamespace::Transactions {
-                    return None;
-                }
-
-                let count = match &metric.value {
-                    // The "usage" counter directly tracks the number of processed transactions.
-                    BucketValue::Counter(c) if usage && mri.name == "usage" => *c as usize,
-
-                    // Fallback to the legacy "duration" metric, which is extracted exactly once for
-                    // every processed transaction and was originally used to count transactions.
-                    BucketValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
-
-                    // For any other metric in the transaction namespace, we check the limit with
-                    // quantity=0 so transactions are not double counted against the quota.
-                    _ => 0,
-                };
-
-                let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
-                    && metric.tag(PROFILE_TAG) == Some("true");
-
-                Some((count, has_profile))
-            })
+            .map(|metric| extract_transaction_count(&BucketView::new(metric), mode))
             .collect();
 
-        // Accumulate the total transaction count:
-        let mut total_counts: Option<(usize, usize)> = None;
-        for (tx_count, has_profile) in counts.iter().flatten() {
-            let (total_txs, total_profiles) = total_counts.get_or_insert((0, 0));
-            *total_txs += tx_count;
-            if *has_profile {
-                *total_profiles += tx_count;
-            }
-        }
+        // Accumulate the total transaction count and profile count
+        let total_counts = counts
+            .iter()
+            .filter_map(Option::as_ref)
+            .map(|c| {
+                let profile_count = if c.has_profile { c.count } else { 0 };
+                (c.count, profile_count)
+            })
+            .reduce(|a, b| (a.0 + b.0, a.1 + b.1));
 
         if let Some((transaction_count, profile_count)) = total_counts {
             let transaction_buckets = counts.iter().map(Option::is_some).collect();
             let profile_buckets = counts
                 .iter()
                 .map(|o| match o {
-                    Some((_, has_profile)) => *has_profile,
+                    Some(c) => c.has_profile,
                     None => false,
                 })
                 .collect();
@@ -324,7 +365,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            true,
+            ExtractionMode::Usage,
         )
         .unwrap();
 
@@ -412,7 +453,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
-            true,
+            ExtractionMode::Usage,
         )
         .unwrap();
 

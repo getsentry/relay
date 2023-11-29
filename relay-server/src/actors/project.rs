@@ -20,7 +20,6 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitBuckets;
@@ -29,7 +28,11 @@ use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate}
 
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
-use crate::utils::{EnvelopeLimiter, ManagedEnvelope, MetricsLimiter, RetryBackoff};
+use crate::utils::{
+    EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
+};
+
+use super::processor::EncodeMetrics;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -569,7 +572,8 @@ impl Project {
             _ => false,
         };
 
-        match MetricsLimiter::create(metrics, &state.config.quotas, scoping, usage) {
+        let mode = ExtractionMode::from_usage(usage);
+        match MetricsLimiter::create(metrics, &state.config.quotas, scoping, mode) {
             Ok(mut limiter) => {
                 limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
                 limiter.into_metrics()
@@ -642,8 +646,9 @@ impl Project {
             Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
             _ => false,
         };
+        let extraction_mode = ExtractionMode::from_usage(usage);
 
-        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, usage) {
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
@@ -1105,20 +1110,34 @@ impl Project {
 
     pub fn flush_buckets(
         &mut self,
-        envelope_manager: Addr<EnvelopeManager>,
-        partition_key: Option<u64>,
+        project_cache: Addr<ProjectCache>,
+        envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
     ) {
+        let Some(project_state) = self.get_cached_state(project_cache, false) else {
+            relay_log::trace!(
+                "there is no project state: dropping {} buckets",
+                buckets.len()
+            );
+            return;
+        };
+
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: dropping {} buckets", buckets.len());
             return;
         };
 
+        let usage = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+        let extraction_mode = ExtractionMode::from_usage(usage);
+
         if !buckets.is_empty() {
-            envelope_manager.send(SendMetrics {
+            envelope_processor.send(EncodeMetrics {
                 buckets,
                 scoping,
-                partition_key,
+                extraction_mode,
             });
         }
     }

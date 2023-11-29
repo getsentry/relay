@@ -428,6 +428,8 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # and it should create an outcome
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)
     assert outcomes is not None
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_outcomes.get(timeout=1)
 
     # Second
     # send trace with project_id2 context (should go through)
