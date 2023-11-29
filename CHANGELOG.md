@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Ingest OpenTelemetry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
+- Ingest OpenTelemetry and standalone Sentry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
 - Partition and split metric buckets just before sending. Log outcomes for metrics. ([#2682](https://github.com/getsentry/relay/pull/2682))
 
 **Internal**:
