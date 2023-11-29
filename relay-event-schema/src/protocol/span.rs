@@ -4,8 +4,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, EventId, JsonLenientString, OperationType, OriginType, ProfileContext, SpanId,
-    SpanStatus, Timestamp, TraceContext, TraceId,
+    Event, EventId, JsonLenientString, Measurements, OperationType, OriginType, ProfileContext,
+    SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -75,6 +75,14 @@ pub struct Span {
 
     /// Timestamp when the span has been received by Sentry.
     pub received: Annotated<Timestamp>,
+
+    /// Measurements which holds observed values such as web vitals.
+    ///
+    /// Measurements are only available on transactions. They contain measurement values of observed
+    /// values such as Largest Contentful Paint (LCP).
+    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
+    pub measurements: Annotated<Measurements>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
