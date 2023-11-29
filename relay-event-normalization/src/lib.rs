@@ -33,7 +33,10 @@ mod trimming;
 pub mod replay;
 pub use normalize::breakdowns::*;
 pub use normalize::*;
+pub use schema::SchemaProcessor;
+pub use timestamp::TimestampProcessor;
 pub use transactions::*;
+pub use trimming::TrimmingProcessor;
 pub use user_agent::*;
 
 pub use self::clock_drift::*;

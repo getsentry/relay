@@ -2288,10 +2288,8 @@ impl EnvelopeProcessorService {
             ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
             _ => None,
         };
-        let received_at = state.managed_envelope.received_at();
-
         state.managed_envelope.retain_items(|item| {
-            let annotated_span = match item.ty() {
+            let mut annotated_span = match item.ty() {
                 ItemType::OtelSpan => {
                     match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
                         Ok(otel_span) => Annotated::new(otel_span.into()),
@@ -2313,16 +2311,19 @@ impl EnvelopeProcessorService {
             };
 
             let config = NormalizeSpanConfig {
-                received_at,
-                max_secs_in_past: self.inner.config.max_secs_in_past(),
-                max_secs_in_future: self.inner.config.max_secs_in_future(),
-                max_tag_value_length: self
+                transaction_range: AggregatorConfig::from(
+                    self.inner
+                        .config
+                        .aggregator_config_for(MetricNamespace::Transactions),
+                )
+                .timestamp_range(),
+                max_tag_value_size: self
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
             };
-            let mut annotated_span = match normalize_span(annotated_span, config) {
+            match normalize_span(&mut annotated_span, config) {
                 Ok(s) => s,
                 Err(e) => {
                     relay_log::debug!("invalid span: {}", e);
