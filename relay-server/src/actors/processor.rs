@@ -34,7 +34,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, RateLimits, Scoping};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
     MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
@@ -2449,7 +2449,7 @@ impl EnvelopeProcessorService {
             scoping,
             extraction_mode,
             project_state,
-            rate_limits,
+            rate_limits: cached_rate_limits,
         } = message;
 
         let (partitions, max_batch_size_bytes) = if self.inner.config.processing_enabled() {
@@ -2484,7 +2484,10 @@ impl EnvelopeProcessorService {
             category: DataCategory::Metrics,
             scoping: &scoping,
         };
-        if rate_limits.check_with_quotas(quotas, item_scoping).is_ok() {
+        if cached_rate_limits
+            .check_with_quotas(quotas, item_scoping)
+            .is_ok()
+        {
             if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
                 // We want to protect the kafka metrics ingestion topics, therefore we ratelimit based on
                 // batches, as the batches are what's sent to kafka.
@@ -2501,6 +2504,9 @@ impl EnvelopeProcessorService {
                 match rate_limiter.is_rate_limited(quotas, item_scoping, total_batches, false) {
                     Ok(limits) => {
                         if limits.is_limited() {
+                            let reason_code =
+                                limits.longest().and_then(|limit| limit.reason_code.clone());
+
                             self.inner
                                 .project_cache
                                 .send(UpdateRateLimits::new(scoping.project_key, limits));
@@ -2510,17 +2516,25 @@ impl EnvelopeProcessorService {
                             self.inner.outcome_aggregator.send(TrackOutcome {
                                 timestamp,
                                 scoping,
-                                outcome: Outcome::RateLimited(Some(ReasonCode::new(
-                                    "reached max throughput limit",
-                                ))),
+                                outcome: Outcome::RateLimited(reason_code),
                                 event_id: None,
                                 remote_addr: None,
                                 category: DataCategory::Metrics,
-                                quantity: bucket_qty as u32,
+                                quantity: total_batches as u32,
                             });
+
+                            relay_log::info!(
+                                "dropping {bucket_qty} buckets due to throughput ratelimit"
+                            );
+                            return;
                         }
                     }
-                    Err(_) => todo!(),
+                    Err(e) => {
+                        relay_log::error!(
+                            error = &e as &dyn std::error::Error,
+                            "failed to check redis rate limits"
+                        );
+                    }
                 }
             }
         }
