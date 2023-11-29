@@ -203,6 +203,12 @@
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
 <a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -216,7 +222,7 @@
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::global_config;
+<span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{<span class="self">self</span>, StatusResponse};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{LimitedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
@@ -286,6 +292,8 @@
     </span>pending: Vec&lt;ProjectKey&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>global: <span class="prelude-ty">Option</span>&lt;Arc&lt;GlobalConfig&gt;&gt;,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>global_status: <span class="prelude-ty">Option</span>&lt;StatusResponse&gt;,
 }
 
 <span class="doccomment">/// Request payload of the project config endpoint.
@@ -332,19 +340,22 @@
         (project_key, state_result)
     });
 
-    <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
-    <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
-    <span class="kw">let </span>global_config = <span class="kw">match </span>inner.global {
-        <span class="bool-val">true </span>=&gt; <span class="prelude-val">Some</span>(
-            state
-                .global_config()
-                .send(global_config::Get)
-                .<span class="kw">await</span><span class="question-mark">?
-                </span>.get_ready_or_default(),
-        ),
-        <span class="bool-val">false </span>=&gt; <span class="prelude-val">None</span>,
+    <span class="kw">let </span>(global, global_status) = <span class="kw">if </span>inner.global {
+        <span class="kw">match </span>state.global_config().send(global_config::Get).<span class="kw">await</span><span class="question-mark">? </span>{
+            global_config::Status::Ready(config) =&gt; (<span class="prelude-val">Some</span>(config), <span class="prelude-val">Some</span>(StatusResponse::Ready)),
+            <span class="comment">// Old relays expect to get a global config no matter what, even if it&#39;s not ready
+            // yet. We therefore give them a default global config.
+            </span>global_config::Status::Pending =&gt; (
+                <span class="prelude-val">Some</span>(GlobalConfig::default().into()),
+                <span class="prelude-val">Some</span>(StatusResponse::Pending),
+            ),
+        }
+    } <span class="kw">else </span>{
+        (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
     };
 
+    <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
+    <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
     <span class="kw">for </span>(project_key, state_result) <span class="kw">in </span>future::join_all(futures).<span class="kw">await </span>{
         <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = state_result<span class="question-mark">? </span><span class="kw">else </span>{
             pending.push(project_key);
@@ -375,7 +386,8 @@
     <span class="prelude-val">Ok</span>(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global: global_config,
+        global,
+        global_status,
     }))
 }
 
