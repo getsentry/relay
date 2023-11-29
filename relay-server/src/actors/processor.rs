@@ -256,7 +256,7 @@ impl ExtractedMetrics {
 
 /// A state container for envelope processing.
 #[derive(Debug)]
-struct ProcessEnvelopeState<'a> {
+pub struct ProcessEnvelopeState<'a> {
     /// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
