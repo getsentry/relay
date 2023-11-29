@@ -1512,7 +1512,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "type": "d",
-            "value": [1500.0],
+            "value": [345.0],
             "timestamp": expected_timestamp + 1,
             "tags": {
                 "file_extension": "js",
@@ -1529,7 +1529,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
             "type": "d",
-            "value": [500.0, 500.000001],
+            "value": [500.0, 1500],
             "timestamp": expected_timestamp,
             "tags": {"span.status": "ok", "span.op": "default"},
             "retention_days": 90,
@@ -1539,7 +1539,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time_light@millisecond",
             "type": "d",
-            "value": [1500.0],
+            "value": [345.0],
             "timestamp": expected_timestamp + 1,
             "tags": {
                 "file_extension": "js",
@@ -1556,7 +1556,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "d:spans/exclusive_time_light@millisecond",
             "type": "d",
-            "value": [500.0, 500.000001],
+            "value": [500.0, 1500],
             "timestamp": expected_timestamp,
             "tags": {
                 "span.op": "default",

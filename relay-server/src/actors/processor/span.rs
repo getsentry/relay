@@ -1,8 +1,22 @@
 //! Processor code related to standalone spans.
+#[cfg(feature = "processing")]
+use {std::error::Error, std::sync::Arc};
 
-use chrono::{DateTime, Utc};
 use relay_dynamic_config::Feature;
-use relay_metrics::UnixTimestamp;
+#[cfg(feature = "processing")]
+use {
+    chrono::{DateTime, Utc},
+    relay_base_schema::events::EventType,
+    relay_config::Config,
+    relay_dynamic_config::ErrorBoundary,
+    relay_dynamic_config::ProjectConfig,
+    relay_event_normalization::span::tag_extraction,
+    relay_event_schema::processor::{process_value, ProcessingState},
+    relay_event_schema::protocol::Span,
+    relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp},
+    relay_pii::PiiProcessor,
+    relay_protocol::{Annotated, Empty},
+};
 
 use crate::{actors::processor::ProcessEnvelopeState, envelope::ItemType, utils::ItemAction};
 #[cfg(feature = "processing")]
@@ -10,16 +24,6 @@ use {
     crate::actors::processor::ProcessingError,
     crate::envelope::{ContentType, Item},
     crate::metrics_extraction::generic::extract_metrics,
-    relay_base_schema::events::EventType,
-    relay_config::Config,
-    relay_dynamic_config::ErrorBoundary,
-    relay_event_normalization::span::tag_extraction,
-    relay_event_schema::processor::{process_value, ProcessingState},
-    relay_event_schema::protocol::Span,
-    relay_metrics::MetricNamespace,
-    relay_protocol::{Annotated, Empty},
-    std::error::Error,
-    std::sync::Arc,
 };
 
 pub fn filter(state: &mut ProcessEnvelopeState) {
@@ -69,7 +73,7 @@ fn normalize(
 
     // This follows the steps of `NormalizeProcessor::process_event`.
     // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
-    // `process_spans` on it.
+    // `process` on it.
 
     process_value(
         annotated_span,
@@ -115,8 +119,29 @@ fn normalize(
 }
 
 #[cfg(feature = "processing")]
+fn scrub(
+    annotated_span: &mut Annotated<Span>,
+    project_config: &ProjectConfig,
+) -> Result<(), ProcessingError> {
+    if let Some(ref config) = project_config.pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(annotated_span, &mut processor, ProcessingState::root())?;
+    }
+    let pii_config = project_config
+        .datascrubbing_settings
+        .pii_config()
+        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+    if let Some(config) = pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(annotated_span, &mut processor, ProcessingState::root())?;
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
 pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
-    use relay_metrics::aggregator::AggregatorConfig;
+    use relay_event_normalization::RemoveOtherProcessor;
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
@@ -172,10 +197,19 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
 
         // TODO: dynamic sampling
 
-        // TODO: retain processor
-        // TODO: pii processor
+        if let Err(e) = scrub(&mut annotated_span, &state.project_state.config) {
+            relay_log::error!("failed to scrub span: {e}");
+        }
 
         // TODO: rate limiting
+
+        // Remove additional fields.
+        process_value(
+            &mut annotated_span,
+            &mut RemoveOtherProcessor,
+            ProcessingState::root(),
+        )
+        .ok();
 
         // Validate for kafka (TODO: this should be moved to kafka producer)
         let annotated_span = match validate(annotated_span) {

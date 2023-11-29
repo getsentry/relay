@@ -9,6 +9,7 @@ fn create_errors(other: &mut Object<Value>) {
     }
 }
 
+/// Removes unknown, internal and deprecated fields from a payload.
 pub struct RemoveOtherProcessor;
 
 impl Processor for RemoveOtherProcessor {
