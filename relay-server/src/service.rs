@@ -143,6 +143,7 @@ impl ServiceState {
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
+            test_store.clone(),
             #[cfg(feature = "processing")]
             aggregator.clone(),
         )
@@ -151,7 +152,6 @@ impl ServiceState {
         #[allow(unused_mut)]
         let mut envelope_manager_service = EnvelopeManagerService::new(
             config.clone(),
-            aggregator.clone(),
             processor.clone(),
             project_cache.clone(),
             test_store.clone(),

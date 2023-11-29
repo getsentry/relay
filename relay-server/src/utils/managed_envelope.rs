@@ -59,6 +59,7 @@ struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
     slot: Option<SemaphorePermit>,
+    partition_key: Option<u64>,
     done: bool,
 }
 
@@ -102,24 +103,12 @@ impl ManagedEnvelope {
                 summary,
                 scoping,
                 slot,
+                partition_key: None,
                 done: false,
             },
             outcome_aggregator,
             test_store,
         }
-    }
-
-    /// Creates a standalone envelope for testing purposes.
-    ///
-    /// As opposed to [`new`](Self::new), this does not require a queue permit. This makes it
-    /// suitable for unit testing internals of the processing pipeline.
-    #[cfg(test)]
-    pub fn standalone(
-        envelope: Box<Envelope>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        test_store: Addr<TestStore>,
-    ) -> Self {
-        Self::new_internal(envelope, None, outcome_aggregator, test_store)
     }
 
     #[cfg(test)]
@@ -131,6 +120,21 @@ impl ManagedEnvelope {
         let mut envelope = Self::new_internal(envelope, None, outcome_aggregator, test_store);
         envelope.context.done = true;
         envelope
+    }
+
+    /// Creates a new managed envelope like [`new`](Self::new) but without a queue permit.
+    ///
+    /// This is suitable for aggregated metrics. Metrics live outside the lifecycle of a normal
+    /// event. They are extracted, aggregated and regularily flushed, after the
+    /// source event has already been processed.
+    ///
+    /// The constructor is also suitable for unit testing internals of the processing pipeline.
+    pub fn standalone(
+        envelope: Box<Envelope>,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+    ) -> Self {
+        Self::new_internal(envelope, None, outcome_aggregator, test_store)
     }
 
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
@@ -296,6 +300,7 @@ impl ManagedEnvelope {
                     tags.has_attachments = summary.attachment_quantity > 0,
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity > 0,
+                    tags.has_transactions = summary.secondary_transaction_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
                     tags.has_checkins = summary.checkin_quantity > 0,
                     tags.event_category = ?summary.event_category,
@@ -324,7 +329,7 @@ impl ManagedEnvelope {
 
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
-                outcome,
+                outcome.clone(),
                 if self.use_index_category() {
                     DataCategory::ProfileIndexed
                 } else {
@@ -334,12 +339,34 @@ impl ManagedEnvelope {
             );
         }
 
+        // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
+        //
+        // Primary transaction count is already tracked through the event category
+        // (see: `Self::event_category()`).
+        if self.context.summary.secondary_transaction_quantity > 0 {
+            self.track_outcome(
+                outcome,
+                // Secondary transaction counts are never indexed transactions
+                DataCategory::Transaction,
+                self.context.summary.secondary_transaction_quantity,
+            );
+        }
+
         self.finish(RelayCounters::EnvelopeRejected, handling);
     }
 
     /// Returns scoping stored in this context.
     pub fn scoping(&self) -> Scoping {
         self.context.scoping
+    }
+
+    pub fn partition_key(&self) -> Option<u64> {
+        self.context.partition_key
+    }
+
+    pub fn set_partition_key(&mut self, partition_key: Option<u64>) -> &mut Self {
+        self.context.partition_key = partition_key;
+        self
     }
 
     pub fn meta(&self) -> &RequestMeta {

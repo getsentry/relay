@@ -65,6 +65,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             ItemType::UserReport => (),
             ItemType::Statsd => (),
             ItemType::MetricBuckets => (),
+            ItemType::MetricMeta => (),
             ItemType::Span => {
                 if item.len() > config.max_span_size() {
                     return false;

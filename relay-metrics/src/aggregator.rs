@@ -67,12 +67,17 @@ struct BucketKey {
 }
 
 impl BucketKey {
-    // Create a 64-bit hash of the bucket key using FnvHasher.
-    // This is used for partition key computation and statsd logging.
+    /// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
+    /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
-        let mut hasher = FnvHasher::default();
-        std::hash::Hash::hash(self, &mut hasher);
-        hasher.finish()
+        BucketKeyRef {
+            project_key: self.project_key,
+            timestamp: self.timestamp,
+            metric_name: &self.metric_name,
+            tags: &self.tags,
+        }
+        .hash64()
     }
 
     /// Estimates the number of bytes needed to encode the bucket key.
@@ -89,6 +94,29 @@ impl BucketKey {
             Ok(mri) => mri.namespace,
             Err(_) => MetricNamespace::Unsupported,
         }
+    }
+}
+
+/// Pendant to [`BucketKey`] for referenced data, not owned data.
+///
+/// This makes it possible to compute a hash for a [`Bucket`]
+/// without destructing the bucket into a [`BucketKey`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct BucketKeyRef<'a> {
+    project_key: ProjectKey,
+    timestamp: UnixTimestamp,
+    metric_name: &'a str,
+    tags: &'a BTreeMap<String, String>,
+}
+
+impl<'a> BucketKeyRef<'a> {
+    /// Creates a 64-bit hash of the bucket key using FnvHasher.
+    ///
+    /// This is used for partition key computation and statsd logging.
+    fn hash64(&self) -> u64 {
+        let mut hasher = FnvHasher::default();
+        std::hash::Hash::hash(self, &mut hasher);
+        hasher.finish()
     }
 }
 
@@ -348,14 +376,6 @@ impl Ord for QueuedBucket {
     }
 }
 
-/// A Bucket and its hashed key.
-/// This is cheaper to pass around than a (BucketKey, Bucket) pair.
-pub struct HashedBucket {
-    // This is only public because pop_flush_buckets is used in benchmark.
-    hashed_key: u64,
-    bucket: Bucket,
-}
-
 #[derive(Default)]
 struct CostTracker {
     total_cost: usize,
@@ -513,7 +533,7 @@ impl Aggregator {
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<HashedBucket>> {
+    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<Bucket>> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
@@ -526,7 +546,7 @@ impl Aggregator {
             aggregator = &self.name,
         );
 
-        let mut buckets = HashMap::<ProjectKey, Vec<HashedBucket>>::new();
+        let mut buckets = HashMap::new();
         let mut stats = HashMap::new();
 
         relay_statsd::metric!(
@@ -558,11 +578,8 @@ impl Aggregator {
 
                         buckets
                             .entry(key.project_key)
-                            .or_default()
-                            .push(HashedBucket {
-                                hashed_key: key.hash64(),
-                                bucket,
-                            });
+                            .or_insert_with(Vec::new)
+                            .push(bucket);
 
                         false
                     } else {
@@ -845,35 +862,6 @@ impl Aggregator {
         }
     }
 
-    /// Split buckets into N logical partitions, determined by the bucket key.
-    pub fn partition_buckets(
-        &self,
-        buckets: Vec<HashedBucket>,
-        flush_partitions: Option<u64>,
-    ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
-        let flush_partitions = match flush_partitions {
-            None => {
-                return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
-            }
-            Some(x) => x.max(1), // handle 0,
-        };
-        let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
-        for bucket in buckets {
-            let partition_key = bucket.hashed_key % flush_partitions;
-            partitions
-                .entry(Some(partition_key))
-                .or_default()
-                .push(bucket.bucket);
-
-            // Log the distribution of buckets over partition key
-            relay_statsd::metric!(
-                histogram(MetricHistograms::PartitionKeys) = partition_key as f64,
-                aggregator = &self.name,
-            );
-        }
-        partitions
-    }
-
     /// Create a new aggregator.
     pub fn new(config: AggregatorConfig) -> Self {
         Self::named("default".to_owned(), config)
@@ -898,6 +886,36 @@ impl fmt::Debug for Aggregator {
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
             .finish()
     }
+}
+
+/// Splits buckets into N logical partitions, determined by the bucket key.
+pub fn partition_buckets(
+    project_key: ProjectKey,
+    buckets: Vec<Bucket>,
+    flush_partitions: Option<u64>,
+) -> BTreeMap<Option<u64>, Vec<Bucket>> {
+    let flush_partitions = match flush_partitions {
+        None => return BTreeMap::from([(None, buckets)]),
+        Some(x) => x.max(1), // handle 0,
+    };
+    let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
+    for bucket in buckets {
+        let key = BucketKeyRef {
+            project_key,
+            timestamp: bucket.timestamp,
+            metric_name: &bucket.name,
+            tags: &bucket.tags,
+        };
+
+        let partition_key = key.hash64() % flush_partitions;
+        partitions
+            .entry(Some(partition_key))
+            .or_default()
+            .push(bucket);
+
+        relay_statsd::metric!(histogram(MetricHistograms::PartitionKeys) = partition_key);
+    }
+    partitions
 }
 
 #[cfg(test)]

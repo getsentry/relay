@@ -502,6 +502,14 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
+    /// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    meta_locations_expiry: u64,
+    /// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    meta_locations_max: usize,
 }
 
 impl Default for Metrics {
@@ -513,6 +521,8 @@ impl Default for Metrics {
             hostname_tag: None,
             buffering: true,
             sample_rate: 1.0,
+            meta_locations_expiry: 15 * 24 * 60 * 60,
+            meta_locations_max: 5,
         }
     }
 }
@@ -1758,6 +1768,16 @@ impl Config {
         self.values.metrics.sample_rate
     }
 
+    /// Returns the maximum amount of code locations per metric.
+    pub fn metrics_meta_locations_max(&self) -> usize {
+        self.values.metrics.meta_locations_max
+    }
+
+    /// Returns the expiry for code locations.
+    pub fn metrics_meta_locations_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.metrics.meta_locations_expiry)
+    }
+
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
         Duration::from_secs(self.values.http.timeout.into())
@@ -2037,6 +2057,18 @@ impl Config {
     /// Chunk size of attachments in bytes.
     pub fn attachment_chunk_size(&self) -> usize {
         self.values.processing.attachment_chunk_size.as_bytes()
+    }
+
+    /// Amount of metric partitions.
+    pub fn metrics_partitions(&self) -> Option<u64> {
+        // TODO(dav1dde): move config to a better place
+        self.values.aggregator.flush_partitions
+    }
+
+    /// Maximum metrics batch size in bytes.
+    pub fn metrics_max_batch_size_bytes(&self) -> usize {
+        // TODO(dav1dde): move config to a better place
+        self.values.aggregator.max_flush_bytes
     }
 
     /// Default prefix to use when looking up project configs in Redis. This is only done when
