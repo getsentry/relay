@@ -642,6 +642,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.sql.query",
+            "span.system": "postgresql",
         },
     },
     Bucket {
@@ -754,6 +755,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.sql.query",
+            "span.system": "postgresql",
         },
     },
     Bucket {
@@ -813,6 +815,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.sql.query",
+            "span.system": "postgresql",
         },
     },
     Bucket {
@@ -925,6 +928,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.sql.query",
+            "span.system": "postgresql",
         },
     },
     Bucket {
@@ -984,6 +988,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+            "span.system": "postgresql",
         },
     },
     Bucket {
@@ -1039,6 +1044,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+            "span.system": "mydatabase",
         },
     },
     Bucket {
@@ -1094,6 +1100,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+            "span.system": "mydatabase",
         },
     },
     Bucket {
@@ -1151,6 +1158,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db",
+            "span.system": "mydatabase",
         },
     },
     Bucket {
@@ -1268,6 +1276,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.sql.query",
+            "span.system": "mongodb",
         },
     },
     Bucket {
@@ -1323,6 +1332,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.sql.query",
+            "span.system": "mydatabase",
         },
     },
     Bucket {
@@ -1390,6 +1400,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.sql.activerecord",
+            "span.system": "mydatabase",
         },
     },
     Bucket {
@@ -1402,6 +1413,7 @@ expression: metrics
         tags: {
             "span.category": "db",
             "span.op": "db.redis.command",
+            "span.system": "redis",
         },
     },
     Bucket {

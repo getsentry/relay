@@ -3789,6 +3789,7 @@ dependencies = [
  "chrono",
  "data-encoding",
  "insta",
+ "itertools",
  "relay-base-schema",
  "relay-event-schema",
  "relay-log",
