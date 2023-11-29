@@ -11,10 +11,9 @@
 **Internal**:
 
 - Support source context in metric code locations metadata entries. ([#2781](https://github.com/getsentry/relay/pull/2781))
+- Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
 
 ## 23.11.2
-
-- `normalize_performance_score` now handles `PerformanceScoreProfile` configs with zero weight components and component weight sums of any number greater than 0. ([#2756](https://github.com/getsentry/relay/pull/2756))
 
 **Features**:
 
@@ -23,6 +22,7 @@
 **Internal**:
 
 - Add support for metric metadata. ([#2751](https://github.com/getsentry/relay/pull/2751))
+- `normalize_performance_score` now handles `PerformanceScoreProfile` configs with zero weight components and component weight sums of any number greater than 0. ([#2756](https://github.com/getsentry/relay/pull/2756))
 
 ## 23.11.1
 
