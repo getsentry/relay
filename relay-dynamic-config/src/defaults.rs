@@ -129,7 +129,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             mri: "c:spans/count_per_op@none".into(),
             field: None,
             condition: Some(duration_condition.clone()),
-            tags: ["category", "op"]
+            tags: ["category", "op", "system"]
                 .map(|key| TagSpec {
                     key: format!("span.{key}"),
                     field: Some(format!("span.sentry_tags.{key}")),
