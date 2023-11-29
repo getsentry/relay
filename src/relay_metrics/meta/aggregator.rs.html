@@ -146,6 +146,10 @@
 <a href="#146" id="146">146</a>
 <a href="#147" id="147">147</a>
 <a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     collections::{HashMap, HashSet},
     hash::Hash,
@@ -196,6 +200,7 @@
     </span><span class="kw">pub fn </span>add(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: ProjectKey, meta: MetricMeta) -&gt; <span class="prelude-ty">Option</span>&lt;MetricMeta&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>send_upstream = HashMap::new();
 
+        <span class="kw">let </span><span class="kw-2">mut </span>total = <span class="number">0</span>;
         <span class="kw">for </span>(mri, items) <span class="kw">in </span>meta.mapping {
             <span class="kw">let </span>scope = Scope {
                 timestamp: meta.timestamp,
@@ -203,10 +208,13 @@
                 mri,
             };
 
+            total += items.len();
             <span class="kw">if let </span><span class="prelude-val">Some</span>(items) = <span class="self">self</span>.add_scoped(<span class="kw-2">&amp;</span>scope, items) {
                 send_upstream.insert(scope.mri, items);
             }
         }
+
+        <span class="macro">relay_statsd::metric!</span>(counter(MetricCounters::MetaAggregatorItems) += total <span class="kw">as </span>i64);
 
         <span class="kw">if </span>send_upstream.is_empty() {
             <span class="kw">return </span><span class="prelude-val">None</span>;

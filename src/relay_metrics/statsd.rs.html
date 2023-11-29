@@ -175,6 +175,9 @@
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -228,6 +231,8 @@
     <span class="doccomment">/// Incremented every time the meta aggregator emitted an update that needs to be stored or
     /// sent upstream.
     </span>MetaAggregatorUpdate,
+    <span class="doccomment">/// Incremnted for every metric meta item added to the metric meta aggregator.
+    </span>MetaAggregatorItems,
     <span class="doccomment">/// Incremented every time a redis key is updated to store or update metadata.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>MetaRedisUpdate,
@@ -240,6 +245,7 @@
             <span class="self">Self</span>::MergeMiss =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
             <span class="self">Self</span>::BucketsDropped =&gt; <span class="string">&quot;metrics.buckets.dropped&quot;</span>,
             <span class="self">Self</span>::MetaAggregatorUpdate =&gt; <span class="string">&quot;metrics.meta.agg.update&quot;</span>,
+            <span class="self">Self</span>::MetaAggregatorItems =&gt; <span class="string">&quot;metrics.meta.agg.items&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
             </span><span class="self">Self</span>::MetaRedisUpdate =&gt; <span class="string">&quot;metrics.meta.redis.update&quot;</span>,
         }
