@@ -2,9 +2,26 @@
 
 ## Unreleased
 
+**Features**:
+
+- Partition and split metric buckets just before sending. Log outcomes for metrics. ([#2682](https://github.com/getsentry/relay/pull/2682))
+- Return global config ready status to downstream relays. ([#2765](https://github.com/getsentry/relay/pull/2765))
+
 **Internal**:
 
-- Add stub metric summaries. ([#2757](https://github.com/getsentry/relay/pull/2757))
+- Support source context in metric code locations metadata entries. ([#2781](https://github.com/getsentry/relay/pull/2781))
+- Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
+
+## 23.11.2
+
+**Features**:
+
+- Normalize invalid metric names. ([#2769](https://github.com/getsentry/relay/pull/2769))
+
+**Internal**:
+
+- Add support for metric metadata. ([#2751](https://github.com/getsentry/relay/pull/2751))
+- `normalize_performance_score` now handles `PerformanceScoreProfile` configs with zero weight components and component weight sums of any number greater than 0. ([#2756](https://github.com/getsentry/relay/pull/2756))
 
 ## 23.11.1
 

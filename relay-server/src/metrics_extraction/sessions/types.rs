@@ -114,7 +114,7 @@ impl IntoMetric for SessionMetric {
         let mri = MetricResourceIdentifier {
             ty: value.ty(),
             namespace: MetricNamespace::Sessions,
-            name: &name,
+            name: name.into(),
             unit: MetricUnit::None,
         };
 

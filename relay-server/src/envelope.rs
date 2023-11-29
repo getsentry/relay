@@ -102,6 +102,8 @@ pub enum ItemType {
     Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
+    /// Additional metadata for metrics
+    MetricMeta,
     /// Client internal report (eg: outcomes).
     ClientReport,
     /// Profile event payload encoded as JSON.
@@ -156,6 +158,7 @@ impl fmt::Display for ItemType {
             Self::Sessions => write!(f, "sessions"),
             Self::Statsd => write!(f, "statsd"),
             Self::MetricBuckets => write!(f, "metric_buckets"),
+            Self::MetricMeta => write!(f, "metric_meta"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
@@ -186,6 +189,7 @@ impl std::str::FromStr for ItemType {
             "sessions" => Self::Sessions,
             "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
+            "metric_meta" => Self::MetricMeta,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
@@ -480,6 +484,18 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// Contains the amount of events this item was generated and aggregated from.
+    ///
+    /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
+    /// aggregated from (currently) transactions and profiles.
+    ///
+    /// This information can not be directly inferred from the item itself anymore.
+    /// The amount of events this item/metric represents is instead stored here.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    source_quantities: Option<SourceQuantities>,
+
     /// A list of cumulative sample rates applied to this event.
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
@@ -501,6 +517,17 @@ pub struct ItemHeaders {
     other: BTreeMap<String, Value>,
 }
 
+/// Container for item quantities that the item was derived from.
+///
+/// For example a metric bucket may be derived and aggregated from multiple transactions.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SourceQuantities {
+    /// Transaction quantity.
+    pub transactions: usize,
+    /// Profile quantity.
+    pub profiles: usize,
+}
+
 #[derive(Clone, Debug)]
 pub struct Item {
     headers: ItemHeaders,
@@ -519,6 +546,7 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
+                source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
@@ -563,7 +591,7 @@ impl Item {
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Statsd | ItemType::MetricBuckets => None,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::UserReportV2 => None,
@@ -666,6 +694,16 @@ impl Item {
         self.headers.sample_rates.take()
     }
 
+    /// Returns the contained source quantities.
+    pub fn source_quantities(&self) -> Option<SourceQuantities> {
+        self.headers.source_quantities
+    }
+
+    /// Sets new source quantities.
+    pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
+        self.headers.source_quantities = Some(source_quantities);
+    }
+
     /// Sets sample rates for this item.
     pub fn set_sample_rates(&mut self, sample_rates: Value) {
         if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
@@ -745,6 +783,7 @@ impl Item {
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
+            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
@@ -779,6 +818,7 @@ impl Item {
             ItemType::Sessions => false,
             ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
+            ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
@@ -1080,6 +1120,14 @@ impl Envelope {
         index.map(|index| self.items.swap_remove(index))
     }
 
+    /// Removes and returns the all items that match the given condition.
+    pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items.drain_filter(|item| cond(item)).collect()
+    }
+
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
@@ -1341,6 +1389,20 @@ mod tests {
         item.set_routing_hint(uuid);
 
         assert_eq!(item.routing_hint(), Some(uuid));
+    }
+
+    #[test]
+    fn test_item_source_quantities() {
+        let mut item = Item::new(ItemType::MetricBuckets);
+        assert!(item.source_quantities().is_none());
+
+        let source_quantities = SourceQuantities {
+            transactions: 12,
+            ..Default::default()
+        };
+        item.set_source_quantities(source_quantities);
+
+        assert_eq!(item.source_quantities(), Some(source_quantities));
     }
 
     #[test]

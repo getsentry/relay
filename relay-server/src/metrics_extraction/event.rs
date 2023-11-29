@@ -1188,13 +1188,14 @@ mod tests {
     #[test]
     fn test_display_times_extracted() {
         let span = r#"{
-            "op": "http.client",
+            "op": "ui.load",
             "span_id": "bd429c44b67a3eb4",
             "start_timestamp": 1597976300.0000000,
             "timestamp": 1597976302.0000000,
             "exclusive_time": 100,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "sentry_tags": {
+                "mobile": "true",
                 "ttid": "ttid",
                 "ttfd": "ttfd"
             }
