@@ -2409,6 +2409,7 @@ mod tests {
                 data: ~,
                 sentry_tags: ~,
                 received: ~,
+                measurements: ~,
                 other: {},
             },
         ]
@@ -2450,6 +2451,7 @@ mod tests {
                 data: ~,
                 sentry_tags: ~,
                 received: ~,
+                measurements: ~,
                 other: {},
             },
         ]
@@ -2491,6 +2493,7 @@ mod tests {
                 data: ~,
                 sentry_tags: ~,
                 received: ~,
+                measurements: ~,
                 other: {},
             },
         ]
