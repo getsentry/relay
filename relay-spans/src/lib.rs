@@ -7,7 +7,9 @@
 )]
 
 pub use crate::span::OtelSpan;
+pub use crate::trace::TracesData;
 
 mod otel_to_sentry_tags;
 mod span;
 mod status_codes;
+mod trace;

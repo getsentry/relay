@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
-use serde::Deserialize;
-use serde_repr::Deserialize_repr;
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use relay_event_schema::protocol::{Span as EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
 use relay_protocol::{Annotated, Object, Value};
@@ -12,7 +12,7 @@ use crate::status_codes;
 
 /// This is a serde implementation of <https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto>.
 /// A Span represents a single operation performed by a single component of the system.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OtelSpan {
     /// A unique identifier for a trace. All spans from the same trace share
@@ -231,7 +231,8 @@ impl From<OtelSpan> for EventSpan {
 
 /// Event is a time-stamped annotation of the span, consisting of user-supplied
 /// text description and key-value pairs.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Event {
     /// attributes is a collection of attribute key/value pairs on the event.
     /// Attribute keys MUST be unique (it is not allowed to have more than one
@@ -250,7 +251,8 @@ pub struct Event {
     pub time_unix_nano: u64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Link {
     /// attributes is a collection of attribute key/value pairs on the link.
     /// Attribute keys MUST be unique (it is not allowed to have more than one
@@ -273,8 +275,8 @@ pub struct Link {
     pub trace_state: String,
 }
 
-#[derive(Clone, Default, Debug, Deserialize_repr)]
-#[repr(u32)]
+#[derive(Clone, Default, Debug, Deserialize_repr, Serialize_repr)]
+#[repr(u8)]
 pub enum SpanKind {
     /// Unspecified. Do NOT use as default.
     /// Implementations MAY assume SpanKind to be INTERNAL when receiving UNSPECIFIED.
@@ -299,7 +301,8 @@ pub enum SpanKind {
     Consumer = 5,
 }
 
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Status {
     /// A developer-facing human readable error message.
     #[serde(default)]
@@ -309,7 +312,7 @@ pub struct Status {
     pub code: StatusCode,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize_repr, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize_repr, Default, PartialEq, Serialize_repr)]
 #[repr(u8)]
 pub enum StatusCode {
     /// The default status.
@@ -327,7 +330,7 @@ pub enum StatusCode {
 /// object containing arrays, key-value lists and primitives.
 /// The value is one of the listed fields. It is valid for all values to be unspecified
 /// in which case this AnyValue is considered to be "empty".
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum AnyValue {
     #[serde(rename = "arrayValue")]
     Array(ArrayValue),
@@ -370,7 +373,7 @@ impl AnyValue {
 
 /// ArrayValue is a list of AnyValue messages. We need ArrayValue as a message
 /// since oneof in AnyValue does not allow repeated fields.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ArrayValue {
     /// Array of values. The array may be empty (contain 0 elements).
     #[serde(default)]
@@ -383,7 +386,7 @@ pub struct ArrayValue {
 /// a list of KeyValue messages (e.g. in Span) we use `repeated KeyValue` directly to
 /// avoid unnecessary extra wrapping (which slows down the protocol). The 2 approaches
 /// are semantically equivalent.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KeyValueList {
     /// A collection of key/value pairs of key-value pairs. The list may be empty (may
     /// contain 0 elements).
@@ -394,7 +397,7 @@ pub struct KeyValueList {
 
 /// KeyValue is a key-value pair that is used to store Span attributes, Link
 /// attributes, etc.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KeyValue {
     pub key: String,
     pub value: AnyValue,

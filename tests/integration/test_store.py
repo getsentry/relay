@@ -1344,17 +1344,17 @@ def test_span_ingestion(
                         "traceId": "89143b0763095bd9c9955e8175d1fb23",
                         "spanId": "e342abb1214ca181",
                         "name": "my 1st OTel span",
-                        "startTimeUnixNano": int(start.timestamp() * 1_000_000_000),
-                        "endTimeUnixNano": int(end.timestamp() * 1_000_000_000),
+                        "startTimeUnixNano": int(start.timestamp() * 1e9),
+                        "endTimeUnixNano": int(end.timestamp() * 1e9),
                         "attributes": [
                             {
                                 "key": "sentry.exclusive_time_ns",
                                 "value": {
                                     "intValue": int(duration.total_seconds() * 1e9),
                                 },
-                            }
+                            },
                         ],
-                    }
+                    },
                 ).encode()
             ),
         )
@@ -1384,18 +1384,33 @@ def test_span_ingestion(
     relay.send_otel_span(
         project_id,
         {
-            "traceId": "89143b0763095bd9c9955e8175d1fb24",
-            "spanId": "e342abb1214ca182",
-            "name": "my 2nd OTel span",
-            "startTimeUnixNano": int(start.timestamp() * 1_000_000_000) + 2,
-            "endTimeUnixNano": int(end.timestamp() * 1_000_000_000) + 3,
-            "attributes": [
+            "resourceSpans": [
                 {
-                    "key": "sentry.exclusive_time_ns",
-                    "value": {
-                        "intValue": int((duration.total_seconds() + 1) * 1e9),
-                    },
-                }
+                    "scopeSpans": [
+                        {
+                            "spans": [
+                                {
+                                    "traceId": "89143b0763095bd9c9955e8175d1fb24",
+                                    "spanId": "e342abb1214ca182",
+                                    "name": "my 2nd OTel span",
+                                    "startTimeUnixNano": int(start.timestamp() * 1e9)
+                                    + 2,
+                                    "endTimeUnixNano": int(end.timestamp() * 1e9) + 3,
+                                    "attributes": [
+                                        {
+                                            "key": "sentry.exclusive_time_ns",
+                                            "value": {
+                                                "intValue": int(
+                                                    (duration.total_seconds() + 1) * 1e9
+                                                ),
+                                            },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
             ],
         },
     )

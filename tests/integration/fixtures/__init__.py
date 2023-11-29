@@ -2,9 +2,8 @@ import time
 
 from requests import Session
 from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-
+from urllib3.util import Retry
 
 session = Session()
 retries = Retry(total=5, backoff_factor=0.1)
