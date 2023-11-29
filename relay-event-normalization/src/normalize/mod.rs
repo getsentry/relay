@@ -346,6 +346,8 @@ pub struct PerformanceScoreWeightedComponent {
     pub p10: f64,
     /// Median used to define the log-normal for calculation
     pub p50: f64,
+    // Whether this component is optional, if it is missing the weight will be 0
+    pub optional: Option<bool>,
 }
 
 /// Defines a profile for performance score.
