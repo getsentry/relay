@@ -46,7 +46,7 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
 /// Config needed to normalize a standalone span.
 #[cfg(feature = "processing")]
 #[derive(Clone, Debug)]
-pub struct NormalizeSpanConfig {
+struct NormalizeSpanConfig {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
     /// Allowed time range for transactions.
