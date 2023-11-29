@@ -26,7 +26,7 @@ body:
     id: test-run-link
     attributes:
       label: Link to Test Run
-      placeholder: https://github.com/getsentry/sentry/runs/5582673807
+      placeholder: https://github.com/getsentry/relay/actions/runs/7032804839/job/19137301178
       description: paste the URL to a test run showing the failing test
     validations:
       required: true
