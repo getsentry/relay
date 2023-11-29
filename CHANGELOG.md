@@ -5,6 +5,7 @@
 **Features**:
 
 - Partition and split metric buckets just before sending. Log outcomes for metrics. ([#2682](https://github.com/getsentry/relay/pull/2682))
+- Support optional `PerformanceScoreWeightedComponent` in performance score processing. ([#2783](https://github.com/getsentry/relay/pull/2783))
 
 **Internal**:
 
