@@ -34,7 +34,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
-use relay_quotas::{DataCategory, ItemScoping, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
     MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
@@ -466,6 +466,7 @@ pub struct EncodeMetrics {
     pub extraction_mode: ExtractionMode,
 
     pub project_state: Arc<ProjectState>,
+    pub rate_limits: RateLimits,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -2442,50 +2443,13 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Check if org total is past or whatever
-    #[cfg(feature = "processing")]
-    fn rate_limit_buckets(
-        &self,
-        quantity: usize,
-        project_state: Arc<ProjectState>,
-        scoping: Scoping,
-    ) -> bool {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return false;
-        };
-
-        let quotas = project_state.config.quotas.as_slice();
-
-        if quotas.is_empty() {
-            return false;
-        }
-
-        let item_scoping = ItemScoping {
-            category: DataCategory::Metrics,
-            scoping: &scoping,
-        };
-
-        let Ok(limits) = rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) else {
-            return false;
-        };
-
-        let is_limited = limits.is_limited();
-
-        if limits.is_limited() {
-            self.inner
-                .project_cache
-                .send(UpdateRateLimits::new(scoping.project_key, limits));
-        }
-
-        is_limited
-    }
-
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
             scoping,
             extraction_mode,
             project_state,
+            rate_limits,
         } = message;
 
         let (partitions, max_batch_size_bytes) = if self.inner.config.processing_enabled() {
@@ -2515,34 +2479,50 @@ impl EnvelopeProcessorService {
         let bucket_qty = buckets.len();
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
-        // We want to protect the kafka metrics ingestion topics, therefore we ratelimit based on
-        // batches, as the batches are what's sent to kafka.
-        let total_batches: usize = bucket_partitions
-            .values()
-            .map(|buckets| {
-                // Cheap operation because there's no allocations.
-                BucketsView::new(buckets)
-                    .by_size(max_batch_size_bytes)
-                    .count()
-            })
-            .sum();
+        let quotas = project_state.config.quotas.as_slice();
+        let item_scoping = ItemScoping {
+            category: DataCategory::Metrics,
+            scoping: &scoping,
+        };
+        if rate_limits.check_with_quotas(quotas, item_scoping).is_ok() {
+            if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
+                // We want to protect the kafka metrics ingestion topics, therefore we ratelimit based on
+                // batches, as the batches are what's sent to kafka.
+                let total_batches: usize = bucket_partitions
+                    .values()
+                    .map(|buckets| {
+                        // Cheap operation because there's no allocations.
+                        BucketsView::new(buckets)
+                            .by_size(max_batch_size_bytes)
+                            .count()
+                    })
+                    .sum();
 
-        if self.rate_limit_buckets(total_batches, project_state, scoping) {
-            relay_log::trace!("dropping {bucket_qty} buckets due to hitting throughput rate limit");
-            let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
-            self.inner.outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: Outcome::RateLimited(Some(ReasonCode::new(
-                    "reached max throughput limit",
-                ))),
-                event_id: None,
-                remote_addr: None,
-                category: DataCategory::Metrics,
-                quantity: bucket_qty as u32,
-            });
+                match rate_limiter.is_rate_limited(quotas, item_scoping, total_batches, false) {
+                    Ok(limits) => {
+                        if limits.is_limited() {
+                            self.inner
+                                .project_cache
+                                .send(UpdateRateLimits::new(scoping.project_key, limits));
 
-            return;
+                            let timestamp =
+                                UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
+                            self.inner.outcome_aggregator.send(TrackOutcome {
+                                timestamp,
+                                scoping,
+                                outcome: Outcome::RateLimited(Some(ReasonCode::new(
+                                    "reached max throughput limit",
+                                ))),
+                                event_id: None,
+                                remote_addr: None,
+                                category: DataCategory::Metrics,
+                                quantity: bucket_qty as u32,
+                            });
+                        }
+                    }
+                    Err(_) => todo!(),
+                }
+            }
         }
 
         for (partition_key, buckets) in bucket_partitions {
@@ -2550,9 +2530,7 @@ impl EnvelopeProcessorService {
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
-                let item = create_metrics_item(&batch, extraction_mode);
-
-                envelope.add_item(item);
+                envelope.add_item(create_metrics_item(&batch, extraction_mode));
 
                 let mut envelope = ManagedEnvelope::standalone(
                     envelope,

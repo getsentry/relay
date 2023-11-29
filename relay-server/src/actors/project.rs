@@ -1139,6 +1139,7 @@ impl Project {
                 scoping,
                 extraction_mode,
                 project_state,
+                rate_limits: self.rate_limits.clone(),
             });
         }
     }
