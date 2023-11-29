@@ -171,7 +171,7 @@ impl From<OtelSpan> for EventSpan {
             } else {
                 attribute.key.clone()
             };
-            if key == "exclusive_time_ns" {
+            if key.contains("exclusive_time_ns") {
                 let value = match attribute.value.clone() {
                     AnyValue::Int(v) => v as f64,
                     AnyValue::Double(v) => v,
@@ -202,6 +202,10 @@ impl From<OtelSpan> for EventSpan {
                     data.insert(key, Annotated::new(v.into()));
                 }
             };
+        }
+        if exclusive_time_ms == 0f64 {
+            exclusive_time_ms =
+                (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
         }
         let http_status_code = attributes.iter().find(|a| a.key == "http.status_code");
         let grpc_status_code = attributes.iter().find(|a| a.key == "rpc.grpc.status_code");
@@ -447,6 +451,12 @@ mod tests {
                     "value": {
                         "boolValue": true
                     }
+                },
+                {
+                    "key": "sentry.exclusive_time_ns",
+                    "value": {
+                        "intValue": 1000000000
+                    }
                 }
             ],
             "droppedAttributesCount": 0,
@@ -459,10 +469,52 @@ mod tests {
             "droppedLinksCount": 0
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: Annotated<EventSpan> = Annotated::new(otel_span.into());
+        let event_span: EventSpan = otel_span.into();
+        assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
+        let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
-            get_path!(event_span.data["environment"]),
+            get_path!(annotated_span.data["environment"]),
             Some(&Annotated::new("test".into()))
         );
+    }
+
+    #[test]
+    fn parse_span_with_exclusive_time_ns_attribute() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "middleware - fastify -> @fastify/multipart",
+            "kind": 1,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800,
+            "attributes": [
+                {
+                    "key": "sentry.exclusive_time_ns",
+                    "value": {
+                        "intValue": 3200000000
+                    }
+                }
+            ]
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_span.into();
+        assert_eq!(event_span.exclusive_time, Annotated::new(3200.0));
+    }
+
+    #[test]
+    fn parse_span_no_exclusive_time_ns_attribute() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "middleware - fastify -> @fastify/multipart",
+            "kind": 1,
+            "startTimeUnixNano": 1697620454980000000,
+            "endTimeUnixNano": 1697620454980078800
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_span.into();
+        assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
     }
 }
