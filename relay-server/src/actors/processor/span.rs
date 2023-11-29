@@ -1,18 +1,30 @@
+//! Processor code related to standalone spans.
+#[cfg(feature = "processing")]
+use {std::error::Error, std::sync::Arc};
+
+use relay_dynamic_config::Feature;
 #[cfg(feature = "processing")]
 use {
-    crate::envelope::{ContentType, Item},
-    chrono::Utc,
+    chrono::{DateTime, Utc},
+    relay_base_schema::events::EventType,
+    relay_config::Config,
     relay_dynamic_config::ErrorBoundary,
+    relay_dynamic_config::ProjectConfig,
     relay_event_normalization::span::tag_extraction,
-    relay_event_schema::protocol::{EventType, Span, Timestamp},
+    relay_event_schema::processor::{process_value, ProcessingState},
+    relay_event_schema::protocol::Span,
+    relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp},
+    relay_pii::PiiProcessor,
     relay_protocol::{Annotated, Empty},
-    std::error::Error,
 };
 
-use crate::actors::processor::ProcessEnvelopeState;
-use crate::envelope::ItemType;
-use crate::utils::ItemAction;
-use relay_dynamic_config::Feature;
+use crate::{actors::processor::ProcessEnvelopeState, envelope::ItemType, utils::ItemAction};
+#[cfg(feature = "processing")]
+use {
+    crate::actors::processor::ProcessingError,
+    crate::envelope::{ContentType, Item},
+    crate::metrics_extraction::generic::extract_metrics,
+};
 
 pub fn filter(state: &mut ProcessEnvelopeState) {
     let standalone_span_ingestion_enabled = state
@@ -31,68 +43,198 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
     });
 }
 
+/// Config needed to normalize a standalone span.
 #[cfg(feature = "processing")]
-pub fn process(state: &mut ProcessEnvelopeState) {
-    use crate::metrics_extraction::generic::extract_metrics;
+#[derive(Clone, Debug)]
+pub struct NormalizeSpanConfig {
+    /// The time at which the event was received in this Relay.
+    pub received_at: DateTime<Utc>,
+    /// Allowed time range for transactions.
+    pub transaction_range: std::ops::Range<UnixTimestamp>,
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
+    pub max_tag_value_size: usize,
+}
+
+/// Normalizes a standalone span.
+#[cfg(feature = "processing")]
+fn normalize(
+    annotated_span: &mut Annotated<Span>,
+    config: NormalizeSpanConfig,
+) -> Result<(), ProcessingError> {
+    use relay_event_normalization::{
+        SchemaProcessor, TimestampProcessor, TransactionsProcessor, TrimmingProcessor,
+    };
+
+    let NormalizeSpanConfig {
+        received_at,
+        transaction_range,
+        max_tag_value_size,
+    } = config;
+
+    // This follows the steps of `NormalizeProcessor::process_event`.
+    // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
+    // `process` on it.
+
+    process_value(
+        annotated_span,
+        &mut SchemaProcessor,
+        ProcessingState::root(),
+    )?;
+
+    process_value(
+        annotated_span,
+        &mut TimestampProcessor,
+        ProcessingState::root(),
+    )?;
+
+    process_value(
+        annotated_span,
+        &mut TransactionsProcessor::new(Default::default(), Some(transaction_range)),
+        ProcessingState::root(),
+    )?;
+
+    let Some(span) = annotated_span.value_mut() else {
+        return Err(ProcessingError::NoEventPayload);
+    };
+    span.is_segment = Annotated::new(span.parent_span_id.is_empty());
+    span.received = Annotated::new(received_at.into());
+
+    // Tag extraction:
+    let config = tag_extraction::Config { max_tag_value_size };
+    let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
+    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile);
+    span.sentry_tags = Annotated::new(
+        tags.into_iter()
+            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+            .collect(),
+    );
+
+    process_value(
+        annotated_span,
+        &mut TrimmingProcessor::new(),
+        ProcessingState::root(),
+    )?;
+
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
+fn scrub(
+    annotated_span: &mut Annotated<Span>,
+    project_config: &ProjectConfig,
+) -> Result<(), ProcessingError> {
+    if let Some(ref config) = project_config.pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(annotated_span, &mut processor, ProcessingState::root())?;
+    }
+    let pii_config = project_config
+        .datascrubbing_settings
+        .pii_config()
+        .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+    if let Some(config) = pii_config {
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(annotated_span, &mut processor, ProcessingState::root())?;
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
+pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
+    use relay_event_normalization::RemoveOtherProcessor;
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
-    let mut items: Vec<Item> = Vec::new();
-    let mut add_span = |annotated_span: Annotated<Span>| {
-        let mut validated_span = match validate(annotated_span) {
-            Ok(span) => span,
-            Err(e) => {
-                relay_log::error!("invalid span: {e}");
-                return;
+
+    let config = NormalizeSpanConfig {
+        received_at: state.managed_envelope.received_at(),
+        transaction_range: AggregatorConfig::from(
+            config.aggregator_config_for(MetricNamespace::Transactions),
+        )
+        .timestamp_range(),
+        max_tag_value_size: config
+            .aggregator_config_for(MetricNamespace::Spans)
+            .max_tag_value_length,
+    };
+
+    state.managed_envelope.retain_items(|item| {
+        let mut annotated_span = match item.ty() {
+            ItemType::OtelSpan => {
+                match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
+                    Ok(otel_span) => Annotated::new(otel_span.into()),
+                    Err(err) => {
+                        relay_log::debug!("failed to parse OTel span: {}", err);
+                        return ItemAction::DropSilently;
+                    }
+                }
             }
+            ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
+                Ok(span) => span,
+                Err(err) => {
+                    relay_log::debug!("failed to parse span: {}", err);
+                    return ItemAction::DropSilently;
+                }
+            },
+
+            _ => return ItemAction::Keep,
+        };
+
+        if let Err(e) = normalize(&mut annotated_span, config.clone()) {
+            relay_log::debug!("failed to normalize span: {}", e);
+            return ItemAction::DropSilently;
+        };
+
+        let Some(span) = annotated_span.value_mut() else {
+            return ItemAction::DropSilently;
         };
 
         if let Some(config) = span_metrics_extraction_config {
-            if let Some(span_value) = validated_span.value() {
-                let metrics = extract_metrics(span_value, config);
-                state.extracted_metrics.project_metrics.extend(metrics);
-            }
+            let metrics = extract_metrics(span, config);
+            state.extracted_metrics.project_metrics.extend(metrics);
         }
 
-        if let Some(span) = validated_span.value_mut() {
-            span.received = Timestamp(Utc::now()).into();
-            span.is_segment = span.parent_span_id.is_empty().into();
+        // TODO: dynamic sampling
+
+        if let Err(e) = scrub(&mut annotated_span, &state.project_state.config) {
+            relay_log::error!("failed to scrub span: {e}");
         }
 
-        if let Ok(payload) = validated_span.to_json() {
-            let mut item = Item::new(ItemType::Span);
-            item.set_payload(ContentType::Json, payload);
-            items.push(item);
-        }
-    };
-    let standalone_span_ingestion_enabled = state
-        .project_state
-        .has_feature(Feature::StandaloneSpanIngestion);
-    state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::OtelSpan if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
-        ItemType::Span if !standalone_span_ingestion_enabled => ItemAction::DropSilently,
-        ItemType::OtelSpan => {
-            match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
-                Ok(otel_span) => add_span(Annotated::new(otel_span.into())),
-                Err(err) => relay_log::debug!("failed to parse OTel span: {}", err),
+        // TODO: rate limiting
+
+        // Remove additional fields.
+        process_value(
+            &mut annotated_span,
+            &mut RemoveOtherProcessor,
+            ProcessingState::root(),
+        )
+        .ok();
+
+        // Validate for kafka (TODO: this should be moved to kafka producer)
+        let annotated_span = match validate(annotated_span) {
+            Ok(res) => res,
+            Err(err) => {
+                relay_log::error!("invalid span: {err}");
+                return ItemAction::DropSilently;
             }
-            ItemAction::DropSilently
-        }
-        ItemType::Span => {
-            match Annotated::<Span>::from_json_bytes(&item.payload()) {
-                Ok(event_span) => add_span(event_span),
-                Err(err) => relay_log::debug!("failed to parse span: {}", err),
+        };
+
+        // Write back:
+        let mut new_item = Item::new(ItemType::Span);
+        let payload = match annotated_span.to_json() {
+            Ok(payload) => payload,
+            Err(err) => {
+                relay_log::debug!("failed to serialize span: {}", err);
+                return ItemAction::DropSilently;
             }
-            ItemAction::DropSilently
-        }
-        _ => ItemAction::Keep,
+        };
+        new_item.set_payload(ContentType::Json, payload);
+
+        *item = new_item;
+
+        ItemAction::Keep
     });
-    let envelope = state.managed_envelope.envelope_mut();
-    for item in items {
-        envelope.add_item(item);
-    }
 }
 
 /// We do not extract spans with missing fields if those fields are required on the Kafka topic.

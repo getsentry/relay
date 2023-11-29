@@ -1426,7 +1426,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             profile::process(state, self.inner.config.clone());
             self.process_check_ins(state);
-            span::process(state);
+            span::process(state, self.inner.config.clone());
         });
 
         if state.has_event() {
