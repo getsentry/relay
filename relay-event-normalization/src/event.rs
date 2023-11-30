@@ -1,3 +1,7 @@
+//! Event normalization.
+//!
+//! This module provides a function to normalize events.
+
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
 
@@ -107,7 +111,7 @@ pub fn normalize(
     if config.device_class_synthesis_config {
         normalize_device_class(event);
     }
-    light_normalize_stacktraces(event)?;
+    normalize_stacktraces(event)?;
     normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
     normalize_measurements(
@@ -121,7 +125,7 @@ pub fn normalize(
     // Some contexts need to be normalized before metrics extraction takes place.
     processor::apply(&mut event.contexts, normalize_contexts)?;
 
-    if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         // XXX(iker): span normalization runs in the store processor, but
         // the exclusive time is required for span metrics. Most of
         // transactions don't have many spans, but if this is no longer the
@@ -456,11 +460,10 @@ fn normalize_device_class(event: &mut Event) {
     }
 }
 
-/// Process the required stacktraces for light normalization.
+/// Process the last frame of the stacktrace of the first exception.
 ///
-/// The browser extension filter requires the last frame of the stacktrace of the first exception
-/// processed. There's no need to do further processing at this early stage.
-fn light_normalize_stacktraces(event: &mut Event) -> ProcessingResult {
+/// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
+fn normalize_stacktraces(event: &mut Event) -> ProcessingResult {
     match event.exceptions.value_mut() {
         None => Ok(()),
         Some(exception) => match exception.values.value_mut() {

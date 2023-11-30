@@ -291,7 +291,7 @@ pub struct NormalizationConfig<'a> {
     pub enrich_spans: bool,
 
     /// When `true`, computes and materializes attributes in spans based on the given configuration.
-    pub light_normalize_spans: bool,
+    pub normalize_spans: bool,
 
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
@@ -329,7 +329,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             is_renormalize: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
-            light_normalize_spans: Default::default(),
+            normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
@@ -351,8 +351,7 @@ pub fn normalize_event(
     event: &mut Annotated<Event>,
     config: &NormalizationConfig,
 ) -> ProcessingResult {
-    let Annotated(ref mut event, ref mut meta) = event;
-    let Some(ref mut event) = event else {
+    let Annotated(Some(ref mut event), ref mut meta) = event else {
         return Ok(());
     };
 

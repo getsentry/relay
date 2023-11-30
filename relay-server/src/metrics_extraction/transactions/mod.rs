@@ -519,7 +519,7 @@ mod tests {
             &NormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
-                light_normalize_spans: true,
+                normalize_spans: true,
                 ..Default::default()
             },
         )

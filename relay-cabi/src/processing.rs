@@ -129,7 +129,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         is_renormalize: config.is_renormalize.unwrap_or(false),
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
-        light_normalize_spans: false,
+        normalize_spans: false,
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
         performance_score: None,
