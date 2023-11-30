@@ -1853,6 +1853,13 @@
 <a href="#1853" id="1853">1853</a>
 <a href="#1854" id="1854">1854</a>
 <a href="#1855" id="1855">1855</a>
+<a href="#1856" id="1856">1856</a>
+<a href="#1857" id="1857">1857</a>
+<a href="#1858" id="1858">1858</a>
+<a href="#1859" id="1859">1859</a>
+<a href="#1860" id="1860">1860</a>
+<a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1971,6 +1978,8 @@
     </span>CheckIn,
     <span class="doccomment">/// A standalone span.
     </span>Span,
+    <span class="doccomment">/// A standalone OpenTelemetry span.
+    </span>OtelSpan,
     <span class="doccomment">/// UserReport as an Event
     </span>UserReportV2,
     <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.
@@ -2020,6 +2029,7 @@
             <span class="self">Self</span>::ReplayRecording =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;replay_recording&quot;</span>),
             <span class="self">Self</span>::CheckIn =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;check_in&quot;</span>),
             <span class="self">Self</span>::Span =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;span&quot;</span>),
+            <span class="self">Self</span>::OtelSpan =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;otel_span&quot;</span>),
             <span class="self">Self</span>::Unknown(s) =&gt; s.fmt(f),
         }
     }
@@ -2051,6 +2061,7 @@
             <span class="string">&quot;replay_recording&quot; </span>=&gt; <span class="self">Self</span>::ReplayRecording,
             <span class="string">&quot;check_in&quot; </span>=&gt; <span class="self">Self</span>::CheckIn,
             <span class="string">&quot;span&quot; </span>=&gt; <span class="self">Self</span>::Span,
+            <span class="string">&quot;otel_span&quot; </span>=&gt; <span class="self">Self</span>::OtelSpan,
             other =&gt; <span class="self">Self</span>::Unknown(other.to_owned()),
         })
     }
@@ -2459,7 +2470,8 @@
             ItemType::ClientReport =&gt; <span class="prelude-val">None</span>,
             ItemType::CheckIn =&gt; <span class="prelude-val">Some</span>(DataCategory::Monitor),
             ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            ItemType::Span =&gt; <span class="prelude-val">None</span>, <span class="comment">// No outcomes, for now
+            ItemType::Span =&gt; <span class="prelude-val">None</span>,     <span class="comment">// No outcomes, for now
+            </span>ItemType::OtelSpan =&gt; <span class="prelude-val">None</span>, <span class="comment">// No outcomes, for now
         </span>}
     }
 
@@ -2644,7 +2656,8 @@
             | ItemType::ReplayRecording
             | ItemType::Profile
             | ItemType::CheckIn
-            | ItemType::Span =&gt; <span class="bool-val">false</span>,
+            | ItemType::Span
+            | ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -2679,6 +2692,7 @@
             ItemType::Profile =&gt; <span class="bool-val">true</span>,
             ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
             ItemType::Span =&gt; <span class="bool-val">false</span>,
+            ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two

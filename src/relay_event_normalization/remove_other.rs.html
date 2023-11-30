@@ -248,6 +248,7 @@
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
 <a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_event_schema::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor};
 <span class="kw">use </span>relay_event_schema::protocol::{Breadcrumb, Event};
 <span class="kw">use </span>relay_protocol::{Annotated, ErrorKind, Meta, Object, Value};
@@ -259,7 +260,8 @@
     }
 }
 
-<span class="kw">pub struct </span>RemoveOtherProcessor;
+<span class="doccomment">/// Removes unknown, internal and deprecated fields from a payload.
+</span><span class="kw">pub struct </span>RemoveOtherProcessor;
 
 <span class="kw">impl </span>Processor <span class="kw">for </span>RemoveOtherProcessor {
     <span class="kw">fn </span>process_other(

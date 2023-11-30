@@ -97,6 +97,8 @@
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
@@ -119,6 +121,7 @@
 <span class="kw">mod </span>project_configs;
 <span class="kw">mod </span>public_keys;
 <span class="kw">mod </span>security_report;
+<span class="kw">mod </span>spans;
 <span class="kw">mod </span>statics;
 <span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
 </span><span class="kw">mod </span>stats;
@@ -184,6 +187,7 @@
         .route(<span class="string">&quot;/api/:project_id/minidump/&quot;</span>, minidump::route(config))
         .route(<span class="string">&quot;/api/:project_id/events/:event_id/attachments/&quot;</span>, attachments::route(config))
         .route(<span class="string">&quot;/api/:project_id/unreal/:sentry_key/&quot;</span>, unreal::route(config))
+        .route(<span class="string">&quot;/api/:project_id/spans/&quot;</span>, spans::route(config))
         .route_layer(middlewares::cors());
 
     <span class="kw">let </span>router = Router::new();

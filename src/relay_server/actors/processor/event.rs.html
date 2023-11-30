@@ -695,6 +695,7 @@
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
 <a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1010,6 +1011,7 @@
         ItemType::ReplayRecording =&gt; <span class="bool-val">false</span>,
         ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
         ItemType::Span =&gt; <span class="bool-val">false</span>,
+        ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
 
         <span class="comment">// Without knowing more, `Unknown` items are allowed to be repeated
         </span>ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,

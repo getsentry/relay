@@ -170,7 +170,7 @@
             ItemType::Statsd =&gt; (),
             ItemType::MetricBuckets =&gt; (),
             ItemType::MetricMeta =&gt; (),
-            ItemType::Span =&gt; {
+            ItemType::Span | ItemType::OtelSpan =&gt; {
                 <span class="kw">if </span>item.len() &gt; config.max_span_size() {
                     <span class="kw">return </span><span class="bool-val">false</span>;
                 }

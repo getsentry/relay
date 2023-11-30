@@ -1183,7 +1183,7 @@
 }
 
 <span class="doccomment">/// Configuration for span tag extraction.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Config {
+</span><span class="kw">pub struct </span>Config {
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     </span><span class="kw">pub </span>max_tag_value_size: usize,
 }
@@ -1277,7 +1277,7 @@
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_tags(
+</span><span class="kw">pub fn </span>extract_tags(
     span: <span class="kw-2">&amp;</span>Span,
     config: <span class="kw-2">&amp;</span>Config,
     initial_display: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,

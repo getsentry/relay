@@ -1286,6 +1286,7 @@
 <a href="#1286" id="1286">1286</a>
 <a href="#1287" id="1287">1287</a>
 <a href="#1288" id="1288">1288</a>
+<a href="#1289" id="1289">1289</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -1399,6 +1400,7 @@
         ItemType::ClientReport =&gt; <span class="prelude-val">None</span>,
         ItemType::CheckIn =&gt; <span class="prelude-val">None</span>,
         ItemType::Span =&gt; <span class="prelude-val">None</span>,
+        ItemType::OtelSpan =&gt; <span class="prelude-val">None</span>,
         ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
     }
 }
