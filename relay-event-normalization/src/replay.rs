@@ -383,8 +383,6 @@ mod tests {
   "dist": "this-dist-is-just-too-long-12345678901234567890123456789012345678901234567890"
 }"#;
         let mut replay = Annotated::<Replay>::from_json(json).unwrap();
-        // let mut replay = Replay::default();
-        // let mut replay = Annotated::new(replay);
         normalize(&mut replay, None, &RawUserAgentInfo::default());
         assert_annotated_snapshot!(replay, @r#"{
   "platform": "other",

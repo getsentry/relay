@@ -244,7 +244,7 @@ impl Processor for TrimmingProcessor {
         replay: &mut Replay,
         _: &mut Meta,
         state: &ProcessingState<'_>,
-    ) -> ProcessingResult where {
+    ) -> ProcessingResult {
         replay.process_child_values(self, state)
     }
 
