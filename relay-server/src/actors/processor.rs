@@ -466,7 +466,7 @@ pub struct EncodeMetrics {
     pub extraction_mode: ExtractionMode,
     /// Project state for extracting quotas.
     pub project_state: Arc<ProjectState>,
-
+    /// The ratelimits belonging to the project.
     pub rate_limits: RateLimits,
 }
 
@@ -2701,11 +2701,6 @@ mod tests {
     use std::collections::BTreeMap;
     use std::env;
 
-    use crate::extractors::RequestMeta;
-    use crate::metrics_extraction::transactions::types::{
-        CommonTags, TransactionMeasurementTags, TransactionMetric,
-    };
-    use crate::metrics_extraction::IntoMetric;
     use chrono::{DateTime, TimeZone, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
@@ -2720,16 +2715,21 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule,
         SamplingValue, TimeRange,
     };
-    use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingMatch};
+    use relay_sampling::evaluation::SamplingMatch;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
 
+    use crate::extractors::RequestMeta;
+    use crate::metrics_extraction::transactions::types::{
+        CommonTags, TransactionMeasurementTags, TransactionMetric,
+    };
+    use crate::metrics_extraction::IntoMetric;
+
+    use super::*;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
     use crate::utils::Semaphore as TestSemaphore;
-
-    use super::*;
 
     fn dummy_reservoir() -> ReservoirEvaluator<'static> {
         ReservoirEvaluator::new(ReservoirCounters::default())
