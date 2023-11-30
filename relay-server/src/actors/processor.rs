@@ -1542,13 +1542,13 @@ impl EnvelopeProcessorService {
             };
         }
 
-        session::process(state, self.inner.config.clone());
+        session::process(state, &self.inner.config);
         report::process(
             state,
-            self.inner.config.clone(),
+            &self.inner.config,
             self.inner.outcome_aggregator.clone(),
         );
-        replay::process(state, self.inner.config.clone())?;
+        replay::process(state, &self.inner.config)?;
         profile::filter(state);
 
         if state.creates_event() {
@@ -1560,7 +1560,7 @@ impl EnvelopeProcessorService {
                 self.expand_unreal(state)?;
             });
 
-            event::extract(state, self.inner.config.clone())?;
+            event::extract(state, &self.inner.config)?;
             profile::transfer_id(state);
 
             if_processing!({
@@ -1568,7 +1568,7 @@ impl EnvelopeProcessorService {
                 self.create_placeholders(state);
             });
 
-            event::finalize(state, self.inner.config.clone())?;
+            event::finalize(state, &self.inner.config)?;
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
             self.filter_event(state)?;
@@ -1589,7 +1589,7 @@ impl EnvelopeProcessorService {
 
         if_processing!({
             self.enforce_quotas(state)?;
-            profile::process(state, self.inner.config.clone());
+            profile::process(state, &self.inner.config);
             self.process_check_ins(state);
         });
 

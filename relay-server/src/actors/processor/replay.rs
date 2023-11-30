@@ -2,7 +2,6 @@
 
 use std::error::Error;
 use std::net::IpAddr;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use relay_config::Config;
@@ -23,10 +22,7 @@ use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
 /// Removes replays if the feature flag is not enabled.
-pub fn process(
-    state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
-) -> Result<(), ProcessingError> {
+pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);

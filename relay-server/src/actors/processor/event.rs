@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::sync::Arc;
 
 use chrono::Duration as SignedDuration;
 use once_cell::sync::OnceCell;
@@ -34,10 +33,7 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract(
-    state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
-) -> Result<(), ProcessingError> {
+pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -108,7 +104,7 @@ pub fn extract(
         })?
     } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
         relay_log::trace!("extracting attached event data");
-        event_from_attachments(config.as_ref(), attachment_item, breadcrumbs1, breadcrumbs2)?
+        event_from_attachments(config, attachment_item, breadcrumbs1, breadcrumbs2)?
     } else if let Some(item) = form_item {
         relay_log::trace!("extracting form data");
         let len = item.len();
@@ -130,10 +126,7 @@ pub fn extract(
     Ok(())
 }
 
-pub fn finalize(
-    state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
-) -> Result<(), ProcessingError> {
+pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
     let is_transaction = state.event_type() == Some(EventType::Transaction);
     let envelope = state.managed_envelope.envelope_mut();
 

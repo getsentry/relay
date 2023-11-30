@@ -1,10 +1,7 @@
 //! Profiles related processor code.
 
 #[cfg(feature = "processing")]
-use {
-    crate::envelope::ContentType, relay_config::Config, relay_dynamic_config::Feature,
-    std::sync::Arc,
-};
+use {crate::envelope::ContentType, relay_config::Config, relay_dynamic_config::Feature};
 
 use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::{Contexts, ProfileContext};
@@ -68,7 +65,7 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState) {
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
-pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
+pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let mut found_profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
