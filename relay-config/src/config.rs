@@ -502,14 +502,6 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
-    /// Code locations expiry in seconds.
-    ///
-    /// Defaults to 15 days.
-    meta_locations_expiry: u64,
-    /// Maximum amount of code locations to store per metric.
-    ///
-    /// Defaults to 5.
-    meta_locations_max: usize,
 }
 
 impl Default for Metrics {
@@ -521,6 +513,27 @@ impl Default for Metrics {
             hostname_tag: None,
             buffering: true,
             sample_rate: 1.0,
+        }
+    }
+}
+
+/// Controls processing of metrics and metric metadata.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+struct SentryMetrics {
+    /// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    pub meta_locations_expiry: u64,
+    /// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    pub meta_locations_max: usize,
+}
+
+impl Default for SentryMetrics {
+    fn default() -> Self {
+        Self {
             meta_locations_expiry: 15 * 24 * 60 * 60,
             meta_locations_max: 5,
         }
@@ -1316,6 +1329,8 @@ struct ConfigValues {
     #[serde(default)]
     metrics: Metrics,
     #[serde(default)]
+    sentry_metrics: SentryMetrics,
+    #[serde(default)]
     sentry: relay_log::SentryConfig,
     #[serde(default)]
     processing: Processing,
@@ -1821,12 +1836,12 @@ impl Config {
 
     /// Returns the maximum amount of code locations per metric.
     pub fn metrics_meta_locations_max(&self) -> usize {
-        self.values.metrics.meta_locations_max
+        self.values.sentry_metrics.meta_locations_max
     }
 
     /// Returns the expiry for code locations.
     pub fn metrics_meta_locations_expiry(&self) -> Duration {
-        Duration::from_secs(self.values.metrics.meta_locations_expiry)
+        Duration::from_secs(self.values.sentry_metrics.meta_locations_expiry)
     }
 
     /// Returns the default timeout for all upstream HTTP requests.
@@ -2122,13 +2137,11 @@ impl Config {
 
     /// Amount of metric partitions.
     pub fn metrics_partitions(&self) -> Option<u64> {
-        // TODO(dav1dde): move config to a better place
         self.values.aggregator.flush_partitions
     }
 
     /// Maximum metrics batch size in bytes.
     pub fn metrics_max_batch_size_bytes(&self) -> usize {
-        // TODO(dav1dde): move config to a better place
         self.values.aggregator.max_flush_bytes
     }
 

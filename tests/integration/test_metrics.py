@@ -185,7 +185,7 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
             "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
-            "max_flush_bytes": max_batch_size,
+            "flush_max_batch_size": max_batch_size,
         },
     }
     relay = relay(mini_sentry, options=relay_config)
