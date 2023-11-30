@@ -18,7 +18,7 @@ use crate::utils;
 /// this includes cases where a single attachment file exceeds the maximum file size. This is in
 /// line with the behavior of the envelope endpoint.
 ///
-/// After this, [`EnvelopeProcessorService`] should be able to process the envelope the same
+/// After this, [`crate::actors::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
 pub fn expand(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
