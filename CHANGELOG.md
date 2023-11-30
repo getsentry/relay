@@ -6,6 +6,7 @@
 
 - Ingest OpenTelemetry and standalone Sentry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
 - Partition and split metric buckets just before sending. Log outcomes for metrics. ([#2682](https://github.com/getsentry/relay/pull/2682))
+- Support optional `PerformanceScoreWeightedComponent` in performance score processing. ([#2783](https://github.com/getsentry/relay/pull/2783))
 - Return global config ready status to downstream relays. ([#2765](https://github.com/getsentry/relay/pull/2765))
 - Add Mixed JS/Android Profiles events processing. ([#2706](https://github.com/getsentry/relay/pull/2706))
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
