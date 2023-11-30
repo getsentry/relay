@@ -51,6 +51,8 @@ pub enum MetricCounters {
     /// Incremented every time the meta aggregator emitted an update that needs to be stored or
     /// sent upstream.
     MetaAggregatorUpdate,
+    /// Incremnted for every metric meta item added to the metric meta aggregator.
+    MetaAggregatorItems,
     /// Incremented every time a redis key is updated to store or update metadata.
     #[cfg(feature = "redis")]
     MetaRedisUpdate,
@@ -63,6 +65,7 @@ impl CounterMetric for MetricCounters {
             Self::MergeMiss => "metrics.buckets.merge.miss",
             Self::BucketsDropped => "metrics.buckets.dropped",
             Self::MetaAggregatorUpdate => "metrics.meta.agg.update",
+            Self::MetaAggregatorItems => "metrics.meta.agg.items",
             #[cfg(feature = "redis")]
             Self::MetaRedisUpdate => "metrics.meta.redis.update",
         }
