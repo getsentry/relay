@@ -69,7 +69,24 @@ fn process_user_reports(state: &mut ProcessEnvelopeState) {
         let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
             Ok(session) => session,
             Err(error) => {
-                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
+                let mut payload = item.payload();
+                payload.truncate(100_000);
+                relay_log::with_scope(
+                    move |scope| {
+                        scope.add_attachment(relay_log::protocol::Attachment {
+                            buffer: payload.into(),
+                            filename: "payload.json".to_owned(),
+                            content_type: Some("application/json".to_owned()),
+                            ty: None,
+                        })
+                    },
+                    || {
+                        relay_log::error!(
+                            error = &error as &dyn Error,
+                            "failed to store user report"
+                        );
+                    },
+                );
                 return ItemAction::DropSilently;
             }
         };

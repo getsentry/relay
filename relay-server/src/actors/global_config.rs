@@ -40,6 +40,24 @@ type UpstreamQueryResult =
 struct GetGlobalConfigResponse {
     #[serde(default)]
     global: Option<GlobalConfig>,
+    // Instead of using [`Status`], we use StatusResponse as a separate field in order to not
+    // make breaking changes to the api.
+    #[serde(default)]
+    global_status: Option<StatusResponse>,
+}
+
+/// A mirror of [`Status`] without the associated data for use in serialization.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StatusResponse {
+    Ready,
+    Pending,
+}
+
+impl StatusResponse {
+    pub fn is_ready(self) -> bool {
+        matches!(self, Self::Ready)
+    }
 }
 
 /// The request to fetch a global config from upstream.
@@ -148,14 +166,6 @@ impl Status {
     fn is_ready(&self) -> bool {
         matches!(self, Self::Ready(_))
     }
-
-    /// Similar to Option::unwrap_or_default.
-    pub fn get_ready_or_default(self) -> Arc<GlobalConfig> {
-        match self {
-            Status::Ready(global_config) => global_config,
-            Status::Pending => Arc::default(),
-        }
-    }
 }
 
 /// Service implementing the [`GlobalConfigManager`] interface.
@@ -254,10 +264,14 @@ impl GlobalConfigService {
     /// global config is valid and contains the expected data.
     fn handle_result(&mut self, result: UpstreamQueryResult) {
         match result {
-            Ok(Ok(config)) => {
+            Ok(Ok(response)) => {
                 let mut success = false;
-                match config.global {
-                    Some(global_config) => {
+                // Older relays won't send a global status, in that case, we will pretend like the
+                // default global config is an up to date one, because that was the old behaviour.
+                let is_ready = response.global_status.map_or(true, |stat| stat.is_ready());
+
+                match response.global {
+                    Some(global_config) if is_ready => {
                         // Log the first time we receive a global config from upstream.
                         if !self.global_config_watch.borrow().is_ready() {
                             relay_log::info!("received global config from upstream");
@@ -267,6 +281,7 @@ impl GlobalConfigService {
                         success = true;
                         self.last_fetched = Instant::now();
                     }
+                    Some(_) => relay_log::info!("global config from upstream is not yet ready"),
                     None => relay_log::error!("global config missing in upstream response"),
                 }
                 metric!(

@@ -1,0 +1,37 @@
+name: ❅ Flaky Test
+description: Report a flaky test in CI
+title: "[Flaky CI]: "
+labels: ["Type: Tests"]
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: Flakiness Type
+      description: What are you observing
+      options:
+        - Timeout
+        - Assertion failure
+        - Other / Unknown
+    validations:
+      required: true
+  - type: input
+    id: test-name
+    attributes:
+      label: Name of Test
+      placeholder: tests/integration/test_metrics.py::test
+      description: file name or function name of failing test
+    validations:
+      required: false
+  - type: input
+    id: test-run-link
+    attributes:
+      label: Link to Test Run
+      placeholder: https://github.com/getsentry/relay/actions/runs/7032804839/job/19137301178
+      description: paste the URL to a test run showing the failing test
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: If you know anything else, please add it here

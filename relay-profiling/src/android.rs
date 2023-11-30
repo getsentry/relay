@@ -7,6 +7,8 @@ use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
+use crate::native_debug_image::NativeDebugImage;
+use crate::sample::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};
@@ -78,21 +80,32 @@ pub struct ProfileMetadata {
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_tags: BTreeMap<String, String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug_meta: Option<DebugMeta>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct AndroidProfile {
+struct AndroidProfilingEvent {
     #[serde(flatten)]
     metadata: ProfileMetadata,
 
     #[serde(default, skip_serializing)]
     sampled_profile: String,
 
-    #[serde(default = "AndroidProfile::default")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    js_profile: Option<SampleProfile>,
+
+    #[serde(default = "AndroidProfilingEvent::default")]
     profile: AndroidTraceLog,
 }
 
-impl AndroidProfile {
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+struct DebugMeta {
+    images: Vec<NativeDebugImage>,
+}
+
+impl AndroidProfilingEvent {
     fn default() -> AndroidTraceLog {
         AndroidTraceLog {
             data_file_overflow: Default::default(),
@@ -127,9 +140,9 @@ impl AndroidProfile {
     }
 }
 
-fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
+fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> {
     let d = &mut serde_json::Deserializer::from_slice(payload);
-    let mut profile: AndroidProfile =
+    let mut profile: AndroidProfilingEvent =
         serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     let transaction_opt = profile.metadata.transactions.drain(..).next();
@@ -156,6 +169,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
         });
     } else {
         return Err(ProfileError::NoTransactionAssociated);
+    }
+
+    if let Some(ref mut js_profile) = profile.js_profile {
+        js_profile.normalize(profile.metadata.platform.as_str(), "")?;
     }
 
     if !profile.sampled_profile.is_empty() {
@@ -222,6 +239,17 @@ mod tests {
     }
 
     #[test]
+    fn test_roundtrip_react_native() {
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.rn.json");
+        let profile = parse_profile(payload);
+        assert!(profile.is_ok());
+        let data = serde_json::to_vec(&profile.unwrap());
+        assert!(
+            parse_android_profile(&(data.unwrap())[..], BTreeMap::new(), BTreeMap::new()).is_ok()
+        );
+    }
+
+    #[test]
     fn test_no_transaction() {
         let payload = include_bytes!("../tests/fixtures/profiles/android/no_transaction.json");
         let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
@@ -274,7 +302,7 @@ mod tests {
 
         let payload = profile_json.unwrap();
         let d = &mut serde_json::Deserializer::from_slice(&payload[..]);
-        let output: AndroidProfile = serde_path_to_error::deserialize(d)
+        let output: AndroidProfilingEvent = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
         assert_eq!(output.metadata.release, "some-random-release".to_string());

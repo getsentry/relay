@@ -130,7 +130,6 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
     relay_config = {
         "processing": {
             "max_session_secs_in_past": forever,
-            "metrics_partitions": metrics_partitions,
         },
         "aggregator": {
             "bucket_interval": 1,
@@ -138,6 +137,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
             "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
+            "flush_partitions": metrics_partitions,
         },
     }
     relay = relay(mini_sentry, options=relay_config)
@@ -172,7 +172,6 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
     relay_config = {
         "processing": {
             "max_session_secs_in_past": forever,
-            "metrics_max_batch_size": max_batch_size,
         },
         "aggregator": {
             "bucket_interval": 1,
@@ -180,6 +179,7 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
             "debounce_delay": 0,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
+            "max_flush_bytes": max_batch_size,
         },
     }
     relay = relay(mini_sentry, options=relay_config)

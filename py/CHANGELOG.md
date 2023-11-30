@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `_metrics_summary` as temporary key on `Event` for a DDM experiment. ([#2757](https://github.com/getsentry/relay/pull/2757))
+
 ## 0.8.38
 
 - `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
