@@ -1,3 +1,5 @@
+//! Event processor related code.
+
 use std::error::Error;
 
 use chrono::Duration as SignedDuration;
@@ -17,6 +19,7 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
+use crate::actors::outcome::Outcome;
 use crate::actors::processor::{
     ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
 };
@@ -253,6 +256,27 @@ pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(),
     }
 
     Ok(())
+}
+
+pub fn filter(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    let event = match state.event.value_mut() {
+        Some(event) => event,
+        // Some events are created by processing relays (e.g. unreal), so they do not yet
+        // exist at this point in non-processing relays.
+        None => return Ok(()),
+    };
+
+    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let filter_settings = &state.project_state.config.filter_settings;
+
+    metric!(timer(RelayTimers::EventProcessingFiltering), {
+        relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
+            state
+                .managed_envelope
+                .reject(Outcome::Filtered(err.clone()));
+            ProcessingError::EventFiltered(err)
+        })
+    })
 }
 
 /// Checks for duplicate items in an envelope.
