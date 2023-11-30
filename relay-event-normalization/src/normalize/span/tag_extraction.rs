@@ -665,7 +665,7 @@ mod tests {
                     &mut event,
                     &NormalizationConfig {
                         enrich_spans: true,
-                        light_normalize_spans: true,
+                        normalize_spans: true,
                         ..Default::default()
                     },
                 );
