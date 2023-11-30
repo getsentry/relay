@@ -115,29 +115,25 @@ pub struct OtelSpan {
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
     status_code: StatusCode,
-    http_status_code: Option<&KeyValue>,
-    grpc_status_code: Option<&KeyValue>,
+    http_status_code: Option<i64>,
+    grpc_status_code: Option<i64>,
 ) -> SpanStatus {
     if status_code == StatusCode::Unset || status_code == StatusCode::Ok {
         return SpanStatus::Ok;
     }
 
-    if let Some(status_code_value) = http_status_code {
-        if let Some(code_value) = status_code_value.value.to_i64() {
-            if let Some(sentry_status) = status_codes::HTTP.get(&code_value) {
-                if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
-                    return span_status;
-                }
+    if let Some(code) = http_status_code {
+        if let Some(sentry_status) = status_codes::HTTP.get(&code) {
+            if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
+                return span_status;
             }
         }
     }
 
-    if let Some(status_code_value) = grpc_status_code {
-        if let Some(code_value) = status_code_value.value.to_i64() {
-            if let Some(sentry_status) = status_codes::GRPC.get(&code_value) {
-                if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
-                    return span_status;
-                }
+    if let Some(code) = grpc_status_code {
+        if let Some(sentry_status) = status_codes::GRPC.get(&code) {
+            if let Ok(span_status) = SpanStatus::from_str(sentry_status) {
+                return span_status;
             }
         }
     }
@@ -165,14 +161,17 @@ impl From<OtelSpan> for EventSpan {
         } else {
             Annotated::empty()
         };
-        for attribute in attributes.iter() {
+
+        let mut http_status_code = None;
+        let mut grpc_status_code = None;
+        for attribute in attributes.into_iter() {
             let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
                 key.to_string()
             } else {
-                attribute.key.clone()
+                attribute.key
             };
             if key.contains("exclusive_time_ns") {
-                let value = match attribute.value.clone() {
+                let value = match attribute.value {
                     AnyValue::Int(v) => v as f64,
                     AnyValue::Double(v) => v,
                     AnyValue::String(v) => v.parse::<f64>().unwrap_or_default(),
@@ -181,13 +180,18 @@ impl From<OtelSpan> for EventSpan {
                 exclusive_time_ms = value / 1e6f64;
                 continue;
             }
-            match attribute.value.clone() {
+            if key == "http.status_code" {
+                http_status_code = attribute.value.to_i64();
+            } else if key == "rpc.grpc.status_code" {
+                grpc_status_code = attribute.value.to_i64();
+            }
+            match attribute.value {
                 AnyValue::Array(_) => {}
                 AnyValue::Bool(v) => {
                     data.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Bytes(v) => {
-                    if let Ok(v) = String::from_utf8(v.clone()) {
+                    if let Ok(v) = String::from_utf8(v) {
                         data.insert(key, Annotated::new(v.into()));
                     }
                 }
@@ -207,13 +211,12 @@ impl From<OtelSpan> for EventSpan {
             exclusive_time_ms =
                 (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
         }
-        let http_status_code = attributes.iter().find(|a| a.key == "http.status_code");
-        let grpc_status_code = attributes.iter().find(|a| a.key == "rpc.grpc.status_code");
+
         EventSpan {
             data: data.into(),
             description: name.into(),
             exclusive_time: exclusive_time_ms.into(),
-            parent_span_id: SpanId(parent_span_id.clone()).into(),
+            parent_span_id: SpanId(parent_span_id).into(),
             segment_id,
             span_id: Annotated::new(SpanId(span_id)),
             start_timestamp: Timestamp(start_timestamp).into(),
