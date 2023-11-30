@@ -449,12 +449,10 @@
 <a href="#449" id="449">449</a>
 <a href="#450" id="450">450</a>
 <a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the sessions related processor code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net;
-<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::{DateTime, Duration <span class="kw">as </span>SignedDuration, Utc};
 <span class="kw">use </span>relay_config::Config;
@@ -475,7 +473,7 @@
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
-</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: Arc&lt;Config&gt;) {
+</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) {
     <span class="kw">let </span>received = state.managed_envelope.received_at();
     <span class="kw">let </span>extracted_metrics = <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics;
     <span class="kw">let </span>metrics_config = state.project_state.config().session_metrics;
@@ -490,7 +488,7 @@
         <span class="kw">let </span>should_keep = <span class="kw">match </span>item.ty() {
             ItemType::Session =&gt; process_session(
                 item,
-                config.clone(),
+                config,
                 received,
                 client.as_deref(),
                 client_addr,
@@ -500,7 +498,7 @@
             ),
             ItemType::Sessions =&gt; process_session_aggregates(
                 item,
-                config.clone(),
+                config,
                 received,
                 client.as_deref(),
                 client_addr,
@@ -586,7 +584,7 @@
 </span><span class="attr">#[allow(clippy::too_many_arguments)]
 </span><span class="kw">fn </span>process_session(
     item: <span class="kw-2">&amp;mut </span>Item,
-    config: Arc&lt;Config&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
     received: DateTime&lt;Utc&gt;,
     client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
     client_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
@@ -695,7 +693,7 @@
 <span class="attr">#[allow(clippy::too_many_arguments)]
 </span><span class="kw">fn </span>process_session_aggregates(
     item: <span class="kw-2">&amp;mut </span>Item,
-    config: Arc&lt;Config&gt;,
+    config: <span class="kw-2">&amp;</span>Config,
     received: DateTime&lt;Utc&gt;,
     client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
     client_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
@@ -804,7 +802,7 @@
         <span class="kw">fn </span>run_session_producer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
             process_session(
                 <span class="kw-2">&amp;mut </span><span class="self">self</span>.item,
-                Arc::new(Config::default()),
+                <span class="kw-2">&amp;</span>Config::default(),
                 <span class="self">self</span>.received,
                 <span class="self">self</span>.client,
                 <span class="self">self</span>.client_addr,
