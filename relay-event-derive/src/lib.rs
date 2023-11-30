@@ -593,7 +593,7 @@ fn parse_field_attributes(
                                         rv.max_chars = Some(quote!(#attr));
                                     }
                                     _ => {
-                                        panic!("Got non string literal for max_chars");
+                                        panic!("Got invalid literal for max_chars, only string and int(usize) are valid");
                                     }
                                 }
                             } else if ident == "bag_size" {
