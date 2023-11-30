@@ -3940,6 +3940,7 @@ dependencies = [
  "relay-redis",
  "relay-replays",
  "relay-sampling",
+ "relay-spans",
  "relay-statsd",
  "relay-system",
  "relay-test",
@@ -3961,6 +3962,20 @@ dependencies = [
  "url",
  "uuid",
  "zstd",
+]
+
+[[package]]
+name = "relay-spans"
+version = "23.9.1"
+dependencies = [
+ "chrono",
+ "enumset",
+ "once_cell",
+ "relay-event-schema",
+ "relay-protocol",
+ "serde",
+ "serde_json",
+ "serde_repr",
 ]
 
 [[package]]
@@ -4557,6 +4572,17 @@ checksum = "4beec8bce849d58d06238cb50db2e1c417cfeafa4c63f692b15c82b7c80f8335"
 dependencies = [
  "itoa",
  "serde",
+]
+
+[[package]]
+name = "serde_repr"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8725e1dfadb3a50f7e5ce0b1a540466f6ed3fe7a0fca2ac2b8b831d31316bd00"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.38",
 ]
 
 [[package]]

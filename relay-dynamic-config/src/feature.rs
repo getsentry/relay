@@ -33,6 +33,9 @@ pub enum Feature {
     /// Enable processing profiles
     #[serde(rename = "organizations:profiling")]
     Profiling,
+    /// Enable standalone span ingestion.
+    #[serde(rename = "organizations:standalone-span-ingestion")]
+    StandaloneSpanIngestion,
     /// Enable metric metadata.
     #[serde(rename = "organizations:metric-meta")]
     MetricMeta,
