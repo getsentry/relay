@@ -11,11 +11,17 @@ use crate::utils::{ItemAction, ManagedEnvelope};
 ///
 /// The following limits are checked:
 ///
-///  - `max_event_size`
 ///  - `max_attachment_size`
 ///  - `max_attachments_size`
-///  - `max_session_count`
+///  - `max_check_in_size`
+///  - `max_event_size`
+///  - `max_metric_buckets_size`
+///  - `max_metric_meta_size`
 ///  - `max_profile_size`
+///  - `max_replay_compressed_size`
+///  - `max_session_count`
+///  - `max_span_size`
+///  - `max_statsd_size`
 pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
     let mut event_size = 0;
     let mut attachments_size = 0;
@@ -63,9 +69,21 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
                 }
             }
             ItemType::UserReport => (),
-            ItemType::Statsd => (),
-            ItemType::MetricBuckets => (),
-            ItemType::MetricMeta => (),
+            ItemType::Statsd => {
+                if item.len() > config.max_statsd_size() {
+                    return false;
+                }
+            }
+            ItemType::MetricBuckets => {
+                if item.len() > config.max_metric_buckets_size() {
+                    return false;
+                }
+            }
+            ItemType::MetricMeta => {
+                if item.len() > config.max_metric_meta_size() {
+                    return false;
+                }
+            }
             ItemType::Span => {
                 if item.len() > config.max_span_size() {
                     return false;
