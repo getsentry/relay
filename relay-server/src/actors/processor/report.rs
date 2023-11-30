@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::sync::Arc;
 
 use chrono::{Duration as SignedDuration, Utc};
 use relay_common::time::UnixTimestamp;
@@ -48,7 +47,7 @@ pub enum ClientReportField {
 /// system.
 pub fn process(
     state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
+    config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
     process_client_reports(state, config, outcome_aggregator);
@@ -136,7 +135,7 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
 /// system.
 fn process_client_reports(
     state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
+    config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
     // if client outcomes are disabled we leave the the client reports unprocessed
@@ -280,6 +279,8 @@ fn process_client_reports(
 
 #[cfg(test)]
 mod tests {
+
+    use std::sync::Arc;
 
     use relay_event_schema::protocol::EventId;
     use relay_sampling::config::RuleId;
