@@ -89,7 +89,7 @@ pub fn expand_unreal_envelope(
         envelope.add_item(item);
     }
 
-    if !super::check_envelope_size_limits(config, envelope) {
+    if super::check_envelope_size_limits(config, envelope).is_err() {
         return Err(Unreal4ErrorKind::TooLarge.into());
     }
 
