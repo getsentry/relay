@@ -9,6 +9,10 @@
 - Add Mixed JS/Android Profiles events processing. ([#2706](https://github.com/getsentry/relay/pull/2706))
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
 
+**Bug Fixes**:
+
+- Ignore whitespaces when parsing user reports. ([#2798](https://github.com/getsentry/relay/pull/2798))
+
 **Internal**:
 
 - Support source context in metric code locations metadata entries. ([#2781](https://github.com/getsentry/relay/pull/2781))
