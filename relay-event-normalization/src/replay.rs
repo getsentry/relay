@@ -2,10 +2,12 @@
 
 use std::net::IpAddr as StdIpAddr;
 
+use relay_event_schema::processor::{self, ProcessingState, Processor};
 use relay_event_schema::protocol::{Contexts, IpAddr, Replay};
 use relay_protocol::Annotated;
 
 use crate::normalize::user_agent;
+use crate::trimming;
 use crate::user_agent::RawUserAgentInfo;
 
 /// Replay validation or normalization error.
@@ -60,15 +62,22 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
 
 /// Adds default fields and normalizes all values in to their standard representation.
 pub fn normalize(
-    replay: &mut Replay,
+    replay: &mut Annotated<Replay>,
     client_ip: Option<StdIpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
 ) {
-    normalize_platform(replay);
-    normalize_ip_address(replay, client_ip);
-    normalize_user_agent(replay, user_agent);
-    normalize_type(replay);
-    normalize_array_fields(replay);
+    processor::apply(replay, |replay_value, meta| {
+        normalize_platform(replay_value);
+        normalize_ip_address(replay_value, client_ip);
+        normalize_user_agent(replay_value, user_agent);
+        normalize_type(replay_value);
+        normalize_array_fields(replay_value);
+        trimming::TrimmingProcessor::new()
+            .process_replay(replay_value, meta, ProcessingState::root())
+            .ok();
+        Ok(())
+    })
+    .ok();
 }
 
 fn normalize_array_fields(replay: &mut Replay) {
@@ -141,6 +150,7 @@ mod tests {
     use relay_event_schema::protocol::{
         BrowserContext, Context, DeviceContext, EventId, OsContext, TagEntry, Tags,
     };
+    use relay_protocol::{assert_annotated_snapshot, get_value};
 
     use super::*;
 
@@ -223,10 +233,9 @@ mod tests {
         let payload = include_str!("../../tests/fixtures/replay.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        let replay_value = replay.value_mut().as_mut().unwrap();
-        normalize(replay_value, None, &RawUserAgentInfo::default());
+        normalize(&mut replay, None, &RawUserAgentInfo::default());
 
-        let contexts = replay_value.contexts.value().unwrap();
+        let contexts = get_value!(replay.contexts!);
         assert_eq!(
             contexts.get::<BrowserContext>(),
             Some(&BrowserContext {
@@ -258,19 +267,16 @@ mod tests {
     fn test_missing_user() {
         let payload = include_str!("../../tests/fixtures/replay_missing_user.json");
 
-        let mut annotated_replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        let replay = annotated_replay.value_mut().as_mut().unwrap();
+        let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
 
         // No user object and no ip-address was provided.
-        normalize(replay, None, &RawUserAgentInfo::default());
-        assert_eq!(replay.user.value(), None);
+        normalize(&mut replay, None, &RawUserAgentInfo::default());
+        assert_eq!(get_value!(replay.user), None);
 
         // No user object but an ip-address was provided.
         let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-        normalize(replay, Some(ip_address), &RawUserAgentInfo::default());
-
-        let ipaddr = replay.user.value().unwrap().ip_address.as_str();
-        assert_eq!(Some("127.0.0.1"), ipaddr);
+        normalize(&mut replay, Some(ip_address), &RawUserAgentInfo::default());
+        assert_eq!(get_value!(replay.user.ip_address!).as_str(), "127.0.0.1");
     }
 
     #[test]
@@ -281,11 +287,9 @@ mod tests {
         let payload = include_str!("../../tests/fixtures/replay_missing_user_ip_address.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        let replay_value = replay.value_mut().as_mut().unwrap();
-        normalize(replay_value, Some(ip_address), &RawUserAgentInfo::default());
+        normalize(&mut replay, Some(ip_address), &RawUserAgentInfo::default());
 
-        let ipaddr = replay_value.user.value().unwrap().ip_address.as_str();
-        assert_eq!(Some("127.0.0.1"), ipaddr);
+        assert_eq!(get_value!(replay.user.ip_address!).as_str(), "127.0.0.1");
     }
 
     #[test]
@@ -293,10 +297,9 @@ mod tests {
         let payload = include_str!("../../tests/fixtures/replay_failure_22_08_31.json");
 
         let mut replay: Annotated<Replay> = Annotated::from_json(payload).unwrap();
-        let replay_value = replay.value_mut().as_mut().unwrap();
-        normalize(replay_value, None, &RawUserAgentInfo::default());
+        normalize(&mut replay, None, &RawUserAgentInfo::default());
 
-        let user = replay_value.user.value().unwrap();
+        let user = get_value!(replay.user!);
         assert_eq!(user.ip_address.as_str(), Some("127.1.1.1"));
         assert_eq!(user.username.value(), None);
         assert_eq!(user.email.as_str(), Some("email@sentry.io"));
@@ -372,5 +375,36 @@ mod tests {
         assert!(replay_value.error_ids.value().unwrap().is_empty());
         assert!(replay_value.trace_ids.value().unwrap().is_empty());
         assert!(replay_value.urls.value().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_maxchars_trimming() {
+        let json = r#"{
+  "dist": "this-dist-is-just-too-long-12345678901234567890123456789012345678901234567890"
+}"#;
+        let mut replay = Annotated::<Replay>::from_json(json).unwrap();
+        // let mut replay = Replay::default();
+        // let mut replay = Annotated::new(replay);
+        normalize(&mut replay, None, &RawUserAgentInfo::default());
+        assert_annotated_snapshot!(replay, @r#"{
+  "platform": "other",
+  "dist": "this-dist-is-just-too-long-1234567890123456789012345678901234...",
+  "type": "replay_event",
+  "_meta": {
+    "dist": {
+      "": {
+        "rem": [
+          [
+            "!limit",
+            "s",
+            61,
+            64
+          ]
+        ],
+        "len": 77
+      }
+    }
+  }
+}"#);
     }
 }

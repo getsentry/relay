@@ -130,12 +130,15 @@ fn process_replay_event(
     let mut replay =
         Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
 
-    if let Some(replay_value) = replay.value_mut() {
-        replay::validate(replay_value)?;
-        replay::normalize(replay_value, client_ip, user_agent);
-    } else {
+    if replay.value().is_none() {
         return Err(ReplayError::NoContent);
     }
+
+    // XXX(iker): should `validate` receive `Annotated<Replay>` instead?
+    if let Some(replay_value) = replay.value_mut() {
+        replay::validate(replay_value)?;
+    }
+    replay::normalize(&mut replay, client_ip, user_agent);
 
     if let Some(ref config) = config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());

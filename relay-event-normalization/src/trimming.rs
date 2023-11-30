@@ -4,7 +4,7 @@ use relay_event_schema::processor::{
     self, BagSize, Chunk, MaxChars, ProcessValue, ProcessingAction, ProcessingResult,
     ProcessingState, Processor, ValueType,
 };
-use relay_event_schema::protocol::{Frame, RawStacktrace};
+use relay_event_schema::protocol::{Frame, RawStacktrace, Replay};
 use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
 
 #[derive(Clone, Debug)]
@@ -237,6 +237,15 @@ impl Processor for TrimmingProcessor {
 
         value.process_child_values(self, state)?;
         Ok(())
+    }
+
+    fn process_replay(
+        &mut self,
+        replay: &mut Replay,
+        _: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult where {
+        replay.process_child_values(self, state)
     }
 
     fn process_raw_stacktrace(
