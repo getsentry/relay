@@ -4,8 +4,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, EventId, JsonLenientString, OperationType, OriginType, ProfileContext, SpanId,
-    SpanStatus, Timestamp, TraceContext, TraceId,
+    Event, EventId, JsonLenientString, Measurements, OperationType, OriginType, ProfileContext,
+    SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -75,6 +75,11 @@ pub struct Span {
 
     /// Timestamp when the span has been received by Sentry.
     pub received: Annotated<Timestamp>,
+
+    /// Measurements which holds observed values such as web vitals.
+    #[metastructure(skip_serialization = "empty")]
+    #[metastructure(omit_from_schema)] // we only document error events for now
+    pub measurements: Annotated<Measurements>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -151,8 +156,10 @@ impl Getter for Span {
 
 #[cfg(test)]
 mod tests {
+    use crate::protocol::Measurement;
     use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
+    use relay_base_schema::metrics::{InformationUnit, MetricUnit};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -168,9 +175,22 @@ mod tests {
   "span_id": "fa90fdead5f74052",
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "status": "ok",
-  "origin": "auto.http"
+  "origin": "auto.http",
+  "measurements": {
+    "memory": {
+      "value": 9001.0,
+      "unit": "byte"
+    }
+  }
 }"#;
-
+        let mut measurements = Object::new();
+        measurements.insert(
+            "memory".into(),
+            Annotated::new(Measurement {
+                value: Annotated::new(9001.0),
+                unit: Annotated::new(MetricUnit::Information(InformationUnit::Byte)),
+            }),
+        );
         let span = Annotated::new(Span {
             timestamp: Annotated::new(Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap().into()),
             start_timestamp: Annotated::new(
@@ -183,6 +203,7 @@ mod tests {
             span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
             status: Annotated::new(SpanStatus::Ok),
             origin: Annotated::new("auto.http".to_owned()),
+            measurements: Annotated::new(Measurements(measurements)),
             ..Default::default()
         });
         assert_eq!(json, span.to_json_pretty().unwrap());
@@ -258,6 +279,7 @@ mod tests {
             data: ~,
             sentry_tags: ~,
             received: ~,
+            measurements: ~,
             other: {},
         }
         "###);

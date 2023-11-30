@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::sync::Arc;
 
 use chrono::{Duration as SignedDuration, Utc};
 use relay_common::time::UnixTimestamp;
@@ -48,7 +47,7 @@ pub enum ClientReportField {
 /// system.
 pub fn process(
     state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
+    config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
     process_client_reports(state, config, outcome_aggregator);
@@ -69,7 +68,24 @@ fn process_user_reports(state: &mut ProcessEnvelopeState) {
         let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
             Ok(session) => session,
             Err(error) => {
-                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
+                let mut payload = item.payload();
+                payload.truncate(100_000);
+                relay_log::with_scope(
+                    move |scope| {
+                        scope.add_attachment(relay_log::protocol::Attachment {
+                            buffer: payload.into(),
+                            filename: "payload.json".to_owned(),
+                            content_type: Some("application/json".to_owned()),
+                            ty: None,
+                        })
+                    },
+                    || {
+                        relay_log::error!(
+                            error = &error as &dyn Error,
+                            "failed to store user report"
+                        );
+                    },
+                );
                 return ItemAction::DropSilently;
             }
         };
@@ -119,7 +135,7 @@ fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome,
 /// system.
 fn process_client_reports(
     state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
+    config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
     // if client outcomes are disabled we leave the the client reports unprocessed
@@ -263,6 +279,8 @@ fn process_client_reports(
 
 #[cfg(test)]
 mod tests {
+
+    use std::sync::Arc;
 
     use relay_event_schema::protocol::EventId;
     use relay_sampling::config::RuleId;

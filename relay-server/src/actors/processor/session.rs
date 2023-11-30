@@ -2,7 +2,6 @@
 
 use std::error::Error;
 use std::net;
-use std::sync::Arc;
 
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use relay_config::Config;
@@ -23,7 +22,7 @@ use crate::utils::ItemAction;
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
-pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
+pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
     let received = state.managed_envelope.received_at();
     let extracted_metrics = &mut state.extracted_metrics.project_metrics;
     let metrics_config = state.project_state.config().session_metrics;
@@ -38,7 +37,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
         let should_keep = match item.ty() {
             ItemType::Session => process_session(
                 item,
-                config.clone(),
+                config,
                 received,
                 client.as_deref(),
                 client_addr,
@@ -48,7 +47,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             ),
             ItemType::Sessions => process_session_aggregates(
                 item,
-                config.clone(),
+                config,
                 received,
                 client.as_deref(),
                 client_addr,
@@ -134,7 +133,7 @@ fn is_valid_session_timestamp(
 #[allow(clippy::too_many_arguments)]
 fn process_session(
     item: &mut Item,
-    config: Arc<Config>,
+    config: &Config,
     received: DateTime<Utc>,
     client: Option<&str>,
     client_addr: Option<net::IpAddr>,
@@ -243,7 +242,7 @@ fn process_session(
 #[allow(clippy::too_many_arguments)]
 fn process_session_aggregates(
     item: &mut Item,
-    config: Arc<Config>,
+    config: &Config,
     received: DateTime<Utc>,
     client: Option<&str>,
     client_addr: Option<net::IpAddr>,
@@ -352,7 +351,7 @@ mod tests {
         fn run_session_producer(&mut self) -> bool {
             process_session(
                 &mut self.item,
-                Arc::new(Config::default()),
+                &Config::default(),
                 self.received,
                 self.client,
                 self.client_addr,

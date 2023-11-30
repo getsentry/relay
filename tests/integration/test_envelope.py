@@ -597,7 +597,7 @@ def test_buffer_envelopes_without_global_config(
 
         res = original_endpoint().get_json()
         if not include_global:
-            res["global"] = None
+            res.pop("global")
         return res
 
     mini_sentry.add_basic_project_config(42)
