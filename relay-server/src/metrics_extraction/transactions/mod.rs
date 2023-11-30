@@ -434,8 +434,9 @@ mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
         set_default_transaction_source, BreakdownsConfig, DynamicMeasurementsConfig,
-        LightNormalizationConfig, MeasurementsConfig,
+        MeasurementsConfig, NormalizeProcessor, NormalizeProcessorConfig,
     };
+    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
     use relay_protocol::Annotated;
@@ -514,14 +515,15 @@ mod tests {
         .unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
                 light_normalize_spans: true,
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -571,6 +573,8 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
+                measurements: ~,
                 other: {},
             },
         ]
@@ -748,9 +752,10 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig::default(),
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -873,9 +878,10 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig::default(),
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -1046,12 +1052,13 @@ mod tests {
 
         let config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
 
-        relay_event_normalization::light_normalize_event(
+        process_value(
             &mut event,
-            LightNormalizationConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                 measurements: Some(config),
                 ..Default::default()
-            },
+            }),
+            ProcessingState::root(),
         )
         .unwrap();
 
@@ -1680,9 +1687,10 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
-        let _ = relay_event_normalization::light_normalize_event(
+        let _ = process_value(
             &mut event,
-            LightNormalizationConfig::default(),
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig::default()),
+            ProcessingState::root(),
         );
 
         let config = TransactionMetricsConfig::default();

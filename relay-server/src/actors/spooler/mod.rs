@@ -29,9 +29,11 @@
 //!
 //! Current on-disk spool implementation uses SQLite as a storage.
 
+static NUMBER_OF_ENVELOPES_PER_KEY: usize = 1000;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -45,6 +47,7 @@ use sqlx::sqlite::{
     SqliteSynchronous,
 };
 use sqlx::{Pool, Row, Sqlite};
+use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
 use crate::actors::outcome::TrackOutcome;
@@ -79,7 +82,10 @@ pub enum BufferError {
     FileSizeReadFailed(sqlx::Error),
 
     #[error("failed to setup the database: {0}")]
-    SetupFailed(sqlx::Error),
+    SqlxSetupFailed(sqlx::Error),
+
+    #[error("failed to create the spool file: {0}")]
+    FileSetupError(std::io::Error),
 
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
@@ -246,6 +252,25 @@ impl InMemory {
     /// Returns the number of envelopes in the memory buffer.
     fn count(&self) -> usize {
         self.buffer.values().map(|v| v.len()).sum()
+    }
+
+    /// Runs the check for in-memory buffer and emits the metrics and/or errors.
+    fn check(&self) {
+        let count = self.buffer.keys().len();
+        relay_statsd::metric!(gauge(RelayGauges::BufferProjectsMemoryCount) = count as u64);
+
+        // Go over the buffered envelopes and check if any of the keys exceeds the threshold.
+        for (key, values) in &self.buffer {
+            let number_of_envelopes = values.len();
+            if number_of_envelopes > NUMBER_OF_ENVELOPES_PER_KEY {
+                relay_log::error!(
+                    tags.own_key = %key.own_key,
+                    tags.sampling_key = %key.sampling_key,
+                    count = number_of_envelopes,
+                    "Number of envelopes per key in memory exceeds the threshold"
+                );
+            }
+        }
     }
 
     /// Removes envelopes from the in-memory buffer.
@@ -661,7 +686,12 @@ pub struct BufferService {
 
 impl BufferService {
     /// Set up the database and return the current number of envelopes.
-    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
+    ///
+    /// The directories and spool file will be created if they don't already
+    /// exist.
+    async fn setup(path: &Path) -> Result<(), BufferError> {
+        BufferService::create_spool_directory(path).await?;
+
         let options = SqliteConnectOptions::new()
             .filename(path)
             .journal_mode(SqliteJournalMode::Wal)
@@ -670,9 +700,25 @@ impl BufferService {
         let db = SqlitePoolOptions::new()
             .connect_with(options)
             .await
-            .map_err(BufferError::SetupFailed)?;
+            .map_err(BufferError::SqlxSetupFailed)?;
 
         sqlx::migrate!("../migrations").run(&db).await?;
+        Ok(())
+    }
+
+    /// Creates the directories for the spool file.
+    async fn create_spool_directory(path: &Path) -> Result<(), BufferError> {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            relay_log::debug!("creating directory for spooling file: {}", parent.display());
+            DirBuilder::new()
+                .recursive(true)
+                .create(&parent)
+                .await
+                .map_err(BufferError::FileSetupError)?;
+        }
         Ok(())
     }
 
@@ -726,7 +772,7 @@ impl BufferService {
             .min_connections(config.spool_envelopes_min_connections())
             .connect_with(options)
             .await
-            .map_err(BufferError::SetupFailed)?;
+            .map_err(BufferError::SqlxSetupFailed)?;
 
         let mut on_disk = OnDisk {
             dequeue_attempts: 0,
@@ -892,6 +938,20 @@ impl BufferService {
         disk.spool(buffer).await?;
         Ok(())
     }
+
+    /// Handles the check of the envelopes buffer.
+    ///
+    /// Note: currently the check runs only on the in-memory buffer to track if there is "hot"
+    /// projects keys which are always have too many envelopes in the queue.
+    fn handle_check(&mut self) {
+        let (BufferState::Memory(ref mut ram) | BufferState::MemoryFileStandby { ref mut ram, .. }) =
+            self.state
+        else {
+            return;
+        };
+
+        ram.check();
+    }
 }
 
 impl Service for BufferService {
@@ -900,11 +960,13 @@ impl Service for BufferService {
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
+            let mut ticker = tokio::time::interval(self.config.spool_envelopes_check_interval());
 
             loop {
                 tokio::select! {
                     biased;
 
+                    _ = ticker.tick() => self.handle_check(),
                     Some(message) = rx.recv() => {
                         if let Err(err) = self.handle_message(message).await {
                             relay_log::error!(
@@ -975,6 +1037,29 @@ mod tests {
             ..
         } = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn create_spool_directory_deep_path() {
+        let parent_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let target_dir = parent_dir
+            .join("subdir1")
+            .join("subdir2")
+            .join("spool-file");
+        let buffer_guard: Arc<_> = BufferGuard::new(1).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": target_dir,
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
+        assert!(target_dir.exists());
     }
 
     #[tokio::test]

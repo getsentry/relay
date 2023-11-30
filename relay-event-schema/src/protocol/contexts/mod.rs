@@ -4,6 +4,7 @@ mod cloud_resource;
 mod device;
 mod gpu;
 mod monitor;
+mod nel;
 mod os;
 mod otel;
 mod profile;
@@ -12,13 +13,14 @@ mod reprocessing;
 mod response;
 mod runtime;
 mod trace;
-
+mod user_report_v2;
 pub use app::*;
 pub use browser::*;
 pub use cloud_resource::*;
 pub use device::*;
 pub use gpu::*;
 pub use monitor::*;
+pub use nel::*;
 pub use os::*;
 pub use otel::*;
 pub use profile::*;
@@ -27,6 +29,7 @@ pub use reprocessing::*;
 pub use response::*;
 pub use runtime::*;
 pub use trace::*;
+pub use user_report_v2::*;
 
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
@@ -67,6 +70,9 @@ pub enum Context {
     Profile(Box<ProfileContext>),
     /// Information related to Replay.
     Replay(Box<ReplayContext>),
+    /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
+    #[metastructure(tag = "feedback")]
+    UserReportV2(Box<UserReportV2Context>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.
@@ -78,6 +84,8 @@ pub enum Context {
     Otel(Box<OtelContext>),
     /// Cloud resource information.
     CloudResource(Box<CloudResourceContext>),
+    /// Nel information.
+    Nel(Box<NelContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),

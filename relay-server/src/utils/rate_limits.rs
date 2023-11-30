@@ -93,13 +93,16 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
         ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+        ItemType::Nel => Some(DataCategory::Error),
         ItemType::UnrealReport => Some(DataCategory::Error),
+        ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
         ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),
         ItemType::Attachment => None,
         ItemType::Session => None,
         ItemType::Sessions => None,
         ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
+        ItemType::MetricMeta => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
         ItemType::Profile => None,
@@ -137,6 +140,16 @@ pub struct EnvelopeSummary {
     /// The number of monitor check-ins.
     pub checkin_quantity: usize,
 
+    /// Secondary number of transactions.
+    ///
+    /// This is 0 for envelopes which contain a transaction,
+    /// only secondary transaction quantity should be tracked here,
+    /// these are for example transaction counts extracted from metrics.
+    ///
+    /// A "primary" transaction is contained within the envelope,
+    /// marking the envelope data category a [`DataCategory::Transaction`].
+    pub secondary_transaction_quantity: usize,
+
     /// Indicates that the envelope contains regular attachments that do not create event payloads.
     pub has_plain_attachments: bool,
 
@@ -173,6 +186,11 @@ impl EnvelopeSummary {
             // emitted. We can skip it here.
             if item.rate_limited() {
                 continue;
+            }
+
+            if let Some(source_quantities) = item.source_quantities() {
+                summary.secondary_transaction_quantity += source_quantities.transactions;
+                summary.profile_quantity += source_quantities.profiles;
             }
 
             summary.payload_size += item.len();
@@ -650,7 +668,10 @@ mod tests {
     use smallvec::smallvec;
 
     use super::*;
-    use crate::envelope::{AttachmentType, ContentType};
+    use crate::{
+        envelope::{AttachmentType, ContentType, SourceQuantities},
+        extractors::RequestMeta,
+    };
 
     #[test]
     fn test_format_rate_limits() {
@@ -1234,5 +1255,34 @@ mod tests {
         mock.assert_call(DataCategory::Transaction, Some(0));
         mock.assert_call(DataCategory::TransactionIndexed, Some(1));
         mock.assert_call(DataCategory::Attachment, None);
+    }
+
+    #[test]
+    fn test_source_quantity_for_total_quantity() {
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        let mut item = Item::new(ItemType::MetricBuckets);
+        item.set_source_quantities(SourceQuantities {
+            transactions: 5,
+            profiles: 2,
+        });
+        envelope.add_item(item);
+
+        let mut item = Item::new(ItemType::MetricBuckets);
+        item.set_source_quantities(SourceQuantities {
+            transactions: 2,
+            profiles: 0,
+        });
+        envelope.add_item(item);
+
+        let summary = EnvelopeSummary::compute(&envelope);
+
+        assert_eq!(summary.profile_quantity, 2);
+        assert_eq!(summary.secondary_transaction_quantity, 7);
     }
 }

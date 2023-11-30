@@ -11,7 +11,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::global_config;
+use crate::actors::global_config::{self, StatusResponse};
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
@@ -81,6 +81,8 @@ struct GetProjectStatesResponseWrapper {
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
     global: Option<Arc<GlobalConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global_status: Option<StatusResponse>,
 }
 
 /// Request payload of the project config endpoint.
@@ -127,13 +129,22 @@ async fn inner(
         (project_key, state_result)
     });
 
-    let mut configs = HashMap::with_capacity(keys_len);
-    let mut pending = Vec::with_capacity(keys_len);
-    let global_config = match inner.global {
-        true => Some(state.global_config().send(global_config::Get).await?),
-        false => None,
+    let (global, global_status) = if inner.global {
+        match state.global_config().send(global_config::Get).await? {
+            global_config::Status::Ready(config) => (Some(config), Some(StatusResponse::Ready)),
+            // Old relays expect to get a global config no matter what, even if it's not ready
+            // yet. We therefore give them a default global config.
+            global_config::Status::Pending => (
+                Some(GlobalConfig::default().into()),
+                Some(StatusResponse::Pending),
+            ),
+        }
+    } else {
+        (None, None)
     };
 
+    let mut pending = Vec::with_capacity(keys_len);
+    let mut configs = HashMap::with_capacity(keys_len);
     for (project_key, state_result) in future::join_all(futures).await {
         let Some(project_state) = state_result? else {
             pending.push(project_key);
@@ -164,7 +175,8 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global: global_config,
+        global,
+        global_status,
     }))
 }
 

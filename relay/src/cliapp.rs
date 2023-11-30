@@ -38,6 +38,12 @@ pub fn make_app() -> Command {
                         .value_parser(["managed", "proxy", "static"]),
                 )
                 .arg(
+                    Arg::new("log_level")
+                        .long("log-level")
+                        .help("The relay log level")
+                        .value_parser(["info", "warn", "error", "debug", "trace"]),
+                )
+                .arg(
                     Arg::new("secret_key")
                         .long("secret-key")
                         .short('s')

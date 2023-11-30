@@ -6,16 +6,16 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::{Event, Span, TraceContext};
+use relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
 use relay_protocol::Annotated;
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::parse_query;
+use crate::span::description::{parse_query, scrub_span_description};
 use crate::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
-    http_status_code_from_span, MOBILE_SDKS,
+    extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
+    MOBILE_SDKS,
 };
 
 /// A list of supported span tags for tag extraction.
@@ -29,7 +29,6 @@ pub enum SpanTagKey {
     Transaction,
     TransactionMethod,
     TransactionOp,
-    HttpStatusCode,
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
@@ -40,14 +39,21 @@ pub enum SpanTagKey {
     Description,
     Domain,
     Group,
-    HttpDecodedResponseBodyLength,
+    HttpDecodedResponseContentLength,
     HttpResponseContentLength,
     HttpResponseTransferSize,
-    Module,
     ResourceRenderBlockingStatus,
     SpanOp,
     StatusCode,
     System,
+    /// Contributes to Time-To-Initial-Display.
+    TimeToInitialDisplay,
+    /// Contributes to Time-To-Full-Display.
+    TimeToFullDisplay,
+    /// File extension for resource spans.
+    FileExtension,
+    /// Span started on main thread.
+    MainTread,
 }
 
 impl SpanTagKey {
@@ -62,7 +68,6 @@ impl SpanTagKey {
             SpanTagKey::Transaction => "transaction",
             SpanTagKey::TransactionMethod => "transaction.method",
             SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
 
@@ -71,14 +76,17 @@ impl SpanTagKey {
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
             SpanTagKey::Group => "group",
-            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
+            SpanTagKey::HttpDecodedResponseContentLength => "http.decoded_response_content_length",
             SpanTagKey::HttpResponseContentLength => "http.response_content_length",
             SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
-            SpanTagKey::Module => "module",
             SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
             SpanTagKey::SpanOp => "op",
             SpanTagKey::StatusCode => "status_code",
             SpanTagKey::System => "system",
+            SpanTagKey::TimeToFullDisplay => "ttfd",
+            SpanTagKey::TimeToInitialDisplay => "ttid",
+            SpanTagKey::FileExtension => "file_extension",
+            SpanTagKey::MainTread => "main_thread",
         }
     }
 }
@@ -124,17 +132,23 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
+    let is_mobile = shared_tags
+        .get(&SpanTagKey::Mobile)
+        .is_some_and(|v| v.as_str() == "true");
 
     let Some(spans) = event.spans.value_mut() else {
         return;
     };
+
+    let ttid = timestamp_by_op(spans, "ui.load.initial_display");
+    let ttfd = timestamp_by_op(spans, "ui.load.full_display");
 
     for span in spans {
         let Some(span) = span.value_mut().as_mut() else {
             continue;
         };
 
-        let tags = extract_tags(span, config);
+        let tags = extract_tags(span, config, ttid, ttfd, is_mobile);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -185,13 +199,6 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
     }
 
-    if let Some(transaction_http_status_code) = extract_http_status_code(event) {
-        tags.insert(
-            SpanTagKey::HttpStatusCode,
-            transaction_http_status_code.to_owned(),
-        );
-    }
-
     if MOBILE_SDKS.contains(&event.sdk_name()) {
         tags.insert(SpanTagKey::Mobile, "true".to_owned());
     }
@@ -209,7 +216,13 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, String> {
+pub(crate) fn extract_tags(
+    span: &Span,
+    config: &Config,
+    initial_display: Option<Timestamp>,
+    full_display: Option<Timestamp>,
+    is_mobile: bool,
+) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
     let system = span
@@ -226,31 +239,14 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
         span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
-        if let Some(category) = span_op_to_category(&span_op) {
+        let category = span_op_to_category(&span_op);
+        if let Some(category) = category {
             span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
-        let span_module = if span_op.starts_with("http") {
-            Some("http")
-        } else if span_op.starts_with("db") {
-            Some("db")
-        } else if span_op.starts_with("cache") {
-            Some("cache")
-        } else {
-            None
-        };
+        let scrubbed_description = scrub_span_description(span);
 
-        if let Some(module) = span_module {
-            span_tags.insert(SpanTagKey::Module, module.to_owned());
-        }
-
-        let scrubbed_description = span
-            .data
-            .value()
-            .and_then(|data| data.get("description.scrubbed"))
-            .and_then(|value| value.as_str());
-
-        let action = match (span_module, span_op.as_str(), scrubbed_description) {
+        let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -293,7 +289,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
-            if let Some(scrubbed) = scrubbed_description {
+            if let Some(scrubbed) = scrubbed_description.as_deref() {
                 let url = if let Some((_, url)) = scrubbed.split_once(' ') {
                     url
                 } else {
@@ -331,49 +327,50 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             // group tag mustn't be affected by this, and still be
             // computed from the full, untruncated description.
 
-            let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
+            let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
+            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            if span_op.starts_with("resource.") {
+                if let Some(ext) = truncated
+                    .rsplit('/')
+                    .next()
+                    .and_then(|last_segment| last_segment.rsplit_once('.'))
+                    .map(|(_, extension)| extension)
+                {
+                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                }
+            }
+
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 
         if span_op.starts_with("resource.") {
-            if let Some(http_response_content_length) = span
-                .data
-                .value()
-                .and_then(|data| data.get("http.response_content_length"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    SpanTagKey::HttpResponseContentLength,
-                    http_response_content_length.to_owned(),
-                );
-            }
+            if let Some(data) = span.data.value() {
+                if let Some(value) = data
+                    .get("http.response_content_length")
+                    .and_then(Annotated::value)
+                    .and_then(|v| String::try_from(v).ok())
+                {
+                    span_tags.insert(SpanTagKey::HttpResponseContentLength, value);
+                }
 
-            if let Some(http_decoded_response_body_length) = span
-                .data
-                .value()
-                .and_then(|data| data.get("http.decoded_response_body_length"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    SpanTagKey::HttpDecodedResponseBodyLength,
-                    http_decoded_response_body_length.to_owned(),
-                );
-            }
+                if let Some(value) = data
+                    .get("http.decoded_response_content_length")
+                    .and_then(Annotated::value)
+                    .and_then(|v| String::try_from(v).ok())
+                {
+                    span_tags.insert(SpanTagKey::HttpDecodedResponseContentLength, value);
+                }
 
-            if let Some(http_response_transfer_size) = span
-                .data
-                .value()
-                .and_then(|data| data.get("http.response_transfer_size"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    SpanTagKey::HttpResponseTransferSize,
-                    http_response_transfer_size.to_owned(),
-                );
+                if let Some(value) = data
+                    .get("http.response_transfer_size")
+                    .and_then(Annotated::value)
+                    .and_then(|v| String::try_from(v).ok())
+                {
+                    span_tags.insert(SpanTagKey::HttpResponseTransferSize, value);
+                }
             }
 
             if let Some(resource_render_blocking_status) = span
@@ -395,7 +392,44 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         span_tags.insert(SpanTagKey::StatusCode, status_code);
     }
 
+    if is_mobile {
+        if let Some(thread_name) = span
+            .data
+            .value()
+            .and_then(|data| data.get("thread.name"))
+            .and_then(|value| value.as_str())
+        {
+            if thread_name == MAIN_THREAD_NAME {
+                span_tags.insert(SpanTagKey::MainTread, "true".to_owned());
+            }
+        }
+    }
+
+    if let Some(end_time) = span.timestamp.value() {
+        if let Some(initial_display) = initial_display {
+            if end_time <= &initial_display {
+                span_tags.insert(SpanTagKey::TimeToInitialDisplay, "ttid".to_owned());
+            }
+        }
+        if let Some(full_display) = full_display {
+            if end_time <= &full_display {
+                span_tags.insert(SpanTagKey::TimeToFullDisplay, "ttfd".to_owned());
+            }
+        }
+    }
+
     span_tags
+}
+
+/// Finds first matching span and get its timestamp.
+///
+/// Used to get time-to-initial/full-display times.
+fn timestamp_by_op(spans: &[Annotated<Span>], op: &str) -> Option<Timestamp> {
+    spans
+        .iter()
+        .filter_map(Annotated::value)
+        .find(|span| span.op.as_str() == Some(op))
+        .and_then(|span| span.timestamp.value().copied())
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens
@@ -465,7 +499,7 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             if !visitor.table_names.is_empty() {
                 s.push(',');
             }
-            for (_i, name) in visitor.table_names.into_iter().enumerate() {
+            for name in visitor.table_names.into_iter() {
                 write!(&mut s, "{name},").ok();
             }
             (!s.is_empty()).then_some(s)
@@ -554,11 +588,13 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::{Event, Request};
     use relay_protocol::Annotated;
 
+    use crate::{NormalizeProcessor, NormalizeProcessorConfig};
+
     use super::*;
-    use crate::LightNormalizationConfig;
 
     #[test]
     fn test_truncate_string_no_panic() {
@@ -627,13 +663,14 @@ mod tests {
                 }
 
                 // Normalize first, to make sure that all things are correct as in the real pipeline:
-                let res = crate::light_normalize_event(
+                let res = process_value(
                     &mut event,
-                    LightNormalizationConfig {
+                    &mut NormalizeProcessor::new(NormalizeProcessorConfig {
                         enrich_spans: true,
                         light_normalize_spans: true,
                         ..Default::default()
-                    },
+                    }),
+                    ProcessingState::root(),
                 );
                 assert!(res.is_ok());
 
@@ -790,5 +827,235 @@ LIMIT 1
         for (query, expected) in test_cases {
             assert_eq!(sql_action_from_query(query).unwrap(), expected)
         }
+    }
+
+    #[test]
+    fn test_display_times() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "ui.load.initial_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976303.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976303.0000000,
+                        "timestamp": 1597976305.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "ui.load.full_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976304.0000000,
+                        "timestamp": 1597976306.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "after_full_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976307.0000000,
+                        "timestamp": 1597976308.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let spans = event.spans.value().unwrap();
+
+        // First two spans contribute to initial display & full display:
+        for span in &spans[..2] {
+            let tags = span.value().unwrap().sentry_tags.value().unwrap();
+            assert_eq!(tags.get("ttid").unwrap().as_str(), Some("ttid"));
+            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("ttfd"));
+        }
+
+        // First four spans contribute to full display:
+        for span in &spans[2..4] {
+            let tags = span.value().unwrap().sentry_tags.value().unwrap();
+            assert_eq!(tags.get("ttid"), None);
+            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("ttfd"));
+        }
+
+        for span in &spans[4..] {
+            let tags = span.value().unwrap().sentry_tags.value().unwrap();
+            assert_eq!(tags.get("ttid"), None);
+            assert_eq!(tags.get("ttfd"), None);
+        }
+    }
+
+    #[test]
+    fn test_resource_sizes() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "http.response_content_length": 1,
+                            "http.decoded_response_content_length": 2.0,
+                            "http.response_transfer_size": 3.3
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span = &event.spans.value().unwrap()[0];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(
+            tags.get("http.response_content_length").unwrap().as_str(),
+            Some("1"),
+        );
+        assert_eq!(
+            tags.get("http.decoded_response_content_length")
+                .unwrap()
+                .as_str(),
+            Some("2"),
+        );
+        assert_eq!(
+            tags.get("http.response_transfer_size").unwrap().as_str(),
+            Some("3.3"),
+        );
+    }
+
+    #[test]
+    fn test_main_thread() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "android",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "sdk": {"name": "sentry.java.android"},
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "ui.load",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "thread.id": 1,
+                            "thread.name": "main"
+                        }
+                    },
+                    {
+                        "op": "ui.load",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "thread.id": 2,
+                            "thread.name": "not main"
+                        }
+                    },
+                    {
+                        "op": "file.write",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span = &event.spans.value().unwrap()[0];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
+
+        let span = &event.spans.value().unwrap()[1];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(tags.get("main_thread"), None);
+
+        let span = &event.spans.value().unwrap()[2];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(tags.get("main_thread"), None);
     }
 }

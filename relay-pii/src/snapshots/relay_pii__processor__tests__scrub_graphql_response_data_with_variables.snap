@@ -28,6 +28,7 @@ Event {
     request: Request {
         url: ~,
         method: ~,
+        protocol: ~,
         data: Object(
             {
                 "query": String(
@@ -107,5 +108,6 @@ Event {
     breakdowns: ~,
     scraping_attempts: ~,
     _metrics: ~,
+    _metrics_summary: ~,
     other: {},
 }

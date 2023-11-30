@@ -11,6 +11,7 @@
 
 use std::borrow::Cow;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_config::Config;
 use relay_config::RelayMode;
@@ -20,6 +21,7 @@ use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Serv
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
+use tokio::time::Instant;
 
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -38,6 +40,24 @@ type UpstreamQueryResult =
 struct GetGlobalConfigResponse {
     #[serde(default)]
     global: Option<GlobalConfig>,
+    // Instead of using [`Status`], we use StatusResponse as a separate field in order to not
+    // make breaking changes to the api.
+    #[serde(default)]
+    global_status: Option<StatusResponse>,
+}
+
+/// A mirror of [`Status`] without the associated data for use in serialization.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StatusResponse {
+    Ready,
+    Pending,
+}
+
+impl StatusResponse {
+    pub fn is_ready(self) -> bool {
+        matches!(self, Self::Ready)
+    }
 }
 
 /// The request to fetch a global config from upstream.
@@ -103,29 +123,48 @@ pub struct Subscribe;
 /// frequency from upstream.
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
-    Get(relay_system::Sender<Arc<GlobalConfig>>),
+    Get(relay_system::Sender<Status>),
     /// Returns a [`watch::Receiver`] where global config updates will be sent to.
-    Subscribe(relay_system::Sender<watch::Receiver<Arc<GlobalConfig>>>),
+    Subscribe(relay_system::Sender<watch::Receiver<Status>>),
 }
 
 impl Interface for GlobalConfigManager {}
 
 impl FromMessage<Get> for GlobalConfigManager {
-    type Response = AsyncResponse<Arc<GlobalConfig>>;
+    type Response = AsyncResponse<Status>;
 
-    fn from_message(_: Get, sender: relay_system::Sender<Arc<GlobalConfig>>) -> Self {
+    fn from_message(_: Get, sender: relay_system::Sender<Status>) -> Self {
         Self::Get(sender)
     }
 }
 
 impl FromMessage<Subscribe> for GlobalConfigManager {
-    type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
+    type Response = AsyncResponse<watch::Receiver<Status>>;
 
-    fn from_message(
-        _: Subscribe,
-        sender: relay_system::Sender<watch::Receiver<Arc<GlobalConfig>>>,
-    ) -> Self {
+    fn from_message(_: Subscribe, sender: relay_system::Sender<watch::Receiver<Status>>) -> Self {
         Self::Subscribe(sender)
+    }
+}
+
+/// Describes the current fetching status of the [`GlobalConfig`] from the upstream.
+#[derive(Debug, Clone, Default)]
+pub enum Status {
+    /// Global config ready to be used by other services.
+    ///
+    /// This variant implies different things in different circumstances. In managed mode, it means
+    /// that we have received a config from upstream. In other modes the config is either
+    /// from a file or the default global config.
+    Ready(Arc<GlobalConfig>),
+    /// The global config is requested from the upstream but it has not arrived yet.
+    ///
+    /// This variant should never be sent after the first `Ready` has occured.
+    #[default]
+    Pending,
+}
+
+impl Status {
+    fn is_ready(&self) -> bool {
+        matches!(self, Self::Ready(_))
     }
 }
 
@@ -138,7 +177,7 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 pub struct GlobalConfigService {
     config: Arc<Config>,
     /// Sender of the [`watch`] channel for the subscribers of the service.
-    global_config_watch: watch::Sender<Arc<GlobalConfig>>,
+    global_config_watch: watch::Sender<Status>,
     /// Sender of the internal channel to forward global configs from upstream.
     internal_tx: mpsc::Sender<UpstreamQueryResult>,
     /// Receiver of the internal channel to forward global configs from upstream.
@@ -147,6 +186,10 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
+    /// Last instant the global config was successfully fetched in.
+    last_fetched: Instant,
+    /// Interval of upstream fetching failures before reporting such errors.
+    upstream_failure_interval: Duration,
     /// Disables the upstream fetch loop.
     shutdown: bool,
 }
@@ -155,7 +198,7 @@ impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (internal_tx, internal_rx) = mpsc::channel(1);
-        let (global_config_watch, _) = watch::channel(Arc::default());
+        let (global_config_watch, _) = watch::channel(Status::Pending);
 
         Self {
             config,
@@ -164,12 +207,14 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
+            last_fetched: Instant::now(),
+            upstream_failure_interval: Duration::from_secs(35),
             shutdown: false,
         }
     }
 
     /// Handles messages from external services.
-    fn handle_message(&self, message: GlobalConfigManager) {
+    fn handle_message(&mut self, message: GlobalConfigManager) {
         match message {
             GlobalConfigManager::Get(sender) => {
                 sender.send(self.global_config_watch.borrow().clone());
@@ -219,15 +264,24 @@ impl GlobalConfigService {
     /// global config is valid and contains the expected data.
     fn handle_result(&mut self, result: UpstreamQueryResult) {
         match result {
-            Ok(Ok(config)) => {
+            Ok(Ok(response)) => {
                 let mut success = false;
-                match config.global {
-                    Some(global_config) => {
-                        // Notifying subscribers only fails when there are no
-                        // subscribers.
-                        self.global_config_watch.send(Arc::new(global_config)).ok();
+                // Older relays won't send a global status, in that case, we will pretend like the
+                // default global config is an up to date one, because that was the old behaviour.
+                let is_ready = response.global_status.map_or(true, |stat| stat.is_ready());
+
+                match response.global {
+                    Some(global_config) if is_ready => {
+                        // Log the first time we receive a global config from upstream.
+                        if !self.global_config_watch.borrow().is_ready() {
+                            relay_log::info!("received global config from upstream");
+                        }
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::new(global_config)));
                         success = true;
+                        self.last_fetched = Instant::now();
                     }
+                    Some(_) => relay_log::info!("global config from upstream is not yet ready"),
                     None => relay_log::error!("global config missing in upstream response"),
                 }
                 metric!(
@@ -235,10 +289,14 @@ impl GlobalConfigService {
                     success = if success { "true" } else { "false" },
                 );
             }
-            Ok(Err(e)) => relay_log::error!(
-                error = &e as &dyn std::error::Error,
-                "failed to fetch global config from upstream"
-            ),
+            Ok(Err(e)) => {
+                if self.last_fetched.elapsed() >= self.upstream_failure_interval {
+                    relay_log::error!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to fetch global config from upstream"
+                    );
+                }
+            }
             Err(e) => relay_log::error!(
                 error = &e as &dyn std::error::Error,
                 "failed to send request to upstream"
@@ -264,24 +322,29 @@ impl Service for GlobalConfigService {
 
             relay_log::info!("global config service starting");
             if self.config.relay_mode() == RelayMode::Managed {
-                relay_log::info!("serving global configs fetched from upstream");
+                relay_log::info!("requesting global config from upstream");
                 self.request_global_config();
             } else {
                 match GlobalConfig::load(self.config.path()) {
                     Ok(Some(from_file)) => {
                         relay_log::info!("serving static global config loaded from file");
-                        self.global_config_watch.send(Arc::new(from_file)).ok();
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::new(from_file)));
                     }
                     Ok(None) => {
                         relay_log::info!(
                                 "serving default global configs due to lacking static global config file"
                             );
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::default()));
                     }
                     Err(e) => {
                         relay_log::error!("failed to load global config from file: {}", e);
                         relay_log::info!(
                                 "serving default global configs due to failure to load global config from file"
                             );
+                        self.global_config_watch
+                            .send_replace(Status::Ready(Arc::default()));
                     }
                 }
             };

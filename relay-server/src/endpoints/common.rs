@@ -8,7 +8,7 @@ use relay_statsd::metric;
 use serde::Deserialize;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::ProcessMetrics;
+use crate::actors::processor::{ProcessMetricMeta, ProcessMetrics};
 use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
@@ -260,22 +260,47 @@ fn queue_envelope(
     mut managed_envelope: ManagedEnvelope,
     buffer_guard: &BufferGuard,
 ) -> Result<(), BadStoreRequest> {
-    // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
-    let mut metric_items = Vec::new();
-    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
     let envelope = managed_envelope.envelope_mut();
-    while let Some(item) = envelope.take_item_by(is_metric) {
-        metric_items.push(item);
-    }
+
+    // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
+    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
+    let metric_items = envelope.take_items_by(is_metric);
 
     if !metric_items.is_empty() {
         relay_log::trace!("sending metrics into processing queue");
         state.processor().send(ProcessMetrics {
-            items: metric_items,
+            items: metric_items.into_vec(),
             project_key: envelope.meta().public_key(),
             start_time: envelope.meta().start_time(),
             sent_at: envelope.sent_at(),
         });
+    }
+
+    // Remove metric meta from the envelope and send them directly to processing.
+    let metric_meta = envelope.take_items_by(|item| matches!(item.ty(), ItemType::MetricMeta));
+    if !metric_meta.is_empty() {
+        relay_log::trace!("sending metric meta into processing queue");
+        state.processor().send(ProcessMetricMeta {
+            items: metric_meta.into_vec(),
+            project_key: envelope.meta().public_key(),
+        })
+    }
+
+    // Take all NEL reports and split them up into the separate envelopes with 1 item per
+    // envelope.
+    for nel_envelope in envelope.split_all_by(|item| matches!(item.ty(), ItemType::Nel)) {
+        relay_log::trace!("queueing separate envelopes for NEL report");
+        let buffer_guard = state.buffer_guard();
+        let nel_envelope = buffer_guard
+            .enter(
+                nel_envelope,
+                state.outcome_aggregator().clone(),
+                state.test_store().clone(),
+            )
+            .map_err(BadStoreRequest::QueueFailed)?;
+        state
+            .project_cache()
+            .send(ValidateEnvelope::new(nel_envelope));
     }
 
     // Split the envelope into event-related items and other items. This allows to fast-track:
@@ -291,13 +316,13 @@ fn queue_envelope(
             state.outcome_aggregator().clone(),
             state.test_store().clone(),
         )?;
-
-        // Update the old context after successful forking.
-        managed_envelope.update();
         state
             .project_cache()
             .send(ValidateEnvelope::new(event_context));
     }
+
+    // Update the old context before continuing with the source envelope.
+    managed_envelope.update();
 
     if managed_envelope.envelope().is_empty() {
         // The envelope can be empty here if it contained only metrics items which were removed

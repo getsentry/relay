@@ -6,6 +6,7 @@ import signal
 
 import pytest
 import requests
+import queue
 
 from .test_envelope import generate_transaction_item
 
@@ -121,9 +122,10 @@ def test_metrics_backdated(mini_sentry, relay):
 
 
 @pytest.mark.parametrize(
-    "flush_partitions,expected_header", [(None, None), (0, "0"), (1, "0"), (128, "34")]
+    "metrics_partitions,expected_header",
+    [(None, None), (0, "0"), (1, "0"), (128, "34")],
 )
-def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_header):
+def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_header):
     forever = 100 * 365 * 24 * 60 * 60  # *almost forever
     relay_config = {
         "processing": {
@@ -133,9 +135,9 @@ def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_he
             "bucket_interval": 1,
             "initial_delay": 0,
             "debounce_delay": 0,
-            "flush_partitions": flush_partitions,
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
+            "flush_partitions": metrics_partitions,
         },
     }
     relay = relay(mini_sentry, options=relay_config)
@@ -160,6 +162,41 @@ def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_he
         assert "X-Sentry-Relay-Shard" not in headers
     else:
         assert headers["X-Sentry-Relay-Shard"] == expected_header, headers
+
+
+@pytest.mark.parametrize(
+    "max_batch_size,expected_events", [(1000, 1), (200, 2), (130, 3), (100, 6), (50, 0)]
+)
+def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_events):
+    forever = 100 * 365 * 24 * 60 * 60  # *almost forever
+    relay_config = {
+        "processing": {
+            "max_session_secs_in_past": forever,
+        },
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+            "debounce_delay": 0,
+            "max_secs_in_past": forever,
+            "max_secs_in_future": forever,
+            "max_flush_bytes": max_batch_size,
+        },
+    }
+    relay = relay(mini_sentry, options=relay_config)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    metrics_payload = (
+        "transactions/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T999994711"
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    for _ in range(expected_events):
+        mini_sentry.captured_events.get(timeout=3)
+
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_events.get(timeout=1)
 
 
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
@@ -279,7 +316,8 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     upstream_config = {
         "aggregator": {
             "bucket_interval": 1,
-            "initial_delay": 2,  # Give upstream some time to process downstream entries:
+            # Give upstream some time to process downstream entries:
+            "initial_delay": 2,
             "debounce_delay": 0,
         }
     }
@@ -588,9 +626,9 @@ def test_transaction_metrics(
 
     if discard_data:
         # Make sure Relay drops the transaction
-        ds = config.setdefault("dynamicSampling", {})
-        ds.setdefault("rules", [])
-        ds.setdefault("rulesV2", []).append(
+        ds = config.setdefault("sampling", {})
+        ds.setdefault("version", 2)
+        ds.setdefault("rules", []).append(
             {
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
                 "type": discard_data,
@@ -805,9 +843,9 @@ def test_transaction_metrics_extraction_external_relays(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {"version": 3}
-    config["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    config["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
@@ -1219,9 +1257,11 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 2
+    assert len(span_metrics) == 3
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
+        if metric["name"] == "c:spans/count_per_op@none":
+            continue
         assert metric["tags"]["span.description"] == expected_description
         assert metric["tags"]["span.group"] == expected_group
 
@@ -1243,9 +1283,9 @@ def test_generic_metric_extraction(mini_sentry, relay):
         ],
     }
     config["transactionMetrics"] = {"version": 3}
-    config["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    config["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
@@ -1381,7 +1421,6 @@ def test_span_metrics_secondary_aggregator(
                     "span.description": "SELECT %s*",
                     "span.category": "db",
                     "span.domain": ",foo,",
-                    "span.module": "db",
                     "span.op": "db",
                 },
                 "timestamp": int(timestamp.timestamp()),

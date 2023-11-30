@@ -121,7 +121,10 @@ impl StoreService {
         let event_item = envelope.get_item_by(|item| {
             matches!(
                 item.ty(),
-                ItemType::Event | ItemType::Transaction | ItemType::Security
+                ItemType::Event
+                    | ItemType::Transaction
+                    | ItemType::Security
+                    | ItemType::UserReportV2
             )
         });
 
@@ -717,11 +720,13 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = KafkaMessage::CheckIn(CheckInKafkaMessage {
+            message_type: CheckInMessageType::CheckIn,
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             sdk: client.map(str::to_owned),
             payload: item.payload(),
+            routing_key_hint: item.routing_hint(),
         });
 
         self.produce(KafkaTopic::Monitors, organization_id, message)?;
@@ -1019,8 +1024,21 @@ struct ProfileKafkaMessage {
     payload: Bytes,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CheckInMessageType {
+    ClockPulse,
+    CheckIn,
+}
+
 #[derive(Debug, Serialize)]
 struct CheckInKafkaMessage {
+    #[serde(skip)]
+    routing_key_hint: Option<Uuid>,
+
+    /// Used by the consumer to discrinminate the message.
+    message_type: CheckInMessageType,
     /// Raw event payload.
     payload: Bytes,
     /// Time at which the event was received by Relay.
@@ -1100,13 +1118,22 @@ impl Message for KafkaMessage<'_> {
             Self::Attachment(message) => message.event_id.0,
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
-            Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
-            Self::Metric { .. } => Uuid::nil(),     // TODO(ja): Determine a partitioning key
-            Self::Profile(_message) => Uuid::nil(),
             Self::ReplayEvent(message) => message.replay_id.0,
-            Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
-            Self::CheckIn(_message) => Uuid::nil(),
-            Self::Span(_) => Uuid::nil(), // random partitioning
+
+            // Monitor check-ins use the hinted UUID passed through from the Envelope.
+            //
+            // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
+            // recieve the routing_key_hint form their envelopes.
+            Self::CheckIn(message) => message.routing_key_hint.unwrap_or_else(Uuid::nil),
+
+            // Random partitioning
+            Self::Session(_)
+            | Self::Profile(_)
+            | Self::ReplayRecordingNotChunked(_)
+            | Self::Span(_) => Uuid::nil(),
+
+            // TODO(ja): Determine a partitioning key
+            Self::Metric { .. } => Uuid::nil(),
         };
 
         if uuid.is_nil() {

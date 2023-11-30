@@ -4,9 +4,9 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Derives for Relay's protocol traits"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.9.1"
+version = "23.11.2"
 edition = "2021"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]

@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
@@ -84,7 +84,8 @@ pub struct CustomMeasurementConfig {
 ///  - 3:
 ///      - Emit a `usage` metric and use it for rate limiting.
 ///      - Delay metrics extraction for indexed transactions.
-const TRANSACTION_EXTRACT_VERSION: u16 = 3;
+///  - 4: Adds support for `RuleConfigs` with string comparisons.
+const TRANSACTION_EXTRACT_VERSION: u16 = 4;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -182,7 +183,9 @@ pub struct MetricExtractionConfig {
 
 impl MetricExtractionConfig {
     /// The latest version for this config struct.
-    pub const VERSION: u16 = 1;
+    ///
+    /// This is the maximum version supported by this Relay instance.
+    pub const VERSION: u16 = 2;
 
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///

@@ -83,6 +83,10 @@ struct ProjectStateChannel {
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
+    /// How often the request failed.
+    errors: usize,
+    /// How often a "pending" response was received for this project state.
+    pending: usize,
 }
 
 impl ProjectStateChannel {
@@ -97,6 +101,8 @@ impl ProjectStateChannel {
             channel: sender.into_channel(),
             deadline: now + timeout,
             attempts: 0,
+            errors: 0,
+            pending: 0,
         }
     }
 
@@ -163,6 +169,16 @@ pub struct UpstreamProjectSourceService {
     inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
     inner_rx: mpsc::UnboundedReceiver<Vec<Option<UpstreamResponse>>>,
     fetch_handle: SleepHandle,
+    /// Instant when the last fetch failed, `None` if there aren't any failures.
+    ///
+    /// Relay updates this value to the instant when the first fetch fails, and
+    /// resets it to `None` on successful responses. Relay does nothing during
+    /// long times without requests.
+    last_failed_fetch: Option<Instant>,
+    /// Duration of continued fetch fails before emitting an error.
+    ///
+    /// Relay emits an error if all requests for at least this interval fail.
+    failure_interval: Duration,
 }
 
 impl UpstreamProjectSourceService {
@@ -175,9 +191,11 @@ impl UpstreamProjectSourceService {
             state_channels: HashMap::new(),
             fetch_handle: SleepHandle::idle(),
             upstream_relay,
-            config,
             inner_tx,
             inner_rx,
+            last_failed_fetch: None,
+            failure_interval: config.http_project_failure_interval(),
+            config,
         }
     }
 
@@ -217,7 +235,14 @@ impl UpstreamProjectSourceService {
                         counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                         result = "timeout",
                     );
-                    relay_log::error!("error fetching project state {id}: deadline exceeded");
+                    relay_log::error!(
+                        errors = channel.errors,
+                        pending = channel.pending,
+                        tags.did_error = channel.errors > 0,
+                        tags.was_pending = channel.pending > 0,
+                        tags.project_key = id.to_string(),
+                        "error fetching project state {id}: deadline exceeded",
+                    );
                 }
                 !channel.expired()
             });
@@ -276,7 +301,7 @@ impl UpstreamProjectSourceService {
 
             let query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
-                full_config: config.processing_enabled(),
+                full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
             };
 
@@ -338,14 +363,16 @@ impl UpstreamProjectSourceService {
                     // Otherwise we might refuse to fetch any project configs because of a
                     // single, reproducible 500 we observed for a particular project.
                     self.backoff.reset();
+                    self.last_failed_fetch = None;
 
                     // Count number of project states returned (via http requests).
                     metric!(
                         histogram(RelayHistograms::ProjectStateReceived) =
                             response.configs.len() as u64
                     );
-                    for (key, channel) in channels_batch {
+                    for (key, mut channel) in channels_batch {
                         if response.pending.contains(&key) {
+                            channel.pending += 1;
                             self.state_channels.insert(key, channel);
                             continue;
                         }
@@ -371,16 +398,35 @@ impl UpstreamProjectSourceService {
                     }
                 }
                 Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn std::error::Error,
-                        "error fetching project states"
-                    );
+                    self.track_failed_response();
+
+                    let attempts = channels_batch
+                        .values()
+                        .map(|b| b.attempts)
+                        .max()
+                        .unwrap_or(0);
+                    // Only log an error if the request failed more than once.
+                    // We are not interested in single failures. Our retry mechanism is able to
+                    // handle those.
+                    if attempts >= 2 {
+                        relay_log::error!(
+                            error = &err as &dyn std::error::Error,
+                            attempts = attempts,
+                            "error fetching project states",
+                        );
+                    }
+
                     metric!(
                         histogram(RelayHistograms::ProjectStatePending) =
                             self.state_channels.len() as u64
                     );
                     // Put the channels back into the queue, we will retry again shortly.
-                    self.state_channels.extend(channels_batch)
+                    self.state_channels.extend(channels_batch.into_iter().map(
+                        |(key, mut channel)| {
+                            channel.errors += 1;
+                            (key, channel)
+                        },
+                    ))
                 }
             }
         }
@@ -401,6 +447,24 @@ impl UpstreamProjectSourceService {
             // Next time a user wants a project it should schedule fetch requests.
             self.backoff.reset();
         }
+    }
+
+    /// Tracks the last failed fetch, and emits an error if it exceeds the failure interval.
+    fn track_failed_response(&mut self) {
+        match self.last_failed_fetch {
+            None => self.last_failed_fetch = Some(Instant::now()),
+            Some(last_failed) => {
+                let failure_duration = last_failed.elapsed();
+                if failure_duration >= self.failure_interval {
+                    relay_log::error!(
+                        failure_duration = format!("{} seconds", failure_duration.as_secs()),
+                        backoff_attempts = self.backoff.attempt(),
+                        "can't fetch project states"
+                    );
+                }
+            }
+        }
+        metric!(counter(RelayCounters::ProjectUpstreamFailed) += 1);
     }
 
     /// Creates the async task to fetch the project states.

@@ -36,6 +36,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
             },
+            received: ~,
+            measurements: ~,
             other: {},
         },
     ],
@@ -71,6 +73,17 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "span.op": "default",
                 "transaction.method": "GET",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
+            name: "c:spans/count_per_op@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {
+                "span.op": "default",
             },
         },
     ],

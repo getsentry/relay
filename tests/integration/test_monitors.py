@@ -43,6 +43,7 @@ def test_monitors_with_processing(
     relay.send_check_in(42, check_in)
 
     check_in, message = monitors_consumer.get_check_in()
+    assert message["message_type"] == "check_in"
     assert message["start_time"] is not None
     assert message["project_id"] == 42
     assert check_in == {
@@ -72,6 +73,7 @@ def test_monitor_endpoint_get_with_processing(
     assert response.status_code == 202
 
     check_in, message = monitors_consumer.get_check_in()
+    assert message["message_type"] == "check_in"
     assert message["start_time"] is not None
     assert message["project_id"] == project_id
     assert check_in == {
@@ -102,6 +104,7 @@ def test_monitor_endpoint_post_auth_basic_with_processing(
     assert response.status_code == 202
 
     check_in, message = monitors_consumer.get_check_in()
+    assert message["message_type"] == "check_in"
     assert message["start_time"] is not None
     assert message["project_id"] == project_id
     assert check_in == {
@@ -130,6 +133,7 @@ def test_monitor_endpoint_embedded_auth_with_processing(
     assert response.status_code == 202
 
     check_in, message = monitors_consumer.get_check_in()
+    assert message["message_type"] == "check_in"
     assert message["start_time"] is not None
     assert message["project_id"] == project_id
     assert check_in == {

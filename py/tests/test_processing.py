@@ -128,6 +128,24 @@ def test_normalize_user_agent(must_normalize):
         assert "contexts" not in event
 
 
+def test_validate_pii_selector():
+    sentry_relay.validate_pii_selector("test")
+    sentry_relay.validate_pii_selector("$user.id")
+    sentry_relay.validate_pii_selector("extra.'sys.argv'.**")
+
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_pii_selector("no_spaces allowed")
+    assert str(e.value) == 'invalid syntax near "no_spaces allowed"'
+
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_pii_selector("unterminated.'string")
+    assert str(e.value) == 'invalid syntax near "unterminated.\'string"'
+
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_pii_selector("double.**.wildcard.**")
+    assert str(e.value) == "deep wildcard used more than once"
+
+
 def test_validate_pii_config():
     sentry_relay.validate_pii_config("{}")
     sentry_relay.validate_pii_config('{"applications": {}}')
@@ -211,13 +229,13 @@ def compare_versions():
     assert sentry_relay.compare_versions("1.0.0", "1.0") == -1
 
 
-def test_validate_sampling_condition():
+def test_validate_rule_condition():
     """
     Test that a valid condition passes
     """
     # Should not throw
     condition = '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}'
-    sentry_relay.validate_sampling_condition(condition)
+    sentry_relay.validate_rule_condition(condition)
 
 
 def test_invalid_sampling_condition():
@@ -227,11 +245,10 @@ def test_invalid_sampling_condition():
     # Should throw
     condition = '{"op": "legacyBrowser", "value": [1,2,3]}'
     with pytest.raises(ValueError):
+        sentry_relay.validate_rule_condition(condition)
 
-        sentry_relay.validate_sampling_condition(condition)
 
-
-def test_validate_sampling_configuration():
+def test_validate_legacy_sampling_configuration():
     """
     Tests that a valid sampling rule configuration passes
     """
@@ -247,9 +264,9 @@ def test_validate_sampling_configuration():
                 "condition": {
                     "op": "custom",
                     "name": "event.legacy_browser",
-                    "value":["ie10"]
+                    "value": ["ie10"]
                 },
-                "id":1
+                "id": 1
             },
             {
                 "type": "trace",
@@ -260,10 +277,37 @@ def test_validate_sampling_configuration():
                 "condition": {
                     "op": "eq",
                     "name": "event.release",
-                    "value":["1.1.*"],
+                    "value": ["1.1.*"],
                     "options": {"ignoreCase": true}
                 },
-                "id":2
+                "id": 2
+            }
+        ]
+    }"""
+    # Should NOT throw
+    sentry_relay.validate_sampling_configuration(config)
+
+
+def test_validate_sampling_configuration():
+    """
+    Tests that a valid sampling rule configuration passes
+    """
+    config = """{
+        "version": 2,
+        "rules": [
+            {
+                "type": "trace",
+                "samplingValue": {
+                    "type": "sampleRate",
+                    "value": 0.9
+                },
+                "condition": {
+                    "op": "eq",
+                    "name": "event.release",
+                    "value": ["1.1.*"],
+                    "options": {"ignoreCase": true}
+                },
+                "id": 2
             }
         ]
     }"""

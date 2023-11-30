@@ -2,7 +2,43 @@
 
 ## Unreleased
 
+- Add `_metrics_summary` as temporary key on `Event` for a DDM experiment. ([#2757](https://github.com/getsentry/relay/pull/2757))
+
+## 0.8.38
+
+- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
+
+## 0.8.37
+
+- License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
+- Skip running `NormalizeProcessor` on renormalization. ([#2744](https://github.com/getsentry/relay/pull/2744))
+
+## 0.8.36
+
+- Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
+- Rename `validate_sampling_condition` to `validate_rule_condition`. ([#2720](https://github.com/getsentry/relay/pull/2720))
+
+## 0.8.35
+
+- Add `validate_pii_selector` to validate safe fields. ([#2687](https://github.com/getsentry/relay/pull/2687))
+
+## 0.8.34
+
+- Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
+
+## 0.8.33
+
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+- Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
+- Add `PerformanceScoreConfig` config and performance score calculations to measurements for frontend events. ([#2632](https://github.com/getsentry/relay/pull/2632))
+- Add `locale` ,`screen_width_pixels`, `screen_height_pixels`, and `uuid` to the device context. ([#2640](https://github.com/getsentry/relay/pull/2640))
+- Add feedback DataCategory. ([#2604](https://github.com/getsentry/relay/pull/2604))
+
+## 0.8.32
+
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
 
 ## 0.8.31
 

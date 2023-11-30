@@ -35,6 +35,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
 use std::time::Instant;
+use uuid::Uuid;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -45,7 +46,7 @@ use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -87,6 +88,8 @@ pub enum ItemType {
     FormData,
     /// Security report as sent by the browser in JSON.
     RawSecurity,
+    /// NEL report as sent by the browser.
+    Nel,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -99,6 +102,8 @@ pub enum ItemType {
     Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
+    /// Additional metadata for metrics
+    MetricMeta,
     /// Client internal report (eg: outcomes).
     ClientReport,
     /// Profile event payload encoded as JSON.
@@ -111,6 +116,8 @@ pub enum ItemType {
     CheckIn,
     /// A standalone span.
     Span,
+    /// UserReport as an Event
+    UserReportV2,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -124,8 +131,9 @@ impl ItemType {
     /// Returns the event item type corresponding to the given `EventType`.
     pub fn from_event_type(event_type: EventType) -> Self {
         match event_type {
-            EventType::Default | EventType::Error => ItemType::Event,
+            EventType::Default | EventType::Error | EventType::Nel => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
+            EventType::UserReportV2 => ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security
             }
@@ -142,12 +150,15 @@ impl fmt::Display for ItemType {
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form_data"),
             Self::RawSecurity => write!(f, "raw_security"),
+            Self::Nel => write!(f, "nel"),
             Self::UnrealReport => write!(f, "unreal_report"),
             Self::UserReport => write!(f, "user_report"),
+            Self::UserReportV2 => write!(f, "feedback"),
             Self::Session => write!(f, "session"),
             Self::Sessions => write!(f, "sessions"),
             Self::Statsd => write!(f, "statsd"),
             Self::MetricBuckets => write!(f, "metric_buckets"),
+            Self::MetricMeta => write!(f, "metric_meta"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
@@ -170,12 +181,15 @@ impl std::str::FromStr for ItemType {
             "attachment" => Self::Attachment,
             "form_data" => Self::FormData,
             "raw_security" => Self::RawSecurity,
+            "nel" => Self::Nel,
             "unreal_report" => Self::UnrealReport,
             "user_report" => Self::UserReport,
+            "feedback" => Self::UserReportV2,
             "session" => Self::Session,
             "sessions" => Self::Sessions,
             "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
+            "metric_meta" => Self::MetricMeta,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
@@ -451,6 +465,14 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
+    /// The routing_hint may be used to specify how the envelpope should be routed in when
+    /// published to kafka.
+    ///
+    /// XXX(epurkhiser): This is currently ONLY used for [`ItemType::CheckIn`]'s when publishing
+    /// the envelope into kafka.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    routing_hint: Option<Uuid>,
+
     /// Indicates that this item is being rate limited.
     ///
     /// By default, rate limited items are immediately removed from Envelopes. For processing,
@@ -461,6 +483,18 @@ pub struct ItemHeaders {
     /// NOTE: This is internal-only and not exposed into the Envelope.
     #[serde(default, skip)]
     rate_limited: bool,
+
+    /// Contains the amount of events this item was generated and aggregated from.
+    ///
+    /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
+    /// aggregated from (currently) transactions and profiles.
+    ///
+    /// This information can not be directly inferred from the item itself anymore.
+    /// The amount of events this item/metric represents is instead stored here.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    source_quantities: Option<SourceQuantities>,
 
     /// A list of cumulative sample rates applied to this event.
     ///
@@ -483,6 +517,17 @@ pub struct ItemHeaders {
     other: BTreeMap<String, Value>,
 }
 
+/// Container for item quantities that the item was derived from.
+///
+/// For example a metric bucket may be derived and aggregated from multiple transactions.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SourceQuantities {
+    /// Transaction quantity.
+    pub transactions: usize,
+    /// Profile quantity.
+    pub profiles: usize,
+}
+
 #[derive(Clone, Debug)]
 pub struct Item {
     headers: ItemHeaders,
@@ -499,7 +544,9 @@ impl Item {
                 attachment_type: None,
                 content_type: None,
                 filename: None,
+                routing_hint: None,
                 rate_limited: false,
+                source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
@@ -540,12 +587,14 @@ impl Item {
                 DataCategory::Transaction
             }),
             ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+            ItemType::Nel => None,
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Statsd | ItemType::MetricBuckets => None,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
+            ItemType::UserReportV2 => None,
             ItemType::Profile => Some(if indexed {
                 DataCategory::ProfileIndexed
             } else {
@@ -618,6 +667,18 @@ impl Item {
         self.headers.filename = Some(filename.into());
     }
 
+    /// Returns the routing_hint of this item.
+    #[cfg(feature = "processing")]
+    pub fn routing_hint(&self) -> Option<Uuid> {
+        self.headers.routing_hint
+    }
+
+    /// Set the routing_hint of this item.
+    #[cfg(feature = "processing")]
+    pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
+        self.headers.routing_hint = Some(routing_hint);
+    }
+
     /// Returns whether this item should be rate limited.
     pub fn rate_limited(&self) -> bool {
         self.headers.rate_limited
@@ -631,6 +692,16 @@ impl Item {
     /// Removes sample rates from the headers, if any.
     pub fn take_sample_rates(&mut self) -> Option<Value> {
         self.headers.sample_rates.take()
+    }
+
+    /// Returns the contained source quantities.
+    pub fn source_quantities(&self) -> Option<SourceQuantities> {
+        self.headers.source_quantities
+    }
+
+    /// Sets new source quantities.
+    pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
+        self.headers.source_quantities = Some(source_quantities);
     }
 
     /// Sets sample rates for this item.
@@ -678,7 +749,9 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::UnrealReport => true,
+            | ItemType::Nel
+            | ItemType::UnrealReport
+            | ItemType::UserReportV2 => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
@@ -710,6 +783,7 @@ impl Item {
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
+            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
@@ -734,13 +808,17 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::Nel => false,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
+            ItemType::UserReportV2 => true,
+
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
             ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
+            ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
@@ -1042,9 +1120,38 @@ impl Envelope {
         index.map(|index| self.items.swap_remove(index))
     }
 
+    /// Removes and returns the all items that match the given condition.
+    pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items.drain_filter(|item| cond(item)).collect()
+    }
+
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
+    }
+
+    /// Splits off the items from the envelope using provided predicates.
+    ///
+    /// First predicate is the the additional condition on the count of found items by second
+    /// predicate.
+    fn split_off_items<C, F>(&mut self, cond: C, mut f: F) -> Option<SmallVec<[Item; 3]>>
+    where
+        C: Fn(usize) -> bool,
+        F: FnMut(&Item) -> bool,
+    {
+        let split_count = self.items().filter(|item| f(item)).count();
+        if cond(split_count) {
+            return None;
+        }
+
+        let old_items = std::mem::take(&mut self.items);
+        let (split_items, own_items) = old_items.into_iter().partition(f);
+        self.items = own_items;
+
+        Some(split_items)
     }
 
     /// Splits the envelope by the given predicate.
@@ -1054,23 +1161,47 @@ impl Envelope {
     /// with all items that return `true`. Items that return `false` remain in this envelope.
     ///
     /// The returned envelope assumes the same headers.
-    pub fn split_by<F>(&mut self, mut f: F) -> Option<Box<Self>>
+    pub fn split_by<F>(&mut self, f: F) -> Option<Box<Self>>
     where
         F: FnMut(&Item) -> bool,
     {
-        let split_count = self.items().filter(|item| f(item)).count();
-        if split_count == self.len() || split_count == 0 {
-            return None;
-        }
-
-        let old_items = std::mem::take(&mut self.items);
-        let (split_items, own_items) = old_items.into_iter().partition(f);
-        self.items = own_items;
-
+        let items_count = self.len();
+        let split_items = self.split_off_items(|count| count == 0 || count == items_count, f)?;
         Some(Box::new(Envelope {
             headers: self.headers.clone(),
             items: split_items,
         }))
+    }
+
+    /// Splits the envelope by the given predicate.
+    ///
+    /// The main differents from `split_by()` is this function returns the list of the newly
+    /// constracted envelopes with all the items where the predicate returns `true`. Otherwise it
+    /// returns an empty list.
+    ///
+    /// The returned envelopes assume the same headers.
+    pub fn split_all_by<F>(&mut self, f: F) -> SmallVec<[Box<Self>; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let mut envelopes = smallvec![];
+        let Some(split_items) = self.split_off_items(|count| count == 0, f) else {
+            return envelopes;
+        };
+
+        let headers = &mut self.headers;
+
+        for item in split_items {
+            // Each item should get an envelope with the new event id.
+            headers.event_id = Some(EventId::new());
+
+            envelopes.push(Box::new(Envelope {
+                items: smallvec![item],
+                headers: headers.clone(),
+            }))
+        }
+
+        envelopes
     }
 
     /// Retains only the items specified by the predicate.
@@ -1247,6 +1378,31 @@ mod tests {
 
         assert_eq!(item.get_header("custom"), Some(&Value::from(42u64)));
         assert_eq!(item.get_header("anything"), None);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_item_set_routing_hint() {
+        let uuid = Uuid::parse_str("8a4ab00f-fba2-4f7b-a164-b58199d55c95").unwrap();
+
+        let mut item = Item::new(ItemType::Event);
+        item.set_routing_hint(uuid);
+
+        assert_eq!(item.routing_hint(), Some(uuid));
+    }
+
+    #[test]
+    fn test_item_source_quantities() {
+        let mut item = Item::new(ItemType::MetricBuckets);
+        assert!(item.source_quantities().is_none());
+
+        let source_quantities = SourceQuantities {
+            transactions: 12,
+            ..Default::default()
+        };
+        item.set_source_quantities(source_quantities);
+
+        assert_eq!(item.source_quantities(), Some(source_quantities));
     }
 
     #[test]

@@ -68,16 +68,21 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-/// Only public for benchmarks.
 pub mod aggregator;
+pub mod meta;
 
 mod aggregatorservice;
 mod bucket;
 mod protocol;
 mod router;
 mod statsd;
+mod view;
 
 pub use aggregatorservice::*;
 pub use bucket::*;
+#[cfg(feature = "redis")]
+pub use meta::RedisMetricMetaStore;
+pub use meta::{MetaAggregator, MetricMeta};
 pub use protocol::*;
 pub use router::*;
+pub use view::*;

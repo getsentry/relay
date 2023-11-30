@@ -11,6 +11,11 @@ pub enum Feature {
     /// Enables data scrubbing of replay recording payloads.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
+    /// Enables new User Feedback ingest.
+    ///
+    /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
+    #[serde(rename = "organizations:user-feedback-ingest")]
+    UserReportV2Ingest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
@@ -28,9 +33,9 @@ pub enum Feature {
     /// Enable processing profiles
     #[serde(rename = "organizations:profiling")]
     Profiling,
-    /// Enable extracting resource spans.
-    #[serde(rename = "projects:span-metrics-extraction-resource")]
-    SpanMetricsExtractionResource,
+    /// Enable metric metadata.
+    #[serde(rename = "organizations:metric-meta")]
+    MetricMeta,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
@@ -41,6 +46,9 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "projects:extract-standalone-spans")]
     Deprecated4,
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[serde(rename = "projects:span-metrics-extraction-resource")]
+    Deprecated5,
     /// Forward compatibility.
     #[serde(other)]
     Unknown,

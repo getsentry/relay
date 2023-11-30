@@ -12,16 +12,16 @@ use once_cell::sync::OnceCell;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
-    light_normalize_event, GeoIpLookup, LightNormalizationConfig, RawUserAgentInfo, StoreConfig,
+    GeoIpLookup, NormalizeProcessor, NormalizeProcessorConfig, RawUserAgentInfo, StoreConfig,
     StoreProcessor,
 };
 use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_pii::{
-    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
+    selector_suggestions_from_value, DataScrubbingConfig, InvalidSelectorError, PiiConfig,
+    PiiConfigError, PiiProcessor, SelectorSpec,
 };
-use relay_protocol::{Annotated, Remark};
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::{Annotated, Remark, RuleCondition};
 use relay_sampling::SamplingConfig;
 
 use crate::core::{RelayBuf, RelayStr};
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     let processor = normalizer as *mut StoreProcessor;
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     let config = (*processor).config();
-    let light_normalization_config = LightNormalizationConfig {
+    let normalization_config = NormalizeProcessorConfig {
         client_ip: config.client_ip.as_ref(),
         user_agent: RawUserAgentInfo {
             user_agent: config.user_agent.as_deref(),
@@ -132,11 +132,16 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         light_normalize_spans: false,
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
+        performance_score: None,
         geoip_lookup: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
     };
-    light_normalize_event(&mut event, light_normalization_config)?;
+    process_value(
+        &mut event,
+        &mut NormalizeProcessor::new(normalization_config),
+        ProcessingState::root(),
+    )?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
     RelayStr::from_string(event.to_json()?)
 }
@@ -148,6 +153,24 @@ pub unsafe extern "C" fn relay_translate_legacy_python_json(event: *mut RelayStr
     let data = slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len);
     json_forensics::translate_slice(data);
     true
+}
+
+/// Validates a PII selector spec. Used to validate datascrubbing safe fields.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_pii_selector(value: *const RelayStr) -> RelayStr {
+    let value = (*value).as_str();
+    match value.parse::<SelectorSpec>() {
+        Ok(_) => RelayStr::new(""),
+        Err(err) => match err {
+            InvalidSelectorError::ParseError(_) => {
+                // Change the error to something more concise we can show in an UI.
+                // Error message follows the same format used for fingerprinting rules.
+                RelayStr::from_string(format!("invalid syntax near {value:?}"))
+            }
+            err => RelayStr::from_string(err.to_string()),
+        },
+    }
 }
 
 /// Validate a PII config against the schema. Used in project options UI.
@@ -273,10 +296,12 @@ pub unsafe extern "C" fn relay_compare_versions(a: *const RelayStr, b: *const Re
     }
 }
 
-/// Validate a sampling rule condition.
+/// Validate a dynamic rule condition.
+///
+/// Used by dynamic sampling, metric extraction, and metric tagging.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_validate_sampling_condition(value: *const RelayStr) -> RelayStr {
+pub unsafe extern "C" fn relay_validate_rule_condition(value: *const RelayStr) -> RelayStr {
     let ret_val = match serde_json::from_str::<RuleCondition>((*value).as_str()) {
         Ok(condition) => {
             if condition.supported() {
@@ -336,9 +361,13 @@ pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> Rela
     }
 }
 
-#[test]
-fn pii_config_validation_invalid_regex() {
-    let config = r#"
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pii_config_validation_invalid_regex() {
+        let config = r#"
         {
           "rules": {
             "strip-fields": {
@@ -355,15 +384,15 @@ fn pii_config_validation_invalid_regex() {
           }
         }
     "#;
-    assert_eq!(
-        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
-        "regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
-    );
-}
+        assert_eq!(
+            unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+            "regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
+        );
+    }
 
-#[test]
-fn pii_config_validation_valid_regex() {
-    let config = r#"
+    #[test]
+    fn pii_config_validation_valid_regex() {
+        let config = r#"
         {
           "rules": {
             "strip-fields": {
@@ -380,8 +409,9 @@ fn pii_config_validation_valid_regex() {
           }
         }
     "#;
-    assert_eq!(
-        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
-        ""
-    );
+        assert_eq!(
+            unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+            ""
+        );
+    }
 }

@@ -914,6 +914,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/ReplayContext"
         },
         {
+          "$ref": "#/definitions/UserReportV2Context"
+        },
+        {
           "$ref": "#/definitions/MonitorContext"
         },
         {
@@ -924,6 +927,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         },
         {
           "$ref": "#/definitions/CloudResourceContext"
+        },
+        {
+          "$ref": "#/definitions/NelContext"
         },
         {
           "type": "object",
@@ -1209,6 +1215,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               "format": "uint64",
               "minimum": 0.0
             },
+            "locale": {
+              "description": " ISO 639-1 code of the locale the device is set to.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "low_memory": {
               "description": " Whether the device was low on memory.",
               "default": null,
@@ -1314,6 +1328,16 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               "format": "uint64",
               "minimum": 0.0
             },
+            "screen_height_pixels": {
+              "description": " Height of the screen in pixels.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "screen_resolution": {
               "description": " Device screen resolution.\n\n (e.g.: 800x600, 3040x1444)",
               "default": null,
@@ -1321,6 +1345,16 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "string",
                 "null"
               ]
+            },
+            "screen_width_pixels": {
+              "description": " Width of the screen in pixels.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
             "simulator": {
               "description": " Simulator/prod indicator.",
@@ -1397,6 +1431,15 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               ],
               "format": "uint64",
               "minimum": 0.0
+            },
+            "uuid": {
+              "description": " UUID of the device.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           "additionalProperties": false
@@ -1454,7 +1497,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         "hpkp",
         "expectct",
         "expectstaple",
+        "nel",
         "transaction",
+        "userreportv2",
         "default"
       ]
     },
@@ -2549,6 +2594,88 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         }
       ]
     },
+    "NelContext": {
+      "description": " Contains NEL report information.\n\n Network Error Logging (NEL) is a browser feature that allows reporting of failed network\n requests from the client side. See the following resources for more information:\n\n - [W3C Editor's Draft](https://w3c.github.io/network-error-logging/)\n - [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging)",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "elapsed_time": {
+              "description": " The number of milliseconds between the start of the resource fetch and when it was aborted by the user agent.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "error_type": {
+              "description": " If request failed, the type of its network error. If request succeeded, \"ok\".",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "phase": {
+              "description": " If request failed, the phase of its network error. If request succeeded, \"application\".",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/NetworkReportPhases"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sampling_fraction": {
+              "description": " The sampling rate.",
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "server_ip": {
+              "description": " Server IP where the requests was sent to.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/String"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "NetworkReportPhases": {
+      "description": " Describes which phase the error occurred in.",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
     "NsError": {
       "description": " NSError informaiton.",
       "anyOf": [
@@ -2939,6 +3066,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "method": {
               "description": " HTTP request method.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "protocol": {
+              "description": " HTTP protocol.",
               "default": null,
               "type": [
                 "string",
@@ -3726,6 +3861,33 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "username": {
               "description": " Username of the user.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "UserReportV2Context": {
+      "description": " Feedback context.\n\n This contexts contains user feedback specific attributes.\n We don't PII scrub contact_email as that is provided by the user.\n TODO(jferg): rename to FeedbackContext once old UserReport logic is deprecated.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "contact_email": {
+              "description": " an email optionally provided by the user, which can be different from user.email",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {
+              "description": " The feedback message which contains what the user has to say.",
               "default": null,
               "type": [
                 "string",

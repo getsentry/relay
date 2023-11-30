@@ -3,18 +3,15 @@ use std::ops::Range;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
+use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
-use relay_event_schema::protocol::{
-    Event, EventType, Span, SpanStatus, TraceContext, TransactionSource,
-};
+use relay_event_schema::protocol::{Event, Span, SpanStatus, TraceContext, TransactionSource};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
-use crate::normalize::span::description::scrub_span_description;
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::SpanDescriptionRule;
 use crate::TransactionNameRule;
 
 /// Configuration for sanitizing unparameterized transaction names.
@@ -28,34 +25,18 @@ pub struct TransactionNameConfig<'r> {
 #[derive(Debug, Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
-    span_desc_rules: Vec<SpanDescriptionRule>,
     timestamp_range: Option<Range<UnixTimestamp>>,
-    enrich_spans: bool,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     /// Creates a new `TransactionsProcessor` instance.
     pub fn new(
         name_config: TransactionNameConfig<'r>,
-        enrich_spans: bool,
-        span_description_rules: Option<&Vec<SpanDescriptionRule>>,
         timestamp_range: Option<Range<UnixTimestamp>>,
     ) -> Self {
-        let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
-            span_desc_rules.clone()
-        } else {
-            vec![]
-        };
-
-        if enrich_spans && !name_config.rules.is_empty() {
-            span_desc_rules.extend(name_config.rules.iter().map(SpanDescriptionRule::from));
-        }
-
         Self {
             name_config,
-            span_desc_rules,
             timestamp_range,
-            enrich_spans,
         }
     }
 
@@ -209,6 +190,85 @@ impl<'r> TransactionsProcessor<'r> {
                 "start_timestamp hard-required for transaction events",
             )),
         }
+    }
+}
+
+impl Processor for TransactionsProcessor<'_> {
+    fn process_event(
+        &mut self,
+        event: &mut Event,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if event.ty.value() != Some(&EventType::Transaction) {
+            return Ok(());
+        }
+
+        // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
+        // Relay doesn't reject events missing the transaction name. Instead, a default transaction
+        // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
+        // SDKs should avoid sending empty transaction names, setting a more contextual default
+        // value when possible.
+        if event.transaction.value().map_or(true, |s| s.is_empty()) {
+            event
+                .transaction
+                .set_value(Some("<unlabeled transaction>".to_owned()))
+        }
+
+        set_default_transaction_source(event);
+        self.normalize_transaction_name(event)?;
+        self.validate_transaction(event)?;
+        end_all_spans(event)?;
+
+        event.process_child_values(self, state)?;
+        Ok(())
+    }
+
+    fn process_span(
+        &mut self,
+        span: &mut Span,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        match (span.start_timestamp.value(), span.timestamp.value()) {
+            (Some(start), Some(end)) => {
+                if end < start {
+                    return Err(ProcessingAction::InvalidTransaction(
+                        "end timestamp in span is smaller than start timestamp",
+                    ));
+                }
+            }
+            (_, None) => {
+                // XXX: Maybe do the same as event.timestamp?
+                return Err(ProcessingAction::InvalidTransaction(
+                    "span is missing timestamp",
+                ));
+            }
+            (None, _) => {
+                // XXX: Maybe copy timestamp over?
+                return Err(ProcessingAction::InvalidTransaction(
+                    "span is missing start_timestamp",
+                ));
+            }
+        }
+
+        if span.trace_id.value().is_none() {
+            return Err(ProcessingAction::InvalidTransaction(
+                "span is missing trace_id",
+            ));
+        }
+
+        if span.span_id.value().is_none() {
+            return Err(ProcessingAction::InvalidTransaction(
+                "span is missing span_id",
+            ));
+        }
+
+        span.op.get_or_insert_with(|| "default".to_owned());
+
+        span.process_child_values(self, state)?;
+
+        Ok(())
     }
 }
 
@@ -378,6 +438,7 @@ fn scrub_identifiers_with_regex(
     Ok(did_change)
 }
 
+/// Copies the event's end timestamp into the spans that don't have one.
 fn end_all_spans(event: &mut Event) -> ProcessingResult {
     let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     for span in spans {
@@ -396,133 +457,66 @@ fn end_all_spans(event: &mut Event) -> ProcessingResult {
     Ok(())
 }
 
-impl Processor for TransactionsProcessor<'_> {
-    fn process_event(
-        &mut self,
-        event: &mut Event,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            return Ok(());
-        }
-
-        // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
-        // Relay doesn't reject events missing the transaction name. Instead, a default transaction
-        // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
-        // SDKs should avoid sending empty transaction names, setting a more contextual default
-        // value when possible.
-        if event.transaction.value().map_or(true, |s| s.is_empty()) {
-            event
-                .transaction
-                .set_value(Some("<unlabeled transaction>".to_owned()))
-        }
-
-        set_default_transaction_source(event);
-        self.normalize_transaction_name(event)?;
-        self.validate_transaction(event)?;
-        end_all_spans(event)?;
-
-        event.process_child_values(self, state)?;
-        Ok(())
-    }
-
-    fn process_span(
-        &mut self,
-        span: &mut Span,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        match (span.start_timestamp.value(), span.timestamp.value()) {
-            (Some(start), Some(end)) => {
-                if end < start {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "end timestamp in span is smaller than start timestamp",
-                    ));
-                }
-            }
-            (_, None) => {
-                // XXX: Maybe do the same as event.timestamp?
-                return Err(ProcessingAction::InvalidTransaction(
-                    "span is missing timestamp",
-                ));
-            }
-            (None, _) => {
-                // XXX: Maybe copy timestamp over?
-                return Err(ProcessingAction::InvalidTransaction(
-                    "span is missing start_timestamp",
-                ));
-            }
-        }
-
-        if span.trace_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "span is missing trace_id",
-            ));
-        }
-
-        if span.span_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "span is missing span_id",
-            ));
-        }
-
-        span.op.get_or_insert_with(|| "default".to_owned());
-
-        if self.enrich_spans {
-            scrub_span_description(span, &self.span_desc_rules);
-        }
-
-        span.process_child_values(self, state)?;
-
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use chrono::offset::TimeZone;
-    use chrono::{Duration, Utc};
+
+    use chrono::{Duration, TimeZone, Utc};
     use insta::assert_debug_snapshot;
+    use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::processor::process_value;
-    use relay_event_schema::protocol::{
-        ClientSdkInfo, Contexts, SpanId, TraceId, TransactionSource,
-    };
-    use relay_protocol::{assert_annotated_snapshot, Object};
-    use similar_asserts::assert_eq;
+    use relay_event_schema::protocol::{ClientSdkInfo, Contexts, Span, SpanId, TraceId};
+    use relay_protocol::{assert_annotated_snapshot, get_value, Object};
 
-    use super::*;
     use crate::RedactionRule;
 
-    fn new_test_event() -> Annotated<Event> {
-        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
-        Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            transaction: Annotated::new("/".to_owned()),
-            start_timestamp: Annotated::new(start.into()),
-            timestamp: Annotated::new(end.into()),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
+    use super::*;
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_ok() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "ok"
+                }
             },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                start_timestamp: Annotated::new(start.into()),
-                timestamp: Annotated::new(end.into()),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                op: Annotated::new("db.statement".to_owned()),
-                ..Default::default()
-            })]),
-            ..Default::default()
-        })
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(!is_high_cardinality_sdk(&event.0.unwrap()));
+    }
+
+    #[test]
+    fn test_is_high_cardinality_sdk_ruby_error() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "op": "rails.request",
+                    "status": "internal_error"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
+        }
+        "#;
+        let event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(!event.meta().has_errors());
+
+        assert!(is_high_cardinality_sdk(&event.0.unwrap()));
     }
 
     #[test]
@@ -556,14 +550,42 @@ mod tests {
         );
     }
 
+    fn new_test_event() -> Annotated<Event> {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+        Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            start_timestamp: Annotated::new(start.into()),
+            timestamp: Annotated::new(end.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                start_timestamp: Annotated::new(start.into()),
+                timestamp: Annotated::new(end.into()),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                op: Annotated::new("db.statement".to_owned()),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        })
+    }
+
     #[test]
     fn test_discards_when_timestamp_out_of_range() {
         let mut event = new_test_event();
 
         let processor = &mut TransactionsProcessor::new(
             TransactionNameConfig::default(),
-            false,
-            None,
             Some(UnixTimestamp::now()..UnixTimestamp::now()),
         );
 
@@ -579,7 +601,7 @@ mod tests {
     fn test_replace_missing_timestamp() {
         let span = Span {
             start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(1968, 1, 1, 0, 0, 1).unwrap().into(),
+                Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 1).unwrap().into(),
             ),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
@@ -597,20 +619,11 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(
-            event.spans.value().unwrap()[0].value().unwrap().timestamp,
-            event.timestamp
-        );
+        let spans = event.spans;
+        let span = get_value!(spans[0]!);
 
-        assert_eq!(
-            event.spans.value().unwrap()[0]
-                .value()
-                .unwrap()
-                .status
-                .value()
-                .unwrap(),
-            &SpanStatus::DeadlineExceeded
-        );
+        assert_eq!(span.timestamp, event.timestamp);
+        assert_eq!(span.status.value().unwrap(), &SpanStatus::DeadlineExceeded);
     }
 
     #[test]
@@ -796,26 +809,12 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/",
-          "transaction_info": {
-            "source": "unknown"
-          },
-          "timestamp": 946684810.0,
-          "start_timestamp": 946684800.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "default",
-              "type": "trace"
-            }
-          },
-          "spans": []
-        }
-        "#);
+        let trace_context = get_value!(event.contexts)
+            .unwrap()
+            .get::<TraceContext>()
+            .unwrap();
+        let trace_op = trace_context.op.value().unwrap();
+        assert_eq!(trace_op, "default");
     }
 
     #[test]
@@ -895,27 +894,7 @@ mod tests {
             ProcessingState::root(),
         )
         .unwrap();
-
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/",
-          "transaction_info": {
-            "source": "unknown"
-          },
-          "timestamp": 946684810.0,
-          "start_timestamp": 946684800.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "http.server",
-              "type": "trace"
-            }
-          },
-          "spans": []
-        }
-        "#);
+        assert!(get_value!(event.spans).unwrap().is_empty());
     }
 
     #[test]
@@ -1196,41 +1175,12 @@ mod tests {
     fn test_allows_valid_transaction_event_with_spans() {
         let mut event = new_test_event();
 
-        process_value(
+        assert!(process_value(
             &mut event,
             &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
-        .unwrap();
-
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/",
-          "transaction_info": {
-            "source": "unknown"
-          },
-          "timestamp": 946684810.0,
-          "start_timestamp": 946684800.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "http.server",
-              "type": "trace"
-            }
-          },
-          "spans": [
-            {
-              "timestamp": 946684810.0,
-              "start_timestamp": 946684800.0,
-              "op": "db.statement",
-              "span_id": "fa90fdead5f74053",
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
-            }
-          ]
-        }
-        "#);
+        .is_ok());
     }
 
     #[test]
@@ -1250,34 +1200,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "<unlabeled transaction>",
-          "transaction_info": {
-            "source": "unknown"
-          },
-          "timestamp": 946684810.0,
-          "start_timestamp": 946684800.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "http.server",
-              "type": "trace"
-            }
-          },
-          "spans": [
-            {
-              "timestamp": 946684810.0,
-              "start_timestamp": 946684800.0,
-              "op": "db.statement",
-              "span_id": "fa90fdead5f74053",
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
-            }
-          ]
-        }
-        "#);
+        assert_eq!(get_value!(event.transaction!), "<unlabeled transaction>");
     }
 
     #[test]
@@ -1297,83 +1220,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "<unlabeled transaction>",
-          "transaction_info": {
-            "source": "unknown"
-          },
-          "timestamp": 946684810.0,
-          "start_timestamp": 946684800.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "http.server",
-              "type": "trace"
-            }
-          },
-          "spans": [
-            {
-              "timestamp": 946684810.0,
-              "start_timestamp": 946684800.0,
-              "op": "db.statement",
-              "span_id": "fa90fdead5f74053",
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
-            }
-          ]
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_is_high_cardinality_sdk_ruby_ok() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {
-                "trace": {
-                    "op": "rails.request",
-                    "status": "ok"
-                }
-            },
-            "sdk": {"name": "sentry.ruby"},
-            "modules": {"rack": "1.2.3"}
-
-        }
-        "#;
-        let event = Annotated::<Event>::from_json(json).unwrap();
-
-        assert!(!is_high_cardinality_sdk(&event.0.unwrap()));
-    }
-
-    #[test]
-    fn test_is_high_cardinality_sdk_ruby_error() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {
-                "trace": {
-                    "op": "rails.request",
-                    "status": "internal_error"
-                }
-            },
-            "sdk": {"name": "sentry.ruby"},
-            "modules": {"rack": "1.2.3"}
-
-        }
-        "#;
-        let event = Annotated::<Event>::from_json(json).unwrap();
-        assert!(!event.meta().has_errors());
-
-        assert!(is_high_cardinality_sdk(&event.0.unwrap()));
+        assert_eq!(get_value!(event.transaction!), "<unlabeled transaction>");
     }
 
     #[test]
@@ -1397,7 +1244,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
@@ -1409,54 +1255,39 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/foo/*/user/*/0",
-          "transaction_info": {
-            "source": "sanitized"
-          },
-          "modules": {
-            "rack": "1.2.3"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "sdk": {
-            "name": "sentry.ruby"
-          },
-          "spans": [],
-          "_meta": {
-            "transaction": {
-              "": {
-                "rem": [
-                  [
-                    "int",
-                    "s",
-                    5,
-                    45
-                  ],
-                  [
-                    "int",
-                    "s",
-                    51,
-                    54
-                  ]
-                ],
-                "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
-              }
-            }
-          }
-        }
-        "#);
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                5,
+                45,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                51,
+                54,
+            ),
+        ),
+    },
+]"#);
     }
 
     /// When no identifiers are scrubbed, we should not set an original value in _meta.
@@ -1481,7 +1312,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
@@ -1527,103 +1357,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/foo/*/user/*/0",
-          "transaction_info": {
-            "source": "sanitized"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "spans": [],
-          "_meta": {
-            "transaction": {
-              "": {
-                "rem": [
-                  [
-                    "int",
-                    "s",
-                    5,
-                    45
-                  ],
-                  [
-                    "int",
-                    "s",
-                    51,
-                    54
-                  ]
-                ],
-                "val": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
-              }
-            }
-          }
-        }
-        "#);
-    }
-
-    #[test]
-    /// When the `ready` flag is set, mark a transaction as `sanitized` even if there are no rules.
-    fn test_transaction_name_normalize_mark_as_sanitized_when_ready() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "/foo/bar/user/john/0",
-            "transaction_info": {
-              "source": "url"
-            },
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {
-                "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "rails.request",
-                    "status": "ok"
-                }
-            }
-
-        }
-        "#;
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        process_value(
-            &mut event,
-            &mut TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .unwrap();
-
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/foo/bar/user/john/0",
-          "transaction_info": {
-            "source": "sanitized"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "spans": []
-        }
-        "#);
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1647,7 +1385,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
 
@@ -1667,7 +1404,6 @@ mod tests {
             expiry: Utc::now() + Duration::hours(1),
             redaction: Default::default(),
         };
-        let mut rules = vec![rule1, rule2, rule3];
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
@@ -1675,128 +1411,126 @@ mod tests {
             &mut event,
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
-                    rules: rules.as_ref(),
+                    rules: &[rule1, rule2, rule3],
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-         {
-           "type": "transaction",
-           "transaction": "/foo/*/user/*/0/",
-           "transaction_info": {
-             "source": "sanitized"
-           },
-           "modules": {
-             "rack": "1.2.3"
-           },
-           "timestamp": 1619420400.0,
-           "start_timestamp": 1619420341.0,
-           "contexts": {
-             "trace": {
-               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-               "span_id": "fa90fdead5f74053",
-               "op": "rails.request",
-               "status": "ok",
-               "type": "trace"
-             }
-           },
-           "sdk": {
-             "name": "sentry.ruby"
-           },
-           "spans": [],
-           "_meta": {
-             "transaction": {
-               "": {
-                 "rem": [
-                   [
-                     "int",
-                     "s",
-                     22,
-                     25
-                   ],
-                   [
-                     "/foo/*/user/*/**",
-                     "s"
-                   ]
-                 ],
-                 "val": "/foo/rule-target/user/123/0/"
-               }
-             }
-           }
-         }
-         "#);
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
 
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        // Make the first rule expire, the second rule must be applied.
-        rules[0].expiry = Utc::now() - Duration::hours(1);
-
-        process_value(
-            &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                false,
-                None,
-                None,
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
             ),
-            ProcessingState::root(),
-        )
-        .unwrap();
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/user/*/**",
+        range: None,
+    },
+]"#);
+    }
 
-        assert_annotated_snapshot!(event, @r#"
+    #[test]
+    fn test_transaction_name_rules_skip_expired() {
+        let json = r#"
         {
-          "type": "transaction",
-          "transaction": "/foo/*/user/*/0/",
-          "transaction_info": {
-            "source": "sanitized"
-          },
-          "modules": {
-            "rack": "1.2.3"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "sdk": {
-            "name": "sentry.ruby"
-          },
-          "spans": [],
-          "_meta": {
-            "transaction": {
-              "": {
-                "rem": [
-                  [
-                    "int",
-                    "s",
-                    22,
-                    25
-                  ],
-                  [
-                    "/foo/*/**",
-                    "s"
-                  ]
-                ],
-                "val": "/foo/rule-target/user/123/0/"
-              }
-            }
-          }
+            "type": "transaction",
+            "transaction": "/foo/rule-target/user/123/0/",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "sdk": {"name": "sentry.ruby"},
+            "modules": {"rack": "1.2.3"}
         }
-        "#);
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let rule1 = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            expiry: Utc::now() - Duration::hours(1), // Expired rule
+            redaction: Default::default(),
+        };
+        let rule2 = TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+        // This should not happend, such rules shouldn't be sent to relay at all.
+        let rule3 = TransactionNameRule {
+            pattern: LazyGlob::new("/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        };
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[rule1, rule2, rule3],
+                },
+                None,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/**",
+        range: None,
+    },
+]"#);
     }
 
     #[test]
@@ -1833,95 +1567,80 @@ mod tests {
             TransactionNameConfig {
                 rules: rules.as_ref(),
             },
-            false,
-            None,
             None,
         );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/foo/*/user/*/0/",
-          "transaction_info": {
-            "source": "sanitized"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "type": "trace"
-            }
-          },
-          "spans": [],
-          "_meta": {
-            "transaction": {
-              "": {
-                "rem": [
-                  [
-                    "int",
-                    "s",
-                    22,
-                    25
-                  ],
-                  [
-                    "/foo/*/user/*/**",
-                    "s"
-                  ]
-                ],
-                "val": "/foo/rule-target/user/123/0/"
-              }
-            }
-          }
-        }
-        "#);
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/user/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
 
         // Process again:
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        // _meta entry is unchanged, because only updated when "transaction" changed:
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/foo/*/user/*/0/",
-          "transaction_info": {
-            "source": "sanitized"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "type": "trace"
-            }
-          },
-          "spans": [],
-          "_meta": {
-            "transaction": {
-              "": {
-                "rem": [
-                  [
-                    "int",
-                    "s",
-                    22,
-                    25
-                  ],
-                  [
-                    "/foo/*/user/*/**",
-                    "s"
-                  ]
-                ],
-                "val": "/foo/rule-target/user/123/0/"
-              }
-            }
-          }
-        }
-        "#);
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                22,
+                25,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/user/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1966,35 +1685,26 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
-          "transaction_info": {
-            "source": "foobar"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "spans": []
-        }
-        "#);
+        assert_eq!(
+            get_value!(event.transaction!),
+            "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0"
+        );
+        assert!(get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .next()
+            .is_none());
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "foobar"
+        );
     }
 
     fn run_with_unknown_source(sdk: &str) -> Annotated<Event> {
@@ -2035,8 +1745,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
@@ -2049,43 +1757,30 @@ mod tests {
     fn test_normalize_legacy_javascript() {
         // Javascript without source annotation gets sanitized.
         let event = run_with_unknown_source("sentry.javascript.browser");
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/user/*/blog/",
-          "transaction_info": {
-            "source": "sanitized"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "sdk": {
-            "name": "sentry.javascript.browser"
-          },
-          "spans": [],
-          "_meta": {
-            "transaction": {
-              "": {
-                "rem": [
-                  [
-                    "/user/*/**",
-                    "s"
-                  ]
-                ],
-                "val": "/user/jane/blog/"
-              }
-            }
-          }
-        }
-        "#);
+
+        assert_eq!(get_value!(event.transaction!), "/user/*/blog/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "/user/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -2093,30 +1788,11 @@ mod tests {
         // Python without source annotation does not get sanitized, because we assume it to be
         // low cardinality.
         let event = run_with_unknown_source("sentry.python");
-        assert_annotated_snapshot!(event, @r#"
-        {
-          "type": "transaction",
-          "transaction": "/user/jane/blog/",
-          "transaction_info": {
-            "source": "unknown"
-          },
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "sdk": {
-            "name": "sentry.python"
-          },
-          "spans": []
-        }
-        "#);
+        assert_eq!(get_value!(event.transaction!), "/user/jane/blog/");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "unknown"
+        );
     }
 
     #[test]
@@ -2140,7 +1816,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
 
@@ -2154,56 +1829,34 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig { rules: &[rule] },
-                false,
-                None,
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, None),
             ProcessingState::root(),
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r#"
-         {
-           "type": "transaction",
-           "transaction": "/foo/*/user",
-           "transaction_info": {
-             "source": "sanitized"
-           },
-           "modules": {
-             "rack": "1.2.3"
-           },
-           "timestamp": 1619420400.0,
-           "start_timestamp": 1619420341.0,
-           "contexts": {
-             "trace": {
-               "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-               "span_id": "fa90fdead5f74053",
-               "op": "rails.request",
-               "status": "ok",
-               "type": "trace"
-             }
-           },
-           "sdk": {
-             "name": "sentry.ruby"
-           },
-           "spans": [],
-           "_meta": {
-             "transaction": {
-               "": {
-                 "rem": [
-                   [
-                     "/foo/*/**",
-                     "s"
-                   ]
-                 ],
-                 "val": "/foo/rule-target/user"
-               }
-             }
-           }
-         }
-         "#);
+        assert_eq!(get_value!(event.transaction!), "/foo/*/user");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "/foo/*/**",
+        range: None,
+    },
+]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -2219,7 +1872,10 @@ mod tests {
             scrub_identifiers(&mut s).unwrap();
             s.0.unwrap()
         });
-        assert_debug_snapshot!(replaced);
+        assert_eq!(
+            replaced,
+            ["/*", "/*", "/*", "/test/*/url",].map(str::to_owned)
+        )
     }
 
     macro_rules! transaction_name_test {
@@ -2386,17 +2042,39 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
         )
         .unwrap();
 
-        // Annotate the snapshot instead of comparing transaction names, to also
-        // make sure the event's _meta is correct.
-        assert_annotated_snapshot!(event);
+        assert_eq!(get_value!(event.transaction!), "/remains/rule-target/*");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
+
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                21,
+                31,
+            ),
+        ),
+    },
+]"#);
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -2433,45 +2111,39 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event);
-    }
+        assert_eq!(get_value!(event.transaction!), "/remains/*/*");
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
 
-    #[test]
-    fn test_no_sanitized_if_no_rules() {
-        let mut event = Annotated::<Event>::from_json(
-            r#"{
-                "type": "transaction",
-                "transaction": "/remains/rule-target/whatever",
-                "transaction_info": {
-                    "source": "url"
-                },
-                "timestamp": "2021-04-26T08:00:00+0100",
-                "start_timestamp": "2021-04-26T07:59:01+0100",
-                "contexts": {
-                    "trace": {
-                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                        "span_id": "fa90fdead5f74053"
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-
-        process_value(
-            &mut event,
-            &mut TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .unwrap();
-
-        assert_annotated_snapshot!(event);
+        let remarks = get_value!(event!)
+            .transaction
+            .meta()
+            .iter_remarks()
+            .collect_vec();
+        assert_debug_snapshot!(remarks, @r#"[
+    Remark {
+        ty: Substituted,
+        rule_id: "int",
+        range: Some(
+            (
+                21,
+                31,
+            ),
+        ),
+    },
+    Remark {
+        ty: Substituted,
+        rule_id: "/remains/*/**",
+        range: None,
+    },
+]"#);
     }
 }

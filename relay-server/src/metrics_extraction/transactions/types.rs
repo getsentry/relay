@@ -110,7 +110,7 @@ impl IntoMetric for TransactionMetric {
         let mri = MetricResourceIdentifier {
             ty: value.ty(),
             namespace,
-            name: &name,
+            name,
             unit,
         };
 

@@ -200,23 +200,10 @@ impl<'a> Processor for PiiProcessor<'a> {
         replay.process_child_values(self, state)?;
         Ok(())
     }
-
-    fn process_event(
-        &mut self,
-        event: &mut Event,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        scrub_graphql(event);
-
-        event.process_child_values(self, state)?;
-
-        Ok(())
-    }
 }
 
 /// Scrubs GraphQL variables from the event.
-fn scrub_graphql(event: &mut Event) {
+pub fn scrub_graphql(event: &mut Event) {
     let mut keys: BTreeSet<&str> = BTreeSet::new();
 
     let mut is_graphql = false;
@@ -751,6 +738,35 @@ mod tests {
         let mut processor = PiiProcessor::new(config.compiled());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(event);
+    }
+
+    #[test]
+    fn test_ignore_user_agent_ip_scrubbing() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "headers": [
+                        ["User-Agent", "127.0.0.1"],
+                        ["X-Client-Ip", "10.0.0.1"]
+                    ]
+                },
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_annotated_snapshot!(&data);
     }
 
     #[test]
@@ -1395,17 +1411,7 @@ mod tests {
             .into(),
         );
 
-        let scrubbing_config = DataScrubbingConfig {
-            scrub_data: true,
-            scrub_ip_addresses: true,
-            scrub_defaults: true,
-            ..Default::default()
-        };
-
-        let pii_config = to_pii_config(&scrubbing_config).unwrap();
-        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
-
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        scrub_graphql(data.value_mut().as_mut().unwrap());
 
         assert_debug_snapshot!(&data);
     }
@@ -1436,18 +1442,7 @@ mod tests {
             .into(),
         );
 
-        let scrubbing_config = DataScrubbingConfig {
-            scrub_data: true,
-            scrub_ip_addresses: true,
-            scrub_defaults: true,
-            ..Default::default()
-        };
-
-        let pii_config = to_pii_config(&scrubbing_config).unwrap();
-        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
-
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-
+        scrub_graphql(data.value_mut().as_mut().unwrap());
         assert_debug_snapshot!(&data);
     }
 

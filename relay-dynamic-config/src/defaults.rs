@@ -1,19 +1,30 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::condition::RuleCondition;
+use relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
+use relay_protocol::RuleCondition;
+use serde_json::Number;
 
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use crate::project::ProjectConfig;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*compiler*"];
+const DISABLED_DATABASES: &[&str] = &[
+    "*clickhouse*",
+    "*compile*",
+    "*mongodb*",
+    "*redis*",
+    "db.orm",
+];
 
 /// A list of span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 
 /// A list of patterns found in MongoDB queries
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
+
+/// A list of patterns for resource span ops we'd like to ingest.
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -33,7 +44,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let resource_condition = RuleCondition::glob("span.op", "resource*");
+    let resource_condition = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
@@ -47,26 +58,25 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.description", MONGODB_QUERIES);
 
-        let mut conditions = RuleCondition::eq("span.op", "http.client")
+        RuleCondition::eq("span.op", "http.client")
             | RuleCondition::glob("span.op", MOBILE_OPS)
-            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo);
-
-        if project_config
-            .features
-            .has(Feature::SpanMetricsExtractionResource)
-        {
-            conditions = conditions | resource_condition.clone();
-        }
-
-        conditions
+            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
+            | resource_condition.clone()
     };
+
+    // For mobile spans, only extract duration metrics when they are below a threshold.
+    let duration_condition = RuleCondition::negate(RuleCondition::glob("span.op", MOBILE_OPS))
+        | RuleCondition::lte(
+            "span.exclusive_time",
+            Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
+        );
 
     config.metrics.extend([
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone()),
+            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
             tags: vec![TagSpec {
                 key: "transaction".into(),
                 field: Some("span.sentry_tags.transaction".into()),
@@ -78,7 +88,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone()),
+            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
             tags: Default::default(),
         },
         MetricSpec {
@@ -94,12 +104,12 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/http.decoded_response_body_length@byte".into(),
-            field: Some("span.data.http\\.decoded_response_body_length".into()),
+            mri: "d:spans/http.decoded_response_content_length@byte".into(),
+            field: Some("span.data.http\\.decoded_response_content_length".into()),
             condition: Some(
                 span_op_conditions.clone()
                     & resource_condition.clone()
-                    & RuleCondition::gt("span.data.http\\.decoded_response_body_length", 0),
+                    & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
             ),
             tags: Default::default(),
         },
@@ -114,6 +124,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             ),
             tags: Default::default(),
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/count_per_op@none".into(),
+            field: None,
+            condition: Some(duration_condition.clone()),
+            tags: ["category", "op", "system"]
+                .map(|key| TagSpec {
+                    key: format!("span.{key}"),
+                    field: Some(format!("span.sentry_tags.{key}")),
+                    value: None,
+                    condition: None,
+                })
+                .into(),
+        },
     ]);
 
     config.tags.extend([
@@ -121,7 +145,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: [
                 ("", "environment"),
-                ("", "http.status_code"),
                 ("span.", "action"),
                 ("span.", "category"),
                 ("span.", "description"),
@@ -133,7 +156,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("span.", "system"),
                 ("", "transaction.method"),
                 ("", "transaction.op"),
-                ("", "resource.render_blocking_status"), // only set for resource spans.
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
@@ -151,38 +173,60 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             }))
             .collect(),
         },
+        // Mobile-specific tags:
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: ["release", "device.class"] // TODO: sentry PR for static strings
-                .map(|key| TagSpec {
-                    key: key.into(),
-                    field: Some(format!("span.sentry_tags.{}", key)),
-                    value: None,
-                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
-                })
-                .into(),
+            tags: [
+                ("", "device.class"),
+                ("", "release"),
+                ("", "ttfd"),
+                ("", "ttid"),
+                ("span.", "main_thread"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
+                value: None,
+                condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
+            })
+            .into(),
         },
         // Resource-specific tags:
         TagMapping {
             metrics: vec![
                 LazyGlob::new("d:spans/http.response_content_length@byte".into()),
-                LazyGlob::new("d:spans/http.decoded_response_body_length@byte".into()),
+                LazyGlob::new("d:spans/http.decoded_response_content_length@byte".into()),
                 LazyGlob::new("d:spans/http.response_transfer_size@byte".into()),
             ],
             tags: [
                 ("", "environment"),
+                ("", "file_extension"),
+                ("", "resource.render_blocking_status"),
+                ("", "transaction"),
                 ("span.", "description"),
                 ("span.", "domain"),
                 ("span.", "group"),
                 ("span.", "op"),
-                ("", "transaction"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
+                value: None,
+                condition: Some(resource_condition.clone()),
+            })
+            .into(),
+        },
+        TagMapping {
+            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
+            tags: [
+                ("", "file_extension"),
                 ("", "resource.render_blocking_status"),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
                 field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
-                condition: None,
+                condition: Some(resource_condition.clone()),
             })
             .into(),
         },
