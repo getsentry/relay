@@ -2509,32 +2509,27 @@ impl EnvelopeProcessorService {
                 .sum();
 
             match rate_limiter.is_rate_limited(quotas, item_scoping, total_batches, false) {
-                Ok(limits) => {
-                    if limits.is_limited() {
-                        let reason_code =
-                            limits.longest().and_then(|limit| limit.reason_code.clone());
+                Ok(limits) if limits.is_limited() => {
+                    let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
+                    let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                    self.inner.outcome_aggregator.send(TrackOutcome {
+                        timestamp,
+                        scoping,
+                        outcome: Outcome::RateLimited(reason_code),
+                        event_id: None,
+                        remote_addr: None,
+                        category: DataCategory::Metrics,
+                        quantity: total_batches as u32,
+                    });
 
-                        self.inner
-                            .project_cache
-                            .send(UpdateRateLimits::new(scoping.project_key, limits));
+                    self.inner
+                        .project_cache
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
 
-                        let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
-                        self.inner.outcome_aggregator.send(TrackOutcome {
-                            timestamp,
-                            scoping,
-                            outcome: Outcome::RateLimited(reason_code),
-                            event_id: None,
-                            remote_addr: None,
-                            category: DataCategory::Metrics,
-                            quantity: total_batches as u32,
-                        });
-
-                        relay_log::info!(
-                            "dropping {bucket_qty} buckets due to throughput ratelimit"
-                        );
-                        return;
-                    }
+                    relay_log::info!("dropping {bucket_qty} buckets due to throughput ratelimit");
+                    return;
                 }
+                Ok(_) => {} // not ratelimited
                 Err(e) => {
                     relay_log::error!(
                         error = &e as &dyn std::error::Error,
