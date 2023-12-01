@@ -10,6 +10,7 @@
 - Return global config ready status to downstream relays. ([#2765](https://github.com/getsentry/relay/pull/2765))
 - Add Mixed JS/Android Profiles events processing. ([#2706](https://github.com/getsentry/relay/pull/2706))
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
+- Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
 
 **Internal**:
 
