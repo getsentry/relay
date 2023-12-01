@@ -30,7 +30,6 @@
 //!
 //! ```
 
-use relay_metrics::BucketsView;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -52,7 +51,6 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
-use crate::utils::{extract_transaction_count, ExtractionMode};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
