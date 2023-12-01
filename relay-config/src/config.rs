@@ -563,7 +563,7 @@ struct Limits {
     max_profile_size: ByteSize,
     /// The maximum payload size for a span.
     max_span_size: ByteSize,
-    /// The maximum payload size for a stasd metric.
+    /// The maximum payload size for a statsd metric.
     max_statsd_size: ByteSize,
     /// The maximum payload size for metric buckets.
     max_metric_buckets_size: ByteSize,
@@ -610,7 +610,7 @@ impl Default for Limits {
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
             max_span_size: ByteSize::mebibytes(1),
-            max_statsd_size: ByteSize::kibibytes(100),
+            max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
             max_metric_meta_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
