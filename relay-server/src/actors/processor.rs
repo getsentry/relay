@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::Write;
 use std::sync::Arc;
@@ -28,7 +27,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 
 use relay_statsd::metric;
@@ -41,8 +40,9 @@ use {
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, RateLimitingError, ReasonCode, RedisRateLimiter},
     relay_redis::RedisPool,
+    std::collections::BTreeMap,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -1671,9 +1671,8 @@ impl EnvelopeProcessorService {
             buckets,
             scoping,
             extraction_mode,
-            project_state,
-            #[allow(dead_code)]
-                rate_limits: cached_rate_limits,
+            project_state: _project_state,
+            rate_limits: _cached_rate_limits,
         } = message;
 
         let partitions = self.inner.config.metrics_partitions();
@@ -1682,18 +1681,17 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        #[allow(dead_code)]
-        let bucket_qty = buckets.len();
+        let _bucket_qty = buckets.len();
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
         #[cfg(feature = "processing")]
         if self.rate_limit_batches(
-            cached_rate_limits,
+            _cached_rate_limits,
             scoping,
-            bucket_qty,
+            _bucket_qty,
             &bucket_partitions,
             max_batch_size_bytes,
-            project_state,
+            _project_state,
         ) {
             return;
         }
