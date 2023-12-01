@@ -14,6 +14,7 @@ use axum::RequestPartsExt;
 use data_encoding::BASE64;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
+use relay_config::UpstreamDescriptor;
 use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
@@ -110,6 +111,18 @@ impl PartialDsn {
             path: dsn.path().to_owned(),
             project_id: Some(project_id),
         })
+    }
+
+    /// Creates a new [`PartialDsn`] for a relay outbound request.
+    pub fn outbound(scoping: &Scoping, upstream: &UpstreamDescriptor<'_>) -> Self {
+        Self {
+            scheme: upstream.scheme(),
+            public_key: scoping.project_key,
+            host: upstream.host().to_owned(),
+            port: upstream.port(),
+            path: "".to_owned(),
+            project_id: Some(scoping.project_id),
+        }
     }
 
     /// Returns the project identifier that the DSN points to.
