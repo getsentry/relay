@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::Write;
 use std::ops::ControlFlow;
@@ -30,7 +31,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Empty, Value};
-use relay_quotas::{DataCategory, ItemScoping, RateLimits, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
     MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
@@ -65,7 +66,8 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
+    self, extract_transaction_count, get_transaction_and_profile_count, ExtractionMode,
+    ManagedEnvelope, SamplingResult,
 };
 
 mod event;
@@ -1909,6 +1911,159 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn drop_buckets_with_outcomes(
+        &self,
+        reason_code: Option<ReasonCode>,
+        total_batches: usize,
+        scoping: Scoping,
+        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        mode: ExtractionMode,
+    ) {
+        let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
+        self.inner.outcome_aggregator.send(TrackOutcome {
+            timestamp,
+            scoping,
+            outcome: Outcome::RateLimited(reason_code.clone()),
+            event_id: None,
+            remote_addr: None,
+            category: DataCategory::Metrics,
+            quantity: total_batches as u32,
+        });
+
+        let mut total_transaction_count = 0;
+        let mut total_profile_count = 0;
+
+        for buckets in bucket_partitions.values() {
+            let (transaction_count, profile_count) =
+                get_transaction_and_profile_count(buckets, mode);
+            total_transaction_count += transaction_count;
+            total_profile_count += profile_count;
+        }
+
+        if total_transaction_count > 0 {
+            self.inner.outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Transaction,
+                quantity: total_transaction_count as u32,
+            });
+        }
+
+        if total_profile_count > 0 {
+            self.inner.outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(reason_code),
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Profile,
+                quantity: total_profile_count as u32,
+            });
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    fn rate_limiting(
+        &self,
+        cached_rate_limits: RateLimits,
+        scoping: Scoping,
+        bucket_qty: usize,
+        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        max_batch_size_bytes: usize,
+        project_state: Arc<ProjectState>,
+    ) -> bool {
+        let mode = {
+            let usage = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+                _ => false,
+            };
+            ExtractionMode::from_usage(usage)
+        };
+
+        let quotas = &project_state.config.quotas;
+        let item_scoping = ItemScoping {
+            category: DataCategory::Metrics,
+            scoping: &scoping,
+        };
+
+        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
+            // We want to protect the kafka metrics ingestion topics, therefore we ratelimit based on
+            // batches, as the batches are what's sent to kafka.
+            let total_batches: usize = bucket_partitions
+                .values()
+                .map(|buckets| {
+                    // Cheap operation because there's no allocations.
+                    BucketsView::new(buckets)
+                        .by_size(max_batch_size_bytes)
+                        .count()
+                })
+                .sum();
+
+            if cached_rate_limits
+                .check_with_quotas(quotas, item_scoping)
+                .is_limited()
+            {
+                relay_log::info!("dropping {bucket_qty} buckets due to throughput ratelimit");
+                let reason_code = cached_rate_limits
+                    .longest()
+                    .and_then(|limit| limit.reason_code.clone());
+
+                self.drop_buckets_with_outcomes(
+                    reason_code,
+                    total_batches,
+                    scoping,
+                    bucket_partitions,
+                    mode,
+                );
+
+                return true;
+            }
+
+            match rate_limiter.is_rate_limited(quotas, item_scoping, total_batches, false) {
+                Ok(limits) if limits.is_limited() => {
+                    let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
+                    let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                    self.inner.outcome_aggregator.send(TrackOutcome {
+                        timestamp,
+                        scoping,
+                        outcome: Outcome::RateLimited(reason_code.clone()),
+                        event_id: None,
+                        remote_addr: None,
+                        category: DataCategory::Metrics,
+                        quantity: total_batches as u32,
+                    });
+
+                    relay_log::info!("dropping {bucket_qty} buckets due to throughput ratelimit");
+                    let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                    self.drop_buckets_with_outcomes(
+                        reason_code,
+                        total_batches,
+                        scoping,
+                        bucket_partitions,
+                        mode,
+                    );
+
+                    self.inner
+                        .project_cache
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
+
+                    return true;
+                }
+                Ok(_) => {} // not ratelimited
+                Err(e) => {
+                    relay_log::error!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to check redis rate limits"
+                    );
+                }
+            }
+        }
+        false
+    }
+
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
@@ -1934,65 +2089,19 @@ impl EnvelopeProcessorService {
         let bucket_qty = buckets.len();
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
-        let quotas = project_state.config.quotas.as_slice();
-        let item_scoping = ItemScoping {
-            category: DataCategory::Metrics,
-            scoping: &scoping,
-        };
-
-        if cached_rate_limits
-            .check_with_quotas(quotas, item_scoping)
-            .is_limited()
-        {
-            relay_log::info!("dropping {bucket_qty} buckets due to throughput ratelimit");
+        #[cfg(feature = "processing")]
+        if self.rate_limiting(
+            cached_rate_limits,
+            scoping,
+            bucket_qty,
+            &bucket_partitions,
+            max_batch_size_bytes,
+            project_state,
+        ) {
             return;
         }
 
         #[cfg(feature = "processing")]
-        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
-            // We want to protect the kafka metrics ingestion topics, therefore we ratelimit based on
-            // batches, as the batches are what's sent to kafka.
-            let total_batches: usize = bucket_partitions
-                .values()
-                .map(|buckets| {
-                    // Cheap operation because there's no allocations.
-                    BucketsView::new(buckets)
-                        .by_size(max_batch_size_bytes)
-                        .count()
-                })
-                .sum();
-
-            match rate_limiter.is_rate_limited(quotas, item_scoping, total_batches, false) {
-                Ok(limits) if limits.is_limited() => {
-                    let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
-                    let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                    self.inner.outcome_aggregator.send(TrackOutcome {
-                        timestamp,
-                        scoping,
-                        outcome: Outcome::RateLimited(reason_code),
-                        event_id: None,
-                        remote_addr: None,
-                        category: DataCategory::Metrics,
-                        quantity: total_batches as u32,
-                    });
-
-                    self.inner
-                        .project_cache
-                        .send(UpdateRateLimits::new(scoping.project_key, limits));
-
-                    relay_log::info!("dropping {bucket_qty} buckets due to throughput ratelimit");
-                    return;
-                }
-                Ok(_) => {} // not ratelimited
-                Err(e) => {
-                    relay_log::error!(
-                        error = &e as &dyn std::error::Error,
-                        "failed to check redis rate limits"
-                    );
-                }
-            }
-        }
-
         for (partition_key, buckets) in bucket_partitions {
             let mut num_batches = 0;
 

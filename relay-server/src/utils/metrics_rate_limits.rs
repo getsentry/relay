@@ -106,6 +106,21 @@ pub struct TransactionCount {
     pub has_profile: bool,
 }
 
+pub fn get_transaction_and_profile_count(
+    buckets: &[Bucket],
+    mode: ExtractionMode,
+) -> (usize, usize) {
+    buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&BucketView::new(bucket), mode))
+        .map(|c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+            (c.count, profile_count)
+        })
+        .reduce(|a, b| (a.0 + b.0, a.1 + b.1))
+        .unwrap_or_default()
+}
+
 impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
