@@ -1515,6 +1515,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Records the outcomes of the dropped buckets.
+    #[cfg(feature = "processing")]
     fn drop_buckets_with_outcomes(
         &self,
         reason_code: Option<ReasonCode>,
@@ -1671,7 +1672,8 @@ impl EnvelopeProcessorService {
             scoping,
             extraction_mode,
             project_state,
-            rate_limits: cached_rate_limits,
+            #[allow(dead_code)]
+                rate_limits: cached_rate_limits,
         } = message;
 
         let partitions = self.inner.config.metrics_partitions();
@@ -1680,6 +1682,7 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
+        #[allow(dead_code)]
         let bucket_qty = buckets.len();
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
