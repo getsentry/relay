@@ -1911,6 +1911,7 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Records the outcomes of the dropped buckets.
     fn drop_buckets_with_outcomes(
         &self,
         reason_code: Option<ReasonCode>,
@@ -1966,7 +1967,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn rate_limiting(
+    fn rate_limit_batches(
         &self,
         cached_rate_limits: RateLimits,
         scoping: Scoping,
@@ -2090,7 +2091,7 @@ impl EnvelopeProcessorService {
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
         #[cfg(feature = "processing")]
-        if self.rate_limiting(
+        if self.rate_limit_batches(
             cached_rate_limits,
             scoping,
             bucket_qty,
