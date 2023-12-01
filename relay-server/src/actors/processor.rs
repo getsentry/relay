@@ -1569,7 +1569,11 @@ impl EnvelopeProcessorService {
         item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
-        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy());
+        let envelope = ManagedEnvelope::standalone(
+            envelope,
+            self.inner.outcome_aggregator.clone(),
+            self.inner.test_store.clone(),
+        );
 
         self.inner
             .envelope_manager
