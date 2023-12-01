@@ -1565,6 +1565,7 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
     fn rate_limit_batches(
         &self,
