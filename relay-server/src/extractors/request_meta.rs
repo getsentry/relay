@@ -113,7 +113,7 @@ impl PartialDsn {
         })
     }
 
-    /// Creates a new [`PartialDsn`] for a relay outbound request.
+    /// Creates a new [`PartialDsn`] for a Relay outbound request.
     pub fn outbound(scoping: &Scoping, upstream: &UpstreamDescriptor<'_>) -> Self {
         Self {
             scheme: upstream.scheme(),
