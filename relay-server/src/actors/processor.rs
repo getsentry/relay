@@ -38,10 +38,8 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::Span,
+    relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_protocol::Empty,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -69,6 +67,7 @@ mod profile;
 mod replay;
 mod report;
 mod session;
+mod span;
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -1027,172 +1026,6 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    #[cfg(feature = "processing")]
-    fn is_span_allowed(&self, span: &Span) -> bool {
-        let Some(op) = span.op.value() else {
-            return false;
-        };
-        let Some(description) = span.description.value() else {
-            return false;
-        };
-        let system: &str = span
-            .data
-            .value()
-            .and_then(|v| v.get("span.system"))
-            .and_then(|system| system.as_str())
-            .unwrap_or_default();
-        op.contains("resource.script")
-            || op.contains("resource.css")
-            || op == "http.client"
-            || op.starts_with("app.")
-            || op.starts_with("ui.load")
-            || op.starts_with("file")
-            || op.starts_with("db")
-                && !(op.contains("clickhouse")
-                    || op.contains("mongodb")
-                    || op.contains("redis")
-                    || op.contains("compiler"))
-                && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb"))
-    }
-
-    #[cfg(feature = "processing")]
-    fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
-        // For now, drop any spans submitted by the SDK.
-        state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Span => ItemAction::DropSilently,
-            _ => ItemAction::Keep,
-        });
-
-        // Only extract spans from transactions (not errors).
-        if state.event_type() != Some(EventType::Transaction) {
-            return;
-        };
-
-        // Check feature flag.
-        if !state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction)
-        {
-            return;
-        };
-
-        let mut add_span = |span: Annotated<Span>| {
-            let span = match self.validate_span(span) {
-                Ok(span) => span,
-                Err(e) => {
-                    relay_log::error!("Invalid span: {e}");
-                    return;
-                }
-            };
-            let span = match span.to_json() {
-                Ok(span) => span,
-                Err(e) => {
-                    relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                    return;
-                }
-            };
-            let mut item = Item::new(ItemType::Span);
-            item.set_payload(ContentType::Json, span);
-            state.managed_envelope.envelope_mut().add_item(item);
-        };
-
-        let Some(event) = state.event.value() else {
-            return;
-        };
-
-        // Extract transaction as a span.
-        let mut transaction_span: Span = event.into();
-
-        let all_modules_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionAllModules);
-
-        // Add child spans as envelope items.
-        if let Some(child_spans) = event.spans.value() {
-            for span in child_spans {
-                let Some(inner_span) = span.value() else {
-                    continue;
-                };
-                // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
-                    continue;
-                }
-                // HACK: clone the span to set the segment_id. This should happen
-                // as part of normalization once standalone spans reach wider adoption.
-                let mut new_span = inner_span.clone();
-                new_span.is_segment = Annotated::new(false);
-                new_span.received = transaction_span.received.clone();
-                new_span.segment_id = transaction_span.segment_id.clone();
-
-                // If a profile is associated with the transaction, also associate it with its
-                // child spans.
-                new_span.profile_id = transaction_span.profile_id.clone();
-
-                add_span(Annotated::new(new_span));
-            }
-        }
-
-        // Extract tags to add to this span as well
-        let shared_tags = span::tag_extraction::extract_shared_tags(event);
-        transaction_span.sentry_tags = Annotated::new(
-            shared_tags
-                .clone()
-                .into_iter()
-                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                .collect(),
-        );
-        add_span(transaction_span.into());
-    }
-
-    /// Helper for [`Self::extract_spans`].
-    ///
-    /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
-    #[cfg(feature = "processing")]
-    fn validate_span(&self, mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
-        let inner = span
-            .value_mut()
-            .as_mut()
-            .ok_or(anyhow::anyhow!("empty span"))?;
-        let Span {
-            ref exclusive_time,
-            ref mut tags,
-            ref mut sentry_tags,
-            ..
-        } = inner;
-        // The following required fields are already validated by the `TransactionsProcessor`:
-        // - `timestamp`
-        // - `start_timestamp`
-        // - `trace_id`
-        // - `span_id`
-        //
-        // `is_segment` is set by `extract_span`.
-        exclusive_time
-            .value()
-            .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
-
-        if let Some(sentry_tags) = sentry_tags.value_mut() {
-            sentry_tags.retain(|key, value| match value.value() {
-                Some(s) => {
-                    match key.as_str() {
-                        "group" => {
-                            // Only allow up to 16-char hex strings in group.
-                            s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
-                        }
-                        "status_code" => s.parse::<u16>().is_ok(),
-                        _ => true,
-                    }
-                }
-                // Drop empty string values.
-                None => false,
-            });
-        }
-        if let Some(tags) = tags.value_mut() {
-            tags.retain(|_, value| !value.value().is_empty())
-        }
-
-        Ok(span)
-    }
-
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
@@ -1302,6 +1135,7 @@ impl EnvelopeProcessorService {
         );
         replay::process(state, &self.inner.config)?;
         profile::filter(state);
+        span::filter(state);
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
@@ -1343,13 +1177,14 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
             self.process_check_ins(state);
+            span::process(state, self.inner.config.clone());
         });
 
         if state.has_event() {
             self.scrub_event(state)?;
             self.serialize_event(state)?;
             if_processing!({
-                self.extract_spans(state);
+                span::extract_from_event(state);
             });
         }
 
@@ -1670,14 +1505,8 @@ impl EnvelopeProcessorService {
         let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();
 
         let upstream = self.inner.config.upstream_descriptor();
-        let dsn = PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: "".to_owned(),
-            project_id: Some(scoping.project_id),
-        };
+        let dsn = PartialDsn::outbound(&scoping, upstream);
+
         for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
         {
             let mut num_batches = 0;
@@ -1721,20 +1550,17 @@ impl EnvelopeProcessorService {
         let EncodeMetricMeta { scoping, meta } = message;
 
         let upstream = self.inner.config.upstream_descriptor();
-        let dsn = crate::extractors::PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: "".to_owned(),
-            project_id: Some(scoping.project_id),
-        };
+        let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut item = Item::new(ItemType::MetricMeta);
         item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
-        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy());
+        let envelope = ManagedEnvelope::standalone(
+            envelope,
+            self.inner.outcome_aggregator.clone(),
+            self.inner.test_store.clone(),
+        );
 
         self.inner
             .envelope_manager

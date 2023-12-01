@@ -313,6 +313,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::ReplayRecording => false,
         ItemType::CheckIn => false,
         ItemType::Span => false,
+        ItemType::OtelSpan => false,
 
         // Without knowing more, `Unknown` items are allowed to be repeated
         ItemType::Unknown(_) => false,

@@ -316,7 +316,7 @@ impl Serialize for MetricResourceIdentifier<'_> {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        serializer.collect_str(self)
     }
 }
 

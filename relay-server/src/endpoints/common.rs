@@ -77,9 +77,9 @@ pub enum BadStoreRequest {
     QueueFailed(#[from] BufferError),
 
     #[error(
-        "envelope exceeded size limits (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
+        "envelope exceeded size limits for type '{0}' (https://develop.sentry.dev/sdk/envelopes/#size-limits)"
     )]
-    Overflow,
+    Overflow(ItemType),
 
     #[error(
         "Sentry dropped data due to a quota or internal rate limit being reached. This will not affect your application. See https://docs.sentry.io/product/accounts/quotas/ for more information."
@@ -381,9 +381,11 @@ pub async fn handle_envelope(
         return Err(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
-    if !utils::check_envelope_size_limits(state.config(), managed_envelope.envelope()) {
+    if let Err(offender) =
+        utils::check_envelope_size_limits(state.config(), managed_envelope.envelope())
+    {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::TooLarge));
-        return Err(BadStoreRequest::Overflow);
+        return Err(BadStoreRequest::Overflow(offender));
     }
 
     queue_envelope(state, managed_envelope, buffer_guard)?;
