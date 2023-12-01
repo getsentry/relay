@@ -108,18 +108,6 @@
 <a href="#108" id="108">108</a>
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -127,9 +115,9 @@
 
 <span class="doccomment">/// Checks for size limits of items in this envelope.
 ///
-/// Returns `true`, if the envelope adheres to the configured size limits. Otherwise, returns
-/// `false`, in which case the envelope should be discarded and a `413 Payload Too Large` response
-/// should be given.
+/// Returns `Ok`, if the envelope adheres to the configured size limits. Otherwise, returns
+/// an `Err` containing the offending item type, in which case the envelope should be discarded
+/// and a `413 Payload Too Large` response should be given.
 ///
 /// The following limits are checked:
 ///
@@ -144,14 +132,16 @@
 ///  - `max_session_count`
 ///  - `max_span_size`
 ///  - `max_statsd_size`
-</span><span class="kw">pub fn </span>check_envelope_size_limits(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; bool {
+</span><span class="kw">pub fn </span>check_envelope_size_limits(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="prelude-ty">Result</span>&lt;(), ItemType&gt; {
+    <span class="kw">const </span>NO_LIMIT: usize = usize::MAX;
+
     <span class="kw">let </span><span class="kw-2">mut </span>event_size = <span class="number">0</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>attachments_size = <span class="number">0</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>session_count = <span class="number">0</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>client_reports_size = <span class="number">0</span>;
 
     <span class="kw">for </span>item <span class="kw">in </span>envelope.items() {
-        <span class="kw">match </span>item.ty() {
+        <span class="kw">let </span>max_size = <span class="kw">match </span>item.ty() {
             ItemType::Event
             | ItemType::Transaction
             | ItemType::Security
@@ -161,64 +151,50 @@
             | ItemType::UserReportV2
             | ItemType::FormData =&gt; {
                 event_size += item.len();
+                NO_LIMIT
             }
             ItemType::Attachment | ItemType::UnrealReport =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_attachment_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-
-                attachments_size += item.len()
+                attachments_size += item.len();
+                config.max_attachment_size()
             }
-            ItemType::ReplayRecording =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_replay_compressed_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
+            ItemType::ReplayRecording =&gt; config.max_replay_compressed_size(),
             ItemType::Session | ItemType::Sessions =&gt; {
                 session_count += <span class="number">1</span>;
+                NO_LIMIT
             }
             ItemType::ClientReport =&gt; {
                 client_reports_size += item.len();
+                NO_LIMIT
             }
-            ItemType::Profile =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_profile_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
-            ItemType::CheckIn =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_check_in_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
-            ItemType::UserReport =&gt; (),
-            ItemType::Statsd =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_statsd_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
-            ItemType::MetricBuckets =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_metric_buckets_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
-            ItemType::MetricMeta =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_metric_meta_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
-            ItemType::Span | ItemType::OtelSpan =&gt; {
-                <span class="kw">if </span>item.len() &gt; config.max_span_size() {
-                    <span class="kw">return </span><span class="bool-val">false</span>;
-                }
-            }
-            ItemType::Unknown(<span class="kw">_</span>) =&gt; (),
+            ItemType::Profile =&gt; config.max_profile_size(),
+            ItemType::CheckIn =&gt; config.max_check_in_size(),
+            ItemType::UserReport =&gt; NO_LIMIT,
+            ItemType::Statsd =&gt; config.max_statsd_size(),
+            ItemType::MetricBuckets =&gt; config.max_metric_buckets_size(),
+            ItemType::MetricMeta =&gt; config.max_metric_meta_size(),
+            ItemType::Span | ItemType::OtelSpan =&gt; config.max_span_size(),
+            ItemType::Unknown(<span class="kw">_</span>) =&gt; NO_LIMIT,
+        };
+
+        <span class="kw">if </span>item.len() &gt; max_size {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(item.ty().clone());
         }
     }
 
-    event_size &lt;= config.max_event_size()
-        &amp;&amp; attachments_size &lt;= config.max_attachments_size()
-        &amp;&amp; session_count &lt;= config.max_session_count()
-        &amp;&amp; client_reports_size &lt;= config.max_client_reports_size()
+    <span class="kw">if </span>event_size &gt; config.max_event_size() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ItemType::Event);
+    }
+    <span class="kw">if </span>attachments_size &gt; config.max_attachments_size() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ItemType::Attachment);
+    }
+    <span class="kw">if </span>session_count &gt; config.max_session_count() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ItemType::Session);
+    }
+    <span class="kw">if </span>client_reports_size &gt; config.max_client_reports_size() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ItemType::ClientReport);
+    }
+
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Checks for valid envelope items.

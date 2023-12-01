@@ -503,7 +503,7 @@
         envelope.add_item(item);
     }
 
-    <span class="kw">if </span>!<span class="kw">super</span>::check_envelope_size_limits(config, envelope) {
+    <span class="kw">if </span><span class="kw">super</span>::check_envelope_size_limits(config, envelope).is_err() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(Unreal4ErrorKind::TooLarge.into());
     }
 
