@@ -30,10 +30,12 @@
 //!
 //! ```
 
+use relay_metrics::BucketsView;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
+use std::ops::AddAssign;
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -50,6 +52,7 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
+use crate::utils::{extract_transaction_count, ExtractionMode};
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -530,6 +533,13 @@ pub struct SourceQuantities {
     pub transactions: usize,
     /// Profile quantity.
     pub profiles: usize,
+}
+
+impl AddAssign for SourceQuantities {
+    fn add_assign(&mut self, other: Self) {
+        self.transactions += other.transactions;
+        self.profiles += other.profiles;
+    }
 }
 
 #[derive(Clone, Debug)]

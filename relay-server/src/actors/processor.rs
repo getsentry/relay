@@ -27,7 +27,7 @@ use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 
@@ -59,8 +59,7 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, extract_transaction_count, get_transaction_and_profile_count, ExtractionMode,
-    ManagedEnvelope, SamplingResult,
+    self, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
 };
 
 mod dynamic_sampling;
@@ -251,6 +250,23 @@ impl ExtractedMetrics {
             ));
         }
     }
+}
+
+fn source_quantities_from_buckets(
+    buckets: &BucketsView,
+    extraction_mode: ExtractionMode,
+) -> SourceQuantities {
+    buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
+        .fold(SourceQuantities::default(), |acc, c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+
+            SourceQuantities {
+                transactions: acc.transactions + c.count,
+                profiles: acc.profiles + profile_count,
+            }
+        })
 }
 
 /// A state container for envelope processing.
@@ -1518,17 +1534,13 @@ impl EnvelopeProcessorService {
             quantity: total_batches as u32,
         });
 
-        let mut total_transaction_count = 0;
-        let mut total_profile_count = 0;
+        let mut source_quantities = SourceQuantities::default();
 
         for buckets in bucket_partitions.values() {
-            let (transaction_count, profile_count) =
-                get_transaction_and_profile_count(buckets, mode);
-            total_transaction_count += transaction_count;
-            total_profile_count += profile_count;
+            source_quantities += source_quantities_from_buckets(&BucketsView::new(buckets), mode);
         }
 
-        if total_transaction_count > 0 {
+        if source_quantities.transactions > 0 {
             self.inner.outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping,
@@ -1536,11 +1548,11 @@ impl EnvelopeProcessorService {
                 event_id: None,
                 remote_addr: None,
                 category: DataCategory::Transaction,
-                quantity: total_transaction_count as u32,
+                quantity: source_quantities.transactions as u32,
             });
         }
 
-        if total_profile_count > 0 {
+        if source_quantities.profiles > 0 {
             self.inner.outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping,
@@ -1548,7 +1560,7 @@ impl EnvelopeProcessorService {
                 event_id: None,
                 remote_addr: None,
                 category: DataCategory::Profile,
-                quantity: total_profile_count as u32,
+                quantity: source_quantities.profiles as u32,
             });
         }
     }
@@ -1689,7 +1701,6 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        #[cfg(feature = "processing")]
         for (partition_key, buckets) in bucket_partitions {
             let mut num_batches = 0;
 
@@ -1831,18 +1842,7 @@ impl Service for EnvelopeProcessorService {
 }
 
 fn create_metrics_item(buckets: &BucketsView<'_>, extraction_mode: ExtractionMode) -> Item {
-    let source_quantities = buckets
-        .iter()
-        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
-        .fold(SourceQuantities::default(), |acc, c| {
-            let profile_count = if c.has_profile { c.count } else { 0 };
-
-            SourceQuantities {
-                transactions: acc.transactions + c.count,
-                profiles: acc.profiles + profile_count,
-            }
-        });
-
+    let source_quantities = source_quantities_from_buckets(buckets, extraction_mode);
     let mut item = Item::new(ItemType::MetricBuckets);
     item.set_source_quantities(source_quantities);
     item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
