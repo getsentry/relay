@@ -844,7 +844,7 @@
     <span class="kw">where
         </span>S: serde::Serializer,
     {
-        serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.to_string())
+        serializer.collect_str(<span class="self">self</span>)
     }
 }
 

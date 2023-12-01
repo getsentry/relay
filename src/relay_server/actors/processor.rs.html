@@ -1984,6 +1984,10 @@
 <a href="#1984" id="1984">1984</a>
 <a href="#1985" id="1985">1985</a>
 <a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::sync::Arc;
@@ -3555,7 +3559,11 @@
         item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>meta).unwrap());
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn));
         envelope.add_item(item);
-        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy());
+        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(
+            envelope,
+            <span class="self">self</span>.inner.outcome_aggregator.clone(),
+            <span class="self">self</span>.inner.test_store.clone(),
+        );
 
         <span class="self">self</span>.inner
             .envelope_manager

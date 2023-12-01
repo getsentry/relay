@@ -371,6 +371,38 @@
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Type definitions for Sentry metrics.
 
 </span><span class="kw">use </span>regex::Regex;
@@ -427,6 +459,17 @@
     <span class="doccomment">/// Returns `true` if the metric_unit is [`None`].
     </span><span class="kw">pub fn </span>is_none(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::None)
+    }
+
+    <span class="doccomment">/// Returns the string representation for this metric unit.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            MetricUnit::Duration(u) =&gt; u.as_str(),
+            MetricUnit::Information(u) =&gt; u.as_str(),
+            MetricUnit::Fraction(u) =&gt; u.as_str(),
+            MetricUnit::Custom(u) =&gt; u.as_str(),
+            MetricUnit::None =&gt; <span class="string">&quot;none&quot;</span>,
+        }
     }
 }
 
@@ -557,6 +600,22 @@
     </span>Week,
 }
 
+<span class="kw">impl </span>DurationUnit {
+    <span class="doccomment">/// Returns the string representation for this duration unit.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::NanoSecond =&gt; <span class="string">&quot;nanosecond&quot;</span>,
+            <span class="self">Self</span>::MicroSecond =&gt; <span class="string">&quot;microsecond&quot;</span>,
+            <span class="self">Self</span>::MilliSecond =&gt; <span class="string">&quot;millisecond&quot;</span>,
+            <span class="self">Self</span>::Second =&gt; <span class="string">&quot;second&quot;</span>,
+            <span class="self">Self</span>::Minute =&gt; <span class="string">&quot;minute&quot;</span>,
+            <span class="self">Self</span>::Hour =&gt; <span class="string">&quot;hour&quot;</span>,
+            <span class="self">Self</span>::Day =&gt; <span class="string">&quot;day&quot;</span>,
+            <span class="self">Self</span>::Week =&gt; <span class="string">&quot;week&quot;</span>,
+        }
+    }
+}
+
 <span class="kw">impl </span>Default <span class="kw">for </span>DurationUnit {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::MilliSecond
@@ -565,16 +624,7 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>DurationUnit {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::NanoSecond =&gt; f.write_str(<span class="string">&quot;nanosecond&quot;</span>),
-            <span class="self">Self</span>::MicroSecond =&gt; f.write_str(<span class="string">&quot;microsecond&quot;</span>),
-            <span class="self">Self</span>::MilliSecond =&gt; f.write_str(<span class="string">&quot;millisecond&quot;</span>),
-            <span class="self">Self</span>::Second =&gt; f.write_str(<span class="string">&quot;second&quot;</span>),
-            <span class="self">Self</span>::Minute =&gt; f.write_str(<span class="string">&quot;minute&quot;</span>),
-            <span class="self">Self</span>::Hour =&gt; f.write_str(<span class="string">&quot;hour&quot;</span>),
-            <span class="self">Self</span>::Day =&gt; f.write_str(<span class="string">&quot;day&quot;</span>),
-            <span class="self">Self</span>::Week =&gt; f.write_str(<span class="string">&quot;week&quot;</span>),
-        }
+        f.write_str(<span class="self">self</span>.as_str())
     }
 }
 
@@ -620,6 +670,28 @@
     </span>ExbiByte,
 }
 
+<span class="kw">impl </span>InformationUnit {
+    <span class="doccomment">/// Returns the string representation for this information unit.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Bit =&gt; <span class="string">&quot;bit&quot;</span>,
+            <span class="self">Self</span>::Byte =&gt; <span class="string">&quot;byte&quot;</span>,
+            <span class="self">Self</span>::KiloByte =&gt; <span class="string">&quot;kilobyte&quot;</span>,
+            <span class="self">Self</span>::KibiByte =&gt; <span class="string">&quot;kibibyte&quot;</span>,
+            <span class="self">Self</span>::MegaByte =&gt; <span class="string">&quot;megabyte&quot;</span>,
+            <span class="self">Self</span>::MebiByte =&gt; <span class="string">&quot;mebibyte&quot;</span>,
+            <span class="self">Self</span>::GigaByte =&gt; <span class="string">&quot;gigabyte&quot;</span>,
+            <span class="self">Self</span>::GibiByte =&gt; <span class="string">&quot;gibibyte&quot;</span>,
+            <span class="self">Self</span>::TeraByte =&gt; <span class="string">&quot;terabyte&quot;</span>,
+            <span class="self">Self</span>::TebiByte =&gt; <span class="string">&quot;tebibyte&quot;</span>,
+            <span class="self">Self</span>::PetaByte =&gt; <span class="string">&quot;petabyte&quot;</span>,
+            <span class="self">Self</span>::PebiByte =&gt; <span class="string">&quot;pebibyte&quot;</span>,
+            <span class="self">Self</span>::ExaByte =&gt; <span class="string">&quot;exabyte&quot;</span>,
+            <span class="self">Self</span>::ExbiByte =&gt; <span class="string">&quot;exbibyte&quot;</span>,
+        }
+    }
+}
+
 <span class="kw">impl </span>Default <span class="kw">for </span>InformationUnit {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Byte
@@ -628,22 +700,7 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>InformationUnit {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Bit =&gt; f.write_str(<span class="string">&quot;bit&quot;</span>),
-            <span class="self">Self</span>::Byte =&gt; f.write_str(<span class="string">&quot;byte&quot;</span>),
-            <span class="self">Self</span>::KiloByte =&gt; f.write_str(<span class="string">&quot;kilobyte&quot;</span>),
-            <span class="self">Self</span>::KibiByte =&gt; f.write_str(<span class="string">&quot;kibibyte&quot;</span>),
-            <span class="self">Self</span>::MegaByte =&gt; f.write_str(<span class="string">&quot;megabyte&quot;</span>),
-            <span class="self">Self</span>::MebiByte =&gt; f.write_str(<span class="string">&quot;mebibyte&quot;</span>),
-            <span class="self">Self</span>::GigaByte =&gt; f.write_str(<span class="string">&quot;gigabyte&quot;</span>),
-            <span class="self">Self</span>::GibiByte =&gt; f.write_str(<span class="string">&quot;gibibyte&quot;</span>),
-            <span class="self">Self</span>::TeraByte =&gt; f.write_str(<span class="string">&quot;terabyte&quot;</span>),
-            <span class="self">Self</span>::TebiByte =&gt; f.write_str(<span class="string">&quot;tebibyte&quot;</span>),
-            <span class="self">Self</span>::PetaByte =&gt; f.write_str(<span class="string">&quot;petabyte&quot;</span>),
-            <span class="self">Self</span>::PebiByte =&gt; f.write_str(<span class="string">&quot;pebibyte&quot;</span>),
-            <span class="self">Self</span>::ExaByte =&gt; f.write_str(<span class="string">&quot;exabyte&quot;</span>),
-            <span class="self">Self</span>::ExbiByte =&gt; f.write_str(<span class="string">&quot;exbibyte&quot;</span>),
-        }
+        f.write_str(<span class="self">self</span>.as_str())
     }
 }
 
@@ -658,6 +715,16 @@
     </span>Percent,
 }
 
+<span class="kw">impl </span>FractionUnit {
+    <span class="doccomment">/// Returns the string representation for this fraction unit.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Ratio =&gt; <span class="string">&quot;ratio&quot;</span>,
+            <span class="self">Self</span>::Percent =&gt; <span class="string">&quot;percent&quot;</span>,
+        }
+    }
+}
+
 <span class="kw">impl </span>Default <span class="kw">for </span>FractionUnit {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Ratio
@@ -666,10 +733,7 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>FractionUnit {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Ratio =&gt; f.write_str(<span class="string">&quot;ratio&quot;</span>),
-            <span class="self">Self</span>::Percent =&gt; f.write_str(<span class="string">&quot;percent&quot;</span>),
-        }
+        f.write_str(<span class="self">self</span>.as_str())
     }
 }
 
