@@ -1,4 +1,4 @@
-//! Unreal 4 processort related code.
+//! Unreal 4 processor related code.
 //!
 //! These functions are included only in the processing mode.
 
