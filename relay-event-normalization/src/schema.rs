@@ -3,6 +3,7 @@ use relay_event_schema::processor::{
 };
 use relay_protocol::{Array, Empty, Error, ErrorKind, Meta, Object};
 
+/// Validates constraints such as empty strings or arrays and invalid characters.
 pub struct SchemaProcessor;
 
 impl Processor for SchemaProcessor {
