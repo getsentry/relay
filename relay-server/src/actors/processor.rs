@@ -1678,14 +1678,7 @@ impl EnvelopeProcessorService {
         let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();
 
         let upstream = self.inner.config.upstream_descriptor();
-        let dsn = PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: "".to_owned(),
-            project_id: Some(scoping.project_id),
-        };
+        let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let bucket_qty = buckets.len();
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
@@ -1744,14 +1737,7 @@ impl EnvelopeProcessorService {
         let EncodeMetricMeta { scoping, meta } = message;
 
         let upstream = self.inner.config.upstream_descriptor();
-        let dsn = crate::extractors::PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: "".to_owned(),
-            project_id: Some(scoping.project_id),
-        };
+        let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut item = Item::new(ItemType::MetricMeta);
         item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
