@@ -55,6 +55,17 @@ impl MetricUnit {
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
+
+    /// Returns the string representation for this metric unit.
+    pub fn as_str(&self) -> &str {
+        match self {
+            MetricUnit::Duration(u) => u.as_str(),
+            MetricUnit::Information(u) => u.as_str(),
+            MetricUnit::Fraction(u) => u.as_str(),
+            MetricUnit::Custom(u) => u.as_str(),
+            MetricUnit::None => "none",
+        }
+    }
 }
 
 impl fmt::Display for MetricUnit {
@@ -184,6 +195,22 @@ pub enum DurationUnit {
     Week,
 }
 
+impl DurationUnit {
+    /// Returns the string representation for this duration unit.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::NanoSecond => "nanosecond",
+            Self::MicroSecond => "microsecond",
+            Self::MilliSecond => "millisecond",
+            Self::Second => "second",
+            Self::Minute => "minute",
+            Self::Hour => "hour",
+            Self::Day => "day",
+            Self::Week => "week",
+        }
+    }
+}
+
 impl Default for DurationUnit {
     fn default() -> Self {
         Self::MilliSecond
@@ -192,16 +219,7 @@ impl Default for DurationUnit {
 
 impl fmt::Display for DurationUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NanoSecond => f.write_str("nanosecond"),
-            Self::MicroSecond => f.write_str("microsecond"),
-            Self::MilliSecond => f.write_str("millisecond"),
-            Self::Second => f.write_str("second"),
-            Self::Minute => f.write_str("minute"),
-            Self::Hour => f.write_str("hour"),
-            Self::Day => f.write_str("day"),
-            Self::Week => f.write_str("week"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
@@ -247,6 +265,28 @@ pub enum InformationUnit {
     ExbiByte,
 }
 
+impl InformationUnit {
+    /// Returns the string representation for this information unit.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Bit => "bit",
+            Self::Byte => "byte",
+            Self::KiloByte => "kilobyte",
+            Self::KibiByte => "kibibyte",
+            Self::MegaByte => "megabyte",
+            Self::MebiByte => "mebibyte",
+            Self::GigaByte => "gigabyte",
+            Self::GibiByte => "gibibyte",
+            Self::TeraByte => "terabyte",
+            Self::TebiByte => "tebibyte",
+            Self::PetaByte => "petabyte",
+            Self::PebiByte => "pebibyte",
+            Self::ExaByte => "exabyte",
+            Self::ExbiByte => "exbibyte",
+        }
+    }
+}
+
 impl Default for InformationUnit {
     fn default() -> Self {
         Self::Byte
@@ -255,22 +295,7 @@ impl Default for InformationUnit {
 
 impl fmt::Display for InformationUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bit => f.write_str("bit"),
-            Self::Byte => f.write_str("byte"),
-            Self::KiloByte => f.write_str("kilobyte"),
-            Self::KibiByte => f.write_str("kibibyte"),
-            Self::MegaByte => f.write_str("megabyte"),
-            Self::MebiByte => f.write_str("mebibyte"),
-            Self::GigaByte => f.write_str("gigabyte"),
-            Self::GibiByte => f.write_str("gibibyte"),
-            Self::TeraByte => f.write_str("terabyte"),
-            Self::TebiByte => f.write_str("tebibyte"),
-            Self::PetaByte => f.write_str("petabyte"),
-            Self::PebiByte => f.write_str("pebibyte"),
-            Self::ExaByte => f.write_str("exabyte"),
-            Self::ExbiByte => f.write_str("exbibyte"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
@@ -285,6 +310,16 @@ pub enum FractionUnit {
     Percent,
 }
 
+impl FractionUnit {
+    /// Returns the string representation for this fraction unit.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Ratio => "ratio",
+            Self::Percent => "percent",
+        }
+    }
+}
+
 impl Default for FractionUnit {
     fn default() -> Self {
         Self::Ratio
@@ -293,10 +328,7 @@ impl Default for FractionUnit {
 
 impl fmt::Display for FractionUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Ratio => f.write_str("ratio"),
-            Self::Percent => f.write_str("percent"),
-        }
+        f.write_str(self.as_str())
     }
 }
 

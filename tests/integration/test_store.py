@@ -1,15 +1,16 @@
 import json
 import os
 import queue
-from time import sleep
-import uuid
 import socket
 import threading
-import pytest
+import uuid
 from datetime import datetime, timedelta, timezone
+from time import sleep
 
+import pytest
+from flask import Response, abort
 from requests.exceptions import HTTPError
-from flask import abort, Response
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
 def test_store(mini_sentry, relay_chain):
@@ -228,8 +229,8 @@ def test_store_buffer_size(mini_sentry, relay):
 
 
 def test_store_max_concurrent_requests(mini_sentry, relay):
-    from time import sleep
     from threading import Semaphore
+    from time import sleep
 
     processing_store = False
     store_count = Semaphore()
@@ -1209,7 +1210,7 @@ def test_invalid_project_id(mini_sentry, relay):
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
-def test_spans(
+def test_span_extraction(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
@@ -1299,3 +1300,283 @@ def test_spans(
     }
 
     spans_consumer.assert_empty()
+
+
+def test_span_ingestion(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+):
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_secs_in_past": 2**64 - 1,
+            }
+        }
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - duration
+
+    # 1 - Send OTel span and sentry span via envelope
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="otel_span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
+                        "spanId": "e342abb1214ca181",
+                        "name": "my 1st OTel span",
+                        "startTimeUnixNano": int(start.timestamp() * 1e9),
+                        "endTimeUnixNano": int(end.timestamp() * 1e9),
+                        "attributes": [
+                            {
+                                "key": "sentry.exclusive_time_ns",
+                                "value": {
+                                    "intValue": int(duration.total_seconds() * 1e9),
+                                },
+                            },
+                        ],
+                    },
+                ).encode()
+            ),
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": "https://example.com/p/blah.js",
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    # 2 - Send OTel span via endpoint
+    relay.send_otel_span(
+        project_id,
+        {
+            "resourceSpans": [
+                {
+                    "scopeSpans": [
+                        {
+                            "spans": [
+                                {
+                                    "traceId": "89143b0763095bd9c9955e8175d1fb24",
+                                    "spanId": "e342abb1214ca182",
+                                    "name": "my 2nd OTel span",
+                                    "startTimeUnixNano": int(start.timestamp() * 1e9)
+                                    + 2,
+                                    "endTimeUnixNano": int(end.timestamp() * 1e9) + 3,
+                                    "attributes": [
+                                        {
+                                            "key": "sentry.exclusive_time_ns",
+                                            "value": {
+                                                "intValue": int(
+                                                    (duration.total_seconds() + 1) * 1e9
+                                                ),
+                                            },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    )
+
+    spans = list(spans_consumer.get_spans())
+    for span in spans:
+        del span["start_time"]
+        span["span"].pop("received", None)
+
+    spans.sort(
+        key=lambda msg: msg["span"].get("description", "")
+    )  # endpoint might overtake envelope
+
+    assert spans == [
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "span": {
+                "description": "https://example.com/p/blah.js",
+                "is_segment": True,
+                "op": "resource.script",
+                "segment_id": "968cff94913ebb07",
+                "sentry_tags": {
+                    "category": "resource",
+                    "description": "https://example.com/*/blah.js",
+                    "domain": "example.com",
+                    "file_extension": "js",
+                    "group": "8a97a9e43588e2bd",
+                    "op": "resource.script",
+                },
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": start.timestamp(),
+                "timestamp": end.timestamp() + 1,
+                "exclusive_time": 345.0,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+        },
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "span": {
+                "data": {},
+                "description": "my 1st OTel span",
+                "exclusive_time": 500.0,
+                "is_segment": True,
+                "op": "default",
+                "parent_span_id": "",
+                "segment_id": "e342abb1214ca181",
+                "sentry_tags": {"op": "default"},
+                "span_id": "e342abb1214ca181",
+                "start_timestamp": start.timestamp(),
+                "status": "ok",
+                "timestamp": end.timestamp(),
+                "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+            },
+        },
+        {
+            "organization_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "span": {
+                "data": {},
+                "description": "my 2nd OTel span",
+                "exclusive_time": 1500.0,
+                "is_segment": True,
+                "op": "default",
+                "parent_span_id": "",
+                "segment_id": "e342abb1214ca182",
+                "sentry_tags": {"op": "default"},
+                "span_id": "e342abb1214ca182",
+                "start_timestamp": start.timestamp(),
+                "status": "ok",
+                "timestamp": end.timestamp(),
+                "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+            },
+        },
+    ]
+
+    metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items())))
+    for metric in metrics:
+        try:
+            metric["value"].sort()
+        except AttributeError:
+            pass
+
+    expected_timestamp = int(end.timestamp())
+
+    assert metrics == [
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "c:spans/count_per_op@none",
+            "type": "c",
+            "value": 1.0,
+            "timestamp": expected_timestamp + 1,
+            "tags": {"span.category": "resource", "span.op": "resource.script"},
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "c:spans/count_per_op@none",
+            "type": "c",
+            "value": 2.0,
+            "timestamp": expected_timestamp,
+            "tags": {"span.op": "default"},
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time@millisecond",
+            "type": "d",
+            "value": [345.0],
+            "timestamp": expected_timestamp + 1,
+            "tags": {
+                "file_extension": "js",
+                "span.category": "resource",
+                "span.description": "https://example.com/*/blah.js",
+                "span.domain": "example.com",
+                "span.group": "8a97a9e43588e2bd",
+                "span.op": "resource.script",
+            },
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time@millisecond",
+            "type": "d",
+            "value": [500.0, 1500],
+            "timestamp": expected_timestamp,
+            "tags": {"span.status": "ok", "span.op": "default"},
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "type": "d",
+            "value": [345.0],
+            "timestamp": expected_timestamp + 1,
+            "tags": {
+                "file_extension": "js",
+                "span.category": "resource",
+                "span.description": "https://example.com/*/blah.js",
+                "span.domain": "example.com",
+                "span.group": "8a97a9e43588e2bd",
+                "span.op": "resource.script",
+            },
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "type": "d",
+            "value": [500.0, 1500],
+            "timestamp": expected_timestamp,
+            "tags": {
+                "span.op": "default",
+                "span.status": "ok",
+            },
+            "retention_days": 90,
+        },
+    ]
