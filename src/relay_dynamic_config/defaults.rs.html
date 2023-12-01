@@ -237,6 +237,11 @@
 <a href="#237" id="237">237</a>
 <a href="#238" id="238">238</a>
 <a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -283,24 +288,29 @@
         <span class="kw">return</span>;
     }
 
-    <span class="kw">let </span>resource_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, RESOURCE_SPAN_OPS);
-
     <span class="comment">// Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
-    </span><span class="kw">let </span>span_op_conditions = <span class="kw">if </span>project_config
+    </span><span class="kw">let </span>(span_op_conditions, resource_condition) = <span class="kw">if </span>project_config
         .features
         .has(Feature::SpanMetricsExtractionAllModules)
     {
-        RuleCondition::all()
+        (
+            RuleCondition::all(),
+            RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;resource.*&quot;</span>),
+        )
     } <span class="kw">else </span>{
         <span class="kw">let </span>is_disabled = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, DISABLED_DATABASES);
         <span class="kw">let </span>is_mongo = RuleCondition::eq(<span class="string">&quot;span.system&quot;</span>, <span class="string">&quot;mongodb&quot;</span>)
             | RuleCondition::glob(<span class="string">&quot;span.description&quot;</span>, MONGODB_QUERIES);
+        <span class="kw">let </span>resource_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, RESOURCE_SPAN_OPS);
 
-        RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;http.client&quot;</span>)
-            | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, MOBILE_OPS)
-            | (RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db*&quot;</span>) &amp; !is_disabled &amp; !is_mongo)
-            | resource_condition.clone()
+        (
+            RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;http.client&quot;</span>)
+                | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, MOBILE_OPS)
+                | (RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db*&quot;</span>) &amp; !is_disabled &amp; !is_mongo)
+                | resource_condition.clone(),
+            resource_condition,
+        )
     };
 
     <span class="comment">// For mobile spans, only extract duration metrics when they are below a threshold.
