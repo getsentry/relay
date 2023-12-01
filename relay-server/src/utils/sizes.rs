@@ -5,9 +5,9 @@ use crate::utils::{ItemAction, ManagedEnvelope};
 
 /// Checks for size limits of items in this envelope.
 ///
-/// Returns `true`, if the envelope adheres to the configured size limits. Otherwise, returns
-/// `false`, in which case the envelope should be discarded and a `413 Payload Too Large` response
-/// should be given.
+/// Returns `Ok`, if the envelope adheres to the configured size limits. Otherwise, returns
+/// an `Err` containing the offending item type, in which case the envelope should be discarded
+/// and a `413 Payload Too Large` response should be given.
 ///
 /// The following limits are checked:
 ///
@@ -22,14 +22,16 @@ use crate::utils::{ItemAction, ManagedEnvelope};
 ///  - `max_session_count`
 ///  - `max_span_size`
 ///  - `max_statsd_size`
-pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool {
+pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Result<(), ItemType> {
+    const NO_LIMIT: usize = usize::MAX;
+
     let mut event_size = 0;
     let mut attachments_size = 0;
     let mut session_count = 0;
     let mut client_reports_size = 0;
 
     for item in envelope.items() {
-        match item.ty() {
+        let max_size = match item.ty() {
             ItemType::Event
             | ItemType::Transaction
             | ItemType::Security
@@ -39,64 +41,50 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             | ItemType::UserReportV2
             | ItemType::FormData => {
                 event_size += item.len();
+                NO_LIMIT
             }
             ItemType::Attachment | ItemType::UnrealReport => {
-                if item.len() > config.max_attachment_size() {
-                    return false;
-                }
-
-                attachments_size += item.len()
+                attachments_size += item.len();
+                config.max_attachment_size()
             }
-            ItemType::ReplayRecording => {
-                if item.len() > config.max_replay_compressed_size() {
-                    return false;
-                }
-            }
+            ItemType::ReplayRecording => config.max_replay_compressed_size(),
             ItemType::Session | ItemType::Sessions => {
                 session_count += 1;
+                NO_LIMIT
             }
             ItemType::ClientReport => {
                 client_reports_size += item.len();
+                NO_LIMIT
             }
-            ItemType::Profile => {
-                if item.len() > config.max_profile_size() {
-                    return false;
-                }
-            }
-            ItemType::CheckIn => {
-                if item.len() > config.max_check_in_size() {
-                    return false;
-                }
-            }
-            ItemType::UserReport => (),
-            ItemType::Statsd => {
-                if item.len() > config.max_statsd_size() {
-                    return false;
-                }
-            }
-            ItemType::MetricBuckets => {
-                if item.len() > config.max_metric_buckets_size() {
-                    return false;
-                }
-            }
-            ItemType::MetricMeta => {
-                if item.len() > config.max_metric_meta_size() {
-                    return false;
-                }
-            }
-            ItemType::Span | ItemType::OtelSpan => {
-                if item.len() > config.max_span_size() {
-                    return false;
-                }
-            }
-            ItemType::Unknown(_) => (),
+            ItemType::Profile => config.max_profile_size(),
+            ItemType::CheckIn => config.max_check_in_size(),
+            ItemType::UserReport => NO_LIMIT,
+            ItemType::Statsd => config.max_statsd_size(),
+            ItemType::MetricBuckets => config.max_metric_buckets_size(),
+            ItemType::MetricMeta => config.max_metric_meta_size(),
+            ItemType::Span | ItemType::OtelSpan => config.max_span_size(),
+            ItemType::Unknown(_) => NO_LIMIT,
+        };
+
+        if item.len() > max_size {
+            return Err(item.ty().clone());
         }
     }
 
-    event_size <= config.max_event_size()
-        && attachments_size <= config.max_attachments_size()
-        && session_count <= config.max_session_count()
-        && client_reports_size <= config.max_client_reports_size()
+    if event_size > config.max_event_size() {
+        return Err(ItemType::Event);
+    }
+    if attachments_size > config.max_attachments_size() {
+        return Err(ItemType::Attachment);
+    }
+    if session_count > config.max_session_count() {
+        return Err(ItemType::Session);
+    }
+    if client_reports_size > config.max_client_reports_size() {
+        return Err(ItemType::ClientReport);
+    }
+
+    Ok(())
 }
 
 /// Checks for valid envelope items.
