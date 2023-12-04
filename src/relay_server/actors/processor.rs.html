@@ -1713,83 +1713,6 @@
 <a href="#1713" id="1713">1713</a>
 <a href="#1714" id="1714">1714</a>
 <a href="#1715" id="1715">1715</a>
-<a href="#1716" id="1716">1716</a>
-<a href="#1717" id="1717">1717</a>
-<a href="#1718" id="1718">1718</a>
-<a href="#1719" id="1719">1719</a>
-<a href="#1720" id="1720">1720</a>
-<a href="#1721" id="1721">1721</a>
-<a href="#1722" id="1722">1722</a>
-<a href="#1723" id="1723">1723</a>
-<a href="#1724" id="1724">1724</a>
-<a href="#1725" id="1725">1725</a>
-<a href="#1726" id="1726">1726</a>
-<a href="#1727" id="1727">1727</a>
-<a href="#1728" id="1728">1728</a>
-<a href="#1729" id="1729">1729</a>
-<a href="#1730" id="1730">1730</a>
-<a href="#1731" id="1731">1731</a>
-<a href="#1732" id="1732">1732</a>
-<a href="#1733" id="1733">1733</a>
-<a href="#1734" id="1734">1734</a>
-<a href="#1735" id="1735">1735</a>
-<a href="#1736" id="1736">1736</a>
-<a href="#1737" id="1737">1737</a>
-<a href="#1738" id="1738">1738</a>
-<a href="#1739" id="1739">1739</a>
-<a href="#1740" id="1740">1740</a>
-<a href="#1741" id="1741">1741</a>
-<a href="#1742" id="1742">1742</a>
-<a href="#1743" id="1743">1743</a>
-<a href="#1744" id="1744">1744</a>
-<a href="#1745" id="1745">1745</a>
-<a href="#1746" id="1746">1746</a>
-<a href="#1747" id="1747">1747</a>
-<a href="#1748" id="1748">1748</a>
-<a href="#1749" id="1749">1749</a>
-<a href="#1750" id="1750">1750</a>
-<a href="#1751" id="1751">1751</a>
-<a href="#1752" id="1752">1752</a>
-<a href="#1753" id="1753">1753</a>
-<a href="#1754" id="1754">1754</a>
-<a href="#1755" id="1755">1755</a>
-<a href="#1756" id="1756">1756</a>
-<a href="#1757" id="1757">1757</a>
-<a href="#1758" id="1758">1758</a>
-<a href="#1759" id="1759">1759</a>
-<a href="#1760" id="1760">1760</a>
-<a href="#1761" id="1761">1761</a>
-<a href="#1762" id="1762">1762</a>
-<a href="#1763" id="1763">1763</a>
-<a href="#1764" id="1764">1764</a>
-<a href="#1765" id="1765">1765</a>
-<a href="#1766" id="1766">1766</a>
-<a href="#1767" id="1767">1767</a>
-<a href="#1768" id="1768">1768</a>
-<a href="#1769" id="1769">1769</a>
-<a href="#1770" id="1770">1770</a>
-<a href="#1771" id="1771">1771</a>
-<a href="#1772" id="1772">1772</a>
-<a href="#1773" id="1773">1773</a>
-<a href="#1774" id="1774">1774</a>
-<a href="#1775" id="1775">1775</a>
-<a href="#1776" id="1776">1776</a>
-<a href="#1777" id="1777">1777</a>
-<a href="#1778" id="1778">1778</a>
-<a href="#1779" id="1779">1779</a>
-<a href="#1780" id="1780">1780</a>
-<a href="#1781" id="1781">1781</a>
-<a href="#1782" id="1782">1782</a>
-<a href="#1783" id="1783">1783</a>
-<a href="#1784" id="1784">1784</a>
-<a href="#1785" id="1785">1785</a>
-<a href="#1786" id="1786">1786</a>
-<a href="#1787" id="1787">1787</a>
-<a href="#1788" id="1788">1788</a>
-<a href="#1789" id="1789">1789</a>
-<a href="#1790" id="1790">1790</a>
-<a href="#1791" id="1791">1791</a>
-<a href="#1792" id="1792">1792</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::sync::Arc;
@@ -1816,7 +1739,7 @@
 <span class="kw">use </span>relay_metrics::aggregator::partition_buckets;
 <span class="kw">use </span>relay_metrics::aggregator::AggregatorConfig;
 <span class="kw">use </span>relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
-<span class="kw">use </span>relay_pii::{PiiAttachmentsProcessor, PiiConfigError};
+<span class="kw">use </span>relay_pii::PiiConfigError;
 <span class="kw">use </span>relay_profiling::ProfileId;
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
 
@@ -1842,7 +1765,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{AddMetricMeta, ProjectCache};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay};
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -1852,6 +1775,7 @@
     <span class="self">self</span>, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
 };
 
+<span class="kw">mod </span>attachment;
 <span class="kw">mod </span>dynamic_sampling;
 <span class="kw">mod </span>event;
 <span class="kw">mod </span>profile;
@@ -2495,31 +2419,6 @@
         })
     }
 
-    <span class="doccomment">/// Adds processing placeholders for special attachments.
-    ///
-    /// If special attachments are present in the envelope, this adds placeholder payloads to the
-    /// event. This indicates to the pipeline that the event needs special processing.
-    ///
-    /// If the event payload was empty before, it is created.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span><span class="kw">fn </span>create_placeholders(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">let </span>envelope = state.managed_envelope.envelope();
-        <span class="kw">let </span>minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
-        <span class="kw">let </span>apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::AppleCrashReport));
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = minidump_attachment {
-            <span class="kw">let </span>event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() <span class="kw">as </span>u64);
-            utils::process_minidump(event, <span class="kw-2">&amp;</span>item.payload());
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = apple_crash_report_attachment {
-            <span class="kw">let </span>event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() <span class="kw">as </span>u64);
-            utils::process_apple_crash_report(event, <span class="kw-2">&amp;</span>item.payload());
-        }
-    }
-
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>enforce_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>rate_limiter = <span class="kw">match </span><span class="self">self</span>.inner.rate_limiter.as_ref() {
@@ -2631,59 +2530,6 @@
         </span><span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Apply data privacy rules to attachments in the envelope.
-    ///
-    /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
-    /// attachment types. When special attachments are detected, these are scrubbed with custom
-    /// logic; otherwise the entire attachment is treated as a single binary blob.
-    </span><span class="kw">fn </span>scrub_attachments(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = state.project_state.config.pii_config {
-            <span class="kw">let </span>minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = minidump {
-                <span class="kw">let </span>filename = item.filename().unwrap_or_default();
-                <span class="kw">let </span><span class="kw-2">mut </span>payload = item.payload().to_vec();
-
-                <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
-
-                <span class="comment">// Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
-                // must be conservative and treat it as a plain attachment. Under extreme
-                // conditions, this could destroy stack memory.
-                </span><span class="kw">let </span>start = Instant::now();
-                <span class="kw">match </span>processor.scrub_minidump(filename, <span class="kw-2">&amp;mut </span>payload) {
-                    <span class="prelude-val">Ok</span>(modified) =&gt; {
-                        <span class="macro">metric!</span>(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = <span class="kw">if </span>modified { <span class="string">&quot;ok&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;n/a&quot; </span>},
-                        );
-                    }
-                    <span class="prelude-val">Err</span>(scrub_error) =&gt; {
-                        <span class="macro">metric!</span>(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = <span class="string">&quot;error&quot;
-                        </span>);
-                        <span class="macro">relay_log::warn!</span>(
-                            error = <span class="kw-2">&amp;</span>scrub_error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to scrub minidump&quot;</span>,
-                        );
-                        <span class="macro">metric!</span>(timer(RelayTimers::AttachmentScrubbing), {
-                            processor.scrub_attachment(filename, <span class="kw-2">&amp;mut </span>payload);
-                        })
-                    }
-                }
-
-                <span class="kw">let </span>content_type = item
-                    .content_type()
-                    .unwrap_or(<span class="kw-2">&amp;</span>ContentType::Minidump)
-                    .clone();
-
-                item.set_payload(content_type, payload);
-            }
-        }
-    }
-
     <span class="kw">fn </span>light_normalize_event(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
@@ -2792,7 +2638,7 @@
 
             <span class="macro">if_processing!</span>({
                 unreal::process(state)<span class="question-mark">?</span>;
-                <span class="self">self</span>.create_placeholders(state);
+                attachment::create_placeholders(state);
             });
 
             event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
@@ -2829,7 +2675,7 @@
             });
         }
 
-        <span class="self">self</span>.scrub_attachments(state);
+        attachment::scrub(state);
 
         <span class="prelude-val">Ok</span>(())
     }
