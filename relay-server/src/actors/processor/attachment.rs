@@ -1,3 +1,5 @@
+//! Attachments processor code.
+
 use std::error::Error;
 use std::time::Instant;
 
