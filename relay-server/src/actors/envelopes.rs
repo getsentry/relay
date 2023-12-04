@@ -311,14 +311,7 @@ impl EnvelopeManagerService {
         } = message;
 
         let upstream = self.config.upstream_descriptor();
-        let dsn = PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: "".to_owned(),
-            project_id: Some(scoping.project_id),
-        };
+        let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         for client_report in client_reports {

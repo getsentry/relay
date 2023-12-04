@@ -38,7 +38,11 @@ pub mod replay;
 pub use event::{normalize_event, NormalizationConfig};
 pub use normalize::breakdowns::*;
 pub use normalize::*;
+pub use remove_other::RemoveOtherProcessor;
+pub use schema::SchemaProcessor;
+pub use timestamp::TimestampProcessor;
 pub use transactions::*;
+pub use trimming::TrimmingProcessor;
 pub use user_agent::*;
 
 pub use self::clock_drift::*;

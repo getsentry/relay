@@ -435,3 +435,13 @@ class SpansConsumer(ConsumerBase):
         assert message.error() is None
 
         return json.loads(message.value())
+
+    def get_spans(self, timeout=None, max_attempts=100):
+        for _ in range(max_attempts):
+            message = self.poll(timeout=timeout)
+
+            if message is None:
+                return
+            else:
+                assert message.error() is None
+                yield json.loads(message.value())

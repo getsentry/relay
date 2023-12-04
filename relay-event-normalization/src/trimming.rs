@@ -14,12 +14,14 @@ struct BagSizeState {
     size_remaining: usize,
 }
 
+/// Limits data bags to a maximum size and depth.
 #[derive(Default)]
 pub struct TrimmingProcessor {
     bag_size_state: Vec<BagSizeState>,
 }
 
 impl TrimmingProcessor {
+    /// Creates a new trimming processor.
     pub fn new() -> Self {
         Self::default()
     }

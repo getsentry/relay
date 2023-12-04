@@ -563,6 +563,12 @@ struct Limits {
     max_profile_size: ByteSize,
     /// The maximum payload size for a span.
     max_span_size: ByteSize,
+    /// The maximum payload size for a statsd metric.
+    max_statsd_size: ByteSize,
+    /// The maximum payload size for metric buckets.
+    max_metric_buckets_size: ByteSize,
+    /// The maximum payload size for metric metadata.
+    max_metric_meta_size: ByteSize,
     /// The maximum payload size for a compressed replay.
     max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
@@ -604,6 +610,9 @@ impl Default for Limits {
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
             max_span_size: ByteSize::mebibytes(1),
+            max_statsd_size: ByteSize::mebibytes(1),
+            max_metric_buckets_size: ByteSize::mebibytes(1),
+            max_metric_meta_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
@@ -1926,6 +1935,21 @@ impl Config {
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
         self.values.limits.max_session_count
+    }
+
+    /// Returns the maximum payload size of a statsd metric in bytes.
+    pub fn max_statsd_size(&self) -> usize {
+        self.values.limits.max_statsd_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of metric buckets in bytes.
+    pub fn max_metric_buckets_size(&self) -> usize {
+        self.values.limits.max_metric_buckets_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of metric metadata in bytes.
+    pub fn max_metric_meta_size(&self) -> usize {
+        self.values.limits.max_metric_meta_size.as_bytes()
     }
 
     /// Returns the maximum payload size for general API requests.

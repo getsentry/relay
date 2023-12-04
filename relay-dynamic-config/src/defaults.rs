@@ -44,24 +44,29 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let resource_condition = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
-
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
-    let span_op_conditions = if project_config
+    let (span_op_conditions, resource_condition) = if project_config
         .features
         .has(Feature::SpanMetricsExtractionAllModules)
     {
-        RuleCondition::all()
+        (
+            RuleCondition::all(),
+            RuleCondition::glob("span.op", "resource.*"),
+        )
     } else {
         let is_disabled = RuleCondition::glob("span.op", DISABLED_DATABASES);
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.description", MONGODB_QUERIES);
+        let resource_condition = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
-        RuleCondition::eq("span.op", "http.client")
-            | RuleCondition::glob("span.op", MOBILE_OPS)
-            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
-            | resource_condition.clone()
+        (
+            RuleCondition::eq("span.op", "http.client")
+                | RuleCondition::glob("span.op", MOBILE_OPS)
+                | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
+                | resource_condition.clone(),
+            resource_condition,
+        )
     };
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
