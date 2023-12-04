@@ -455,8 +455,6 @@
 <a href="#455" id="455">455</a>
 <a href="#456" id="456">456</a>
 <a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the Global Config service.
 //!
 //! The global config service is a Relay service to manage [`GlobalConfig`]s,
@@ -497,11 +495,9 @@
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>GetGlobalConfigResponse {
-    <span class="attr">#[serde(default)]
-    </span>global: <span class="prelude-ty">Option</span>&lt;GlobalConfig&gt;,
+    global: <span class="prelude-ty">Option</span>&lt;GlobalConfig&gt;,
     <span class="comment">// Instead of using [`Status`], we use StatusResponse as a separate field in order to not
     // make breaking changes to the api.
-    </span><span class="attr">#[serde(default)]
     </span>global_status: <span class="prelude-ty">Option</span>&lt;StatusResponse&gt;,
 }
 
