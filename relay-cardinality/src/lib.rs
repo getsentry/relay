@@ -8,14 +8,17 @@
 
 mod error;
 mod limiter;
+#[cfg(feature = "redis")]
 mod redis;
 
 pub use self::error::*;
 pub use self::limiter::{Limiter, Scope};
+#[cfg(feature = "redis")]
 pub use self::redis::RedisSetLimiter;
 
 /// Redis Set based cardinality limiter.
+#[cfg(feature = "redis")]
 pub type CardinalityLimiter = self::limiter::CardinalityLimiter<RedisSetLimiter>;
 
 // TODO: I want a new type for organization ids
-pub(crate) type OrganizationId = u64;
+type OrganizationId = u64;
