@@ -13,6 +13,7 @@
 - Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
 - Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
 - Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
+- Ingest token metrics data for OpenAI completion calls. ([#2816](https://github.com/getsentry/relay/pull/2816))
 
 **Internal**:
 
