@@ -83,6 +83,7 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                 Some(description.to_owned())
             }
             ("file", _) => scrub_file(description),
+            ("ai", _) => Some(description.to_owned()),
             _ => None,
         })
 }
@@ -771,6 +772,13 @@ mod tests {
     );
 
     span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
+
+    span_description_test!(
+        ai_llm_completion,
+        "Here is a prompt",
+        "ai.llm.completion",
+        "Here is a prompt"
+    );
 
     #[test]
     fn informed_sql_parser() {

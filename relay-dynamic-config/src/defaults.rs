@@ -20,6 +20,9 @@ const DISABLED_DATABASES: &[&str] = &[
 /// A list of span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 
+/// A list of AI Module span ops we want to ingest metrics for.
+const LLM_OPS: &[&str] = &["ai.llm.*"];
+
 /// A list of patterns found in MongoDB queries
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
@@ -63,6 +66,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         (
             RuleCondition::eq("span.op", "http.client")
                 | RuleCondition::glob("span.op", MOBILE_OPS)
+                | RuleCondition::glob("span.op", LLM_OPS)
                 | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
                 | resource_condition.clone(),
             resource_condition,
@@ -142,6 +146,66 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     condition: None,
                 })
                 .into(),
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/data.llm.llm_completion_tkens@none".into(),
+            field: Some("span.data.llm_completion_tkens".into()),
+            condition: Some(RuleCondition::eq("span.op", "ai.llm.completion")),
+            tags: [
+                ("span.sentry_tags.", "group"),
+                ("span.sentry_tags.", "description"),
+                ("span.sentry_tags.", "op"),
+                ("span.data.", "language_model"),
+                ("span.sentry_tags.", "environment"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("span.{key}"),
+                field: format!("{prefix}{key}").into(),
+                value: None,
+                condition: None,
+            })
+            .into(),
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/data.llm.llm_prompt_tkens@none".into(),
+            field: Some("span.data.llm_prompt_tkens".into()),
+            condition: Some(RuleCondition::eq("span.op", "ai.llm.completion")),
+            tags: [
+                ("span.sentry_tags.", "group"),
+                ("span.sentry_tags.", "description"),
+                ("span.sentry_tags.", "op"),
+                ("span.data.", "language_model"),
+                ("span.sentry_tags.", "environment"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("span.{key}"),
+                field: format!("{prefix}{key}").into(),
+                value: None,
+                condition: None,
+            })
+            .into(),
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/data.llm.llm_total_tkens@none".into(),
+            field: Some("span.data.llm_total_tkens".into()),
+            condition: Some(RuleCondition::eq("span.op", "ai.llm.completion")),
+            tags: [
+                ("span.sentry_tags.", "group"),
+                ("span.sentry_tags.", "description"),
+                ("span.sentry_tags.", "op"),
+                ("span.data.", "language_model"),
+                ("span.sentry_tags.", "environment"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("span.{key}"),
+                field: format!("{prefix}{key}").into(),
+                value: None,
+                condition: None,
+            })
+            .into(),
         },
     ]);
 
