@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use std::{collections::HashMap, fs::File};
 
 use relay_event_normalization::MeasurementsConfig;
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ pub struct GlobalConfig {
     /// Configuration for measurements normalization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
-    /// Sentry options passed down to relay.
+    /// Sentry options passed down to Relay.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<Options>,
 }
@@ -25,7 +26,7 @@ pub struct GlobalConfig {
 impl GlobalConfig {
     /// Loads the [`GlobalConfig`] from a file if it's provided.
     ///
-    /// The folder_path argument should be the path to the folder where the relay config and
+    /// The folder_path argument should be the path to the folder where the Relay config and
     /// credentials are stored.
     pub fn load(folder_path: &Path) -> anyhow::Result<Option<Self>> {
         let path = folder_path.join("global_config.json");
@@ -56,7 +57,6 @@ pub struct Options {
 
 #[cfg(test)]
 mod tests {
-
     use relay_base_schema::metrics::MetricUnit;
     use relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
 
