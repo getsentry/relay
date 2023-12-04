@@ -1,9 +1,10 @@
-use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::{collections::HashMap, fs::File};
 
 use relay_event_normalization::MeasurementsConfig;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -14,7 +15,11 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GlobalConfig {
     /// Configuration for measurements normalization.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
+    /// Sentry options passed down to relay.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<Options>,
 }
 
 impl GlobalConfig {
@@ -34,13 +39,28 @@ impl GlobalConfig {
     }
 }
 
+/// All options passed down from Sentry to Relay.
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Options {
+    // Example:
+    // ```rs
+    // #[serde(default, rename = "relay.some-option.name")]
+    // pub some_option: Vec<u32>,
+    // ```
+    /// All other unknown options.
+    #[serde(flatten)]
+    other: HashMap<String, Value>,
+}
+
 #[cfg(test)]
 mod tests {
 
     use relay_base_schema::metrics::MetricUnit;
     use relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
 
-    use super::GlobalConfig;
+    use super::*;
 
     #[test]
     fn test_global_config_roundtrip() {
@@ -52,6 +72,9 @@ mod tests {
                     BuiltinMeasurementKey::new("baz", MetricUnit::None),
                 ],
                 max_custom_measurements: 5,
+            }),
+            options: Some(Options {
+                other: HashMap::from([("relay.unknown".to_owned(), Value::Bool(true))]),
             }),
         };
 
