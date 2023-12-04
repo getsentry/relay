@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
 use relay_event_normalization::MeasurementsConfig;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// A dynamic configuration for all Relays passed down from Sentry.
 ///
@@ -14,13 +16,17 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GlobalConfig {
     /// Configuration for measurements normalization.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
+    /// Sentry options passed down to Relay.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<Options>,
 }
 
 impl GlobalConfig {
     /// Loads the [`GlobalConfig`] from a file if it's provided.
     ///
-    /// The folder_path argument should be the path to the folder where the relay config and
+    /// The folder_path argument should be the path to the folder where the Relay config and
     /// credentials are stored.
     pub fn load(folder_path: &Path) -> anyhow::Result<Option<Self>> {
         let path = folder_path.join("global_config.json");
@@ -34,13 +40,27 @@ impl GlobalConfig {
     }
 }
 
+/// All options passed down from Sentry to Relay.
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Options {
+    // Example:
+    // ```rs
+    // #[serde(default, rename = "relay.some-option.name")]
+    // pub some_option: Vec<u32>,
+    // ```
+    /// All other unknown options.
+    #[serde(flatten)]
+    other: HashMap<String, Value>,
+}
+
 #[cfg(test)]
 mod tests {
-
     use relay_base_schema::metrics::MetricUnit;
     use relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
 
-    use super::GlobalConfig;
+    use super::*;
 
     #[test]
     fn test_global_config_roundtrip() {
@@ -52,6 +72,9 @@ mod tests {
                     BuiltinMeasurementKey::new("baz", MetricUnit::None),
                 ],
                 max_custom_measurements: 5,
+            }),
+            options: Some(Options {
+                other: HashMap::from([("relay.unknown".to_owned(), Value::Bool(true))]),
             }),
         };
 

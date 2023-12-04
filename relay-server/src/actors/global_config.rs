@@ -38,11 +38,9 @@ type UpstreamQueryResult =
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetGlobalConfigResponse {
-    #[serde(default)]
     global: Option<GlobalConfig>,
     // Instead of using [`Status`], we use StatusResponse as a separate field in order to not
     // make breaking changes to the api.
-    #[serde(default)]
     global_status: Option<StatusResponse>,
 }
 
