@@ -24,7 +24,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
-use relay_pii::{PiiAttachmentsProcessor, PiiConfigError};
+use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 
@@ -50,7 +50,7 @@ use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::test_store::TestStore;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -60,6 +60,7 @@ use crate::utils::{
     self, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
 };
 
+mod attachment;
 mod dynamic_sampling;
 mod event;
 mod profile;
@@ -703,31 +704,6 @@ impl EnvelopeProcessorService {
         })
     }
 
-    /// Adds processing placeholders for special attachments.
-    ///
-    /// If special attachments are present in the envelope, this adds placeholder payloads to the
-    /// event. This indicates to the pipeline that the event needs special processing.
-    ///
-    /// If the event payload was empty before, it is created.
-    #[cfg(feature = "processing")]
-    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.managed_envelope.envelope();
-        let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-        let apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
-
-        if let Some(item) = minidump_attachment {
-            let event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-            utils::process_minidump(event, &item.payload());
-        } else if let Some(item) = apple_crash_report_attachment {
-            let event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-            utils::process_apple_crash_report(event, &item.payload());
-        }
-    }
-
     #[cfg(feature = "processing")]
     fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
@@ -839,59 +815,6 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Apply data privacy rules to attachments in the envelope.
-    ///
-    /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
-    /// attachment types. When special attachments are detected, these are scrubbed with custom
-    /// logic; otherwise the entire attachment is treated as a single binary blob.
-    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.managed_envelope.envelope_mut();
-        if let Some(ref config) = state.project_state.config.pii_config {
-            let minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-
-            if let Some(item) = minidump {
-                let filename = item.filename().unwrap_or_default();
-                let mut payload = item.payload().to_vec();
-
-                let processor = PiiAttachmentsProcessor::new(config.compiled());
-
-                // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
-                // must be conservative and treat it as a plain attachment. Under extreme
-                // conditions, this could destroy stack memory.
-                let start = Instant::now();
-                match processor.scrub_minidump(filename, &mut payload) {
-                    Ok(modified) => {
-                        metric!(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = if modified { "ok" } else { "n/a" },
-                        );
-                    }
-                    Err(scrub_error) => {
-                        metric!(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = "error"
-                        );
-                        relay_log::warn!(
-                            error = &scrub_error as &dyn Error,
-                            "failed to scrub minidump",
-                        );
-                        metric!(timer(RelayTimers::AttachmentScrubbing), {
-                            processor.scrub_attachment(filename, &mut payload);
-                        })
-                    }
-                }
-
-                let content_type = item
-                    .content_type()
-                    .unwrap_or(&ContentType::Minidump)
-                    .clone();
-
-                item.set_payload(content_type, payload);
-            }
-        }
-    }
-
     fn light_normalize_event(
         &self,
         state: &mut ProcessEnvelopeState,
@@ -1000,7 +923,7 @@ impl EnvelopeProcessorService {
 
             if_processing!({
                 unreal::process(state)?;
-                self.create_placeholders(state);
+                attachment::create_placeholders(state);
             });
 
             event::finalize(state, &self.inner.config)?;
@@ -1037,7 +960,7 @@ impl EnvelopeProcessorService {
             });
         }
 
-        self.scrub_attachments(state);
+        attachment::scrub(state);
 
         Ok(())
     }
