@@ -18,13 +18,13 @@ use relay_event_normalization::{
     TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkReportError};
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
-use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
+use relay_pii::{PiiAttachmentsProcessor, PiiConfigError};
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 
@@ -38,7 +38,6 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -207,24 +206,6 @@ impl From<ExtractMetricsError> for ProcessingError {
 }
 
 type ExtractedEvent = (Annotated<Event>, usize);
-
-/// Checks if the Event includes unprintable fields.
-#[cfg(feature = "processing")]
-fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
-    fn is_unprintable(value: &&str) -> bool {
-        value.chars().any(|c| {
-            c == '\u{fffd}' // unicode replacement character
-                || (c.is_control() && !c.is_whitespace()) // non-whitespace control characters
-        })
-    }
-    if let Some(event) = event.value() {
-        let env = event.environment.as_str().filter(is_unprintable);
-        let release = event.release.as_str().filter(is_unprintable);
-        env.is_some() || release.is_some()
-    } else {
-        false
-    }
-}
 
 impl ExtractedMetrics {
     // TODO(ja): Move
@@ -748,64 +729,6 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn store_process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let ProcessEnvelopeState {
-            ref mut event,
-            ref project_state,
-            ref managed_envelope,
-            ..
-        } = *state;
-
-        let key_id = project_state
-            .get_public_key_config()
-            .and_then(|k| Some(k.numeric_id?.to_string()));
-
-        let envelope = state.managed_envelope.envelope();
-
-        if key_id.is_none() {
-            relay_log::error!(
-                "project state for key {} is missing key id",
-                envelope.meta().public_key()
-            );
-        }
-
-        let store_config = StoreConfig {
-            project_id: Some(state.project_id.value()),
-            client_ip: envelope.meta().client_addr().map(IpAddr::from),
-            client: envelope.meta().client().map(str::to_owned),
-            key_id,
-            protocol_version: Some(envelope.meta().version().to_string()),
-            grouping_config: project_state.config.grouping_config.clone(),
-            user_agent: envelope.meta().user_agent().map(str::to_owned),
-            max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-            max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
-            enable_trimming: Some(true),
-            is_renormalize: Some(false),
-            remove_other: Some(true),
-            normalize_user_agent: Some(true),
-            sent_at: envelope.sent_at(),
-            received_at: Some(managed_envelope.received_at()),
-            breakdowns: project_state.config.breakdowns_v2.clone(),
-            span_attributes: project_state.config.span_attributes.clone(),
-            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
-            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
-            client_hints: envelope.meta().client_hints().to_owned(),
-        };
-
-        let mut store_processor =
-            StoreProcessor::new(store_config, self.inner.geoip_lookup.as_ref());
-        metric!(timer(RelayTimers::EventProcessingProcess), {
-            processor::process_value(event, &mut store_processor, ProcessingState::root())
-                .map_err(|_| ProcessingError::InvalidTransaction)?;
-            if has_unprintable_fields(event) {
-                metric!(counter(RelayCounters::EventCorrupted) += 1);
-            }
-        });
-
-        Ok(())
-    }
-
-    #[cfg(feature = "processing")]
     fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
@@ -916,37 +839,6 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Apply data privacy rules to the event payload.
-    ///
-    /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-    fn scrub_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let event = &mut state.event;
-        let config = &state.project_state.config;
-
-        if config.datascrubbing_settings.scrub_data {
-            if let Some(event) = event.value_mut() {
-                scrub_graphql(event);
-            }
-        }
-
-        metric!(timer(RelayTimers::EventProcessingPii), {
-            if let Some(ref config) = config.pii_config {
-                let mut processor = PiiProcessor::new(config.compiled());
-                processor::process_value(event, &mut processor, ProcessingState::root())?;
-            }
-            let pii_config = config
-                .datascrubbing_settings
-                .pii_config()
-                .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-            if let Some(config) = pii_config {
-                let mut processor = PiiProcessor::new(config.compiled());
-                processor::process_value(event, &mut processor, ProcessingState::root())?;
-            }
-        });
-
-        Ok(())
-    }
-
     /// Apply data privacy rules to attachments in the envelope.
     ///
     /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
@@ -998,49 +890,6 @@ impl EnvelopeProcessorService {
                 item.set_payload(content_type, payload);
             }
         }
-    }
-
-    fn serialize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-            state
-                .event
-                .to_json()
-                .map_err(ProcessingError::SerializeFailed)?
-        });
-
-        let event_type = state.event_type().unwrap_or_default();
-        let mut event_item = Item::new(ItemType::from_event_type(event_type));
-        event_item.set_payload(ContentType::Json, data);
-
-        // If transaction metrics were extracted, set the corresponding item header
-        event_item.set_metrics_extracted(state.event_metrics_extracted);
-
-        // If there are sample rates, write them back to the envelope. In processing mode, sample
-        // rates have been removed from the state and burnt into the event via `finalize_event`.
-        if let Some(sample_rates) = state.sample_rates.take() {
-            event_item.set_sample_rates(sample_rates);
-        }
-
-        state.envelope_mut().add_item(event_item);
-
-        Ok(())
-    }
-
-    /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-    fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
-            // We assume that sampling is only supposed to work on transactions.
-            if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
-                let matched_rules = sampling_match.into_matched_rules();
-
-                state
-                    .managed_envelope
-                    .reject(Outcome::FilteredSampling(matched_rules.clone()));
-
-                return Err(ProcessingError::Sampled(matched_rules));
-            }
-        }
-        Ok(())
     }
 
     fn light_normalize_event(
@@ -1166,10 +1015,10 @@ impl EnvelopeProcessorService {
                 self.extract_metrics(state)?;
             }
 
-            self.sample_envelope(state)?;
+            dynamic_sampling::sample_envelope(state)?;
 
             if_processing!({
-                self.store_process_event(state)?;
+                event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
             });
         }
 
@@ -1181,8 +1030,8 @@ impl EnvelopeProcessorService {
         });
 
         if state.has_event() {
-            self.scrub_event(state)?;
-            self.serialize_event(state)?;
+            event::scrub(state)?;
+            event::serialize(state)?;
             if_processing!({
                 span::extract_from_event(state);
             });
@@ -1767,40 +1616,6 @@ mod tests {
             r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
             browser.to_json().unwrap()
         );
-    }
-
-    #[test]
-    #[cfg(feature = "processing")]
-    fn test_unprintable_fields() {
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from(
-                "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
-            )),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
-            ),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from("production")),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("release with\t some\n normal\r\nwhitespace").into(),
-            ),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
     }
 
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
