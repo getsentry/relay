@@ -111,7 +111,6 @@ impl NormalizeVisitor {
     fn transform_query(&mut self, query: &mut Query) {
         if let SetExpr::Select(select) = &mut *query.body {
             self.transform_select(&mut *select);
-            // self.transform_from(&mut select.from);
         }
     }
 
