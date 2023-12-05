@@ -25,15 +25,15 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
+use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, schema, span, transactions, trimming, user_agent, BreakdownsConfig,
-    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
-    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    breakdowns, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
+    BreakdownsConfig, ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup,
+    PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
-use crate::{mechanism, stacktrace};
 
 /// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
@@ -268,6 +268,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     ); // Measurements are part of the metric extraction
     normalize_performance_score(event, config.performance_score);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+
+    processor::apply(&mut event.request, |request, _| {
+        request::normalize_request(request)
+    })?;
 
     // Some contexts need to be normalized before metrics extraction takes place.
     processor::apply(&mut event.contexts, normalize_contexts)?;

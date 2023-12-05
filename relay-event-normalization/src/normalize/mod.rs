@@ -23,12 +23,12 @@ use crate::{GeoIpLookup, StoreConfig};
 
 pub mod breakdowns;
 pub mod nel;
+pub mod request;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
 
 mod contexts;
-mod request;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
@@ -459,19 +459,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         if breadcrumb.level.value().is_none() {
             breadcrumb.level.set_value(Some(Level::Info));
         }
-
-        Ok(())
-    }
-
-    fn process_request(
-        &mut self,
-        request: &mut Request,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        request.process_child_values(self, state)?;
-
-        request::normalize_request(request)?;
 
         Ok(())
     }
