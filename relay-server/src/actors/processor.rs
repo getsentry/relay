@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::Write;
 use std::sync::Arc;
@@ -27,7 +28,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, RateLimits, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 
 use relay_statsd::metric;
@@ -40,9 +41,8 @@ use {
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{ItemScoping, RateLimitingError, ReasonCode, RedisRateLimiter},
+    relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
-    std::collections::BTreeMap,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -1515,7 +1515,6 @@ impl EnvelopeProcessorService {
     }
 
     /// Records the outcomes of the dropped buckets.
-    #[cfg(feature = "processing")]
     fn drop_buckets_with_outcomes(
         &self,
         reason_code: Option<ReasonCode>,
@@ -1567,7 +1566,6 @@ impl EnvelopeProcessorService {
     }
 
     /// Returns `true` if the batches should be rate limited.
-    #[cfg(feature = "processing")]
     fn rate_limit_batches(
         &self,
         cached_rate_limits: RateLimits,
@@ -1577,10 +1575,6 @@ impl EnvelopeProcessorService {
         max_batch_size_bytes: usize,
         project_state: Arc<ProjectState>,
     ) -> bool {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return false;
-        };
-
         let mode = {
             let usage = match project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
@@ -1607,6 +1601,8 @@ impl EnvelopeProcessorService {
             })
             .sum();
 
+        // Local check if throughput limit has been exceeded. Used for limiting the amount of redis
+        // calls, as well as extending the throughput limiting to non-processing relays.
         if cached_rate_limits
             .check_with_quotas(quotas, item_scoping)
             .is_limited()
@@ -1627,31 +1623,36 @@ impl EnvelopeProcessorService {
             return true;
         }
 
-        match rate_limiter.is_rate_limited(quotas, item_scoping, total_batches, false) {
-            Ok(limits) if limits.is_limited() => {
-                relay_log::info!("dropping {bucket_qty} buckets due to throughput ratelimit");
+        #[cfg(feature = "processing")]
+        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
+            // Check with redis if the throughput limit has been exceeded, while also updating
+            // the count so that other relays will be updated too.
+            match rate_limiter.is_rate_limited(quotas, item_scoping, total_batches, false) {
+                Ok(limits) if limits.is_limited() => {
+                    relay_log::info!("dropping {bucket_qty} buckets due to throughput ratelimit");
 
-                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                self.drop_buckets_with_outcomes(
-                    reason_code,
-                    total_batches,
-                    scoping,
-                    bucket_partitions,
-                    mode,
-                );
+                    let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                    self.drop_buckets_with_outcomes(
+                        reason_code,
+                        total_batches,
+                        scoping,
+                        bucket_partitions,
+                        mode,
+                    );
 
-                self.inner
-                    .project_cache
-                    .send(UpdateRateLimits::new(scoping.project_key, limits));
+                    self.inner
+                        .project_cache
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
 
-                return true;
-            }
-            Ok(_) => {} // not ratelimited
-            Err(e) => {
-                relay_log::error!(
-                    error = &e as &dyn std::error::Error,
-                    "failed to check redis rate limits"
-                );
+                    return true;
+                }
+                Ok(_) => {} // not ratelimited
+                Err(e) => {
+                    relay_log::error!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to check redis rate limits"
+                    );
+                }
             }
         }
 
@@ -1663,8 +1664,8 @@ impl EnvelopeProcessorService {
             buckets,
             scoping,
             extraction_mode,
-            project_state: _project_state,
-            rate_limits: _cached_rate_limits,
+            project_state,
+            rate_limits: cached_rate_limits,
         } = message;
 
         let partitions = self.inner.config.metrics_partitions();
@@ -1673,17 +1674,16 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        let _bucket_qty = buckets.len();
+        let bucket_qty = buckets.len();
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
-        #[cfg(feature = "processing")]
         if self.rate_limit_batches(
-            _cached_rate_limits,
+            cached_rate_limits,
             scoping,
-            _bucket_qty,
+            bucket_qty,
             &bucket_partitions,
             max_batch_size_bytes,
-            _project_state,
+            project_state,
         ) {
             return;
         }
