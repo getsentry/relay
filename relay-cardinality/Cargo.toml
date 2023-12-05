@@ -13,22 +13,12 @@ publish = false
 redis = ["relay-redis/impl"]
 
 [dependencies]
-# TODO: dav1d fix me
-relay-metrics = { path = "../relay-metrics" }
-relay-redis = { path = "../relay-redis" }
-# relay-common = { path = "../relay-common" }
-# relay-event-schema = { path = "../relay-event-schema" }
-relay-log = { path = "../relay-log" }
-# relay-protocol = { path = "../relay-protocol" }
-thiserror = { workspace = true }
 hash32 = "0.3.1"
 itertools = { workspace = true }
+relay-log = { path = "../relay-log" }
+relay-metrics = { path = "../relay-metrics" }
+relay-redis = { path = "../relay-redis" }
+relay-statsd = { path = "../relay-statsd" }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-# TODO: dav1d fix me
-# insta = { workspace = true }
-# itertools = { workspace = true }
-# pretty-hex = "0.3.0"
-# relay-protocol = { path = "../relay-protocol", features = ["test"] }
-# serde_json = { workspace = true }
-# similar-asserts = { workspace = true }

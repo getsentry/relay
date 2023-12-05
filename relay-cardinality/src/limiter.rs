@@ -6,41 +6,30 @@ use hash32::{FnvHasher, Hasher as _};
 
 use crate::{OrganizationId, Result};
 
-// TODO: give this a better name
 /// Limiter responsible to enforce limits.
 pub trait Limiter {
-    /// TODO docs
-    // TODO: figure out why I cant return impl Trait here, it's 1.74 already!
+    /// Verifies cardinality limits.
+    ///
+    /// Returns an iterator containing only accepted entries.
     fn check_cardinality_limits<I>(
         &self,
         organization: OrganizationId,
         entries: I,
+        limit: usize,
     ) -> Result<Box<dyn Iterator<Item = Entry>>>
     where
         I: IntoIterator<Item = Entry>;
 }
 
-// TODO: can we remove this, everything is operated on a per org basis anyways
-/// Scope for which cardinality will be tracked.
-///
-/// Currently this includes the organization and [namespace](`MetricNamespace`).
-/// Eventually we want to track cardinality also on more fine grained namespaces,
-/// e.g. on individual metric basis.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
-pub struct Scope {
-    /// The organization.
-    pub organization_id: OrganizationId,
-    /// The metric namespace, extracted from the metric bucket name.
-    pub namespace: MetricNamespace,
-}
-
-/// TODO doc me and maybe rename me
+/// A single entry to check cardinality for.
 #[derive(Clone, Copy, Debug)]
 pub struct Entry {
     /// Opaque entry Id, used to keep track of indices and buckets.
     pub id: EntryId,
 
+    /// Metric namespace.
     pub namespace: MetricNamespace,
+    /// Hash of the metric.
     pub hash: u32,
 
     /// Implementation detail to optimize the implementation.
@@ -51,14 +40,15 @@ pub struct Entry {
     status: EntryStatus,
 }
 
-// TODO: visibility, these types should be visible in the crate but not outside of it
 /// Represents a unique Id for a bucket within one invocation
 /// of the cardinality limiter.
-#[derive(Clone, Copy, Debug)]
-pub struct EntryId(usize);
+///
+/// Opaque data structure used by [`CardinalityLimiter`] to track
+/// which buckets have been accepted and rejected.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+pub struct EntryId(pub(crate) usize);
 
-/// TODO: docs
-/// Status of an entry.
+/// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
 #[derive(Clone, Copy, Debug)]
 enum EntryStatus {
     /// Entry is rejected.
@@ -100,11 +90,11 @@ impl Entry {
     }
 }
 
+/// [`CardinalityLimiter`] configuration.
+#[derive(Debug, Clone)]
 pub struct Config {
-    /// Global sample rate.
-    ///
-    /// Sampling is done on an organizational level.
-    pub sample_rate: f32,
+    /// The cardinality limit to enforce.
+    pub cardinality_limit: usize,
 }
 
 /// Cardinality Limiter enforcing cardinality limits on buckets.
@@ -120,16 +110,14 @@ impl<T: Limiter> CardinalityLimiter<T> {
         Self { limiter, config }
     }
 
-    // TODO: replace with BucketsView after BucketsView PR is merged
+    /// Checks cardinality limits of a list of buckets.
+    ///
+    /// Returns an iterator of all buckets that have been accepted.
     pub fn check_cardinality_limits<'a>(
         &'a self,
         organization: OrganizationId,
         buckets: &'a [Bucket],
-    ) -> Result<Box<dyn Iterator<Item = &'a Bucket> + '_>> {
-        if matches!(self.sample_by_org(organization), SampleDecision::Ignore) {
-            return Ok(Box::new(vec![].into_iter()));
-        }
-
+    ) -> Result<impl Iterator<Item = &'a Bucket>> {
         let entries = buckets
             .iter()
             .enumerate()
@@ -137,56 +125,23 @@ impl<T: Limiter> CardinalityLimiter<T> {
 
         let accepted = self
             .limiter
-            .check_cardinality_limits(organization, entries)?
+            .check_cardinality_limits(organization, entries, self.config.cardinality_limit)?
             .map(|entry| &buckets[entry.id.0]);
 
-        Ok(Box::new(accepted))
+        Ok(accepted)
     }
 }
 
 impl<T: Limiter> CardinalityLimiter<T> {
-    /// Currently to explore cardinality limiter implementation limits
-    /// and performance we want to sample to gather information.
-    ///
-    /// Sampling is currently purely done on an organizational level,
-    /// which may lead to an unequal amount of sampling (large orgs vs small orgs),
-    /// but sampling on metrics themselfs is hard to achieve, since we need to know
-    /// previously accepted buckets.
-    ///
-    /// TODO: verify sampling by bucket is feasible and works? The same hash should always
-    /// be sampled and hence accepted.
-    ///
-    /// This should eventually removed if we have the cardinality fully in production.
-    fn sample_by_org(&self, org: OrganizationId) -> SampleDecision {
-        let keep = (org % 100) < (100.0 * self.config.sample_rate) as u64;
-
-        if keep {
-            SampleDecision::Keep
-        } else {
-            SampleDecision::Ignore
-        }
-    }
-
     fn parse_bucket(&self, id: EntryId, bucket: &Bucket) -> Option<Entry> {
+        // Parsing in practice will never fail here, all buckets have been validated before.
         let mri = match MetricResourceIdentifier::parse(&bucket.name) {
-            Ok(mri) if !matches!(mri.namespace, MetricNamespace::Unsupported) => {
-                // TODO: we could actually implement limiting for unsupported,
-                // we dont have to reject here.
-                relay_log::trace!(
-                    metric = bucket.name,
-                    "rejecting metric with unsupported namespace"
-                );
-                return None;
-            }
             Err(error) => {
-                // TODO: what level do we log here?
-                relay_log::trace!(
+                relay_log::debug!(
                     error = &error as &dyn std::error::Error,
                     metric = bucket.name,
                     "rejecting metric with invalid MRI"
                 );
-                // TODO: REJECT BUCKET
-                // TODO: actually use a whitelist?
                 return None;
             }
             Ok(mri) => mri,
@@ -196,11 +151,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
     }
 }
 
-enum SampleDecision {
-    Ignore,
-    Keep,
-}
-
+/// Hashes a bucket to use for the cardinality limiter.
 fn cardinality_hash(bucket: &Bucket) -> u32 {
     let mut hasher = FnvHasher::default();
     bucket.name.hash(&mut hasher);

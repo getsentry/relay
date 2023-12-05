@@ -7,12 +7,13 @@
 )]
 
 mod error;
+#[cfg(feature = "redis")]
 mod limiter;
 #[cfg(feature = "redis")]
 mod redis;
+mod statsd;
 
 pub use self::error::*;
-pub use self::limiter::{Limiter, Scope};
 #[cfg(feature = "redis")]
 pub use self::redis::RedisSetLimiter;
 
@@ -20,5 +21,6 @@ pub use self::redis::RedisSetLimiter;
 #[cfg(feature = "redis")]
 pub type CardinalityLimiter = self::limiter::CardinalityLimiter<RedisSetLimiter>;
 
-// TODO: I want a new type for organization ids
+/// Internal alias for better readability.
+#[cfg(feature = "redis")]
 type OrganizationId = u64;
