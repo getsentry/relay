@@ -65,27 +65,15 @@ fn process_user_reports(state: &mut ProcessEnvelopeState) {
             return ItemAction::Keep;
         };
 
-        let report = match serde_json::from_slice::<UserReport>(&item.payload()) {
+        let payload = item.payload();
+        // There is a customer SDK which sends invalid reports with a trailing `\n`,
+        // strip it here, even if they update/fix their SDK there will still be many old
+        // versions with the broken SDK out there.
+        let payload = trim_whitespaces(&payload);
+        let report = match serde_json::from_slice::<UserReport>(payload) {
             Ok(session) => session,
             Err(error) => {
-                let mut payload = item.payload();
-                payload.truncate(100_000);
-                relay_log::with_scope(
-                    move |scope| {
-                        scope.add_attachment(relay_log::protocol::Attachment {
-                            buffer: payload.into(),
-                            filename: "payload.json".to_owned(),
-                            content_type: Some("application/json".to_owned()),
-                            ty: None,
-                        })
-                    },
-                    || {
-                        relay_log::error!(
-                            error = &error as &dyn Error,
-                            "failed to store user report"
-                        );
-                    },
-                );
+                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
                 return ItemAction::DropSilently;
             }
         };
@@ -104,6 +92,16 @@ fn process_user_reports(state: &mut ProcessEnvelopeState) {
         item.set_payload(ContentType::Json, json_string);
         ItemAction::Keep
     });
+}
+
+fn trim_whitespaces(data: &[u8]) -> &[u8] {
+    let Some(from) = data.iter().position(|x| !x.is_ascii_whitespace()) else {
+        return &[];
+    };
+    let Some(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) else {
+        return &[];
+    };
+    &data[from..to + 1]
 }
 
 /// Parse an outcome from an outcome ID and a reason string.
@@ -561,5 +559,14 @@ mod tests {
             outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
             Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
         );
+    }
+
+    #[test]
+    fn test_trim_whitespaces() {
+        assert_eq!(trim_whitespaces(b""), b"");
+        assert_eq!(trim_whitespaces(b" \n\r "), b"");
+        assert_eq!(trim_whitespaces(b" \nx\r "), b"x");
+        assert_eq!(trim_whitespaces(b" {foo: bar} "), b"{foo: bar}");
+        assert_eq!(trim_whitespaces(b"{ foo: bar}"), b"{ foo: bar}");
     }
 }
