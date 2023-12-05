@@ -211,6 +211,12 @@
 <a href="#211" id="211">211</a>
 <a href="#212" id="212">212</a>
 <a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization and processing.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -231,19 +237,24 @@
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">mod </span>clock_drift;
+<span class="kw">mod </span>event;
 <span class="kw">mod </span>event_error;
 <span class="kw">mod </span>geo;
 <span class="kw">mod </span>legacy;
+<span class="kw">mod </span>logentry;
+<span class="kw">mod </span>mechanism;
 <span class="kw">mod </span>normalize;
 <span class="kw">mod </span>regexes;
 <span class="kw">mod </span>remove_other;
 <span class="kw">mod </span>schema;
+<span class="kw">mod </span>stacktrace;
 <span class="kw">mod </span>statsd;
 <span class="kw">mod </span>timestamp;
 <span class="kw">mod </span>transactions;
 <span class="kw">mod </span>trimming;
 
 <span class="kw">pub mod </span>replay;
+<span class="kw">pub use </span>event::{normalize_event, NormalizationConfig};
 <span class="kw">pub use </span>normalize::breakdowns::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>normalize::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>remove_other::RemoveOtherProcessor;
@@ -367,9 +378,10 @@
 
 <span class="doccomment">/// The processor that normalizes events for processing and storage.
 ///
-/// This processor is a superset of [`NormalizeProcessor`], that runs additional and heavier
-/// normalization steps. These normalizations should ideally be performed on events that are likely
-/// to be ingested, after other functionality such as inbound filters have run.
+/// This processor is a superset of [basic normalization](crate::normalize_event),
+/// that runs additional and heavier normalization steps. These normalizations
+/// should ideally be performed on events that are likely to be ingested, after
+/// other functionality such as inbound filters have run.
 ///
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
 </span><span class="kw">pub struct </span>StoreProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {

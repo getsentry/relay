@@ -1871,23 +1871,6 @@
 <a href="#1871" id="1871">1871</a>
 <a href="#1872" id="1872">1872</a>
 <a href="#1873" id="1873">1873</a>
-<a href="#1874" id="1874">1874</a>
-<a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a>
-<a href="#1879" id="1879">1879</a>
-<a href="#1880" id="1880">1880</a>
-<a href="#1881" id="1881">1881</a>
-<a href="#1882" id="1882">1882</a>
-<a href="#1883" id="1883">1883</a>
-<a href="#1884" id="1884">1884</a>
-<a href="#1885" id="1885">1885</a>
-<a href="#1886" id="1886">1886</a>
-<a href="#1887" id="1887">1887</a>
-<a href="#1888" id="1888">1888</a>
-<a href="#1889" id="1889">1889</a>
-<a href="#1890" id="1890">1890</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -2323,10 +2306,9 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_dynamic_config::AcceptTransactionNames;
     <span class="kw">use </span>relay_event_normalization::{
-        set_default_transaction_source, BreakdownsConfig, DynamicMeasurementsConfig,
-        MeasurementsConfig, NormalizeProcessor, NormalizeProcessorConfig,
+        normalize_event, set_default_transaction_source, BreakdownsConfig,
+        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig,
     };
-    <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
     <span class="kw">use </span>relay_event_schema::protocol::User;
     <span class="kw">use </span>relay_metrics::BucketValue;
     <span class="kw">use </span>relay_protocol::Annotated;
@@ -2405,15 +2387,14 @@
         .unwrap();
 
         <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
-        </span>process_value(
+        </span>normalize_event(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+            <span class="kw-2">&amp;</span>NormalizationConfig {
                 breakdowns_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>breakdowns_config),
                 enrich_spans: <span class="bool-val">false</span>,
-                light_normalize_spans: <span class="bool-val">true</span>,
+                normalize_spans: <span class="bool-val">true</span>,
                 ..Default::default()
-            }),
-            ProcessingState::root(),
+            },
         )
         .unwrap();
 
@@ -2642,12 +2623,7 @@
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
-        process_value(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig::default()),
-            ProcessingState::root(),
-        )
-        .unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
@@ -2768,12 +2744,7 @@
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
-        process_value(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig::default()),
-            ProcessingState::root(),
-        )
-        .unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
 
         <span class="kw">let </span>config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
@@ -2942,13 +2913,12 @@
 
         <span class="kw">let </span>config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config), <span class="prelude-val">None</span>);
 
-        process_value(
+        normalize_event(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig {
+            <span class="kw-2">&amp;</span>NormalizationConfig {
                 measurements: <span class="prelude-val">Some</span>(config),
                 ..Default::default()
-            }),
-            ProcessingState::root(),
+            },
         )
         .unwrap();
 
@@ -3577,11 +3547,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="comment">// Normalize first, to make sure that the metrics were computed:
-        </span><span class="kw">let _ </span>= process_value(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>NormalizeProcessor::new(NormalizeProcessorConfig::default()),
-            ProcessingState::root(),
-        );
+        </span><span class="kw">let _ </span>= normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {

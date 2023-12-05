@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/normalize/processor.rs`."><title>processor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0 (79e9716c9 2023-11-13)" data-channel="1.74.0" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-event-normalization/src/event.rs`."><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fa3bb1812debf86c.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_event_normalization" data-themes="" data-resource-suffix="" data-rustdoc-version="1.74.0 (79e9716c9 2023-11-13)" data-channel="1.74.0" data-search-js="search-8be46b629f5f14a8.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c5bd66d33317d69f.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay_event_normalization/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2318,37 +2318,9 @@
 <a href="#2318" id="2318">2318</a>
 <a href="#2319" id="2319">2319</a>
 <a href="#2320" id="2320">2320</a>
-<a href="#2321" id="2321">2321</a>
-<a href="#2322" id="2322">2322</a>
-<a href="#2323" id="2323">2323</a>
-<a href="#2324" id="2324">2324</a>
-<a href="#2325" id="2325">2325</a>
-<a href="#2326" id="2326">2326</a>
-<a href="#2327" id="2327">2327</a>
-<a href="#2328" id="2328">2328</a>
-<a href="#2329" id="2329">2329</a>
-<a href="#2330" id="2330">2330</a>
-<a href="#2331" id="2331">2331</a>
-<a href="#2332" id="2332">2332</a>
-<a href="#2333" id="2333">2333</a>
-<a href="#2334" id="2334">2334</a>
-<a href="#2335" id="2335">2335</a>
-<a href="#2336" id="2336">2336</a>
-<a href="#2337" id="2337">2337</a>
-<a href="#2338" id="2338">2338</a>
-<a href="#2339" id="2339">2339</a>
-<a href="#2340" id="2340">2340</a>
-<a href="#2341" id="2341">2341</a>
-<a href="#2342" id="2342">2342</a>
-<a href="#2343" id="2343">2343</a>
-<a href="#2344" id="2344">2344</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization processor.
+</pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
-//! This processor is work in progress. The intention is to have a single
-//! processor to deal with all event normalization. Currently, the normalization
-//! logic is split across several processing steps running at different times
-//! and under different conditions, like light normalization and store
-//! processing. Having a single processor will make things simpler.
+//! This module provides a function to normalize events.
 
 </span><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
@@ -2373,7 +2345,6 @@
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 <span class="kw">use </span>smallvec::SmallVec;
 
-<span class="kw">use </span><span class="kw">crate</span>::normalize::{mechanism, stacktrace};
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
 <span class="kw">use </span><span class="kw">crate</span>::timestamp::TimestampProcessor;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, MAX_DURATION_MOBILE_MS};
@@ -2382,10 +2353,11 @@
     ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
+<span class="kw">use crate</span>::{mechanism, stacktrace};
 
-<span class="doccomment">/// Configuration for [`NormalizeProcessor`].
+<span class="doccomment">/// Configuration for [`normalize_event`].
 </span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>NormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
@@ -2459,7 +2431,7 @@
     </span><span class="kw">pub </span>enrich_spans: bool,
 
     <span class="doccomment">/// When `true`, computes and materializes attributes in spans based on the given configuration.
-    </span><span class="kw">pub </span>light_normalize_spans: bool,
+    </span><span class="kw">pub </span>normalize_spans: bool,
 
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     </span><span class="kw">pub </span>max_tag_value_length: usize, <span class="comment">// TODO: move span related fields into separate config.
@@ -2481,7 +2453,7 @@
     </span><span class="kw">pub </span>enable_trimming: bool,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Default <span class="kw">for </span>NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Default <span class="kw">for </span>NormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             client_ip: Default::default(),
@@ -2497,7 +2469,7 @@
             is_renormalize: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
-            light_normalize_spans: Default::default(),
+            normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
@@ -2510,151 +2482,141 @@
 
 <span class="doccomment">/// Normalizes an event, rejecting it if necessary.
 ///
-/// The normalization consists of applying a series of transformations on the
-/// event payload based on the given configuration.
+/// Normalization consists of applying a series of transformations on the event
+/// payload based on the given configuration.
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
-</span><span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub struct </span>NormalizeProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// Configuration for the normalization steps.
-    </span>config: NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
+</span><span class="kw">pub fn </span>normalize_event(
+    event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
+    config: <span class="kw-2">&amp;</span>NormalizationConfig,
+) -&gt; ProcessingResult {
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>event), <span class="kw-2">ref mut </span>meta) = event <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+    };
+
+    <span class="kw">let </span>is_renormalize = config.is_renormalize;
+
+    <span class="kw">if </span>!is_renormalize {
+        normalize(event, meta, config)<span class="question-mark">?</span>;
+    }
+
+    <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; NormalizeProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// Returns a new [`NormalizeProcessor`] with the given config.
-    </span><span class="kw">pub fn </span>new(config: NormalizeProcessorConfig&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ config }
+<span class="doccomment">/// Normalizes the given event based on the given config.
+///
+/// The returned [`ProcessingResult`] indicates whether the passed event should
+/// be ingested or dropped.
+</span><span class="kw">fn </span>normalize(event: <span class="kw-2">&amp;mut </span>Event, meta: <span class="kw-2">&amp;mut </span>Meta, config: <span class="kw-2">&amp;</span>NormalizationConfig) -&gt; ProcessingResult {
+    <span class="comment">// Validate and normalize transaction
+    // (internally noops for non-transaction events).
+    // TODO: Parts of this processor should probably be a filter so we
+    // can revert some changes to ProcessingAction)
+    </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor = transactions::TransactionsProcessor::new(
+        config.transaction_name_config.clone(),
+        config.transaction_range.clone(),
+    );
+    transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+
+    <span class="comment">// Check for required and non-empty values
+    </span>schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+
+    TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+
+    <span class="comment">// Process security reports first to ensure all props.
+    </span>normalize_security_report(event, config.client_ip, <span class="kw-2">&amp;</span>config.user_agent);
+
+    <span class="comment">// Process NEL reports to ensure all props.
+    </span>normalize_nel_report(event, config.client_ip);
+
+    <span class="comment">// Insert IP addrs before recursing, since geo lookup depends on it.
+    </span>normalize_ip_addresses(
+        <span class="kw-2">&amp;mut </span>event.request,
+        <span class="kw-2">&amp;mut </span>event.user,
+        event.platform.as_str(),
+        config.client_ip,
+    );
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = config.geoip_lookup {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value_mut() {
+            normalize_user_geoinfo(geoip_lookup, user)
+        }
     }
-}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Processor <span class="kw">for </span>NormalizeProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>process_event(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        event: <span class="kw-2">&amp;mut </span>Event,
-        meta: <span class="kw-2">&amp;mut </span>Meta,
-        <span class="kw">_</span>: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
-    ) -&gt; ProcessingResult {
-        <span class="kw">if </span><span class="self">self</span>.config.is_renormalize {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+    <span class="comment">// Validate the basic attributes we extract metrics from
+    </span>processor::apply(<span class="kw-2">&amp;mut </span>event.release, |release, meta| {
+        <span class="kw">if </span><span class="kw">crate</span>::validate_release(release).is_ok() {
+            <span class="prelude-val">Ok</span>(())
+        } <span class="kw">else </span>{
+            meta.add_error(ErrorKind::InvalidData);
+            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
         }
-
-        <span class="comment">// Validate and normalize transaction
-        // (internally noops for non-transaction events).
-        // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction)
-        </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor = transactions::TransactionsProcessor::new(
-            <span class="self">self</span>.config.transaction_name_config.clone(),
-            <span class="self">self</span>.config.transaction_range.clone(),
-        );
-        transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
-
-        <span class="comment">// Check for required and non-empty values
-        </span>schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
-
-        TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
-
-        <span class="comment">// Process security reports first to ensure all props.
-        </span>normalize_security_report(event, <span class="self">self</span>.config.client_ip, <span class="kw-2">&amp;</span><span class="self">self</span>.config.user_agent);
-
-        <span class="comment">// Process NEL reports to ensure all props.
-        </span>normalize_nel_report(event, <span class="self">self</span>.config.client_ip);
-
-        <span class="comment">// Insert IP addrs before recursing, since geo lookup depends on it.
-        </span>normalize_ip_addresses(
-            <span class="kw-2">&amp;mut </span>event.request,
-            <span class="kw-2">&amp;mut </span>event.user,
-            event.platform.as_str(),
-            <span class="self">self</span>.config.client_ip,
-        );
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = <span class="self">self</span>.config.geoip_lookup {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value_mut() {
-                normalize_user_geoinfo(geoip_lookup, user)
-            }
+    })<span class="question-mark">?</span>;
+    processor::apply(<span class="kw-2">&amp;mut </span>event.environment, |environment, meta| {
+        <span class="kw">if </span><span class="kw">crate</span>::validate_environment(environment).is_ok() {
+            <span class="prelude-val">Ok</span>(())
+        } <span class="kw">else </span>{
+            meta.add_error(ErrorKind::InvalidData);
+            <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
         }
+    })<span class="question-mark">?</span>;
 
-        <span class="comment">// Validate the basic attributes we extract metrics from
-        </span>processor::apply(<span class="kw-2">&amp;mut </span>event.release, |release, meta| {
-            <span class="kw">if </span><span class="kw">crate</span>::validate_release(release).is_ok() {
-                <span class="prelude-val">Ok</span>(())
-            } <span class="kw">else </span>{
-                meta.add_error(ErrorKind::InvalidData);
-                <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
-            }
-        })<span class="question-mark">?</span>;
-        processor::apply(<span class="kw-2">&amp;mut </span>event.environment, |environment, meta| {
-            <span class="kw">if </span><span class="kw">crate</span>::validate_environment(environment).is_ok() {
-                <span class="prelude-val">Ok</span>(())
-            } <span class="kw">else </span>{
-                meta.add_error(ErrorKind::InvalidData);
-                <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
-            }
-        })<span class="question-mark">?</span>;
+    <span class="comment">// Default required attributes, even if they have errors
+    </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta)<span class="question-mark">?</span>;
+    normalize_release_dist(event)<span class="question-mark">?</span>; <span class="comment">// dist is a tag extracted along with other metrics from transactions
+    </span>normalize_timestamps(
+        event,
+        meta,
+        config.received_at,
+        config.max_secs_in_past,
+        config.max_secs_in_future,
+    )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction
+    </span>normalize_event_tags(event)<span class="question-mark">?</span>; <span class="comment">// Tags are added to every metric
 
-        <span class="comment">// Default required attributes, even if they have errors
-        </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta)<span class="question-mark">?</span>;
-        normalize_release_dist(event)<span class="question-mark">?</span>; <span class="comment">// dist is a tag extracted along with other metrics from transactions
-        </span>normalize_timestamps(
-            event,
-            meta,
-            <span class="self">self</span>.config.received_at,
-            <span class="self">self</span>.config.max_secs_in_past,
-            <span class="self">self</span>.config.max_secs_in_future,
-        )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction
-        </span>normalize_event_tags(event)<span class="question-mark">?</span>; <span class="comment">// Tags are added to every metric
-
-        // TODO: Consider moving to store normalization
-        </span><span class="kw">if </span><span class="self">self</span>.config.device_class_synthesis_config {
-            normalize_device_class(event);
-        }
-        light_normalize_stacktraces(event)<span class="question-mark">?</span>;
-        normalize_exceptions(event)<span class="question-mark">?</span>; <span class="comment">// Browser extension filters look at the stacktrace
-        </span>normalize_user_agent(event, <span class="self">self</span>.config.normalize_user_agent); <span class="comment">// Legacy browsers filter
-        </span>normalize_measurements(
-            event,
-            <span class="self">self</span>.config.measurements.clone(),
-            <span class="self">self</span>.config.max_name_and_unit_len,
-        ); <span class="comment">// Measurements are part of the metric extraction
-        </span>normalize_performance_score(event, <span class="self">self</span>.config.performance_score);
-        normalize_breakdowns(event, <span class="self">self</span>.config.breakdowns_config); <span class="comment">// Breakdowns are part of the metric extraction too
-
-        // Some contexts need to be normalized before metrics extraction takes place.
-        </span>processor::apply(<span class="kw-2">&amp;mut </span>event.contexts, normalize_contexts)<span class="question-mark">?</span>;
-
-        <span class="kw">if </span><span class="self">self</span>.config.light_normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-            <span class="comment">// XXX(iker): span normalization runs in the store processor, but
-            // the exclusive time is required for span metrics. Most of
-            // transactions don&#39;t have many spans, but if this is no longer the
-            // case and we roll this flag out for most projects, we may want to
-            // reconsider this approach.
-            </span>normalize_app_start_spans(event);
-            span::attributes::normalize_spans(
-                event,
-                <span class="kw-2">&amp;</span>BTreeSet::from([SpanAttribute::ExclusiveTime]),
-            );
-        }
-
-        <span class="kw">if </span><span class="self">self</span>.config.enrich_spans {
-            extract_span_tags(
-                event,
-                <span class="kw-2">&amp;</span>tag_extraction::Config {
-                    max_tag_value_size: <span class="self">self</span>.config.max_tag_value_length,
-                },
-            );
-        }
-
-        <span class="kw">if </span><span class="self">self</span>.config.enable_trimming {
-            <span class="comment">// Trim large strings and databags down
-            </span>trimming::TrimmingProcessor::new().process_event(
-                event,
-                meta,
-                ProcessingState::root(),
-            )<span class="question-mark">?</span>;
-        }
-
-        <span class="prelude-val">Ok</span>(())
+    // TODO: Consider moving to store normalization
+    </span><span class="kw">if </span>config.device_class_synthesis_config {
+        normalize_device_class(event);
     }
+    normalize_stacktraces(event)<span class="question-mark">?</span>;
+    normalize_exceptions(event)<span class="question-mark">?</span>; <span class="comment">// Browser extension filters look at the stacktrace
+    </span>normalize_user_agent(event, config.normalize_user_agent); <span class="comment">// Legacy browsers filter
+    </span>normalize_measurements(
+        event,
+        config.measurements.clone(),
+        config.max_name_and_unit_len,
+    ); <span class="comment">// Measurements are part of the metric extraction
+    </span>normalize_performance_score(event, config.performance_score);
+    normalize_breakdowns(event, config.breakdowns_config); <span class="comment">// Breakdowns are part of the metric extraction too
+
+    // Some contexts need to be normalized before metrics extraction takes place.
+    </span>processor::apply(<span class="kw-2">&amp;mut </span>event.contexts, normalize_contexts)<span class="question-mark">?</span>;
+
+    <span class="kw">if </span>config.normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+        <span class="comment">// XXX(iker): span normalization runs in the store processor, but
+        // the exclusive time is required for span metrics. Most of
+        // transactions don&#39;t have many spans, but if this is no longer the
+        // case and we roll this flag out for most projects, we may want to
+        // reconsider this approach.
+        </span>normalize_app_start_spans(event);
+        span::attributes::normalize_spans(event, <span class="kw-2">&amp;</span>BTreeSet::from([SpanAttribute::ExclusiveTime]));
+    }
+
+    <span class="kw">if </span>config.enrich_spans {
+        extract_span_tags(
+            event,
+            <span class="kw-2">&amp;</span>tag_extraction::Config {
+                max_tag_value_size: config.max_tag_value_length,
+            },
+        );
+    }
+
+    <span class="kw">if </span>config.enable_trimming {
+        <span class="comment">// Trim large strings and databags down
+        </span>trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+    }
+
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Backfills the client IP address on for the NEL reports.
@@ -2782,7 +2744,7 @@
 }
 
 <span class="kw">fn </span>normalize_logentry(logentry: <span class="kw-2">&amp;mut </span>Annotated&lt;LogEntry&gt;, _meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
-    processor::apply(logentry, <span class="kw">crate</span>::normalize::logentry::normalize_logentry)
+    processor::apply(logentry, <span class="kw">crate</span>::logentry::normalize_logentry)
 }
 
 <span class="doccomment">/// Ensures that the `release` and `dist` fields match up.
@@ -2965,11 +2927,10 @@
     }
 }
 
-<span class="doccomment">/// Process the required stacktraces for light normalization.
+<span class="doccomment">/// Process the last frame of the stacktrace of the first exception.
 ///
-/// The browser extension filter requires the last frame of the stacktrace of the first exception
-/// processed. There&#39;s no need to do further processing at this early stage.
-</span><span class="kw">fn </span>light_normalize_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+/// No additional frames/stacktraces are normalized as they aren&#39;t required for metric extraction.
+</span><span class="kw">fn </span>normalize_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
     <span class="kw">match </span>event.exceptions.value_mut() {
         <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
         <span class="prelude-val">Some</span>(exception) =&gt; <span class="kw">match </span>exception.values.value_mut() {
@@ -3341,11 +3302,11 @@
 
         <span class="comment">// Check if this is a builtin measurement:
         </span><span class="kw">for </span>builtin_measurement <span class="kw">in </span>measurements_config.builtin_measurement_keys() {
-            <span class="kw">if </span><span class="kw-2">&amp;</span>builtin_measurement.name == name {
+            <span class="kw">if </span>builtin_measurement.name() == name {
                 <span class="comment">// If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
                 // and just drop it instead.
-                </span><span class="kw">return </span><span class="kw-2">&amp;</span>builtin_measurement.unit == unit;
+                </span><span class="kw">return </span>builtin_measurement.unit() == unit;
             }
         }
 
@@ -3419,22 +3380,17 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+
     <span class="kw">use </span>std::collections::BTreeMap;
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
-    <span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, MetricUnit};
     <span class="kw">use </span>relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement, Measurements, Request,
-        Tags,
+        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
     };
-    <span class="kw">use </span>relay_protocol::{Annotated, Meta, Object, SerializableAnnotated};
+    <span class="kw">use </span>relay_protocol::{Annotated, SerializableAnnotated};
     <span class="kw">use </span>serde_json::json;
 
-    <span class="kw">use </span><span class="kw">crate</span>::normalize::processor::{
-        filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
-        normalize_dist, normalize_measurements, normalize_performance_score,
-        normalize_security_report, normalize_units, remove_invalid_measurements,
-    };
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use crate</span>::{
         ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
         RawUserAgentInfo,
@@ -3526,6 +3482,7 @@
         }
         &quot;#</span>);
     }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_filter_custom_measurements() {
         <span class="kw">let </span>json = <span class="string">r#&quot;
@@ -3554,10 +3511,8 @@
         </span>}))
         .unwrap();
 
-        <span class="kw">let </span>dynamic_measurement_config = DynamicMeasurementsConfig {
-            project: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_measurement_config),
-            global: <span class="prelude-val">None</span>,
-        };
+        <span class="kw">let </span>dynamic_measurement_config =
+            DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_measurement_config), <span class="prelude-val">None</span>);
 
         normalize_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
 
@@ -3919,10 +3874,7 @@
             ..Default::default()
         };
 
-        <span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig {
-            project: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config),
-            global: <span class="prelude-val">None</span>,
-        };
+        <span class="kw">let </span>dynamic_config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config), <span class="prelude-val">None</span>);
 
         <span class="comment">// Just for clarity.
         // Checks that there is 1 measurement before processing.
