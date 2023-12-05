@@ -563,6 +563,13 @@
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -630,27 +637,15 @@
             <span class="kw">return </span>ItemAction::Keep;
         };
 
-        <span class="kw">let </span>report = <span class="kw">match </span>serde_json::from_slice::&lt;UserReport&gt;(<span class="kw-2">&amp;</span>item.payload()) {
+        <span class="kw">let </span>payload = item.payload();
+        <span class="comment">// There is a customer SDK which sends invalid reports with a trailing `\n`,
+        // strip it here, even if they update/fix their SDK there will still be many old
+        // versions with the broken SDK out there.
+        </span><span class="kw">let </span>payload = trim_whitespaces(<span class="kw-2">&amp;</span>payload);
+        <span class="kw">let </span>report = <span class="kw">match </span>serde_json::from_slice::&lt;UserReport&gt;(payload) {
             <span class="prelude-val">Ok</span>(session) =&gt; session,
             <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>payload = item.payload();
-                payload.truncate(<span class="number">100_000</span>);
-                relay_log::with_scope(
-                    <span class="kw">move </span>|scope| {
-                        scope.add_attachment(relay_log::protocol::Attachment {
-                            buffer: payload.into(),
-                            filename: <span class="string">&quot;payload.json&quot;</span>.to_owned(),
-                            content_type: <span class="prelude-val">Some</span>(<span class="string">&quot;application/json&quot;</span>.to_owned()),
-                            ty: <span class="prelude-val">None</span>,
-                        })
-                    },
-                    || {
-                        <span class="macro">relay_log::error!</span>(
-                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;failed to store user report&quot;
-                        </span>);
-                    },
-                );
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to store user report&quot;</span>);
                 <span class="kw">return </span>ItemAction::DropSilently;
             }
         };
@@ -669,6 +664,16 @@
         item.set_payload(ContentType::Json, json_string);
         ItemAction::Keep
     });
+}
+
+<span class="kw">fn </span>trim_whitespaces(data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="kw-2">&amp;</span>[u8] {
+    <span class="kw">let </span><span class="prelude-val">Some</span>(from) = data.iter().position(|x| !x.is_ascii_whitespace()) <span class="kw">else </span>{
+        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
+    };
+    <span class="kw">let </span><span class="prelude-val">Some</span>(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) <span class="kw">else </span>{
+        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
+    };
+    <span class="kw-2">&amp;</span>data[from..to + <span class="number">1</span>]
 }
 
 <span class="doccomment">/// Parse an outcome from an outcome ID and a reason string.
@@ -1126,6 +1131,15 @@
             outcome_from_parts(ClientReportField::RateLimited, <span class="string">&quot;foo_reason&quot;</span>).unwrap(),
             Outcome::RateLimited(<span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;foo_reason&quot;</span>)))
         );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_trim_whitespaces() {
+        <span class="macro">assert_eq!</span>(trim_whitespaces(<span class="string">b&quot;&quot;</span>), <span class="string">b&quot;&quot;</span>);
+        <span class="macro">assert_eq!</span>(trim_whitespaces(<span class="string">b&quot; \n\r &quot;</span>), <span class="string">b&quot;&quot;</span>);
+        <span class="macro">assert_eq!</span>(trim_whitespaces(<span class="string">b&quot; \nx\r &quot;</span>), <span class="string">b&quot;x&quot;</span>);
+        <span class="macro">assert_eq!</span>(trim_whitespaces(<span class="string">b&quot; {foo: bar} &quot;</span>), <span class="string">b&quot;{foo: bar}&quot;</span>);
+        <span class="macro">assert_eq!</span>(trim_whitespaces(<span class="string">b&quot;{ foo: bar}&quot;</span>), <span class="string">b&quot;{ foo: bar}&quot;</span>);
     }
 }
 </code></pre></div></section></main></body></html>
