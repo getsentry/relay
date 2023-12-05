@@ -18,19 +18,24 @@ use serde_json::Value;
 use uuid::Uuid;
 
 mod clock_drift;
+mod event;
 mod event_error;
 mod geo;
 mod legacy;
+mod logentry;
+mod mechanism;
 mod normalize;
 mod regexes;
 mod remove_other;
 mod schema;
+mod stacktrace;
 mod statsd;
 mod timestamp;
 mod transactions;
 mod trimming;
 
 pub mod replay;
+pub use event::{normalize_event, NormalizationConfig};
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
@@ -154,9 +159,10 @@ pub struct StoreConfig {
 
 /// The processor that normalizes events for processing and storage.
 ///
-/// This processor is a superset of [`NormalizeProcessor`], that runs additional and heavier
-/// normalization steps. These normalizations should ideally be performed on events that are likely
-/// to be ingested, after other functionality such as inbound filters have run.
+/// This processor is a superset of [basic normalization](crate::normalize_event),
+/// that runs additional and heavier normalization steps. These normalizations
+/// should ideally be performed on events that are likely to be ingested, after
+/// other functionality such as inbound filters have run.
 ///
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
 pub struct StoreProcessor<'a> {

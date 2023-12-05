@@ -1,10 +1,6 @@
-//! Event normalization processor.
+//! Event normalization.
 //!
-//! This processor is work in progress. The intention is to have a single
-//! processor to deal with all event normalization. Currently, the normalization
-//! logic is split across several processing steps running at different times
-//! and under different conditions, like light normalization and store
-//! processing. Having a single processor will make things simpler.
+//! This module provides a function to normalize events.
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
@@ -29,7 +25,6 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
-use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
@@ -38,10 +33,11 @@ use crate::{
     ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
+use crate::{mechanism, stacktrace};
 
-/// Configuration for [`NormalizeProcessor`].
+/// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
-pub struct NormalizeProcessorConfig<'a> {
+pub struct NormalizationConfig<'a> {
     /// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
@@ -115,7 +111,7 @@ pub struct NormalizeProcessorConfig<'a> {
     pub enrich_spans: bool,
 
     /// When `true`, computes and materializes attributes in spans based on the given configuration.
-    pub light_normalize_spans: bool,
+    pub normalize_spans: bool,
 
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
@@ -137,7 +133,7 @@ pub struct NormalizeProcessorConfig<'a> {
     pub enable_trimming: bool,
 }
 
-impl<'a> Default for NormalizeProcessorConfig<'a> {
+impl<'a> Default for NormalizationConfig<'a> {
     fn default() -> Self {
         Self {
             client_ip: Default::default(),
@@ -153,7 +149,7 @@ impl<'a> Default for NormalizeProcessorConfig<'a> {
             is_renormalize: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
-            light_normalize_spans: Default::default(),
+            normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
@@ -166,151 +162,141 @@ impl<'a> Default for NormalizeProcessorConfig<'a> {
 
 /// Normalizes an event, rejecting it if necessary.
 ///
-/// The normalization consists of applying a series of transformations on the
-/// event payload based on the given configuration.
+/// Normalization consists of applying a series of transformations on the event
+/// payload based on the given configuration.
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
-#[derive(Debug, Default)]
-pub struct NormalizeProcessor<'a> {
-    /// Configuration for the normalization steps.
-    config: NormalizeProcessorConfig<'a>,
+pub fn normalize_event(
+    event: &mut Annotated<Event>,
+    config: &NormalizationConfig,
+) -> ProcessingResult {
+    let Annotated(Some(ref mut event), ref mut meta) = event else {
+        return Ok(());
+    };
+
+    let is_renormalize = config.is_renormalize;
+
+    if !is_renormalize {
+        normalize(event, meta, config)?;
+    }
+
+    Ok(())
 }
 
-impl<'a> NormalizeProcessor<'a> {
-    /// Returns a new [`NormalizeProcessor`] with the given config.
-    pub fn new(config: NormalizeProcessorConfig<'a>) -> Self {
-        Self { config }
+/// Normalizes the given event based on the given config.
+///
+/// The returned [`ProcessingResult`] indicates whether the passed event should
+/// be ingested or dropped.
+fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -> ProcessingResult {
+    // Validate and normalize transaction
+    // (internally noops for non-transaction events).
+    // TODO: Parts of this processor should probably be a filter so we
+    // can revert some changes to ProcessingAction)
+    let mut transactions_processor = transactions::TransactionsProcessor::new(
+        config.transaction_name_config.clone(),
+        config.transaction_range.clone(),
+    );
+    transactions_processor.process_event(event, meta, ProcessingState::root())?;
+
+    // Check for required and non-empty values
+    schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+
+    TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
+
+    // Process security reports first to ensure all props.
+    normalize_security_report(event, config.client_ip, &config.user_agent);
+
+    // Process NEL reports to ensure all props.
+    normalize_nel_report(event, config.client_ip);
+
+    // Insert IP addrs before recursing, since geo lookup depends on it.
+    normalize_ip_addresses(
+        &mut event.request,
+        &mut event.user,
+        event.platform.as_str(),
+        config.client_ip,
+    );
+
+    if let Some(geoip_lookup) = config.geoip_lookup {
+        if let Some(user) = event.user.value_mut() {
+            normalize_user_geoinfo(geoip_lookup, user)
+        }
     }
-}
 
-impl<'a> Processor for NormalizeProcessor<'a> {
-    fn process_event(
-        &mut self,
-        event: &mut Event,
-        meta: &mut Meta,
-        _: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        if self.config.is_renormalize {
-            return Ok(());
+    // Validate the basic attributes we extract metrics from
+    processor::apply(&mut event.release, |release, meta| {
+        if crate::validate_release(release).is_ok() {
+            Ok(())
+        } else {
+            meta.add_error(ErrorKind::InvalidData);
+            Err(ProcessingAction::DeleteValueSoft)
         }
-
-        // Validate and normalize transaction
-        // (internally noops for non-transaction events).
-        // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction)
-        let mut transactions_processor = transactions::TransactionsProcessor::new(
-            self.config.transaction_name_config.clone(),
-            self.config.transaction_range.clone(),
-        );
-        transactions_processor.process_event(event, meta, ProcessingState::root())?;
-
-        // Check for required and non-empty values
-        schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
-
-        TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
-
-        // Process security reports first to ensure all props.
-        normalize_security_report(event, self.config.client_ip, &self.config.user_agent);
-
-        // Process NEL reports to ensure all props.
-        normalize_nel_report(event, self.config.client_ip);
-
-        // Insert IP addrs before recursing, since geo lookup depends on it.
-        normalize_ip_addresses(
-            &mut event.request,
-            &mut event.user,
-            event.platform.as_str(),
-            self.config.client_ip,
-        );
-
-        if let Some(geoip_lookup) = self.config.geoip_lookup {
-            if let Some(user) = event.user.value_mut() {
-                normalize_user_geoinfo(geoip_lookup, user)
-            }
+    })?;
+    processor::apply(&mut event.environment, |environment, meta| {
+        if crate::validate_environment(environment).is_ok() {
+            Ok(())
+        } else {
+            meta.add_error(ErrorKind::InvalidData);
+            Err(ProcessingAction::DeleteValueSoft)
         }
+    })?;
 
-        // Validate the basic attributes we extract metrics from
-        processor::apply(&mut event.release, |release, meta| {
-            if crate::validate_release(release).is_ok() {
-                Ok(())
-            } else {
-                meta.add_error(ErrorKind::InvalidData);
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-        })?;
-        processor::apply(&mut event.environment, |environment, meta| {
-            if crate::validate_environment(environment).is_ok() {
-                Ok(())
-            } else {
-                meta.add_error(ErrorKind::InvalidData);
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-        })?;
+    // Default required attributes, even if they have errors
+    normalize_logentry(&mut event.logentry, meta)?;
+    normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
+    normalize_timestamps(
+        event,
+        meta,
+        config.received_at,
+        config.max_secs_in_past,
+        config.max_secs_in_future,
+    )?; // Timestamps are core in the metrics extraction
+    normalize_event_tags(event)?; // Tags are added to every metric
 
-        // Default required attributes, even if they have errors
-        normalize_logentry(&mut event.logentry, meta)?;
-        normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
-        normalize_timestamps(
-            event,
-            meta,
-            self.config.received_at,
-            self.config.max_secs_in_past,
-            self.config.max_secs_in_future,
-        )?; // Timestamps are core in the metrics extraction
-        normalize_event_tags(event)?; // Tags are added to every metric
-
-        // TODO: Consider moving to store normalization
-        if self.config.device_class_synthesis_config {
-            normalize_device_class(event);
-        }
-        light_normalize_stacktraces(event)?;
-        normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
-        normalize_user_agent(event, self.config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(
-            event,
-            self.config.measurements.clone(),
-            self.config.max_name_and_unit_len,
-        ); // Measurements are part of the metric extraction
-        normalize_performance_score(event, self.config.performance_score);
-        normalize_breakdowns(event, self.config.breakdowns_config); // Breakdowns are part of the metric extraction too
-
-        // Some contexts need to be normalized before metrics extraction takes place.
-        processor::apply(&mut event.contexts, normalize_contexts)?;
-
-        if self.config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-            // XXX(iker): span normalization runs in the store processor, but
-            // the exclusive time is required for span metrics. Most of
-            // transactions don't have many spans, but if this is no longer the
-            // case and we roll this flag out for most projects, we may want to
-            // reconsider this approach.
-            normalize_app_start_spans(event);
-            span::attributes::normalize_spans(
-                event,
-                &BTreeSet::from([SpanAttribute::ExclusiveTime]),
-            );
-        }
-
-        if self.config.enrich_spans {
-            extract_span_tags(
-                event,
-                &tag_extraction::Config {
-                    max_tag_value_size: self.config.max_tag_value_length,
-                },
-            );
-        }
-
-        if self.config.enable_trimming {
-            // Trim large strings and databags down
-            trimming::TrimmingProcessor::new().process_event(
-                event,
-                meta,
-                ProcessingState::root(),
-            )?;
-        }
-
-        Ok(())
+    // TODO: Consider moving to store normalization
+    if config.device_class_synthesis_config {
+        normalize_device_class(event);
     }
+    normalize_stacktraces(event)?;
+    normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
+    normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
+    normalize_measurements(
+        event,
+        config.measurements.clone(),
+        config.max_name_and_unit_len,
+    ); // Measurements are part of the metric extraction
+    normalize_performance_score(event, config.performance_score);
+    normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+
+    // Some contexts need to be normalized before metrics extraction takes place.
+    processor::apply(&mut event.contexts, normalize_contexts)?;
+
+    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        // XXX(iker): span normalization runs in the store processor, but
+        // the exclusive time is required for span metrics. Most of
+        // transactions don't have many spans, but if this is no longer the
+        // case and we roll this flag out for most projects, we may want to
+        // reconsider this approach.
+        normalize_app_start_spans(event);
+        span::attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
+    }
+
+    if config.enrich_spans {
+        extract_span_tags(
+            event,
+            &tag_extraction::Config {
+                max_tag_value_size: config.max_tag_value_length,
+            },
+        );
+    }
+
+    if config.enable_trimming {
+        // Trim large strings and databags down
+        trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root())?;
+    }
+
+    Ok(())
 }
 
 /// Backfills the client IP address on for the NEL reports.
@@ -438,7 +424,7 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
-    processor::apply(logentry, crate::normalize::logentry::normalize_logentry)
+    processor::apply(logentry, crate::logentry::normalize_logentry)
 }
 
 /// Ensures that the `release` and `dist` fields match up.
@@ -621,11 +607,10 @@ fn normalize_device_class(event: &mut Event) {
     }
 }
 
-/// Process the required stacktraces for light normalization.
+/// Process the last frame of the stacktrace of the first exception.
 ///
-/// The browser extension filter requires the last frame of the stacktrace of the first exception
-/// processed. There's no need to do further processing at this early stage.
-fn light_normalize_stacktraces(event: &mut Event) -> ProcessingResult {
+/// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
+fn normalize_stacktraces(event: &mut Event) -> ProcessingResult {
     match event.exceptions.value_mut() {
         None => Ok(()),
         Some(exception) => match exception.values.value_mut() {
@@ -997,11 +982,11 @@ fn remove_invalid_measurements(
 
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
-            if &builtin_measurement.name == name {
+            if builtin_measurement.name() == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
                 // and just drop it instead.
-                return &builtin_measurement.unit == unit;
+                return builtin_measurement.unit() == unit;
             }
         }
 
@@ -1075,22 +1060,17 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 
 #[cfg(test)]
 mod tests {
+
     use std::collections::BTreeMap;
 
     use insta::assert_debug_snapshot;
-    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement, Measurements, Request,
-        Tags,
+        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
     };
-    use relay_protocol::{Annotated, Meta, Object, SerializableAnnotated};
+    use relay_protocol::{Annotated, SerializableAnnotated};
     use serde_json::json;
 
-    use crate::normalize::processor::{
-        filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
-        normalize_dist, normalize_measurements, normalize_performance_score,
-        normalize_security_report, normalize_units, remove_invalid_measurements,
-    };
+    use super::*;
     use crate::{
         ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
         RawUserAgentInfo,
@@ -1182,6 +1162,7 @@ mod tests {
         }
         "#);
     }
+
     #[test]
     fn test_filter_custom_measurements() {
         let json = r#"
@@ -1210,10 +1191,8 @@ mod tests {
         }))
         .unwrap();
 
-        let dynamic_measurement_config = DynamicMeasurementsConfig {
-            project: Some(&project_measurement_config),
-            global: None,
-        };
+        let dynamic_measurement_config =
+            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
 
         normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
 
@@ -1575,10 +1554,7 @@ mod tests {
             ..Default::default()
         };
 
-        let dynamic_config = DynamicMeasurementsConfig {
-            project: Some(&measurements_config),
-            global: None,
-        };
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
 
         // Just for clarity.
         // Checks that there is 1 measurement before processing.
