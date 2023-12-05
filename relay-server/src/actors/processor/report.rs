@@ -67,7 +67,9 @@ fn process_user_reports(state: &mut ProcessEnvelopeState) {
         };
 
         let payload = item.payload();
-        // sentry-native 0.4.18 and below is sending reports with trailing whitespaces
+        // There is a customer SDK which sends invalid reports with a trailing `\n`,
+        // strip it here, even if they update/fix their SDK there will still be many old
+        // versions with the broken SDK out there.
         let payload = trim_whitespaces(&payload);
         let report = match serde_json::from_slice::<UserReport>(payload) {
             Ok(session) => session,
