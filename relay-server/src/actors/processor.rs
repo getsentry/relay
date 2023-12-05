@@ -29,7 +29,6 @@ use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
-
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use tokio::sync::Semaphore;
