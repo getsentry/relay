@@ -6,8 +6,8 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
-    TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
+    Assignment, CloseCursor, Expr, Ident, ObjectName, Query, Select, SelectItem, SetExpr,
+    Statement, TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -156,7 +156,7 @@ impl NormalizeVisitor {
                 self.transform_query(subquery);
             }
             // Strip quotes from identifiers in table names.
-            TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
+            // TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
             _ => {}
         }
     }
@@ -184,13 +184,17 @@ impl NormalizeVisitor {
 impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
+    fn pre_visit_relation(&mut self, relation: &mut ObjectName) -> ControlFlow<Self::Break> {
+        Self::simplify_compound_identifier(&mut relation.0);
+        ControlFlow::Continue(())
+    }
+
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
             *expr = Expr::Value(Value::Placeholder("..".to_owned()));
             return ControlFlow::Continue(());
         }
         self.current_expr_depth += 1;
-
         match expr {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
@@ -257,14 +261,36 @@ impl VisitorMut for NormalizeVisitor {
                 source,
                 ..
             } => {
-                Self::simplify_compound_identifier(&mut table_name.0);
+                // Self::simplify_compound_identifier(&mut table_name.0);
                 *columns = vec![Self::ellipsis()];
                 if let SetExpr::Values(v) = &mut *source.body {
                     v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                 }
             }
-            // Simple lists of col = value assignments are collapsed to `..`.
-            Statement::Update { assignments, .. } => {
+
+            Statement::Update {
+                table,
+                assignments,
+                from,
+                selection,
+                returning,
+            } => {
+                // let TableWithJoins { relation, joins } = dbg!(table);
+                // if let TableFactor::Table {
+                //     name,
+                //     alias,
+                //     args,
+                //     with_hints,
+                //     version,
+                // } = relation
+                // {
+                //     Self::simplify_compound_identifier(&mut name.0);
+                //     if let Some(alias) = alias {
+                //         Self::scrub_name(alias.name);
+                //     }
+                // }
+
+                // Simple lists of col = value assignments are collapsed to `..`.
                 if assignments.len() > 1
                     && assignments
                         .iter()
@@ -298,6 +324,58 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Close {
                 cursor: CloseCursor::Specific { name },
             } => Self::erase_name(name),
+            Statement::AlterTable { name, .. } => {
+                Self::simplify_compound_identifier(&mut name.0);
+            }
+            Statement::CreateTable { name, .. } => {
+                Self::simplify_compound_identifier(&mut name.0);
+            }
+            Statement::CreateDatabase { db_name, .. } => {
+                Self::simplify_compound_identifier(&mut db_name.0);
+            }
+            // Statement::Analyze { table_name, .. } => todo!(),
+            // Statement::Truncate { table_name, .. } => todo!(),
+            // Statement::Msck { table_name, .. } => todo!(),
+            // Statement::Delete { tables, from, using, selection, returning } => todo!(),
+            // Statement::CreateView { or_replace, materialized, name, columns, query, with_options, cluster_by } => todo!(),
+            // Statement::CreateVirtualTable { name, if_not_exists, module_name, module_args } => todo!(),
+            // Statement::CreateIndex { name, table_name, using, columns, unique, concurrently, if_not_exists, include, nulls_distinct, predicate } => todo!(),
+            // Statement::CreateRole { names, if_not_exists, login, inherit, bypassrls, password, superuser, create_db, create_role, replication, connection_limit, valid_until, in_role, in_group, role, user, admin, authorization_owner } => todo!(),
+            // Statement::AlterIndex { name, operation } => todo!(),
+            // Statement::AlterView { name, columns, query, with_options } => todo!(),
+            // Statement::AlterRole { name, operation } => todo!(),
+            // Statement::Drop { object_type, if_exists, names, cascade, restrict, purge, temporary } => todo!(),
+            // Statement::SetRole { context_modifier, role_name } => todo!(),
+            // Statement::ShowVariable { variable } => todo!(),
+            // Statement::ShowCreate { obj_type, obj_name } => todo!(),
+            // Statement::ShowColumns { extended, full, table_name, filter } => todo!(),
+            // Statement::ShowTables { extended, full, db_name, filter } => todo!(),
+            // Statement::ShowCollation { filter } => todo!(),
+            // Statement::Use { db_name } => todo!(),
+            // Statement::StartTransaction { modes, begin } => todo!(),
+            // Statement::SetTransaction { modes, snapshot, session } => todo!(),
+            // Statement::Comment { object_type, object_name, comment, if_exists } => todo!(),
+            // Statement::Commit { chain } => todo!(),
+            // Statement::Rollback { chain } => todo!(),
+            // Statement::CreateSchema { schema_name, if_not_exists } => todo!(),
+            // Statement::CreateFunction { or_replace, temporary, name, args, return_type, params } => todo!(),
+            // Statement::CreateProcedure { or_alter, name, params, body } => todo!(),
+            // Statement::CreateMacro { or_replace, temporary, name, args, definition } => todo!(),
+            // Statement::CreateStage { or_replace, temporary, if_not_exists, name, stage_params, directory_table_params, file_format, copy_options, comment } => todo!(),
+            // Statement::Assert { condition, message } => todo!(),
+            // Statement::Grant { privileges, objects, grantees, with_grant_option, granted_by } => todo!(),
+            // Statement::Revoke { privileges, objects, grantees, granted_by, cascade } => todo!(),
+            // Statement::Deallocate { name, prepare } => todo!(),
+            // Statement::Execute { name, parameters } => todo!(),
+            // Statement::Prepare { name, data_types, statement } => todo!(),
+            // Statement::Kill { modifier, id } => todo!(),
+            // Statement::ExplainTable { describe_alias, table_name } => todo!(),
+            // Statement::Explain { describe_alias, analyze, verbose, statement, format } => todo!(),
+            // Statement::Merge { into, table, source, on, clauses } => todo!(),
+            // Statement::Cache { table_flag, table_name, has_as, options, query } => todo!(),
+            // Statement::UNCache { table_name, if_exists } => todo!(),
+            // Statement::CreateSequence { temporary, if_not_exists, name, data_type, sequence_options, owned_by } => todo!(),
+            // Statement::CreateType { name, representation } => todo!(),
             _ => {}
         }
 
