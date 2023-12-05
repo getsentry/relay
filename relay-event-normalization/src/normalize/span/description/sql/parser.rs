@@ -6,8 +6,9 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    Assignment, CloseCursor, Expr, Ident, ObjectName, Query, Select, SelectItem, SetExpr,
-    Statement, TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
+    AlterTableOperation, Assignment, CloseCursor, ColumnDef, Expr, Ident, Join, ObjectName, Query,
+    Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint, TableFactor,
+    TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -110,7 +111,7 @@ impl NormalizeVisitor {
     fn transform_query(&mut self, query: &mut Query) {
         if let SetExpr::Select(select) = &mut *query.body {
             self.transform_select(&mut *select);
-            self.transform_from(&mut select.from);
+            // self.transform_from(&mut select.from);
         }
     }
 
@@ -139,25 +140,34 @@ impl NormalizeVisitor {
         Self::collapse_items(&mut collapse, &mut select.projection);
     }
 
-    fn transform_from(&mut self, from: &mut [TableWithJoins]) {
-        // Iterate "FROM".
-        for from in from {
-            self.transform_table_factor(&mut from.relation);
-            for join in &mut from.joins {
-                self.transform_table_factor(&mut join.relation);
-            }
-        }
-    }
+    // fn transform_from(&mut self, from: &mut [TableWithJoins]) {
+    //     // Iterate "FROM".
+    //     for from in from {
+    //         self.transform_table_factor(&mut from.relation);
+    //         for join in &mut from.joins {
+    //             self.transform_table_factor(&mut join.relation);
+    //         }
+    //     }
+    // }
 
-    fn transform_table_factor(&mut self, table_factor: &mut TableFactor) {
-        match table_factor {
-            // Recurse into subqueries.
-            TableFactor::Derived { subquery, .. } => {
-                self.transform_query(subquery);
+    // fn transform_table_factor(&mut self, table_factor: &mut TableFactor) {
+    //     match table_factor {
+    //         // Recurse into subqueries.
+    //         TableFactor::Derived { subquery, .. } => {
+    //             self.transform_query(subquery);
+    //         }
+    //         // Strip quotes from identifiers in table names.
+    //         // TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
+    //         _ => {}
+    //     }
+    // }
+
+    fn simplify_table_alias(alias: &mut Option<TableAlias>) {
+        if let Some(TableAlias { name, columns }) = alias {
+            Self::scrub_name(name);
+            for column in columns {
+                Self::scrub_name(column);
             }
-            // Strip quotes from identifiers in table names.
-            // TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
-            _ => {}
         }
     }
 
@@ -186,6 +196,70 @@ impl VisitorMut for NormalizeVisitor {
 
     fn pre_visit_relation(&mut self, relation: &mut ObjectName) -> ControlFlow<Self::Break> {
         Self::simplify_compound_identifier(&mut relation.0);
+        ControlFlow::Continue(())
+    }
+
+    fn pre_visit_table_factor(
+        &mut self,
+        table_factor: &mut TableFactor,
+    ) -> ControlFlow<Self::Break> {
+        dbg!(&table_factor);
+        match table_factor {
+            TableFactor::Table {
+                name,
+                alias,
+                args,
+                with_hints,
+                version,
+            } => {
+                // Self::simplify_compound_identifier(&mut name.0); // Not caught by visit_relation
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::Derived {
+                lateral,
+                subquery,
+                alias,
+            } => {
+                self.transform_query(subquery);
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::TableFunction { expr, alias } => {
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::UNNEST {
+                alias,
+                array_exprs,
+                with_offset,
+                with_offset_alias,
+            } => {
+                Self::simplify_table_alias(alias);
+                if let Some(ident) = with_offset_alias {
+                    Self::scrub_name(ident);
+                }
+            }
+            TableFactor::NestedJoin { alias, .. } => {
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::Pivot {
+                name,
+                table_alias,
+                aggregate_function,
+                value_column,
+                pivot_values,
+                pivot_alias,
+            } => {
+                Self::simplify_compound_identifier(&mut name.0);
+                if let Some(TableAlias { name, columns }) = table_alias {
+                    Self::scrub_name(name);
+                    // TODO: columns?
+                }
+                Self::simplify_compound_identifier(value_column);
+                if let Some(TableAlias { name, columns }) = pivot_alias {
+                    Self::scrub_name(name);
+                    // TODO: columns?
+                }
+            }
+        }
         ControlFlow::Continue(())
     }
 
@@ -324,15 +398,122 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Close {
                 cursor: CloseCursor::Specific { name },
             } => Self::erase_name(name),
-            Statement::AlterTable { name, .. } => {
+            Statement::AlterTable { name, operation } => {
                 Self::simplify_compound_identifier(&mut name.0);
+                match operation {
+                    AlterTableOperation::AddConstraint(c) => match c {
+                        TableConstraint::Unique {
+                            name,
+                            columns,
+                            is_primary,
+                        } => todo!(),
+                        TableConstraint::ForeignKey {
+                            name,
+                            columns,
+                            foreign_table,
+                            referred_columns,
+                            on_delete,
+                            on_update,
+                        } => todo!(),
+                        TableConstraint::Check { name, expr } => todo!(),
+                        TableConstraint::Index {
+                            display_as_key,
+                            name,
+                            index_type,
+                            columns,
+                        } => todo!(),
+                        TableConstraint::FulltextOrSpatial {
+                            fulltext,
+                            index_type_display,
+                            opt_index_name,
+                            columns,
+                        } => todo!(),
+                    },
+                    AlterTableOperation::AddColumn {
+                        column_keyword,
+                        if_not_exists,
+                        column_def,
+                    } => {
+                        let ColumnDef {
+                            name,
+                            data_type,
+                            collation,
+                            options,
+                        } = column_def;
+                        Self::scrub_name(name);
+                        if let Some(collation) = collation {
+                            Self::simplify_compound_identifier(&mut collation.0);
+                        }
+                    }
+                    AlterTableOperation::DropConstraint {
+                        if_exists,
+                        name,
+                        cascade,
+                    } => Self::scrub_name(name),
+                    AlterTableOperation::DropColumn {
+                        column_name,
+                        if_exists,
+                        cascade,
+                    } => Self::scrub_name(column_name),
+                    AlterTableOperation::RenameColumn {
+                        old_column_name,
+                        new_column_name,
+                    } => {
+                        Self::scrub_name(old_column_name);
+                        Self::scrub_name(new_column_name);
+                    }
+                    AlterTableOperation::ChangeColumn {
+                        old_name, new_name, ..
+                    } => {
+                        Self::scrub_name(old_name);
+                        Self::scrub_name(new_name);
+                    }
+                    AlterTableOperation::RenameConstraint { old_name, new_name } => {
+                        Self::scrub_name(old_name);
+                        Self::scrub_name(new_name);
+                    }
+                    AlterTableOperation::AlterColumn { column_name, .. } => {
+                        Self::scrub_name(column_name);
+                    }
+                    _ => {}
+                }
             }
-            Statement::CreateTable { name, .. } => {
-                Self::simplify_compound_identifier(&mut name.0);
+            Statement::CreateTable {
+                name,
+                or_replace,
+                temporary,
+                external,
+                global,
+                if_not_exists,
+                transient,
+                columns,
+                constraints,
+                hive_distribution,
+                hive_formats,
+                table_properties,
+                with_options,
+                file_format,
+                location,
+                query,
+                without_rowid,
+                like,
+                clone,
+                engine,
+                comment,
+                auto_increment_offset,
+                default_charset,
+                collation,
+                on_commit,
+                on_cluster,
+                order_by,
+                strict,
+            } => {
+                // dbg!(&name);
+                // Self::simplify_compound_identifier(&mut name.0);
             }
-            Statement::CreateDatabase { db_name, .. } => {
-                Self::simplify_compound_identifier(&mut db_name.0);
-            }
+            // Statement::CreateDatabase { db_name, .. } => {
+            //     Self::simplify_compound_identifier(&mut db_name.0);
+            // }
             // Statement::Analyze { table_name, .. } => todo!(),
             // Statement::Truncate { table_name, .. } => todo!(),
             // Statement::Msck { table_name, .. } => todo!(),
