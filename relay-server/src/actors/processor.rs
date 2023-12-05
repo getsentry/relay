@@ -1518,7 +1518,7 @@ impl EnvelopeProcessorService {
     fn drop_buckets_with_outcomes(
         &self,
         reason_code: Option<ReasonCode>,
-        total_batches: usize,
+        total_buckets: usize,
         scoping: Scoping,
         bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
         mode: ExtractionMode,
@@ -1561,7 +1561,7 @@ impl EnvelopeProcessorService {
             event_id: None,
             remote_addr: None,
             category: DataCategory::MetricBucket,
-            quantity: total_batches as u32,
+            quantity: total_buckets as u32,
         });
     }
 
