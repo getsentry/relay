@@ -1,7 +1,7 @@
 use std::fs;
 
 use relay_event_normalization::{
-    NormalizeProcessor, NormalizeProcessorConfig, StoreConfig, StoreProcessor,
+    normalize_event, NormalizationConfig, StoreConfig, StoreProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Event;
@@ -71,12 +71,7 @@ macro_rules! event_snapshot {
             fn test_processing() {
                 let mut event = load_fixture();
 
-                process_value(
-                    &mut event,
-                    &mut NormalizeProcessor::new(NormalizeProcessorConfig::default()),
-                    ProcessingState::root(),
-                )
-                .unwrap();
+                normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
 
                 let config = StoreConfig::default();
                 let mut processor = StoreProcessor::new(config, None);

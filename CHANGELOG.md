@@ -18,6 +18,7 @@
 
 - Support source context in metric code locations metadata entries. ([#2781](https://github.com/getsentry/relay/pull/2781))
 - Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
+- Ignore whitespaces when parsing user reports. ([#2798](https://github.com/getsentry/relay/pull/2798))
 
 ## 23.11.2
 

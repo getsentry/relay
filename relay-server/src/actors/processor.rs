@@ -14,11 +14,11 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig, NormalizeProcessorConfig,
-    TransactionNameConfig,
+    normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
+    NormalizationConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkReportError};
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::partition_buckets;
@@ -822,7 +822,7 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let light_normalize_spans = state
+        let normalize_spans = state
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
@@ -832,7 +832,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = NormalizeProcessorConfig {
+            let config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -867,7 +867,7 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                light_normalize_spans,
+                normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -878,12 +878,7 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                process_value(
-                    event,
-                    &mut relay_event_normalization::NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
-                .map_err(|_| ProcessingError::InvalidTransaction)
+                normalize_event(event, &config).map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
 
@@ -1443,7 +1438,7 @@ mod tests {
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{
-        MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
+        normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
@@ -1576,7 +1571,7 @@ mod tests {
 
         relay_statsd::with_capturing_test_client(|| {
             utils::log_transaction_name_metrics(&mut event, |event| {
-                let config = NormalizeProcessorConfig {
+                let config = NormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
@@ -1588,11 +1583,7 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                process_value(
-                    event,
-                    &mut NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
+                normalize_event(event, &config)
             })
             .unwrap();
         })
