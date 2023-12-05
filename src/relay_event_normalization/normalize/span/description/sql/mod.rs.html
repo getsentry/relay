@@ -708,6 +708,36 @@
 <a href="#708" id="708">708</a>
 <a href="#709" id="709">709</a>
 <a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1401,6 +1431,30 @@
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
+        digits_in_alter_table,
+        <span class="string">r#&quot;ALTER TABLE &quot;foo&quot;.&quot;1234_foo&quot; ADD COLUMN &quot;bar678&quot; TEXT&quot;#</span>,
+        <span class="string">r#&quot;ALTER TABLE {%s}_foo ADD COLUMN bar{%s} TEXT&quot;#
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        digits_in_create_table,
+        <span class="string">r#&quot;CREATE TABLE &quot;foo&quot;.&quot;1234_foo&quot; ()&quot;#</span>,
+        <span class="string">&quot;CREATE TABLE {%s}_foo ()&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        digits_in_update,
+        <span class="string">r#&quot;UPDATE &quot;foo&quot;.&quot;1234_foo&quot; SET &quot;bar678&quot; = 0&quot;#</span>,
+        <span class="string">&quot;UPDATE {%s}_foo SET bar{%s} = %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        digits_in_delete,
+        <span class="string">r#&quot;DELETE FROM foo123 WHERE bar456 = 789&quot;#</span>,
+        <span class="string">&quot;DELETE FROM foo{%s} WHERE bar{%s} = %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
         uuid_in_table_name,
         <span class="string">&quot;SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix&quot;</span>,
         <span class="string">&quot;SELECT * FROM prefix_{%s}_{%s}_suffix&quot;
@@ -1410,6 +1464,12 @@
         long_hex_in_table_name,
         <span class="string">&quot;SELECT id FROM a11a0a11b11a11a9 LIMIT 100 OFFSET 300&quot;</span>,
         <span class="string">&quot;SELECT id FROM {%s} LIMIT %s OFFSET %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        rename_table,
+        <span class="string">r#&quot;ALTER TABLE &quot;foo&quot;.&quot;tmp&quot; RENAME TO &quot;foo&quot;.&quot;bar&quot;#</span>,
+        <span class="string">&quot;ALTER TABLE tmp RENAME TO bar&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
