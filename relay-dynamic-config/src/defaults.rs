@@ -154,7 +154,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             condition: Some(RuleCondition::eq("span.op", "ai.llm.completion")),
             tags: [
                 ("span.sentry_tags.", "group"),
-                ("span.sentry_tags.", "description"),
                 ("span.sentry_tags.", "op"),
                 ("span.data.", "language_model"),
                 ("span.sentry_tags.", "environment"),
@@ -174,7 +173,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             condition: Some(RuleCondition::eq("span.op", "ai.llm.completion")),
             tags: [
                 ("span.sentry_tags.", "group"),
-                ("span.sentry_tags.", "description"),
                 ("span.sentry_tags.", "op"),
                 ("span.data.", "language_model"),
                 ("span.sentry_tags.", "environment"),
@@ -194,7 +192,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             condition: Some(RuleCondition::eq("span.op", "ai.llm.completion")),
             tags: [
                 ("span.sentry_tags.", "group"),
-                ("span.sentry_tags.", "description"),
                 ("span.sentry_tags.", "op"),
                 ("span.data.", "language_model"),
                 ("span.sentry_tags.", "environment"),
