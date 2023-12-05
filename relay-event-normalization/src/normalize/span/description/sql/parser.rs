@@ -6,9 +6,9 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    AlterTableOperation, Assignment, CloseCursor, ColumnDef, Expr, Ident, Join, ObjectName, Query,
+    AlterTableOperation, Assignment, CloseCursor, ColumnDef, Expr, Ident, ObjectName, Query,
     Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint, TableFactor,
-    TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
+    UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -140,28 +140,6 @@ impl NormalizeVisitor {
         Self::collapse_items(&mut collapse, &mut select.projection);
     }
 
-    // fn transform_from(&mut self, from: &mut [TableWithJoins]) {
-    //     // Iterate "FROM".
-    //     for from in from {
-    //         self.transform_table_factor(&mut from.relation);
-    //         for join in &mut from.joins {
-    //             self.transform_table_factor(&mut join.relation);
-    //         }
-    //     }
-    // }
-
-    // fn transform_table_factor(&mut self, table_factor: &mut TableFactor) {
-    //     match table_factor {
-    //         // Recurse into subqueries.
-    //         TableFactor::Derived { subquery, .. } => {
-    //             self.transform_query(subquery);
-    //         }
-    //         // Strip quotes from identifiers in table names.
-    //         // TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
-    //         _ => {}
-    //     }
-    // }
-
     fn simplify_table_alias(alias: &mut Option<TableAlias>) {
         if let Some(TableAlias { name, columns }) = alias {
             Self::scrub_name(name);
@@ -203,34 +181,23 @@ impl VisitorMut for NormalizeVisitor {
         &mut self,
         table_factor: &mut TableFactor,
     ) -> ControlFlow<Self::Break> {
-        dbg!(&table_factor);
         match table_factor {
-            TableFactor::Table {
-                name,
-                alias,
-                args,
-                with_hints,
-                version,
-            } => {
-                // Self::simplify_compound_identifier(&mut name.0); // Not caught by visit_relation
+            TableFactor::Table { alias, .. } => {
                 Self::simplify_table_alias(alias);
             }
             TableFactor::Derived {
-                lateral,
-                subquery,
-                alias,
+                subquery, alias, ..
             } => {
                 self.transform_query(subquery);
                 Self::simplify_table_alias(alias);
             }
-            TableFactor::TableFunction { expr, alias } => {
+            TableFactor::TableFunction { alias, .. } => {
                 Self::simplify_table_alias(alias);
             }
             TableFactor::UNNEST {
                 alias,
-                array_exprs,
-                with_offset,
                 with_offset_alias,
+                ..
             } => {
                 Self::simplify_table_alias(alias);
                 if let Some(ident) = with_offset_alias {
@@ -241,23 +208,12 @@ impl VisitorMut for NormalizeVisitor {
                 Self::simplify_table_alias(alias);
             }
             TableFactor::Pivot {
-                name,
                 table_alias,
-                aggregate_function,
-                value_column,
-                pivot_values,
                 pivot_alias,
+                ..
             } => {
-                Self::simplify_compound_identifier(&mut name.0);
-                if let Some(TableAlias { name, columns }) = table_alias {
-                    Self::scrub_name(name);
-                    // TODO: columns?
-                }
-                Self::simplify_compound_identifier(value_column);
-                if let Some(TableAlias { name, columns }) = pivot_alias {
-                    Self::scrub_name(name);
-                    // TODO: columns?
-                }
+                Self::simplify_table_alias(table_alias);
+                Self::simplify_table_alias(pivot_alias);
             }
         }
         ControlFlow::Continue(())
@@ -330,41 +286,15 @@ impl VisitorMut for NormalizeVisitor {
             }
             // `INSERT INTO col1, col2 VALUES (val1, val2)` becomes `INSERT INTO .. VALUES (%s)`.
             Statement::Insert {
-                table_name,
-                columns,
-                source,
-                ..
+                columns, source, ..
             } => {
-                // Self::simplify_compound_identifier(&mut table_name.0);
                 *columns = vec![Self::ellipsis()];
                 if let SetExpr::Values(v) = &mut *source.body {
                     v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                 }
             }
-
-            Statement::Update {
-                table,
-                assignments,
-                from,
-                selection,
-                returning,
-            } => {
-                // let TableWithJoins { relation, joins } = dbg!(table);
-                // if let TableFactor::Table {
-                //     name,
-                //     alias,
-                //     args,
-                //     with_hints,
-                //     version,
-                // } = relation
-                // {
-                //     Self::simplify_compound_identifier(&mut name.0);
-                //     if let Some(alias) = alias {
-                //         Self::scrub_name(alias.name);
-                //     }
-                // }
-
-                // Simple lists of col = value assignments are collapsed to `..`.
+            // Simple lists of col = value assignments are collapsed to `..`.
+            Statement::Update { assignments, .. } => {
                 if assignments.len() > 1
                     && assignments
                         .iter()
@@ -402,59 +332,64 @@ impl VisitorMut for NormalizeVisitor {
                 Self::simplify_compound_identifier(&mut name.0);
                 match operation {
                     AlterTableOperation::AddConstraint(c) => match c {
-                        TableConstraint::Unique {
-                            name,
-                            columns,
-                            is_primary,
-                        } => todo!(),
+                        TableConstraint::Unique { name, columns, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                        }
                         TableConstraint::ForeignKey {
                             name,
                             columns,
-                            foreign_table,
                             referred_columns,
-                            on_delete,
-                            on_update,
-                        } => todo!(),
-                        TableConstraint::Check { name, expr } => todo!(),
-                        TableConstraint::Index {
-                            display_as_key,
-                            name,
-                            index_type,
-                            columns,
-                        } => todo!(),
+                            ..
+                        } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                            for column in referred_columns {
+                                Self::scrub_name(column);
+                            }
+                        }
+                        TableConstraint::Check { name, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                        }
+                        TableConstraint::Index { name, columns, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                        }
                         TableConstraint::FulltextOrSpatial {
-                            fulltext,
-                            index_type_display,
                             opt_index_name,
                             columns,
-                        } => todo!(),
-                    },
-                    AlterTableOperation::AddColumn {
-                        column_keyword,
-                        if_not_exists,
-                        column_def,
-                    } => {
-                        let ColumnDef {
-                            name,
-                            data_type,
-                            collation,
-                            options,
-                        } = column_def;
-                        Self::scrub_name(name);
-                        if let Some(collation) = collation {
-                            Self::simplify_compound_identifier(&mut collation.0);
+                            ..
+                        } => {
+                            if let Some(name) = opt_index_name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
                         }
+                    },
+                    AlterTableOperation::AddColumn { column_def, .. } => {
+                        let ColumnDef { name, .. } = column_def;
+                        Self::scrub_name(name);
                     }
-                    AlterTableOperation::DropConstraint {
-                        if_exists,
-                        name,
-                        cascade,
-                    } => Self::scrub_name(name),
-                    AlterTableOperation::DropColumn {
-                        column_name,
-                        if_exists,
-                        cascade,
-                    } => Self::scrub_name(column_name),
+                    AlterTableOperation::DropConstraint { name, .. } => Self::scrub_name(name),
+                    AlterTableOperation::DropColumn { column_name, .. } => {
+                        Self::scrub_name(column_name)
+                    }
                     AlterTableOperation::RenameColumn {
                         old_column_name,
                         new_column_name,
@@ -478,85 +413,7 @@ impl VisitorMut for NormalizeVisitor {
                     _ => {}
                 }
             }
-            Statement::CreateTable {
-                name,
-                or_replace,
-                temporary,
-                external,
-                global,
-                if_not_exists,
-                transient,
-                columns,
-                constraints,
-                hive_distribution,
-                hive_formats,
-                table_properties,
-                with_options,
-                file_format,
-                location,
-                query,
-                without_rowid,
-                like,
-                clone,
-                engine,
-                comment,
-                auto_increment_offset,
-                default_charset,
-                collation,
-                on_commit,
-                on_cluster,
-                order_by,
-                strict,
-            } => {
-                // dbg!(&name);
-                // Self::simplify_compound_identifier(&mut name.0);
-            }
-            // Statement::CreateDatabase { db_name, .. } => {
-            //     Self::simplify_compound_identifier(&mut db_name.0);
-            // }
-            // Statement::Analyze { table_name, .. } => todo!(),
-            // Statement::Truncate { table_name, .. } => todo!(),
-            // Statement::Msck { table_name, .. } => todo!(),
-            // Statement::Delete { tables, from, using, selection, returning } => todo!(),
-            // Statement::CreateView { or_replace, materialized, name, columns, query, with_options, cluster_by } => todo!(),
-            // Statement::CreateVirtualTable { name, if_not_exists, module_name, module_args } => todo!(),
-            // Statement::CreateIndex { name, table_name, using, columns, unique, concurrently, if_not_exists, include, nulls_distinct, predicate } => todo!(),
-            // Statement::CreateRole { names, if_not_exists, login, inherit, bypassrls, password, superuser, create_db, create_role, replication, connection_limit, valid_until, in_role, in_group, role, user, admin, authorization_owner } => todo!(),
-            // Statement::AlterIndex { name, operation } => todo!(),
-            // Statement::AlterView { name, columns, query, with_options } => todo!(),
-            // Statement::AlterRole { name, operation } => todo!(),
-            // Statement::Drop { object_type, if_exists, names, cascade, restrict, purge, temporary } => todo!(),
-            // Statement::SetRole { context_modifier, role_name } => todo!(),
-            // Statement::ShowVariable { variable } => todo!(),
-            // Statement::ShowCreate { obj_type, obj_name } => todo!(),
-            // Statement::ShowColumns { extended, full, table_name, filter } => todo!(),
-            // Statement::ShowTables { extended, full, db_name, filter } => todo!(),
-            // Statement::ShowCollation { filter } => todo!(),
-            // Statement::Use { db_name } => todo!(),
-            // Statement::StartTransaction { modes, begin } => todo!(),
-            // Statement::SetTransaction { modes, snapshot, session } => todo!(),
-            // Statement::Comment { object_type, object_name, comment, if_exists } => todo!(),
-            // Statement::Commit { chain } => todo!(),
-            // Statement::Rollback { chain } => todo!(),
-            // Statement::CreateSchema { schema_name, if_not_exists } => todo!(),
-            // Statement::CreateFunction { or_replace, temporary, name, args, return_type, params } => todo!(),
-            // Statement::CreateProcedure { or_alter, name, params, body } => todo!(),
-            // Statement::CreateMacro { or_replace, temporary, name, args, definition } => todo!(),
-            // Statement::CreateStage { or_replace, temporary, if_not_exists, name, stage_params, directory_table_params, file_format, copy_options, comment } => todo!(),
-            // Statement::Assert { condition, message } => todo!(),
-            // Statement::Grant { privileges, objects, grantees, with_grant_option, granted_by } => todo!(),
-            // Statement::Revoke { privileges, objects, grantees, granted_by, cascade } => todo!(),
-            // Statement::Deallocate { name, prepare } => todo!(),
-            // Statement::Execute { name, parameters } => todo!(),
-            // Statement::Prepare { name, data_types, statement } => todo!(),
-            // Statement::Kill { modifier, id } => todo!(),
-            // Statement::ExplainTable { describe_alias, table_name } => todo!(),
-            // Statement::Explain { describe_alias, analyze, verbose, statement, format } => todo!(),
-            // Statement::Merge { into, table, source, on, clauses } => todo!(),
-            // Statement::Cache { table_flag, table_name, has_as, options, query } => todo!(),
-            // Statement::UNCache { table_name, if_exists } => todo!(),
-            // Statement::CreateSequence { temporary, if_not_exists, name, data_type, sequence_options, owned_by } => todo!(),
-            // Statement::CreateType { name, representation } => todo!(),
+
             _ => {}
         }
 
