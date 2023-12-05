@@ -1560,7 +1560,7 @@ impl EnvelopeProcessorService {
             outcome: Outcome::RateLimited(reason_code),
             event_id: None,
             remote_addr: None,
-            category: DataCategory::Metrics,
+            category: DataCategory::MetricBucket,
             quantity: total_batches as u32,
         });
     }
@@ -1589,7 +1589,7 @@ impl EnvelopeProcessorService {
 
         let quotas = &project_state.config.quotas;
         let item_scoping = ItemScoping {
-            category: DataCategory::Metrics,
+            category: DataCategory::MetricBucket,
             scoping: &scoping,
         };
 
