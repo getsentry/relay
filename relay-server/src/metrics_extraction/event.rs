@@ -1038,7 +1038,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
-            "sdk": {"name": "sentry.cocoa"},
+            "sdk": {"name": "sentry.javascript.react-native"},
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "timestamp": "2021-04-26T08:00:00+0100",
             "release": "1.2.3",
@@ -1052,6 +1052,14 @@ mod tests {
                 "device": {
                     "family": "iOS",
                     "model": "iPhone1,1"
+                },
+                "app": {
+                    "app_identifier": "org.reactjs.native.example.RnDiffApp",
+                    "app_name": "RnDiffApp"
+                },
+                "os": {
+                    "name": "iOS",
+                    "version": "16.2"
                 }
             },
             "spans": [

@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
+use relay_event_schema::protocol::{AppContext, Event, OsContext, Span, Timestamp, TraceContext};
 use relay_protocol::Annotated;
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
@@ -32,6 +32,8 @@ pub enum SpanTagKey {
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
+    // Mobile platform the transaction originated from.
+    Platform,
 
     // Specific to spans
     Action,
@@ -87,6 +89,7 @@ impl SpanTagKey {
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainTread => "main_thread",
+            SpanTagKey::Platform => "platform",
         }
     }
 }
@@ -201,6 +204,17 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
         tags.insert(SpanTagKey::Mobile, "true".to_owned());
+
+        if event.context::<AppContext>().is_some() {
+            if let Some(os_context) = event.context::<OsContext>() {
+                if let Some(os_name) = os_context.name.value() {
+                    tags.insert(
+                        SpanTagKey::Platform,
+                        os_name.to_string().to_lowercase().to_owned(),
+                    );
+                }
+            }
+        }
     }
 
     if let Some(device_class) = event.tag_value("device.class") {
@@ -979,7 +993,7 @@ LIMIT 1
     }
 
     #[test]
-    fn test_main_thread() {
+    fn test_mobile_specific_tags() {
         let json = r#"
             {
                 "type": "transaction",
@@ -992,6 +1006,14 @@ LIMIT 1
                     "trace": {
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "span_id": "bd429c44b67a3eb4"
+                    },
+                    "app": {
+                        "app_identifier": "io.sentry.samples.android",
+                        "app_name": "sentry_android_example"
+                    },
+                    "os": {
+                        "name": "Android",
+                        "version": "8.1.0"
                     }
                 },
                 "spans": [
@@ -1044,6 +1066,7 @@ LIMIT 1
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
+        assert_eq!(tags.get("platform").unwrap().as_str(), Some("android"));
 
         let span = &event.spans.value().unwrap()[1];
 
