@@ -38,6 +38,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             },
             received: ~,
             measurements: ~,
+            _metrics_summary: ~,
             other: {},
         },
     ],

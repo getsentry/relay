@@ -288,6 +288,7 @@ mod tests {
             sentry_tags: ~,
             received: ~,
             measurements: ~,
+            _metrics_summary: ~,
             other: {},
         }
         "###);
