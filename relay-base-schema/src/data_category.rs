@@ -63,8 +63,6 @@ pub enum DataCategory {
     /// Currently standardized on name UserReportV2 to avoid clashing with the old UserReport.
     /// TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
     UserReportV2 = 14,
-    /// Metric bucket.
-    MetricBucket = 15,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -95,7 +93,6 @@ impl DataCategory {
             "span" => Self::Span,
             "monitor_seat" => Self::MonitorSeat,
             "feedback" => Self::UserReportV2,
-            "metric_bucket" => Self::MetricBucket,
             _ => Self::Unknown,
         }
     }
@@ -119,7 +116,6 @@ impl DataCategory {
             Self::Span => "span",
             Self::MonitorSeat => "monitor_seat",
             Self::UserReportV2 => "feedback",
-            Self::MetricBucket => "metric_bucket",
             Self::Unknown => "unknown",
         }
     }

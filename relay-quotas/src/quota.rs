@@ -111,7 +111,6 @@ impl CategoryUnit {
             | DataCategory::Span
             | DataCategory::MonitorSeat
             | DataCategory::Monitor
-            | DataCategory::MetricBucket
             | DataCategory::UserReportV2 => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
@@ -296,14 +295,16 @@ impl Quota {
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
-        let Some(scope_id) = self.scope_id.as_ref() else {
-            return true;
+        let scope_id = match self.scope_id {
+            Some(ref scope_id) => scope_id,
+            None => return true,
         };
 
         // Check if the scope identifier in the quota is parseable. If not, this means we cannot
         // fulfill the constraint, so the quota does not match.
-        let Ok(parsed) = scope_id.parse::<u64>() else {
-            return false;
+        let parsed = match scope_id.parse::<u64>() {
+            Ok(parsed) => parsed,
+            Err(_) => return false,
         };
 
         // At this stage, require that the scope is known since we have to fulfill the constraint.
