@@ -691,6 +691,30 @@ mod tests {
     );
 
     scrub_sql_test!(
+        digits_in_alter_table,
+        r#"ALTER TABLE "foo"."1234_foo" ADD COLUMN "bar678" TEXT"#,
+        r#"ALTER TABLE {%s}_foo ADD COLUMN bar{%s} TEXT"#
+    );
+
+    scrub_sql_test!(
+        digits_in_create_table,
+        r#"CREATE TABLE "foo"."1234_foo" ()"#,
+        "CREATE TABLE {%s}_foo ()"
+    );
+
+    scrub_sql_test!(
+        digits_in_update,
+        r#"UPDATE "foo"."1234_foo" SET "bar678" = 0"#,
+        "UPDATE {%s}_foo SET bar{%s} = %s"
+    );
+
+    scrub_sql_test!(
+        digits_in_delete,
+        r#"DELETE FROM foo123 WHERE bar456 = 789"#,
+        "DELETE FROM foo{%s} WHERE bar{%s} = %s"
+    );
+
+    scrub_sql_test!(
         uuid_in_table_name,
         "SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix",
         "SELECT * FROM prefix_{%s}_{%s}_suffix"
@@ -700,6 +724,12 @@ mod tests {
         long_hex_in_table_name,
         "SELECT id FROM a11a0a11b11a11a9 LIMIT 100 OFFSET 300",
         "SELECT id FROM {%s} LIMIT %s OFFSET %s"
+    );
+
+    scrub_sql_test!(
+        rename_table,
+        r#"ALTER TABLE "foo"."tmp" RENAME TO "foo"."bar"#,
+        "ALTER TABLE tmp RENAME TO bar"
     );
 
     scrub_sql_test!(

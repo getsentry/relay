@@ -16,21 +16,20 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig, NormalizeProcessorConfig,
-    TransactionNameConfig,
+    normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
+    NormalizationConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkReportError};
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
-use relay_pii::{PiiAttachmentsProcessor, PiiConfigError};
+use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -41,8 +40,9 @@ use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, RateLimitingError, ReasonCode, RedisRateLimiter},
     relay_redis::RedisPool,
+    std::collections::BTreeMap,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -52,7 +52,7 @@ use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::test_store::TestStore;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -62,6 +62,7 @@ use crate::utils::{
     self, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
 };
 
+mod attachment;
 mod dynamic_sampling;
 mod event;
 mod profile;
@@ -232,6 +233,23 @@ impl ExtractedMetrics {
             ));
         }
     }
+}
+
+fn source_quantities_from_buckets(
+    buckets: &BucketsView,
+    extraction_mode: ExtractionMode,
+) -> SourceQuantities {
+    buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
+        .fold(SourceQuantities::default(), |acc, c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+
+            SourceQuantities {
+                transactions: acc.transactions + c.count,
+                profiles: acc.profiles + profile_count,
+            }
+        })
 }
 
 /// A state container for envelope processing.
@@ -439,6 +457,10 @@ pub struct EncodeMetrics {
     pub scoping: Scoping,
     /// Transaction metrics extraction mode.
     pub extraction_mode: ExtractionMode,
+    /// Project state for extracting quotas.
+    pub project_state: Arc<ProjectState>,
+    /// The ratelimits belonging to the project.
+    pub rate_limits: RateLimits,
     /// Wether to check the contained metric buckets with the cardinality limiter.
     pub enable_cardinality_limiter: bool,
 }
@@ -724,31 +746,6 @@ impl EnvelopeProcessorService {
         })
     }
 
-    /// Adds processing placeholders for special attachments.
-    ///
-    /// If special attachments are present in the envelope, this adds placeholder payloads to the
-    /// event. This indicates to the pipeline that the event needs special processing.
-    ///
-    /// If the event payload was empty before, it is created.
-    #[cfg(feature = "processing")]
-    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.managed_envelope.envelope();
-        let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-        let apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
-
-        if let Some(item) = minidump_attachment {
-            let event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-            utils::process_minidump(event, &item.payload());
-        } else if let Some(item) = apple_crash_report_attachment {
-            let event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-            utils::process_apple_crash_report(event, &item.payload());
-        }
-    }
-
     #[cfg(feature = "processing")]
     fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
@@ -860,59 +857,6 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Apply data privacy rules to attachments in the envelope.
-    ///
-    /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
-    /// attachment types. When special attachments are detected, these are scrubbed with custom
-    /// logic; otherwise the entire attachment is treated as a single binary blob.
-    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.managed_envelope.envelope_mut();
-        if let Some(ref config) = state.project_state.config.pii_config {
-            let minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-
-            if let Some(item) = minidump {
-                let filename = item.filename().unwrap_or_default();
-                let mut payload = item.payload().to_vec();
-
-                let processor = PiiAttachmentsProcessor::new(config.compiled());
-
-                // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
-                // must be conservative and treat it as a plain attachment. Under extreme
-                // conditions, this could destroy stack memory.
-                let start = Instant::now();
-                match processor.scrub_minidump(filename, &mut payload) {
-                    Ok(modified) => {
-                        metric!(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = if modified { "ok" } else { "n/a" },
-                        );
-                    }
-                    Err(scrub_error) => {
-                        metric!(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = "error"
-                        );
-                        relay_log::warn!(
-                            error = &scrub_error as &dyn Error,
-                            "failed to scrub minidump",
-                        );
-                        metric!(timer(RelayTimers::AttachmentScrubbing), {
-                            processor.scrub_attachment(filename, &mut payload);
-                        })
-                    }
-                }
-
-                let content_type = item
-                    .content_type()
-                    .unwrap_or(&ContentType::Minidump)
-                    .clone();
-
-                item.set_payload(content_type, payload);
-            }
-        }
-    }
-
     fn light_normalize_event(
         &self,
         state: &mut ProcessEnvelopeState,
@@ -920,7 +864,7 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let light_normalize_spans = state
+        let normalize_spans = state
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
@@ -930,7 +874,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = NormalizeProcessorConfig {
+            let config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -965,7 +909,7 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                light_normalize_spans,
+                normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -976,12 +920,7 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                process_value(
-                    event,
-                    &mut relay_event_normalization::NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
-                .map_err(|_| ProcessingError::InvalidTransaction)
+                normalize_event(event, &config).map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
 
@@ -1021,7 +960,7 @@ impl EnvelopeProcessorService {
 
             if_processing!({
                 unreal::process(state)?;
-                self.create_placeholders(state);
+                attachment::create_placeholders(state);
             });
 
             event::finalize(state, &self.inner.config)?;
@@ -1058,7 +997,7 @@ impl EnvelopeProcessorService {
             });
         }
 
-        self.scrub_attachments(state);
+        attachment::scrub(state);
 
         Ok(())
     }
@@ -1275,8 +1214,6 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
-        use relay_quotas::ItemScoping;
-
         let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
@@ -1384,11 +1321,158 @@ impl EnvelopeProcessorService {
         Ok(Either::Left(buckets.into_iter()))
     }
 
+    /// Records the outcomes of the dropped buckets.
+    #[cfg(feature = "processing")]
+    fn drop_buckets_with_outcomes(
+        &self,
+        reason_code: Option<ReasonCode>,
+        total_buckets: usize,
+        scoping: Scoping,
+        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        mode: ExtractionMode,
+    ) {
+        let mut source_quantities = SourceQuantities::default();
+
+        for buckets in bucket_partitions.values() {
+            source_quantities += source_quantities_from_buckets(&BucketsView::new(buckets), mode);
+        }
+
+        let timestamp = Utc::now();
+
+        if source_quantities.transactions > 0 {
+            self.inner.outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Transaction,
+                quantity: source_quantities.transactions as u32,
+            });
+        }
+        if source_quantities.profiles > 0 {
+            self.inner.outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Profile,
+                quantity: source_quantities.profiles as u32,
+            });
+        }
+
+        self.inner.outcome_aggregator.send(TrackOutcome {
+            timestamp,
+            scoping,
+            outcome: Outcome::RateLimited(reason_code),
+            event_id: None,
+            remote_addr: None,
+            category: DataCategory::MetricBucket,
+            quantity: total_buckets as u32,
+        });
+    }
+
+    /// Returns `true` if the batches should be rate limited.
+    #[cfg(feature = "processing")]
+    fn rate_limit_batches(
+        &self,
+        cached_rate_limits: RateLimits,
+        scoping: Scoping,
+        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        max_batch_size_bytes: usize,
+        project_state: Arc<ProjectState>,
+    ) -> bool {
+        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+            return false;
+        };
+
+        let mode = {
+            let usage = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+                _ => false,
+            };
+            ExtractionMode::from_usage(usage)
+        };
+
+        let quotas = &project_state.config.quotas;
+        let item_scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: &scoping,
+        };
+
+        // We couldn't use the bucket length directly because batching may change the amount of buckets.
+        let total_buckets: usize = bucket_partitions
+            .values()
+            .flat_map(|buckets| {
+                // Cheap operation because there's no allocations.
+                BucketsView::new(buckets)
+                    .by_size(max_batch_size_bytes)
+                    .map(|batch| batch.len())
+            })
+            .sum();
+
+        // For limiting the amount of redis calls we make, in case we already passed the limit.
+        if cached_rate_limits
+            .check_with_quotas(quotas, item_scoping)
+            .is_limited()
+        {
+            relay_log::info!("dropping {total_buckets} buckets due to throughput ratelimit");
+            let reason_code = cached_rate_limits
+                .longest()
+                .and_then(|limit| limit.reason_code.clone());
+
+            self.drop_buckets_with_outcomes(
+                reason_code,
+                total_buckets,
+                scoping,
+                bucket_partitions,
+                mode,
+            );
+
+            return true;
+        }
+
+        // Check with redis if the throughput limit has been exceeded, while also updating
+        // the count so that other relays will be updated too.
+        match rate_limiter.is_rate_limited(quotas, item_scoping, total_buckets, false) {
+            Ok(limits) if limits.is_limited() => {
+                relay_log::info!("dropping {total_buckets} buckets due to throughput ratelimit");
+
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                self.drop_buckets_with_outcomes(
+                    reason_code,
+                    total_buckets,
+                    scoping,
+                    bucket_partitions,
+                    mode,
+                );
+
+                self.inner
+                    .project_cache
+                    .send(UpdateRateLimits::new(scoping.project_key, limits));
+
+                return true;
+            }
+            Ok(_) => {} // not ratelimited
+            Err(e) => {
+                relay_log::error!(
+                    error = &e as &dyn std::error::Error,
+                    "failed to check redis rate limits"
+                );
+            }
+        }
+
+        false
+    }
+
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
             scoping,
             extraction_mode,
+            project_state: _project_state,
+            rate_limits: _cached_rate_limits,
             enable_cardinality_limiter,
         } = message;
 
@@ -1413,8 +1497,20 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
-        {
+        let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
+
+        #[cfg(feature = "processing")]
+        if self.rate_limit_batches(
+            _cached_rate_limits,
+            scoping,
+            &bucket_partitions,
+            max_batch_size_bytes,
+            _project_state,
+        ) {
+            return;
+        }
+
+        for (partition_key, buckets) in bucket_partitions {
             let mut num_batches = 0;
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
@@ -1548,18 +1644,7 @@ impl Service for EnvelopeProcessorService {
 }
 
 fn create_metrics_item(buckets: &BucketsView<'_>, extraction_mode: ExtractionMode) -> Item {
-    let source_quantities = buckets
-        .iter()
-        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
-        .fold(SourceQuantities::default(), |acc, c| {
-            let profile_count = if c.has_profile { c.count } else { 0 };
-
-            SourceQuantities {
-                transactions: acc.transactions + c.count,
-                profiles: acc.profiles + profile_count,
-            }
-        });
-
+    let source_quantities = source_quantities_from_buckets(buckets, extraction_mode);
     let mut item = Item::new(ItemType::MetricBuckets);
     item.set_source_quantities(source_quantities);
     item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
@@ -1577,7 +1662,7 @@ mod tests {
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{
-        MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
+        normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
@@ -1710,7 +1795,7 @@ mod tests {
 
         relay_statsd::with_capturing_test_client(|| {
             utils::log_transaction_name_metrics(&mut event, |event| {
-                let config = NormalizeProcessorConfig {
+                let config = NormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
@@ -1722,11 +1807,7 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                process_value(
-                    event,
-                    &mut NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
+                normalize_event(event, &config)
             })
             .unwrap();
         })
