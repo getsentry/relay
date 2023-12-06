@@ -12,7 +12,8 @@ use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::actors::processor::ProcessEnvelopeState;
+use crate::actors::outcome::Outcome;
+use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils::{self, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -92,6 +93,23 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
         }
         _ => {}
     }
+}
+
+/// Apply the dynamic sampling decision from `compute_sampling_decision`.
+pub fn sample_envelope(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
+        // We assume that sampling is only supposed to work on transactions.
+        if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
+            let matched_rules = sampling_match.into_matched_rules();
+
+            state
+                .managed_envelope
+                .reject(Outcome::FilteredSampling(matched_rules.clone()));
+
+            return Err(ProcessingError::Sampled(matched_rules));
+        }
+    }
+    Ok(())
 }
 
 /// Computes the sampling decision on the incoming transaction.
