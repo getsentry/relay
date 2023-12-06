@@ -3936,6 +3936,7 @@ dependencies = [
  "relay-auth",
  "relay-aws-extension",
  "relay-base-schema",
+ "relay-cardinality",
  "relay-common",
  "relay-config",
  "relay-dynamic-config",

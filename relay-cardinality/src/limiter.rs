@@ -1,6 +1,7 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
 
-use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier, UnixTimestamp};
 
 use hash32::{FnvHasher, Hasher as _};
 
@@ -113,20 +114,28 @@ impl<T: Limiter> CardinalityLimiter<T> {
     /// Checks cardinality limits of a list of buckets.
     ///
     /// Returns an iterator of all buckets that have been accepted.
-    pub fn check_cardinality_limits<'a>(
-        &'a self,
+    pub fn check_cardinality_limits(
+        &self,
         organization: OrganizationId,
-        buckets: &'a [Bucket],
-    ) -> Result<impl Iterator<Item = &'a Bucket>> {
+        mut buckets: Vec<Bucket>,
+    ) -> Result<impl Iterator<Item = Bucket>> {
         let entries = buckets
             .iter()
             .enumerate()
             .filter_map(|(id, bucket)| self.parse_bucket(EntryId(id), bucket));
 
+        const EMPTY: Bucket = Bucket {
+            name: String::new(),
+            timestamp: UnixTimestamp::from_secs(0),
+            tags: BTreeMap::new(),
+            value: relay_metrics::BucketValue::Counter(0.0),
+            width: 0,
+        };
+
         let accepted = self
             .limiter
             .check_cardinality_limits(organization, entries, self.config.cardinality_limit)?
-            .map(|entry| &buckets[entry.id.0]);
+            .map(move |entry| std::mem::replace(&mut buckets[entry.id.0], EMPTY));
 
         Ok(accepted)
     }

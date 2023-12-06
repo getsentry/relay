@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
@@ -554,6 +555,7 @@ struct InnerProcessor {
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     metric_meta_store: Option<RedisMetricMetaStore>,
+    cardinality_limiter: Option<CardinalityLimiter>,
 }
 
 impl EnvelopeProcessorService {
@@ -579,6 +581,9 @@ impl EnvelopeProcessorService {
             }
         });
 
+        #[cfg(not(feature = "processing"))]
+        let redis: Option<RedisPool> = None;
+
         let inner = InnerProcessor {
             #[cfg(feature = "processing")]
             redis_pool: redis.clone(),
@@ -597,6 +602,20 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            }),
+            cardinality_limiter: redis.clone().map(|pool| {
+                CardinalityLimiter::new(
+                    RedisSetLimiter::new(
+                        pool,
+                        SlidingWindow {
+                            window_seconds: 3600,
+                            granularity_seconds: 360,
+                        },
+                    ),
+                    relay_cardinality::CardinalityLimiterConfig {
+                        cardinality_limit: 10_000,
+                    },
+                )
             }),
             config,
         };
@@ -1356,8 +1375,24 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
+        let partitioned_buckets = if let Some(ref cardinality_limiter) =
+            self.inner.cardinality_limiter
         {
+            match cardinality_limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+                Ok(accepted) => partition_buckets(scoping.project_key, accepted, partitions),
+                Err(error) => {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "cardinality limiter failed"
+                    );
+                    return;
+                }
+            }
+        } else {
+            partition_buckets(scoping.project_key, buckets, partitions)
+        };
+
+        for (partition_key, buckets) in partitioned_buckets {
             let mut num_batches = 0;
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {

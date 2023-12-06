@@ -213,6 +213,7 @@ impl<'a> RedisHelper<'a> {
     }
 }
 
+/// A sliding window.
 #[derive(Debug, Clone, Copy)]
 pub struct SlidingWindow {
     /// The number of seconds to apply the limit to.
