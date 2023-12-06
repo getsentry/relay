@@ -34,6 +34,7 @@ use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
+use std::ops::AddAssign;
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -530,6 +531,13 @@ pub struct SourceQuantities {
     pub transactions: usize,
     /// Profile quantity.
     pub profiles: usize,
+}
+
+impl AddAssign for SourceQuantities {
+    fn add_assign(&mut self, other: Self) {
+        self.transactions += other.transactions;
+        self.profiles += other.profiles;
+    }
 }
 
 #[derive(Clone, Debug)]
