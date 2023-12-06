@@ -14,17 +14,17 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig, NormalizeProcessorConfig,
-    TransactionNameConfig,
+    normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
+    NormalizationConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
-use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkReportError};
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
-use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
+use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
@@ -37,7 +37,6 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{ItemScoping, RateLimitingError, ReasonCode, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -51,7 +50,7 @@ use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::test_store::TestStore;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -61,6 +60,7 @@ use crate::utils::{
     self, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
 };
 
+mod attachment;
 mod dynamic_sampling;
 mod event;
 mod profile;
@@ -207,24 +207,6 @@ impl From<ExtractMetricsError> for ProcessingError {
 }
 
 type ExtractedEvent = (Annotated<Event>, usize);
-
-/// Checks if the Event includes unprintable fields.
-#[cfg(feature = "processing")]
-fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
-    fn is_unprintable(value: &&str) -> bool {
-        value.chars().any(|c| {
-            c == '\u{fffd}' // unicode replacement character
-                || (c.is_control() && !c.is_whitespace()) // non-whitespace control characters
-        })
-    }
-    if let Some(event) = event.value() {
-        let env = event.environment.as_str().filter(is_unprintable);
-        let release = event.release.as_str().filter(is_unprintable);
-        env.is_some() || release.is_some()
-    } else {
-        false
-    }
-}
 
 impl ExtractedMetrics {
     // TODO(ja): Move
@@ -743,89 +725,6 @@ impl EnvelopeProcessorService {
         })
     }
 
-    /// Adds processing placeholders for special attachments.
-    ///
-    /// If special attachments are present in the envelope, this adds placeholder payloads to the
-    /// event. This indicates to the pipeline that the event needs special processing.
-    ///
-    /// If the event payload was empty before, it is created.
-    #[cfg(feature = "processing")]
-    fn create_placeholders(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.managed_envelope.envelope();
-        let minidump_attachment =
-            envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-        let apple_crash_report_attachment = envelope
-            .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
-
-        if let Some(item) = minidump_attachment {
-            let event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
-            utils::process_minidump(event, &item.payload());
-        } else if let Some(item) = apple_crash_report_attachment {
-            let event = state.event.get_or_insert_with(Event::default);
-            state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
-            utils::process_apple_crash_report(event, &item.payload());
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    fn store_process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let ProcessEnvelopeState {
-            ref mut event,
-            ref project_state,
-            ref managed_envelope,
-            ..
-        } = *state;
-
-        let key_id = project_state
-            .get_public_key_config()
-            .and_then(|k| Some(k.numeric_id?.to_string()));
-
-        let envelope = state.managed_envelope.envelope();
-
-        if key_id.is_none() {
-            relay_log::error!(
-                "project state for key {} is missing key id",
-                envelope.meta().public_key()
-            );
-        }
-
-        let store_config = StoreConfig {
-            project_id: Some(state.project_id.value()),
-            client_ip: envelope.meta().client_addr().map(IpAddr::from),
-            client: envelope.meta().client().map(str::to_owned),
-            key_id,
-            protocol_version: Some(envelope.meta().version().to_string()),
-            grouping_config: project_state.config.grouping_config.clone(),
-            user_agent: envelope.meta().user_agent().map(str::to_owned),
-            max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-            max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
-            enable_trimming: Some(true),
-            is_renormalize: Some(false),
-            remove_other: Some(true),
-            normalize_user_agent: Some(true),
-            sent_at: envelope.sent_at(),
-            received_at: Some(managed_envelope.received_at()),
-            breakdowns: project_state.config.breakdowns_v2.clone(),
-            span_attributes: project_state.config.span_attributes.clone(),
-            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
-            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
-            client_hints: envelope.meta().client_hints().to_owned(),
-        };
-
-        let mut store_processor =
-            StoreProcessor::new(store_config, self.inner.geoip_lookup.as_ref());
-        metric!(timer(RelayTimers::EventProcessingProcess), {
-            processor::process_value(event, &mut store_processor, ProcessingState::root())
-                .map_err(|_| ProcessingError::InvalidTransaction)?;
-            if has_unprintable_fields(event) {
-                metric!(counter(RelayCounters::EventCorrupted) += 1);
-            }
-        });
-
-        Ok(())
-    }
-
     #[cfg(feature = "processing")]
     fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
@@ -937,133 +836,6 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Apply data privacy rules to the event payload.
-    ///
-    /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-    fn scrub_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let event = &mut state.event;
-        let config = &state.project_state.config;
-
-        if config.datascrubbing_settings.scrub_data {
-            if let Some(event) = event.value_mut() {
-                scrub_graphql(event);
-            }
-        }
-
-        metric!(timer(RelayTimers::EventProcessingPii), {
-            if let Some(ref config) = config.pii_config {
-                let mut processor = PiiProcessor::new(config.compiled());
-                processor::process_value(event, &mut processor, ProcessingState::root())?;
-            }
-            let pii_config = config
-                .datascrubbing_settings
-                .pii_config()
-                .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
-            if let Some(config) = pii_config {
-                let mut processor = PiiProcessor::new(config.compiled());
-                processor::process_value(event, &mut processor, ProcessingState::root())?;
-            }
-        });
-
-        Ok(())
-    }
-
-    /// Apply data privacy rules to attachments in the envelope.
-    ///
-    /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
-    /// attachment types. When special attachments are detected, these are scrubbed with custom
-    /// logic; otherwise the entire attachment is treated as a single binary blob.
-    fn scrub_attachments(&self, state: &mut ProcessEnvelopeState) {
-        let envelope = state.managed_envelope.envelope_mut();
-        if let Some(ref config) = state.project_state.config.pii_config {
-            let minidump = envelope
-                .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-
-            if let Some(item) = minidump {
-                let filename = item.filename().unwrap_or_default();
-                let mut payload = item.payload().to_vec();
-
-                let processor = PiiAttachmentsProcessor::new(config.compiled());
-
-                // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
-                // must be conservative and treat it as a plain attachment. Under extreme
-                // conditions, this could destroy stack memory.
-                let start = Instant::now();
-                match processor.scrub_minidump(filename, &mut payload) {
-                    Ok(modified) => {
-                        metric!(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = if modified { "ok" } else { "n/a" },
-                        );
-                    }
-                    Err(scrub_error) => {
-                        metric!(
-                            timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                            status = "error"
-                        );
-                        relay_log::warn!(
-                            error = &scrub_error as &dyn Error,
-                            "failed to scrub minidump",
-                        );
-                        metric!(timer(RelayTimers::AttachmentScrubbing), {
-                            processor.scrub_attachment(filename, &mut payload);
-                        })
-                    }
-                }
-
-                let content_type = item
-                    .content_type()
-                    .unwrap_or(&ContentType::Minidump)
-                    .clone();
-
-                item.set_payload(content_type, payload);
-            }
-        }
-    }
-
-    fn serialize_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-            state
-                .event
-                .to_json()
-                .map_err(ProcessingError::SerializeFailed)?
-        });
-
-        let event_type = state.event_type().unwrap_or_default();
-        let mut event_item = Item::new(ItemType::from_event_type(event_type));
-        event_item.set_payload(ContentType::Json, data);
-
-        // If transaction metrics were extracted, set the corresponding item header
-        event_item.set_metrics_extracted(state.event_metrics_extracted);
-
-        // If there are sample rates, write them back to the envelope. In processing mode, sample
-        // rates have been removed from the state and burnt into the event via `finalize_event`.
-        if let Some(sample_rates) = state.sample_rates.take() {
-            event_item.set_sample_rates(sample_rates);
-        }
-
-        state.envelope_mut().add_item(event_item);
-
-        Ok(())
-    }
-
-    /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-    fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
-            // We assume that sampling is only supposed to work on transactions.
-            if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
-                let matched_rules = sampling_match.into_matched_rules();
-
-                state
-                    .managed_envelope
-                    .reject(Outcome::FilteredSampling(matched_rules.clone()));
-
-                return Err(ProcessingError::Sampled(matched_rules));
-            }
-        }
-        Ok(())
-    }
-
     fn light_normalize_event(
         &self,
         state: &mut ProcessEnvelopeState,
@@ -1071,7 +843,7 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let light_normalize_spans = state
+        let normalize_spans = state
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
@@ -1081,7 +853,7 @@ impl EnvelopeProcessorService {
             .aggregator_config_for(MetricNamespace::Transactions);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = NormalizeProcessorConfig {
+            let config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -1116,7 +888,7 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                light_normalize_spans,
+                normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -1127,12 +899,7 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                process_value(
-                    event,
-                    &mut relay_event_normalization::NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
-                .map_err(|_| ProcessingError::InvalidTransaction)
+                normalize_event(event, &config).map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
 
@@ -1172,7 +939,7 @@ impl EnvelopeProcessorService {
 
             if_processing!({
                 unreal::process(state)?;
-                self.create_placeholders(state);
+                attachment::create_placeholders(state);
             });
 
             event::finalize(state, &self.inner.config)?;
@@ -1187,10 +954,10 @@ impl EnvelopeProcessorService {
                 self.extract_metrics(state)?;
             }
 
-            self.sample_envelope(state)?;
+            dynamic_sampling::sample_envelope(state)?;
 
             if_processing!({
-                self.store_process_event(state)?;
+                event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
             });
         }
 
@@ -1202,14 +969,14 @@ impl EnvelopeProcessorService {
         });
 
         if state.has_event() {
-            self.scrub_event(state)?;
-            self.serialize_event(state)?;
+            event::scrub(state)?;
+            event::serialize(state)?;
             if_processing!({
                 span::extract_from_event(state);
             });
         }
 
-        self.scrub_attachments(state);
+        attachment::scrub(state);
 
         Ok(())
     }
@@ -1838,7 +1605,7 @@ mod tests {
     use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{
-        MeasurementsConfig, NormalizeProcessor, RedactionRule, TransactionNameRule,
+        normalize_event, MeasurementsConfig, RedactionRule, TransactionNameRule,
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
@@ -1936,40 +1703,6 @@ mod tests {
         );
     }
 
-    #[test]
-    #[cfg(feature = "processing")]
-    fn test_unprintable_fields() {
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from(
-                "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
-            )),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
-            ),
-            ..Default::default()
-        });
-        assert!(has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            environment: Annotated::new(String::from("production")),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
-
-        let event = Annotated::new(Event {
-            release: Annotated::new(
-                String::from("release with\t some\n normal\r\nwhitespace").into(),
-            ),
-            ..Default::default()
-        });
-        assert!(!has_unprintable_fields(&event));
-    }
-
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
         let mut event = Annotated::<Event>::from_json(
             r#"
@@ -2005,7 +1738,7 @@ mod tests {
 
         relay_statsd::with_capturing_test_client(|| {
             utils::log_transaction_name_metrics(&mut event, |event| {
-                let config = NormalizeProcessorConfig {
+                let config = NormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
@@ -2017,11 +1750,7 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                process_value(
-                    event,
-                    &mut NormalizeProcessor::new(config),
-                    ProcessingState::root(),
-                )
+                normalize_event(event, &config)
             })
             .unwrap();
         })

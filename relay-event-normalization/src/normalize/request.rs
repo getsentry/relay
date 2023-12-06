@@ -1,3 +1,7 @@
+//! Normalization of the [`Request`] interface.
+//!
+//! See [`normalize_request`] for more information.
+
 use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingResult};
@@ -179,6 +183,15 @@ fn normalize_cookies(request: &mut Request) {
     }
 }
 
+/// Normalizes the [`Request`] interface.
+///
+/// This function applies the following normalization rules:
+/// - The URL is truncated to 2048 characters.
+/// - The query string and fragment are extracted into dedicated fields.
+/// - The method is normalized to uppercase.
+/// - The data is parsed as JSON or urlencoded and put into the `data` field.
+/// - The `Content-Type` header is parsed and put into the `inferred_content_type` field.
+/// - The `Cookie` header is parsed and put into the `cookies` field.
 pub fn normalize_request(request: &mut Request) -> ProcessingResult {
     processor::apply(&mut request.method, normalize_method)?;
     normalize_url(request);

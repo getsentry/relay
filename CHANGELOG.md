@@ -10,12 +10,27 @@
 - Return global config ready status to downstream relays. ([#2765](https://github.com/getsentry/relay/pull/2765))
 - Add Mixed JS/Android Profiles events processing. ([#2706](https://github.com/getsentry/relay/pull/2706))
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
+<<<<<<< HEAD
 - Org rate limit metrics per batch. ([#2758](https://github.com/getsentry/relay/pull/2758))
+=======
+- Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
+- Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
+- Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
+
+**Bug Fixes**:
+
+- In on-demand metric extraction, use the normalized URL instead of raw URLs sent by SDKs. This bug prevented metrics for certain dashboard queries from being extracted. ([#2819](https://github.com/getsentry/relay/pull/2819))
+- Ignore whitespaces when parsing user reports. ([#2798](https://github.com/getsentry/relay/pull/2798))
+>>>>>>> 2e5725c6a63ca94869180cb225d74bdb205239ac
 
 **Internal**:
 
 - Support source context in metric code locations metadata entries. ([#2781](https://github.com/getsentry/relay/pull/2781))
 - Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
+- Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
+- Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
+- Org rate limit metrics per bucket. ([#2758](https://github.com/getsentry/relay/pull/2758))
+
 
 ## 23.11.2
 

@@ -6,8 +6,9 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
-    TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
+    AlterTableOperation, Assignment, CloseCursor, ColumnDef, Expr, Ident, ObjectName, Query,
+    Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint, TableFactor,
+    UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -110,7 +111,6 @@ impl NormalizeVisitor {
     fn transform_query(&mut self, query: &mut Query) {
         if let SetExpr::Select(select) = &mut *query.body {
             self.transform_select(&mut *select);
-            self.transform_from(&mut select.from);
         }
     }
 
@@ -139,25 +139,12 @@ impl NormalizeVisitor {
         Self::collapse_items(&mut collapse, &mut select.projection);
     }
 
-    fn transform_from(&mut self, from: &mut [TableWithJoins]) {
-        // Iterate "FROM".
-        for from in from {
-            self.transform_table_factor(&mut from.relation);
-            for join in &mut from.joins {
-                self.transform_table_factor(&mut join.relation);
+    fn simplify_table_alias(alias: &mut Option<TableAlias>) {
+        if let Some(TableAlias { name, columns }) = alias {
+            Self::scrub_name(name);
+            for column in columns {
+                Self::scrub_name(column);
             }
-        }
-    }
-
-    fn transform_table_factor(&mut self, table_factor: &mut TableFactor) {
-        match table_factor {
-            // Recurse into subqueries.
-            TableFactor::Derived { subquery, .. } => {
-                self.transform_query(subquery);
-            }
-            // Strip quotes from identifiers in table names.
-            TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
-            _ => {}
         }
     }
 
@@ -184,13 +171,59 @@ impl NormalizeVisitor {
 impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
+    fn pre_visit_relation(&mut self, relation: &mut ObjectName) -> ControlFlow<Self::Break> {
+        Self::simplify_compound_identifier(&mut relation.0);
+        ControlFlow::Continue(())
+    }
+
+    fn pre_visit_table_factor(
+        &mut self,
+        table_factor: &mut TableFactor,
+    ) -> ControlFlow<Self::Break> {
+        match table_factor {
+            TableFactor::Table { alias, .. } => {
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::Derived {
+                subquery, alias, ..
+            } => {
+                self.transform_query(subquery);
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::TableFunction { alias, .. } => {
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::UNNEST {
+                alias,
+                with_offset_alias,
+                ..
+            } => {
+                Self::simplify_table_alias(alias);
+                if let Some(ident) = with_offset_alias {
+                    Self::scrub_name(ident);
+                }
+            }
+            TableFactor::NestedJoin { alias, .. } => {
+                Self::simplify_table_alias(alias);
+            }
+            TableFactor::Pivot {
+                table_alias,
+                pivot_alias,
+                ..
+            } => {
+                Self::simplify_table_alias(table_alias);
+                Self::simplify_table_alias(pivot_alias);
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
             *expr = Expr::Value(Value::Placeholder("..".to_owned()));
             return ControlFlow::Continue(());
         }
         self.current_expr_depth += 1;
-
         match expr {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
@@ -252,12 +285,8 @@ impl VisitorMut for NormalizeVisitor {
             }
             // `INSERT INTO col1, col2 VALUES (val1, val2)` becomes `INSERT INTO .. VALUES (%s)`.
             Statement::Insert {
-                table_name,
-                columns,
-                source,
-                ..
+                columns, source, ..
             } => {
-                Self::simplify_compound_identifier(&mut table_name.0);
                 *columns = vec![Self::ellipsis()];
                 if let SetExpr::Values(v) = &mut *source.body {
                     v.rows = vec![vec![Expr::Value(Self::placeholder())]]
@@ -298,6 +327,92 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Close {
                 cursor: CloseCursor::Specific { name },
             } => Self::erase_name(name),
+            Statement::AlterTable { name, operation } => {
+                Self::simplify_compound_identifier(&mut name.0);
+                match operation {
+                    AlterTableOperation::AddConstraint(c) => match c {
+                        TableConstraint::Unique { name, columns, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                        }
+                        TableConstraint::ForeignKey {
+                            name,
+                            columns,
+                            referred_columns,
+                            ..
+                        } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                            for column in referred_columns {
+                                Self::scrub_name(column);
+                            }
+                        }
+                        TableConstraint::Check { name, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                        }
+                        TableConstraint::Index { name, columns, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                        }
+                        TableConstraint::FulltextOrSpatial {
+                            opt_index_name,
+                            columns,
+                            ..
+                        } => {
+                            if let Some(name) = opt_index_name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                        }
+                    },
+                    AlterTableOperation::AddColumn { column_def, .. } => {
+                        let ColumnDef { name, .. } = column_def;
+                        Self::scrub_name(name);
+                    }
+                    AlterTableOperation::DropConstraint { name, .. } => Self::scrub_name(name),
+                    AlterTableOperation::DropColumn { column_name, .. } => {
+                        Self::scrub_name(column_name)
+                    }
+                    AlterTableOperation::RenameColumn {
+                        old_column_name,
+                        new_column_name,
+                    } => {
+                        Self::scrub_name(old_column_name);
+                        Self::scrub_name(new_column_name);
+                    }
+                    AlterTableOperation::ChangeColumn {
+                        old_name, new_name, ..
+                    } => {
+                        Self::scrub_name(old_name);
+                        Self::scrub_name(new_name);
+                    }
+                    AlterTableOperation::RenameConstraint { old_name, new_name } => {
+                        Self::scrub_name(old_name);
+                        Self::scrub_name(new_name);
+                    }
+                    AlterTableOperation::AlterColumn { column_name, .. } => {
+                        Self::scrub_name(column_name);
+                    }
+                    _ => {}
+                }
+            }
+
             _ => {}
         }
 
