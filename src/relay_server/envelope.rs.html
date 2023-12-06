@@ -1860,14 +1860,6 @@
 <a href="#1860" id="1860">1860</a>
 <a href="#1861" id="1861">1861</a>
 <a href="#1862" id="1862">1862</a>
-<a href="#1863" id="1863">1863</a>
-<a href="#1864" id="1864">1864</a>
-<a href="#1865" id="1865">1865</a>
-<a href="#1866" id="1866">1866</a>
-<a href="#1867" id="1867">1867</a>
-<a href="#1868" id="1868">1868</a>
-<a href="#1869" id="1869">1869</a>
-<a href="#1870" id="1870">1870</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1904,7 +1896,6 @@
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::io::{<span class="self">self</span>, Write};
-<span class="kw">use </span>std::ops::AddAssign;
 <span class="kw">use </span>std::time::Instant;
 <span class="kw">use </span>uuid::Uuid;
 
@@ -2401,13 +2392,6 @@
     </span><span class="kw">pub </span>transactions: usize,
     <span class="doccomment">/// Profile quantity.
     </span><span class="kw">pub </span>profiles: usize,
-}
-
-<span class="kw">impl </span>AddAssign <span class="kw">for </span>SourceQuantities {
-    <span class="kw">fn </span>add_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) {
-        <span class="self">self</span>.transactions += other.transactions;
-        <span class="self">self</span>.profiles += other.profiles;
-    }
 }
 
 <span class="attr">#[derive(Clone, Debug)]

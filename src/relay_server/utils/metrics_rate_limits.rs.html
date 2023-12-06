@@ -659,7 +659,6 @@
     <span class="kw">fn </span>drop_with_outcome(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome, outcome_aggregator: Addr&lt;TrackOutcome&gt;) {
         <span class="comment">// Drop transaction buckets:
         </span><span class="kw">let </span>metrics = std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.metrics);
-        <span class="kw">let </span>timestamp = Utc::now();
 
         <span class="self">self</span>.metrics = metrics
             .into_iter()
@@ -671,6 +670,7 @@
 
         <span class="comment">// Track outcome for the transaction metrics we dropped here:
         </span><span class="kw">if </span><span class="self">self</span>.transaction_count &gt; <span class="number">0 </span>{
+            <span class="kw">let </span>timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
             outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping: <span class="self">self</span>.scoping,
