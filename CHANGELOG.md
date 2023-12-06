@@ -11,6 +11,7 @@
 - Add Mixed JS/Android Profiles events processing. ([#2706](https://github.com/getsentry/relay/pull/2706))
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
 - Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
+- Allow access to more fields in dynamic sampling and metric extraction. ([#2820](https://github.com/getsentry/relay/pull/2820))
 
 **Bug Fixes**:
 
