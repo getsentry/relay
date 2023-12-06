@@ -157,13 +157,13 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             return;
         };
 
-        // Extract transaction as a span.
-        let mut transaction_span: Span = event.into();
-
         // Metrics summary is empty so we don't need to ingest the span.
-        if transaction_span._metrics_summary.is_empty() {
+        if event._metrics_summary.is_empty() {
             return;
         }
+
+        // Extract transaction as a span.
+        let mut transaction_span: Span = event.into();
 
         // Extract tags to add to this span as well
         let shared_tags = tag_extraction::extract_shared_tags(event);
