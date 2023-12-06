@@ -81,6 +81,13 @@ pub struct Span {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
 
+    /// Temporary protocol support for metric summaries.
+    ///
+    /// This shall move to a stable location once we have stabilized the
+    /// interface.  This is intentionally not typed today.
+    #[metastructure(skip_serialization = "empty")]
+    pub _metrics_summary: Annotated<Value>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -95,6 +102,7 @@ impl From<&Event> for Span {
             received: event.received.clone(),
             start_timestamp: event.start_timestamp.clone(),
             timestamp: event.timestamp.clone(),
+            _metrics_summary: event._metrics_summary.clone(),
             ..Default::default()
         };
 

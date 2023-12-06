@@ -122,14 +122,6 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         return;
     };
 
-    // Check feature flag.
-    if !state
-        .project_state
-        .has_feature(Feature::SpanMetricsExtraction)
-    {
-        return;
-    };
-
     let mut add_span = |span: Annotated<Span>| {
         let span = match validate(span) {
             Ok(span) => span,
@@ -148,6 +140,43 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
         state.managed_envelope.envelope_mut().add_item(item);
+    };
+
+    // Check feature flag.
+    if !state
+        .project_state
+        .has_feature(Feature::SpanMetricsExtraction)
+    {
+        // When span metrics extraction is disabled, we need to check if DDM is enabled
+        // to still index spans with _metrics_summary
+        if !state.project_state.has_feature(Feature::CustomMetrics) {
+            return;
+        }
+
+        let Some(event) = state.event.value() else {
+            return;
+        };
+
+        // Extract transaction as a span.
+        let mut transaction_span: Span = event.into();
+
+        // Metrics summary is empty so we don't need to ingest the span.
+        if transaction_span._metrics_summary.is_empty() {
+            return;
+        }
+
+        // Extract tags to add to this span as well
+        let shared_tags = tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
+
+        return;
     };
 
     let Some(event) = state.event.value() else {
