@@ -32,7 +32,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "device.class": "1",
                 "mobile": "true",
                 "op": "default",
-                "platform": "ios",
+                "os.name": "iOS",
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
@@ -54,7 +54,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "device.class": "1",
-                "platform": "ios",
+                "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "default",
                 "transaction": "gEt /api/:version/users/",
@@ -72,7 +72,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "device.class": "1",
-                "platform": "ios",
+                "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "default",
                 "transaction.method": "GET",

@@ -32,8 +32,8 @@ pub enum SpanTagKey {
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
-    // Mobile platform the transaction originated from.
-    Platform,
+    // Mobile OS the transaction originated from.
+    OsName,
 
     // Specific to spans
     Action,
@@ -89,7 +89,7 @@ impl SpanTagKey {
             SpanTagKey::TimeToInitialDisplay => "ttid",
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainTread => "main_thread",
-            SpanTagKey::Platform => "platform",
+            SpanTagKey::OsName => "os.name",
         }
     }
 }
@@ -208,10 +208,7 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if event.context::<AppContext>().is_some() {
             if let Some(os_context) = event.context::<OsContext>() {
                 if let Some(os_name) = os_context.name.value() {
-                    tags.insert(
-                        SpanTagKey::Platform,
-                        os_name.to_string().to_lowercase().to_owned(),
-                    );
+                    tags.insert(SpanTagKey::OsName, os_name.to_string());
                 }
             }
         }
@@ -1066,7 +1063,7 @@ LIMIT 1
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
-        assert_eq!(tags.get("platform").unwrap().as_str(), Some("android"));
+        assert_eq!(tags.get("os.name").unwrap().as_str(), Some("Android"));
 
         let span = &event.spans.value().unwrap()[1];
 

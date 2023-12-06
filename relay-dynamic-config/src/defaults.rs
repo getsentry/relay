@@ -187,7 +187,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("", "ttfd"),
                 ("", "ttid"),
                 ("span.", "main_thread"),
-                ("", "platform"),
+                ("", "os.name"),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
