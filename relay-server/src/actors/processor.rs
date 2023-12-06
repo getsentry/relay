@@ -1529,7 +1529,7 @@ impl EnvelopeProcessorService {
             source_quantities += source_quantities_from_buckets(&BucketsView::new(buckets), mode);
         }
 
-        let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
+        let timestamp = Utc::now();
 
         if source_quantities.transactions > 0 {
             self.inner.outcome_aggregator.send(TrackOutcome {

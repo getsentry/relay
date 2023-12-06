@@ -183,9 +183,8 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 
         // Track outcome for the transaction metrics we dropped here:
         if self.transaction_count > 0 {
-            let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
             outcome_aggregator.send(TrackOutcome {
-                timestamp,
+                timestamp: Utc::now(),
                 scoping: self.scoping,
                 outcome: outcome.clone(),
                 event_id: None,
