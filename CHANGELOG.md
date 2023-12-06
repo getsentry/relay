@@ -25,7 +25,6 @@
 - Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
 - Org rate limit metrics per bucket. ([#2758](https://github.com/getsentry/relay/pull/2758))
 
-
 ## 23.11.2
 
 **Features**:
