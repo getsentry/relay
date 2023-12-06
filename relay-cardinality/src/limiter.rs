@@ -91,7 +91,7 @@ impl Entry {
     }
 }
 
-/// [`CardinalityLimiter`] configuration.
+/// CardinalityLimiter configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
     /// The cardinality limit to enforce.

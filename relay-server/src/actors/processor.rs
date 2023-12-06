@@ -9,6 +9,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use itertools::Either;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow};
 use relay_common::time::UnixTimestamp;
@@ -438,6 +439,8 @@ pub struct EncodeMetrics {
     pub scoping: Scoping,
     /// Transaction metrics extraction mode.
     pub extraction_mode: ExtractionMode,
+    /// Wether to check the contained metric buckets with the cardinality limiter.
+    pub enable_cardinality_limiter: bool,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -555,6 +558,7 @@ struct InnerProcessor {
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     metric_meta_store: Option<RedisMetricMetaStore>,
+    #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
 }
 
@@ -581,9 +585,6 @@ impl EnvelopeProcessorService {
             }
         });
 
-        #[cfg(not(feature = "processing"))]
-        let redis: Option<RedisPool> = None;
-
         let inner = InnerProcessor {
             #[cfg(feature = "processing")]
             redis_pool: redis.clone(),
@@ -603,6 +604,7 @@ impl EnvelopeProcessorService {
             metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
             }),
+            #[cfg(feature = "processing")]
             cardinality_limiter: redis.clone().map(|pool| {
                 CardinalityLimiter::new(
                     RedisSetLimiter::new(
@@ -1362,12 +1364,48 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn check_cardinality_limits(
+        &self,
+        enable_cardinality_limiter: bool,
+        organization_id: u64,
+        buckets: Vec<Bucket>,
+    ) -> Result<impl Iterator<Item = Bucket>, relay_cardinality::Error> {
+        if !enable_cardinality_limiter {
+            return Ok(Either::Left(buckets.into_iter()));
+        }
+
+        #[cfg(feature = "processing")]
+        if let Some(ref cardinality_limiter) = self.inner.cardinality_limiter {
+            return Ok(Either::Right(
+                cardinality_limiter.check_cardinality_limits(organization_id, buckets)?,
+            ));
+        }
+
+        Ok(Either::Left(buckets.into_iter()))
+    }
+
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
             scoping,
             extraction_mode,
+            enable_cardinality_limiter,
         } = message;
+
+        let buckets = match self.check_cardinality_limits(
+            enable_cardinality_limiter,
+            scoping.organization_id,
+            buckets,
+        ) {
+            Ok(buckets) => buckets,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "cardinality limiter failed"
+                );
+                return;
+            }
+        };
 
         let partitions = self.inner.config.metrics_partitions();
         let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();
@@ -1375,24 +1413,8 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        let partitioned_buckets = if let Some(ref cardinality_limiter) =
-            self.inner.cardinality_limiter
+        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
         {
-            match cardinality_limiter.check_cardinality_limits(scoping.organization_id, buckets) {
-                Ok(accepted) => partition_buckets(scoping.project_key, accepted, partitions),
-                Err(error) => {
-                    relay_log::error!(
-                        error = &error as &dyn std::error::Error,
-                        "cardinality limiter failed"
-                    );
-                    return;
-                }
-            }
-        } else {
-            partition_buckets(scoping.project_key, buckets, partitions)
-        };
-
-        for (partition_key, buckets) in partitioned_buckets {
             let mut num_batches = 0;
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
