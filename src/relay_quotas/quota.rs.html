@@ -803,7 +803,6 @@
 <a href="#803" id="803">803</a>
 <a href="#804" id="804">804</a>
 <a href="#805" id="805">805</a>
-<a href="#806" id="806">806</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -917,6 +916,7 @@
             | DataCategory::Span
             | DataCategory::MonitorSeat
             | DataCategory::Monitor
+            | DataCategory::MetricBucket
             | DataCategory::UserReportV2 =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
             DataCategory::Attachment =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Bytes),
             DataCategory::Session =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Batched),
@@ -1101,16 +1101,14 @@
         <span class="comment">// Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
-        </span><span class="kw">let </span>scope_id = <span class="kw">match </span><span class="self">self</span>.scope_id {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>scope_id) =&gt; scope_id,
-            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="bool-val">true</span>,
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(scope_id) = <span class="self">self</span>.scope_id.as_ref() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="bool-val">true</span>;
         };
 
         <span class="comment">// Check if the scope identifier in the quota is parseable. If not, this means we cannot
         // fulfill the constraint, so the quota does not match.
-        </span><span class="kw">let </span>parsed = <span class="kw">match </span>scope_id.parse::&lt;u64&gt;() {
-            <span class="prelude-val">Ok</span>(parsed) =&gt; parsed,
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="bool-val">false</span>,
+        </span><span class="kw">let </span><span class="prelude-val">Ok</span>(parsed) = scope_id.parse::&lt;u64&gt;() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="bool-val">false</span>;
         };
 
         <span class="comment">// At this stage, require that the scope is known since we have to fulfill the constraint.

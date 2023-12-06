@@ -169,6 +169,10 @@
 <a href="#169" id="169">169</a>
 <a href="#170" id="170">170</a>
 <a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -234,6 +238,8 @@
     /// Currently standardized on name UserReportV2 to avoid clashing with the old UserReport.
     /// TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
     </span>UserReportV2 = <span class="number">14</span>,
+    <span class="doccomment">/// Metric bucket.
+    </span>MetricBucket = <span class="number">15</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -264,6 +270,7 @@
             <span class="string">&quot;span&quot; </span>=&gt; <span class="self">Self</span>::Span,
             <span class="string">&quot;monitor_seat&quot; </span>=&gt; <span class="self">Self</span>::MonitorSeat,
             <span class="string">&quot;feedback&quot; </span>=&gt; <span class="self">Self</span>::UserReportV2,
+            <span class="string">&quot;metric_bucket&quot; </span>=&gt; <span class="self">Self</span>::MetricBucket,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -287,6 +294,7 @@
             <span class="self">Self</span>::Span =&gt; <span class="string">&quot;span&quot;</span>,
             <span class="self">Self</span>::MonitorSeat =&gt; <span class="string">&quot;monitor_seat&quot;</span>,
             <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">&quot;feedback&quot;</span>,
+            <span class="self">Self</span>::MetricBucket =&gt; <span class="string">&quot;metric_bucket&quot;</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
