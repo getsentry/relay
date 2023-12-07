@@ -24,6 +24,7 @@ processing = [
     "dep:symbolic-unreal",
     "dep:zstd",
     "bytes/serde",
+    "relay-cardinality/redis",
     "relay-config/processing",
     "relay-kafka/producer",
     "relay-metrics/redis",
