@@ -1239,6 +1239,23 @@
 <a href="#1239" id="1239">1239</a>
 <a href="#1240" id="1240">1240</a>
 <a href="#1241" id="1241">1241</a>
+<a href="#1242" id="1242">1242</a>
+<a href="#1243" id="1243">1243</a>
+<a href="#1244" id="1244">1244</a>
+<a href="#1245" id="1245">1245</a>
+<a href="#1246" id="1246">1246</a>
+<a href="#1247" id="1247">1247</a>
+<a href="#1248" id="1248">1248</a>
+<a href="#1249" id="1249">1249</a>
+<a href="#1250" id="1250">1250</a>
+<a href="#1251" id="1251">1251</a>
+<a href="#1252" id="1252">1252</a>
+<a href="#1253" id="1253">1253</a>
+<a href="#1254" id="1254">1254</a>
+<a href="#1255" id="1255">1255</a>
+<a href="#1256" id="1256">1256</a>
+<a href="#1257" id="1257">1257</a>
+<a href="#1258" id="1258">1258</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1901,6 +1918,13 @@
             <span class="string">&quot;user.geo.subdivision&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.subdivision.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;request.method&quot; </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.method.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;request.url&quot; </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.url.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">&quot;transaction.source&quot; </span>=&gt; <span class="self">self
+                </span>.transaction_info
+                .value()<span class="question-mark">?
+                </span>.source
+                .value()<span class="question-mark">?
+                </span>.as_str()
+                .into(),
             <span class="string">&quot;sdk.name&quot; </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;sdk.version&quot; </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
 
@@ -2035,7 +2059,9 @@
     <span class="kw">use </span>uuid::uuid;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::{Headers, IpAddr, JsonLenientString, PairList, TagEntry};
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{
+        Headers, IpAddr, JsonLenientString, PairList, TagEntry, TransactionSource,
+    };
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_event_roundtrip() {
@@ -2337,6 +2363,10 @@
                 ..Default::default()
             }),
             transaction: Annotated::new(<span class="string">&quot;some-transaction&quot;</span>.into()),
+            transaction_info: Annotated::new(TransactionInfo {
+                source: Annotated::new(TransactionSource::Route),
+                ..Default::default()
+            }),
             tags: {
                 <span class="kw">let </span>items = <span class="macro">vec!</span>[Annotated::new(TagEntry(
                     Annotated::new(<span class="string">&quot;custom&quot;</span>.to_string()),
@@ -2455,7 +2485,11 @@
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::Uuid(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-8addadfeedaa&quot;</span>))),
             event.get_value(<span class="string">&quot;event.contexts.profile.profile_id&quot;</span>)
-        )
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;route&quot;</span>)),
+            event.get_value(<span class="string">&quot;event.transaction.source&quot;</span>)
+        );
     }
 
     <span class="attr">#[test]
