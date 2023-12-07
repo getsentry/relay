@@ -1068,6 +1068,13 @@ mod tests {
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "op": "ui.load.initial_display",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
             ]
         }
@@ -1210,6 +1217,11 @@ mod tests {
         assert!(!metrics.is_empty());
         for metric in metrics {
             if metric.name == "c:spans/count_per_op@none" {
+                continue;
+            }
+            if metric.name == "d:spans/exclusive_time_light@millisecond" {
+                assert!(!metric.tags.contains_key("ttid"));
+                assert!(!metric.tags.contains_key("ttfd"));
                 continue;
             }
             assert_eq!(metric.tag("ttid"), Some("ttid"));
