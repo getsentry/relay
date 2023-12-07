@@ -67,7 +67,7 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                     sql::scrub_queries(db_system, description)
                 }
             }
-            ("resource", _) => scrub_resource(description),
+            ("resource", ty) => scrub_resource(ty, description),
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
@@ -207,7 +207,7 @@ enum UrlType {
 }
 
 /// Scrubber for spans with `span.op` "resource.*".
-fn scrub_resource(string: &str) -> Option<String> {
+fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
     let (url, ty) = match Url::parse(string) {
         Ok(url) => (url, UrlType::Full),
         Err(url::ParseError::RelativeUrlWithoutBase) => {
@@ -262,7 +262,7 @@ fn scrub_resource(string: &str) -> Option<String> {
                 .path_segments()
                 .and_then(|s| s.last())
                 .unwrap_or_default();
-            let last_segment = scrub_resource_filename(last_segment);
+            let last_segment = scrub_resource_filename(resource_type, last_segment);
 
             if segments.is_empty() {
                 format!("{scheme}://{domain}/{last_segment}")
@@ -282,11 +282,14 @@ fn scrub_resource(string: &str) -> Option<String> {
     Some(formatted)
 }
 
-fn scrub_resource_filename(path: &str) -> String {
-    let (mut base_path, mut extension) = path.rsplit_once('.').unwrap_or((path, ""));
+fn scrub_resource_filename<'a>(ty: &str, path: &'a str) -> Cow<'a, str> {
+    if path.is_empty() {
+        return Cow::Borrowed("");
+    }
+    let (mut basename, mut extension) = path.rsplit_once('.').unwrap_or((path, ""));
     if extension.contains('/') {
         // Not really an extension
-        base_path = path;
+        basename = path;
         extension = "";
     }
 
@@ -298,14 +301,20 @@ fn scrub_resource_filename(path: &str) -> String {
         extension = "";
     }
 
-    let mut segments = base_path.split('/').map(scrub_resource_segment);
-    let mut joined = segments.join("/");
-    if !extension.is_empty() {
-        joined.push('.');
-        joined.push_str(extension);
-    }
+    let basename = if ty == "img" {
+        Cow::Borrowed("*")
+    } else {
+        scrub_resource_segment(basename)
+    };
 
-    joined
+    if extension.is_empty() {
+        basename
+    } else {
+        let mut filename = basename.to_string();
+        filename.push('.');
+        filename.push_str(extension);
+        Cow::Owned(filename)
+    }
 }
 
 fn scrub_resource_segment(segment: &str) -> Cow<str> {
@@ -553,16 +562,30 @@ mod tests {
 
     span_description_test!(
         resource_query_params2,
-        "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
-        "resource.img",
-        "https://*.domain.com/data/guide*.gif"
+        "https://data.domain.com/data/guide123.js?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
+        "resource.script",
+        "https://*.domain.com/data/guide*.js"
     );
 
     span_description_test!(
         resource_no_ids,
+        "https://data.domain.com/js/guide.js",
+        "resource.script",
+        "https://*.domain.com/js/guide.js"
+    );
+
+    span_description_test!(
+        resource_no_ids_img_known_segment,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "https://*.domain.com/data/guide.gif"
+        "https://*.domain.com/data/*.gif"
+    );
+
+    span_description_test!(
+        resource_no_ids_img,
+        "https://data.domain.com/something/guide.gif",
+        "resource.img",
+        "https://*.domain.com/*/*.gif"
     );
 
     span_description_test!(
@@ -603,7 +626,7 @@ mod tests {
     span_description_test!(
         random_string1,
         "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
-        "resource.img",
+        "resource.script",
         "https://*.domain.com/*/foo-*"
     );
 
@@ -653,7 +676,7 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://*.domain.com/data/guide*.gif"
+        "https://*.domain.com/data/*.gif"
     );
 
     span_description_test!(
@@ -723,15 +746,15 @@ mod tests {
 
     span_description_test!(
         resource_img_comma_with_extension,
-        "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
-        "resource.img",
-        "https://example.org/*/media/*/weird-stuff-*-*-*.jpg"
+        "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.js",
+        "resource.script",
+        "https://example.org/*/media/*/weird-stuff-*-*-*.js"
     );
 
     span_description_test!(
         resource_img_path_with_comma,
         "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
-        "resource.img",
+        "resource.script",
         "/*/*"
     );
 
