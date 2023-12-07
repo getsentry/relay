@@ -12,6 +12,8 @@
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
 - Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
 - Allow access to more fields in dynamic sampling and metric extraction. ([#2820](https://github.com/getsentry/relay/pull/2820))
+- Add Redis set based cardinality limiter. ([#2745](https://github.com/getsentry/relay/pull/2745))
+
 
 **Bug Fixes**:
 
