@@ -30,13 +30,13 @@ pub struct Entry {
 
     /// Metric namespace.
     pub namespace: MetricNamespace,
-    /// Hash of the metric.
+    /// Hash of the metric name and tags.
     pub hash: u32,
 
     /// Implementation detail to optimize the implementation.
     ///
     /// Tracking the status directly on the entry means we do
-    /// not have to temporarily allocated a second data structure
+    /// not have to temporarily allocate a second data structure
     /// to keep track of the status.
     status: EntryStatus,
 }
@@ -100,7 +100,7 @@ pub struct Config {
 
 /// Cardinality Limiter enforcing cardinality limits on buckets.
 ///
-/// Delegates enforcement to a [`Limiter`], see for example the
+/// Delegates enforcement to a [`Limiter`].
 pub struct CardinalityLimiter<T: Limiter> {
     limiter: T,
     config: Config,
