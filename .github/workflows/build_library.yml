@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - release-library/**
+      - build/fix-py-dockerfile # TODO: Remove before merge!
 
 env:
   CARGO_TERM_COLOR: always
