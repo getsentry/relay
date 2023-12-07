@@ -28,11 +28,11 @@ const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 ///
 /// These are a subset of "universal" tags.
 const PERFORMANCE_SCORE_TAGS: [CommonTag; 6] = [
-    CommonTag::Release,
-    CommonTag::Environment,
-    CommonTag::Transaction,
-    CommonTag::TransactionOp,
     CommonTag::BrowserName,
+    CommonTag::Environment,
+    CommonTag::GeoCountryCode,
+    CommonTag::Release,
+    CommonTag::Transaction,
     CommonTag::TransactionOp,
 ];
 
@@ -692,6 +692,7 @@ mod tests {
                 tags: {
                     "browser.name": "Chrome",
                     "environment": "fake_environment",
+                    "geo.country_code": "US",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
@@ -709,6 +710,7 @@ mod tests {
                 tags: {
                     "browser.name": "Chrome",
                     "environment": "fake_environment",
+                    "geo.country_code": "US",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
@@ -726,6 +728,7 @@ mod tests {
                 tags: {
                     "browser.name": "Chrome",
                     "environment": "fake_environment",
+                    "geo.country_code": "US",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
