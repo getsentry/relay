@@ -205,6 +205,9 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     if MOBILE_SDKS.contains(&event.sdk_name()) {
         tags.insert(SpanTagKey::Mobile, "true".to_owned());
 
+        // Check if app context exists. This tells us if the span originated from
+        // an app (as opposed to mobile browser) since we are currently focused on
+        // app use cases for mobile.
         if event.context::<AppContext>().is_some() {
             if let Some(os_context) = event.context::<OsContext>() {
                 if let Some(os_name) = os_context.name.value() {
