@@ -184,8 +184,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             tags: [
                 ("", "device.class"),
                 ("", "release"),
-                ("", "ttfd"),
-                ("", "ttid"),
                 ("span.", "main_thread"),
                 ("", "os.name"),
             ]
@@ -196,6 +194,17 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
             })
             .into(),
+        },
+        TagMapping {
+            metrics: vec![LazyGlob::new("d:spans/exclusive_time@millisecond".into())],
+            tags: [("", "ttfd"), ("", "ttid")]
+                .map(|(prefix, key)| TagSpec {
+                    key: format!("{prefix}{key}"),
+                    field: Some(format!("span.sentry_tags.{}", key)),
+                    value: None,
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
+                })
+                .into(),
         },
         // Resource-specific tags:
         TagMapping {
