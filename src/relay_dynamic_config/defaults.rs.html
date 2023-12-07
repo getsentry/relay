@@ -242,6 +242,7 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -431,6 +432,7 @@
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttfd&quot;</span>),
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttid&quot;</span>),
                 (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;main_thread&quot;</span>),
+                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;os.name&quot;</span>),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: <span class="macro">format!</span>(<span class="string">&quot;{prefix}{key}&quot;</span>),

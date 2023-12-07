@@ -1056,6 +1056,29 @@
 <a href="#1056" id="1056">1056</a>
 <a href="#1057" id="1057">1057</a>
 <a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1064,7 +1087,7 @@
 
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
+<span class="kw">use </span>relay_event_schema::protocol::{AppContext, Event, OsContext, Span, Timestamp, TraceContext};
 <span class="kw">use </span>relay_protocol::Annotated;
 <span class="kw">use </span>sqlparser::ast::Visit;
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
@@ -1090,6 +1113,8 @@
     <span class="comment">// `&quot;true&quot;` if the transaction was sent by a mobile SDK.
     </span>Mobile,
     DeviceClass,
+    <span class="comment">// Mobile OS the transaction originated from.
+    </span>OsName,
 
     <span class="comment">// Specific to spans
     </span>Action,
@@ -1145,6 +1170,7 @@
             SpanTagKey::TimeToInitialDisplay =&gt; <span class="string">&quot;ttid&quot;</span>,
             SpanTagKey::FileExtension =&gt; <span class="string">&quot;file_extension&quot;</span>,
             SpanTagKey::MainTread =&gt; <span class="string">&quot;main_thread&quot;</span>,
+            SpanTagKey::OsName =&gt; <span class="string">&quot;os.name&quot;</span>,
         }
     }
 }
@@ -1259,6 +1285,17 @@
 
     <span class="kw">if </span>MOBILE_SDKS.contains(<span class="kw-2">&amp;</span>event.sdk_name()) {
         tags.insert(SpanTagKey::Mobile, <span class="string">&quot;true&quot;</span>.to_owned());
+
+        <span class="comment">// Check if app context exists. This tells us if the span originated from
+        // an app (as opposed to mobile browser) since we are currently focused on
+        // app use cases for mobile.
+        </span><span class="kw">if </span>event.context::&lt;AppContext&gt;().is_some() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(os_context) = event.context::&lt;OsContext&gt;() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(os_name) = os_context.name.value() {
+                    tags.insert(SpanTagKey::OsName, os_name.to_string());
+                }
+            }
+        }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = event.tag_value(<span class="string">&quot;device.class&quot;</span>) {
@@ -2037,7 +2074,7 @@ LIMIT 1
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_main_thread() {
+    </span><span class="kw">fn </span>test_mobile_specific_tags() {
         <span class="kw">let </span>json = <span class="string">r#&quot;
             {
                 &quot;type&quot;: &quot;transaction&quot;,
@@ -2050,6 +2087,14 @@ LIMIT 1
                     &quot;trace&quot;: {
                         &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
                         &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;
+                    },
+                    &quot;app&quot;: {
+                        &quot;app_identifier&quot;: &quot;io.sentry.samples.android&quot;,
+                        &quot;app_name&quot;: &quot;sentry_android_example&quot;
+                    },
+                    &quot;os&quot;: {
+                        &quot;name&quot;: &quot;Android&quot;,
+                        &quot;version&quot;: &quot;8.1.0&quot;
                     }
                 },
                 &quot;spans&quot;: [
@@ -2102,6 +2147,7 @@ LIMIT 1
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;main_thread&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>));
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;os.name&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>));
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
 
