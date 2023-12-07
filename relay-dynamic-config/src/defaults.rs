@@ -7,6 +7,7 @@ use serde_json::Number;
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use crate::project::ProjectConfig;
+use crate::Tag;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
 const DISABLED_DATABASES: &[&str] = &[
@@ -150,6 +151,8 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: [
                 ("", "environment"),
+                ("", "transaction.method"),
+                ("", "transaction.op"),
                 ("span.", "action"),
                 ("span.", "category"),
                 ("span.", "description"),
@@ -159,8 +162,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("span.", "op"),
                 ("span.", "status_code"),
                 ("span.", "system"),
-                ("", "transaction.method"),
-                ("", "transaction.op"),
             ]
             .map(|(prefix, key)| TagSpec {
                 key: format!("{prefix}{key}"),
@@ -234,6 +235,129 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 condition: Some(resource_condition.clone()),
             })
             .into(),
+        },
+    ]);
+
+    let module_enabled = RuleCondition::never(); // TODO
+    let is_mobile = module_enabled & RuleCondition::never(); // TODO
+    config.metrics.extend([
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/exclusive_time_light@millisecond".into(),
+            field: Some("span.exclusive_time".into()),
+            condition: Some(module_enabled),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("sentry_tags.environment")
+                    .when(module_enabled),
+                Tag::with_key("transaction.method")
+                    .from_field("sentry_tags.transaction.method")
+                    .when(module_enabled),
+                Tag::with_key("transaction.op")
+                    .from_field("sentry_tags.transaction.op")
+                    .when(module_enabled),
+                Tag::with_key("span.action")
+                    .from_field("sentry_tags.action")
+                    .when(module_enabled),
+                Tag::with_key("span.category")
+                    .from_field("sentry_tags.category")
+                    .when(module_enabled),
+                Tag::with_key("span.description")
+                    .from_field("sentry_tags.description")
+                    .when(module_enabled),
+                Tag::with_key("span.domain")
+                    .from_field("sentry_tags.domain")
+                    .when(module_enabled),
+                Tag::with_key("span.group")
+                    .from_field("sentry_tags.group")
+                    .when(module_enabled),
+                Tag::with_key("span.module")
+                    .from_field("sentry_tags.module")
+                    .when(module_enabled),
+                Tag::with_key("span.op")
+                    .from_field("sentry_tags.op")
+                    .when(module_enabled),
+                Tag::with_key("span.status_code")
+                    .from_field("sentry_tags.status_code")
+                    .when(module_enabled),
+                Tag::with_key("span.system")
+                    .from_field("sentry_tags.system")
+                    .when(module_enabled),
+                // Mobile:
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .when(is_mobile),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .when(is_mobile),
+                Tag::with_key("span.main_thread")
+                    .from_field("span.sentry_tags.main_thread")
+                    .when(is_mobile),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/exclusive_time@millisecond".into(),
+            field: Some("span.exclusive_time".into()),
+            condition: Some(module_enabled),
+            tags: vec![
+                // Common tags:
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .when(module_enabled),
+                Tag::with_key("transaction.method")
+                    .from_field("span.sentry_tags.transaction.method")
+                    .when(module_enabled),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .when(module_enabled),
+                Tag::with_key("span.action")
+                    .from_field("span.sentry_tags.action")
+                    .when(module_enabled),
+                Tag::with_key("span.category")
+                    .from_field("span.sentry_tags.category")
+                    .when(module_enabled),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .when(module_enabled),
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .when(module_enabled),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(module_enabled),
+                Tag::with_key("span.module")
+                    .from_field("span.sentry_tags.module")
+                    .when(module_enabled),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .when(module_enabled),
+                Tag::with_key("span.status_code")
+                    .from_field("span.sentry_tags.status_code")
+                    .when(module_enabled),
+                Tag::with_key("span.system")
+                    .from_field("span.sentry_tags.system")
+                    .when(module_enabled),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .when(module_enabled),
+                // Mobile:
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .when(is_mobile),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .when(is_mobile),
+                Tag::with_key("ttfd")
+                    .from_field("span.sentry_tags.ttfd")
+                    .when(is_mobile),
+                Tag::with_key("ttid")
+                    .from_field("span.sentry_tags.ttid")
+                    .when(is_mobile),
+                Tag::with_key("span.main_thread")
+                    .from_field("span.sentry_tags.main_thread")
+                    .when(is_mobile),
+            ],
         },
     ]);
 

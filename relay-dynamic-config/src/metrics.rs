@@ -335,6 +335,63 @@ impl TagSpec {
     }
 }
 
+/// Builder for [`TagSpec`].
+pub struct Tag {
+    key: String,
+}
+
+impl Tag {
+    pub fn with_key(key: impl Into<String>) -> Self {
+        Self { key }
+    }
+
+    pub fn from_field(self, field_name: impl Into<String>) -> TagWithSource {
+        let Self { key } = self;
+        TagWithSource {
+            key,
+            field: Some(field_name.into()),
+            value: None,
+        }
+    }
+
+    pub fn with_value(self, value: impl Into<String>) -> TagWithSource {
+        let Self { key } = self;
+        TagWithSource {
+            key,
+            field: None,
+            value: Some(value.into()),
+        }
+    }
+}
+
+pub struct TagWithSource {
+    key: String,
+    field: Option<String>,
+    value: Option<String>,
+}
+
+impl TagWithSource {
+    pub fn always(self) -> TagSpec {
+        let Self { key, field, value } = self;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: None,
+        }
+    }
+
+    pub fn when(self, condition: RuleCondition) -> TagSpec {
+        let Self { key, field, value } = self;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: Some(condition),
+        }
+    }
+}
+
 /// Specifies how to obtain the value of a tag in [`TagSpec`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum TagSource<'a> {
