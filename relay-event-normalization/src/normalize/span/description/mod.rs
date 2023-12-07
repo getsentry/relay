@@ -562,6 +562,13 @@ mod tests {
 
     span_description_test!(
         resource_query_params2,
+        "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
+        "resource.img",
+        "https://*.domain.com/data/*.gif"
+    );
+
+    span_description_test!(
+        resource_query_params2_script,
         "https://data.domain.com/data/guide123.js?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.script",
         "https://*.domain.com/data/guide*.js"
@@ -625,6 +632,13 @@ mod tests {
 
     span_description_test!(
         random_string1,
+        "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
+        "resource.img",
+        "https://*.domain.com/*/*"
+    );
+
+    span_description_test!(
+        random_string1_script,
         "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
         "resource.script",
         "https://*.domain.com/*/foo-*"
@@ -746,6 +760,13 @@ mod tests {
 
     span_description_test!(
         resource_img_comma_with_extension,
+        "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
+        "resource.img",
+        "https://example.org/*/media/*/*.jpg"
+    );
+
+    span_description_test!(
+        resource_script_comma_with_extension,
         "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.js",
         "resource.script",
         "https://example.org/*/media/*/weird-stuff-*-*-*.js"
@@ -753,6 +774,13 @@ mod tests {
 
     span_description_test!(
         resource_img_path_with_comma,
+        "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
+        "resource.img",
+        "/*/*"
+    );
+
+    span_description_test!(
+        resource_script_path_with_comma,
         "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
         "resource.script",
         "/*/*"
