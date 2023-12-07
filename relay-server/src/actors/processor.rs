@@ -9,9 +9,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use itertools::Either;
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
@@ -39,6 +37,7 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{ItemScoping, RateLimitingError, ReasonCode, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -1304,21 +1303,21 @@ impl EnvelopeProcessorService {
     fn check_cardinality_limits(
         &self,
         enable_cardinality_limiter: bool,
-        organization_id: u64,
+        _organization_id: u64,
         buckets: Vec<Bucket>,
-    ) -> Result<impl Iterator<Item = Bucket>, relay_cardinality::Error> {
+    ) -> Result<Box<dyn Iterator<Item = Bucket>>, relay_cardinality::Error> {
         if !enable_cardinality_limiter {
-            return Ok(Either::Left(buckets.into_iter()));
+            return Ok(Box::new(buckets.into_iter()));
         }
 
         #[cfg(feature = "processing")]
         if let Some(ref cardinality_limiter) = self.inner.cardinality_limiter {
-            return Ok(Either::Right(
-                cardinality_limiter.check_cardinality_limits(organization_id, buckets)?,
+            return Ok(Box::new(
+                cardinality_limiter.check_cardinality_limits(_organization_id, buckets)?,
             ));
         }
 
-        Ok(Either::Left(buckets.into_iter()))
+        Ok(Box::new(buckets.into_iter()))
     }
 
     /// Records the outcomes of the dropped buckets.
