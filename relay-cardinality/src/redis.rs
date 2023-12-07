@@ -190,22 +190,24 @@ impl<'a> RedisHelper<'a> {
         values: impl IntoIterator<Item = I>,
         expire: u64,
     ) -> Result<()> {
+        let mut pipeline = redis::pipe();
+
         for values in &values.into_iter().chunks(REDIS_MAX_SADD_ARGS) {
-            let mut cmd = redis::cmd("SADD");
-            cmd.arg(name);
+            let cmd = pipeline.cmd("SADD").arg(name);
 
             for arg in values {
                 cmd.arg(arg);
             }
 
-            cmd.query(&mut self.0)
-                .map_err(relay_redis::RedisError::Redis)?;
+            cmd.ignore();
         }
 
-        redis::cmd("EXPIRE")
+        pipeline
+            .cmd("EXPIRE")
             .arg(name)
             .arg(expire)
             // .arg("NX") - NX not supported for Redis < 7
+            .ignore()
             .query(&mut self.0)
             .map_err(relay_redis::RedisError::Redis)?;
 
