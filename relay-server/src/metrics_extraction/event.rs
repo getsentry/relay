@@ -1216,9 +1216,12 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "c:spans/count_per_op@none"
-                || metric.name == "d:spans/exclusive_time_light@millisecond"
-            {
+            if metric.name == "c:spans/count_per_op@none" {
+                continue;
+            }
+            if metric.name == "d:spans/exclusive_time_light@millisecond" {
+                assert!(!metric.tags.contains_key("ttid"));
+                assert!(!metric.tags.contains_key("ttfd"));
                 continue;
             }
             assert_eq!(metric.tag("ttid"), Some("ttid"));

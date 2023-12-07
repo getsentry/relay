@@ -181,23 +181,18 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         // Mobile-specific tags:
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: [
-                ("", "device.class"),
-                ("", "release"),
-                ("span.", "main_thread"),
-                ("", "os.name"),
-            ]
-            .map(|(prefix, key)| TagSpec {
-                key: format!("{prefix}{key}"),
-                field: Some(format!("span.sentry_tags.{}", key)),
-                value: None,
-                condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
-            })
-            .into(),
+            tags: ["device.class", "release", "os.name"]
+                .map(|key| TagSpec {
+                    key: key.to_owned(),
+                    field: Some(format!("span.sentry_tags.{}", key)),
+                    value: None,
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
+                })
+                .into(),
         },
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time@millisecond".into())],
-            tags: [("", "ttfd"), ("", "ttid")]
+            tags: [("", "ttfd"), ("", "ttid"), ("span.", "main_thread")]
                 .map(|(prefix, key)| TagSpec {
                     key: format!("{prefix}{key}"),
                     field: Some(format!("span.sentry_tags.{}", key)),
