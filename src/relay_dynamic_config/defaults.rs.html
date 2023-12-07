@@ -243,6 +243,10 @@
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -426,21 +430,25 @@
         <span class="comment">// Mobile-specific tags:
         </span>TagMapping {
             metrics: <span class="macro">vec!</span>[LazyGlob::new(<span class="string">&quot;d:spans/exclusive_time*@millisecond&quot;</span>.into())],
-            tags: [
-                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;device.class&quot;</span>),
-                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;release&quot;</span>),
-                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttfd&quot;</span>),
-                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttid&quot;</span>),
-                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;main_thread&quot;</span>),
-                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;os.name&quot;</span>),
-            ]
-            .map(|(prefix, key)| TagSpec {
-                key: <span class="macro">format!</span>(<span class="string">&quot;{prefix}{key}&quot;</span>),
-                field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.sentry_tags.{}&quot;</span>, key)),
-                value: <span class="prelude-val">None</span>,
-                condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">&quot;span.sentry_tags.mobile&quot;</span>, <span class="string">&quot;true&quot;</span>)),
-            })
-            .into(),
+            tags: [<span class="string">&quot;device.class&quot;</span>, <span class="string">&quot;release&quot;</span>, <span class="string">&quot;os.name&quot;</span>]
+                .map(|key| TagSpec {
+                    key: key.to_owned(),
+                    field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.sentry_tags.{}&quot;</span>, key)),
+                    value: <span class="prelude-val">None</span>,
+                    condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">&quot;span.sentry_tags.mobile&quot;</span>, <span class="string">&quot;true&quot;</span>)),
+                })
+                .into(),
+        },
+        TagMapping {
+            metrics: <span class="macro">vec!</span>[LazyGlob::new(<span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>.into())],
+            tags: [(<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttfd&quot;</span>), (<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttid&quot;</span>), (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;main_thread&quot;</span>)]
+                .map(|(prefix, key)| TagSpec {
+                    key: <span class="macro">format!</span>(<span class="string">&quot;{prefix}{key}&quot;</span>),
+                    field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.sentry_tags.{}&quot;</span>, key)),
+                    value: <span class="prelude-val">None</span>,
+                    condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">&quot;span.sentry_tags.mobile&quot;</span>, <span class="string">&quot;true&quot;</span>)),
+                })
+                .into(),
         },
         <span class="comment">// Resource-specific tags:
         </span>TagMapping {

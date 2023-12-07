@@ -1217,6 +1217,18 @@
 <a href="#1217" id="1217">1217</a>
 <a href="#1218" id="1218">1218</a>
 <a href="#1219" id="1219">1219</a>
+<a href="#1220" id="1220">1220</a>
+<a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
+<a href="#1224" id="1224">1224</a>
+<a href="#1225" id="1225">1225</a>
+<a href="#1226" id="1226">1226</a>
+<a href="#1227" id="1227">1227</a>
+<a href="#1228" id="1228">1228</a>
+<a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2287,6 +2299,13 @@
                     &quot;start_timestamp&quot;: 1597976300.0000000,
                     &quot;timestamp&quot;: 1597976302.0000000,
                     &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                },
+                {
+                    &quot;op&quot;: &quot;ui.load.initial_display&quot;,
+                    &quot;span_id&quot;: &quot;bd429c44b67a3eb2&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976303.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
                 }
             ]
         }
@@ -2429,6 +2448,11 @@
         <span class="macro">assert!</span>(!metrics.is_empty());
         <span class="kw">for </span>metric <span class="kw">in </span>metrics {
             <span class="kw">if </span>metric.name == <span class="string">&quot;c:spans/count_per_op@none&quot; </span>{
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">if </span>metric.name == <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot; </span>{
+                <span class="macro">assert!</span>(!metric.tags.contains_key(<span class="string">&quot;ttid&quot;</span>));
+                <span class="macro">assert!</span>(!metric.tags.contains_key(<span class="string">&quot;ttfd&quot;</span>));
                 <span class="kw">continue</span>;
             }
             <span class="macro">assert_eq!</span>(metric.tag(<span class="string">&quot;ttid&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;ttid&quot;</span>));
