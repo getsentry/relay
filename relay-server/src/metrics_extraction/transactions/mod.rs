@@ -275,13 +275,12 @@ impl TransactionExtractor<'_> {
         let light_tags = extract_light_transaction_tags(event);
 
         // Measurements
-        let names: BTreeSet<_> = event
+        let measurement_names: BTreeSet<_> = event
             .measurements
             .value()
-            .map(|x| x.keys())
             .into_iter()
-            .flatten()
-            .map(|x| x.as_str())
+            .flat_map(|measurements| measurements.keys())
+            .map(String::as_str)
             .collect();
         if let Some(measurements) = event.measurements.value() {
             for (name, annotated) in measurements.iter() {
@@ -295,22 +294,22 @@ impl TransactionExtractor<'_> {
                     None => continue,
                 };
 
+                // We treat a measurement as "performance score" if its name is the name of another
+                // measurement prefixed by `score.`.
                 let is_performance_score = name == "score.total"
                     || name
                         .strip_prefix("score.weight.")
                         .or_else(|| name.strip_prefix("score."))
-                        .map_or(false, |suffix| names.contains(suffix));
+                        .map_or(false, |suffix| measurement_names.contains(suffix));
+
                 let measurement_tags = TransactionMeasurementTags {
                     measurement_rating: get_measurement_rating(name, value),
                     universal_tags: if is_performance_score {
                         CommonTags(
                             tags.0
                                 .iter()
-                                .filter_map(|(key, value)| {
-                                    PERFORMANCE_SCORE_TAGS
-                                        .contains(key)
-                                        .then(|| (key.clone(), value.clone()))
-                                })
+                                .filter(|&(key, _)| PERFORMANCE_SCORE_TAGS.contains(key))
+                                .map(|(key, value)| (key.clone(), value.clone()))
                                 .collect::<BTreeMap<_, _>>(),
                         )
                     } else {
