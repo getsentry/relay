@@ -111,7 +111,7 @@ impl IntoMetric for SessionMetric {
             }
         };
 
-        let mri = MetricResourceIdentifier {
+        let name = MetricResourceIdentifier {
             ty: value.ty(),
             namespace: MetricNamespace::Sessions,
             name: name.into(),
@@ -121,7 +121,7 @@ impl IntoMetric for SessionMetric {
         Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name,
             value,
             tags,
         }

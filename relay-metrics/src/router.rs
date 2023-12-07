@@ -8,10 +8,7 @@ use relay_system::{Addr, NoResponse, Recipient, Service};
 use serde::{Deserialize, Serialize};
 
 use crate::aggregatorservice::{AggregatorService, FlushBuckets};
-use crate::{
-    AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace,
-    MetricResourceIdentifier,
-};
+use crate::{AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace};
 
 /// Contains an [`AggregatorServiceConfig`] for a specific scope.
 ///
@@ -145,16 +142,16 @@ impl StartedRouter {
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
-        let metrics_by_namespace = message.buckets.into_iter().group_by(|bucket| {
-            MetricResourceIdentifier::parse(&bucket.name)
-                .map(|mri| mri.namespace)
-                .ok()
-        });
+        let metrics_by_namespace = message
+            .buckets
+            .into_iter()
+            .group_by(|bucket| bucket.name.namespace);
 
         // TODO: Parse MRI only once, move validation from Aggregator here.
         for (namespace, group) in metrics_by_namespace.into_iter() {
-            let aggregator = namespace
-                .and_then(|ns| self.secondary_aggregators.get(&ns))
+            let aggregator = self
+                .secondary_aggregators
+                .get(&namespace)
                 .unwrap_or(&self.default_aggregator);
 
             aggregator.send(MergeBuckets {

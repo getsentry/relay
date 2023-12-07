@@ -1,9 +1,7 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
-};
+use relay_metrics::{Bucket, BucketView, BucketViewValue, MetricNamespace};
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
@@ -48,14 +46,7 @@ pub fn extract_transaction_count(
     metric: &BucketView<'_>,
     mode: ExtractionMode,
 ) -> Option<TransactionCount> {
-    let mri = match MetricResourceIdentifier::parse(metric.name()) {
-        Ok(mri) => mri,
-        Err(_) => {
-            relay_log::error!("invalid MRI: {}", metric.name());
-            return None;
-        }
-    };
-
+    let mri = metric.name();
     if mri.namespace != MetricNamespace::Transactions {
         return None;
     }
@@ -308,7 +299,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".parse().unwrap(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.0),
             },
@@ -316,7 +307,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".parse().unwrap(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.0),
             },
@@ -324,7 +315,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".parse().unwrap(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.0),
             },
@@ -332,7 +323,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".parse().unwrap(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.0),
             },
@@ -340,7 +331,7 @@ mod tests {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "something_else".to_string(),
+                name: "something_else".parse().unwrap(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.0),
             },
@@ -396,7 +387,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".parse().unwrap(),
                 tags: Default::default(),
                 value: BucketValue::distribution(123.0),
             },
@@ -404,7 +395,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "d:transactions/duration@millisecond".to_string(),
+                name: "d:transactions/duration@millisecond".parse().unwrap(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(456.0),
             },
@@ -412,7 +403,7 @@ mod tests {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".parse().unwrap(),
                 tags: Default::default(),
                 value: BucketValue::counter(1.0),
             },
@@ -420,7 +411,7 @@ mod tests {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "c:transactions/usage@none".to_string(),
+                name: "c:transactions/usage@none".parse().unwrap(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::counter(1.0),
             },
@@ -428,7 +419,7 @@ mod tests {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
-                name: "something_else".to_string(),
+                name: "something_else".parse().unwrap(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
                 value: BucketValue::distribution(123.0),
             },

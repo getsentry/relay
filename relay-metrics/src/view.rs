@@ -2,7 +2,10 @@ use relay_common::time::UnixTimestamp;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
-use crate::{aggregator, CounterType, DistributionType, GaugeValue, SetType, SetValue};
+use crate::{
+    aggregator, CounterType, DistributionType, GaugeValue, MetricResourceIdentifier, SetType,
+    SetValue,
+};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
@@ -350,7 +353,7 @@ impl<'a> BucketView<'a> {
     /// Name of the bucket.
     ///
     /// See also: [`Bucket::name`]
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &MetricResourceIdentifier<'static> {
         &self.inner.name
     }
 
@@ -813,13 +816,13 @@ b3:42:75|s"#;
         assert!(!view.is_empty());
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 4);
-        assert_eq!(partials[0].name(), "c:custom/b0@none");
+        assert_eq!(&partials[0].name().to_string(), "c:custom/b0@none");
         assert_eq!(partials[0].len(), 1);
-        assert_eq!(partials[1].name(), "c:custom/b1@none");
+        assert_eq!(&partials[1].name().to_string(), "c:custom/b1@none");
         assert_eq!(partials[1].len(), 1);
-        assert_eq!(partials[2].name(), "d:custom/b2@none");
+        assert_eq!(&partials[2].name().to_string(), "d:custom/b2@none");
         assert_eq!(partials[2].len(), 5);
-        assert_eq!(partials[3].name(), "s:custom/b3@none");
+        assert_eq!(&partials[3].name().to_string(), "s:custom/b3@none");
         assert_eq!(partials[3].len(), 2);
     }
 
@@ -844,11 +847,11 @@ b3:42:75|s"#;
 
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 3);
-        assert_eq!(partials[0].name(), "c:custom/b0@none");
+        assert_eq!(&partials[0].name().to_string(), "c:custom/b0@none");
         assert_eq!(partials[0].len(), 1);
-        assert_eq!(partials[1].name(), "c:custom/b1@none");
+        assert_eq!(&partials[1].name().to_string(), "c:custom/b1@none");
         assert_eq!(partials[1].len(), 1);
-        assert_eq!(partials[2].name(), "d:custom/b2@none");
+        assert_eq!(&partials[2].name().to_string(), "d:custom/b2@none");
         assert_eq!(partials[2].len(), 3);
     }
 
@@ -873,9 +876,9 @@ b3:42:75|s"#;
 
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 2);
-        assert_eq!(partials[0].name(), "d:custom/b2@none");
+        assert_eq!(&partials[0].name().to_string(), "d:custom/b2@none");
         assert_eq!(partials[0].len(), 2);
-        assert_eq!(partials[1].name(), "s:custom/b3@none");
+        assert_eq!(&partials[1].name().to_string(), "s:custom/b3@none");
         assert_eq!(partials[1].len(), 2);
     }
 
@@ -902,9 +905,9 @@ b3:42:75|s"#;
 
         let partials = view.iter().collect::<Vec<_>>();
         assert_eq!(partials.len(), 2);
-        assert_eq!(partials[0].name(), "d:custom/b2@none");
+        assert_eq!(&partials[0].name().to_string(), "d:custom/b2@none");
         assert_eq!(partials[0].len(), 4);
-        assert_eq!(partials[1].name(), "s:custom/b3@none");
+        assert_eq!(&partials[1].name().to_string(), "s:custom/b3@none");
         assert_eq!(partials[1].len(), 1);
     }
 

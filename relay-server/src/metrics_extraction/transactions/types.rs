@@ -107,7 +107,7 @@ impl IntoMetric for TransactionMetric {
             ),
         };
 
-        let mri = MetricResourceIdentifier {
+        let name = MetricResourceIdentifier {
             ty: value.ty(),
             namespace,
             name,
@@ -117,7 +117,7 @@ impl IntoMetric for TransactionMetric {
         Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name,
             value,
             tags,
         }

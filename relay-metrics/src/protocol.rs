@@ -1,5 +1,6 @@
 use std::fmt;
 use std::hash::Hasher as _;
+use std::str::FromStr;
 use std::{borrow::Cow, error::Error};
 
 use hash32::{FnvHasher, Hasher as _};
@@ -245,7 +246,7 @@ pub struct MetricResourceIdentifier<'a> {
 
 impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI.
-    pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
+    pub fn parse(name: &str) -> Result<MetricResourceIdentifier<'_>, ParseMetricError> {
         // Note that this is NOT `VALUE_SEPARATOR`:
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
@@ -264,9 +265,9 @@ impl<'a> MetricResourceIdentifier<'a> {
     ///
     /// This is exposed to the crate for [`crate::Bucket::parse_str`].
     pub(crate) fn parse_with_type(
-        string: &'a str,
+        string: &str,
         ty: MetricType,
-    ) -> Result<Self, ParseMetricError> {
+    ) -> Result<MetricResourceIdentifier<'_>, ParseMetricError> {
         let (name_and_namespace, unit) = parse_name_unit(string).ok_or(ParseMetricError(()))?;
 
         let (namespace, name) = match name_and_namespace.split_once('/') {
@@ -293,6 +294,20 @@ impl<'a> MetricResourceIdentifier<'a> {
             name: Cow::Owned(self.name.into_owned()),
             unit: self.unit,
         }
+    }
+
+    /// Returns size/length of the MRI when serialized to a string.
+    pub fn len(&self) -> usize {
+        self.ty.as_str().len()
+            + self.namespace.as_str().len()
+            + self.name.len()
+            + self.unit.as_str().len()
+            + 3 // `:`, `/`, `@`
+    }
+
+    /// Wether the MRI is empty, an MRI is never empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -328,6 +343,15 @@ impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
             "{}:{}/{}@{}",
             self.ty, self.namespace, self.name, self.unit
         )
+    }
+}
+
+impl FromStr for MetricResourceIdentifier<'static> {
+    type Err = ParseMetricError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mri = MetricResourceIdentifier::parse(s)?;
+        Ok(mri.into_owned())
     }
 }
 

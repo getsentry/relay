@@ -9,7 +9,6 @@ use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
-    MetricResourceIdentifier,
 };
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -589,12 +588,7 @@ impl Project {
         };
 
         metrics.retain(|metric| {
-            let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
-                relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
-                return false;
-            };
-
-            let verdict = match mri.namespace {
+            let verdict = match metric.name.namespace {
                 MetricNamespace::Sessions => true,
                 MetricNamespace::Transactions => true,
                 MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
@@ -603,7 +597,7 @@ impl Project {
             };
 
             if !verdict {
-                relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
+                relay_log::trace!(mri = %metric.name, "dropping metric in disabled namespace");
             }
 
             verdict
@@ -1271,7 +1265,7 @@ mod tests {
 
     fn create_transaction_metric() -> Bucket {
         Bucket {
-            name: "d:transactions/foo".to_string(),
+            name: "d:transactions/foo".parse().unwrap(),
             width: 0,
             value: BucketValue::counter(1.0),
             timestamp: UnixTimestamp::now(),
@@ -1372,7 +1366,7 @@ mod tests {
 
     fn create_transaction_bucket() -> Bucket {
         Bucket {
-            name: "d:transactions/foo".to_string(),
+            name: "d:transactions/foo".parse().unwrap(),
             value: BucketValue::Counter(1.0),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),

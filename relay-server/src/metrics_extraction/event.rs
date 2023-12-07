@@ -1201,7 +1201,7 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "c:spans/count_per_op@none" {
+            if metric.name == "c:spans/count_per_op@none".parse().unwrap() {
                 continue;
             }
             assert_eq!(metric.tag("ttid"), Some("ttid"));

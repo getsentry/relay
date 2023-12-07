@@ -44,17 +44,17 @@ where
 
         // Parse the MRI so that we can obtain the type, but subsequently re-serialize it into the
         // generated metric to ensure the MRI is normalized.
-        let Ok(mri) = MetricResourceIdentifier::parse(&metric_spec.mri) else {
+        let Ok(name) = MetricResourceIdentifier::parse(&metric_spec.mri) else {
             relay_log::error!(mri = metric_spec.mri, "invalid MRI for metric extraction");
             continue;
         };
 
-        let Some(value) = read_metric_value(instance, metric_spec.field.as_deref(), mri.ty) else {
+        let Some(value) = read_metric_value(instance, metric_spec.field.as_deref(), name.ty) else {
             continue;
         };
 
         metrics.push(Bucket {
-            name: mri.to_string(),
+            name: name.into_owned(),
             width: 0,
             value,
             timestamp,
@@ -76,7 +76,7 @@ where
         let mut lazy_tags = None;
 
         for metric in &mut *metrics {
-            if mapping.matches(&metric.name) {
+            if mapping.matches(&metric.name.to_string()) {
                 let tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, &mapping.tags));
 
                 for (key, val) in tags {

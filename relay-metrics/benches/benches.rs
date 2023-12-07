@@ -31,7 +31,7 @@ impl MetricInput {
             let key_id = i % self.num_project_keys;
             let metric_name = format!("c:transactions/foo{}", i % self.num_metric_names);
             let mut bucket = self.bucket.clone();
-            bucket.name = metric_name;
+            bucket.name = metric_name.parse().unwrap();
             let key = ProjectKey::parse(&format!("{key_id:0width$x}", width = 32)).unwrap();
             rv.push((key, bucket));
         }
@@ -64,7 +64,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     let counter = Bucket {
         timestamp: UnixTimestamp::now(),
         width: 0,
-        name: "c:transactions/foo@none".to_owned(),
+        name: "c:transactions/foo@none".parse().unwrap(),
         value: BucketValue::counter(42.),
         tags: BTreeMap::new(),
     };

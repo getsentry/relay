@@ -992,10 +992,13 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| m.name == "d:transactions/duration@millisecond".parse().unwrap())
             .unwrap();
 
-        assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            duration_metric.name,
+            "d:transactions/duration@millisecond".parse().unwrap()
+        );
         assert_eq!(duration_metric.value, BucketValue::distribution(59000.0));
 
         assert_eq!(duration_metric.tags.len(), 4);
@@ -1173,7 +1176,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| m.name == "d:transactions/duration@millisecond".parse().unwrap())
             .unwrap();
 
         assert_eq!(
@@ -1212,7 +1215,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| m.name == "d:transactions/duration@millisecond".parse().unwrap())
             .unwrap();
 
         assert_eq!(
@@ -1359,7 +1362,7 @@ mod tests {
         let buckets_by_name = extracted
             .project_metrics
             .into_iter()
-            .map(|Bucket { name, tags, .. }| (name, tags))
+            .map(|Bucket { name, tags, .. }| (name.to_string(), tags))
             .collect::<BTreeMap<_, _>>();
         assert_eq!(
             buckets_by_name["d:transactions/measurements.frames_frozen@none"]["device.class"],
@@ -1392,7 +1395,7 @@ mod tests {
         let duration_metric = extracted
             .project_metrics
             .iter()
-            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .find(|m| m.name == "d:transactions/duration@millisecond".parse().unwrap())
             .unwrap();
 
         duration_metric.tags.get("transaction").cloned()

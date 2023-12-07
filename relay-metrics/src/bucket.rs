@@ -551,7 +551,7 @@ pub struct Bucket {
     /// custom/endpoint.hits:1|c
     /// custom/endpoint.duration@millisecond:21.5|d
     /// ```
-    pub name: String,
+    pub name: MetricResourceIdentifier<'static>,
 
     /// The type and aggregated values of this bucket.
     ///
@@ -617,7 +617,9 @@ impl Bucket {
         let (mri_str, values_str) = components.next()?.split_once(':')?;
         let ty = components.next().and_then(|s| s.parse().ok())?;
 
-        let mri = MetricResourceIdentifier::parse_with_type(mri_str, ty).ok()?;
+        let mri = MetricResourceIdentifier::parse_with_type(mri_str, ty)
+            .ok()?
+            .into_owned();
         let value = match ty {
             MetricType::Counter => BucketValue::Counter(parse_counter(values_str)?),
             MetricType::Distribution => BucketValue::Distribution(parse_distribution(values_str)?),
@@ -628,7 +630,7 @@ impl Bucket {
         let mut bucket = Bucket {
             timestamp,
             width: 0,
-            name: mri.to_string(),
+            name: mri,
             value,
             tags: Default::default(),
         };
@@ -1005,8 +1007,7 @@ mod tests {
         let s = "transactions/foo@second:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
+        assert_eq!(metric.name.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
@@ -1014,8 +1015,7 @@ mod tests {
         let s = "transactions/foo@s:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
+        assert_eq!(metric.name.unit, MetricUnit::Duration(DurationUnit::Second));
     }
 
     #[test]
@@ -1052,7 +1052,7 @@ mod tests {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.name, "c:custom/foo_bar@none");
+        assert_eq!(&metric.name.to_string(), "c:custom/foo_bar@none");
     }
 
     #[test]
