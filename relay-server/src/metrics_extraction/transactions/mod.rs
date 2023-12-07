@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
@@ -23,6 +23,18 @@ pub mod types;
 /// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
 /// cardinality data such as raw URLs.
 const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
+
+/// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
+///
+/// These are a subset of "universal" tags.
+const PERFORMANCE_SCORE_TAGS: [CommonTag; 6] = [
+    CommonTag::Release,
+    CommonTag::Environment,
+    CommonTag::Transaction,
+    CommonTag::TransactionOp,
+    CommonTag::BrowserName,
+    CommonTag::TransactionOp,
+];
 
 /// Extract HTTP method
 /// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
@@ -263,6 +275,14 @@ impl TransactionExtractor<'_> {
         let light_tags = extract_light_transaction_tags(event);
 
         // Measurements
+        let names: BTreeSet<_> = event
+            .measurements
+            .value()
+            .map(|x| x.keys())
+            .into_iter()
+            .flatten()
+            .map(|x| x.as_str())
+            .collect();
         if let Some(measurements) = event.measurements.value() {
             for (name, annotated) in measurements.iter() {
                 let measurement = match annotated.value() {
@@ -275,9 +295,27 @@ impl TransactionExtractor<'_> {
                     None => continue,
                 };
 
+                let is_performance_score = name == "score.total"
+                    || name
+                        .strip_prefix("score.weight.")
+                        .or_else(|| name.strip_prefix("score."))
+                        .map_or(false, |suffix| names.contains(suffix));
                 let measurement_tags = TransactionMeasurementTags {
                     measurement_rating: get_measurement_rating(name, value),
-                    universal_tags: tags.clone(),
+                    universal_tags: if is_performance_score {
+                        CommonTags(
+                            tags.0
+                                .iter()
+                                .filter_map(|(key, value)| {
+                                    PERFORMANCE_SCORE_TAGS
+                                        .contains(key)
+                                        .then(|| (key.clone(), value.clone()))
+                                })
+                                .collect::<BTreeMap<_, _>>(),
+                        )
+                    } else {
+                        tags.clone()
+                    },
                 };
 
                 metrics.project_metrics.push(
@@ -434,11 +472,12 @@ mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
         normalize_event, set_default_transaction_source, BreakdownsConfig,
-        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig,
+        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig,
+        PerformanceScoreProfile, PerformanceScoreWeightedComponent,
     };
     use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
-    use relay_protocol::Annotated;
+    use relay_protocol::{Annotated, RuleCondition};
 
     use super::*;
 
@@ -520,6 +559,19 @@ mod tests {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
                 normalize_spans: true,
+                performance_score: Some(&PerformanceScoreConfig {
+                    profiles: vec![PerformanceScoreProfile {
+                        name: Some("".into()),
+                        score_components: vec![PerformanceScoreWeightedComponent {
+                            measurement: "lcp".into(),
+                            weight: 0.5,
+                            p10: 2.0,
+                            p50: 3.0,
+                            optional: false,
+                        }],
+                        condition: Some(RuleCondition::all()),
+                    }],
+                }),
                 ..Default::default()
             },
         )
@@ -627,6 +679,57 @@ mod tests {
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/measurements.score.lcp@ratio",
+                value: Distribution(
+                    [
+                        0.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/measurements.score.total@ratio",
+                value: Distribution(
+                    [
+                        0.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/measurements.score.weight.lcp@ratio",
+                value: Distribution(
+                    [
+                        1.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                 },
             },
             Bucket {
