@@ -610,12 +610,12 @@ impl EnvelopeProcessorService {
                     RedisSetLimiter::new(
                         pool,
                         SlidingWindow {
-                            window_seconds: 3600,
-                            granularity_seconds: 360,
+                            window_seconds: config.cardinality_limiter_window(),
+                            granularity_seconds: config.cardinality_limiter_granularity(),
                         },
                     ),
                     relay_cardinality::CardinalityLimiterConfig {
-                        cardinality_limit: 10_000,
+                        cardinality_limit: config.cardinality_limit(),
                     },
                 )
             }),
