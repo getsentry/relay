@@ -25,7 +25,6 @@ class DataCategory(IntEnum):
     SPAN = 12
     MONITOR_SEAT = 13
     USER_REPORT_V2 = 14
-    METRIC_BUCKET = 15
     UNKNOWN = -1
     # end generated
 

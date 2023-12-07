@@ -172,7 +172,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     fn drop_with_outcome(&mut self, outcome: Outcome, outcome_aggregator: Addr<TrackOutcome>) {
         // Drop transaction buckets:
         let metrics = std::mem::take(&mut self.metrics);
-        let timestamp = Utc::now();
 
         self.metrics = metrics
             .into_iter()
@@ -184,6 +183,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 
         // Track outcome for the transaction metrics we dropped here:
         if self.transaction_count > 0 {
+            let timestamp = UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now);
             outcome_aggregator.send(TrackOutcome {
                 timestamp,
                 scoping: self.scoping,
