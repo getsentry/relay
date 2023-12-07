@@ -64,7 +64,7 @@ pub enum DataCategory {
     /// TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
     UserReportV2 = 14,
     /// Metric buckets.
-    MetricBucket,
+    MetricBucket = 15,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.

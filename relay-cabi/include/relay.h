@@ -99,7 +99,7 @@ enum RelayDataCategory {
   /**
    * Metric buckets.
    */
-  RELAY_DATA_CATEGORY_METRIC_BUCKET,
+  RELAY_DATA_CATEGORY_METRIC_BUCKET = 15,
   /**
    * Any other data category not known by this Relay.
    */
