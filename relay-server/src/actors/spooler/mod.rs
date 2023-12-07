@@ -36,9 +36,10 @@ use std::error::Error;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
-use relay_base_schema::project::ProjectKey;
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
@@ -55,7 +56,7 @@ use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 mod sql;
@@ -415,9 +416,26 @@ impl OnDisk {
         let received_at: i64 = row
             .try_get("received_at")
             .map_err(BufferError::FetchFailed)?;
-        let start_time = StartTime::from_timestamp_millis(received_at as u64);
+        let start_time_instant = StartTime::from_timestamp_millis(received_at as u64).into_inner();
 
-        envelope.set_start_time(start_time.into_inner());
+        // This metric should show how long we waited till the envelope was unspooled.
+        relay_statsd::metric!(
+            timer(RelayTimers::EnvelopeOnDiskBufferTime) = start_time_instant.elapsed()
+        );
+
+        // If envelope stays longer than an 2 hours in on-disk spool, produce an error, so we could
+        // debug what kind of envelope is that.
+        if start_time_instant.elapsed() > Duration::from_secs(7200) {
+            relay_log::error!(
+                tags.project_key = %envelope.meta().public_key(),
+                tags.project_id = %envelope.meta().project_id().unwrap_or(ProjectId::new(0)),
+                event_id = ?envelope.event_id(),
+                duration = ?start_time_instant.elapsed(),
+                "Spooled envelope spent more than 1 hour in on-disk spool"
+            );
+        }
+
+        envelope.set_start_time(start_time_instant);
 
         let managed_envelope = self.buffer_guard.enter(
             envelope,
