@@ -32,9 +32,49 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "device.class": "1",
                 "mobile": "true",
                 "op": "default",
+                "os.name": "iOS",
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "ttid": "ttid",
+            },
+            received: ~,
+            measurements: ~,
+            other: {},
+        },
+        Span {
+            timestamp: Timestamp(
+                2020-08-21T02:18:23Z,
+            ),
+            start_timestamp: Timestamp(
+                2020-08-21T02:18:20Z,
+            ),
+            exclusive_time: 3000.0,
+            description: ~,
+            op: "ui.load.initial_display",
+            span_id: SpanId(
+                "bd429c44b67a3eb2",
+            ),
+            parent_span_id: ~,
+            trace_id: TraceId(
+                "ff62a8b040f340bda5d830223def1d81",
+            ),
+            segment_id: ~,
+            is_segment: ~,
+            status: ~,
+            tags: ~,
+            origin: ~,
+            profile_id: ~,
+            data: ~,
+            sentry_tags: {
+                "device.class": "1",
+                "mobile": "true",
+                "op": "ui.load.initial_display",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "ttid": "ttid",
             },
             received: ~,
             measurements: ~,
@@ -54,10 +94,12 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "device.class": "1",
+                "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "default",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
+                "ttid": "ttid",
             },
         },
         Bucket {
@@ -71,6 +113,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "device.class": "1",
+                "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "default",
                 "transaction.method": "GET",
@@ -85,6 +128,53 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "span.op": "default",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.op": "ui.load.initial_display",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "ttid": "ttid",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time_light@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.op": "ui.load.initial_display",
+                "transaction.method": "GET",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/count_per_op@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {
+                "span.op": "ui.load.initial_display",
             },
         },
     ],

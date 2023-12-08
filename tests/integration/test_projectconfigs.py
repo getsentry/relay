@@ -294,34 +294,31 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         }
     } == data
 
+    def assert_clear_test_failures():
+        try:
+            assert {str(e) for _, e in mini_sentry.test_failures} == {
+                f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
+            }
+        finally:
+            mini_sentry.test_failures.clear()
+
     # Event is not propagated, relay logs an error:
-    try:
-        relay.send_event(project_key)
-        assert mini_sentry.captured_events.empty()
-        assert {str(e) for _, e in mini_sentry.test_failures} == {
-            f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
-        }
-    finally:
-        mini_sentry.test_failures.clear()
+    relay.send_event(project_key)
+    assert mini_sentry.captured_events.empty()
 
     # Fix the config.
     config = mini_sentry.project_configs[project_key]
     config["slug"] = "some-slug"
 
-    try:
-        relay.send_event(project_key)
-        relay.send_event(project_key)
-        relay.send_event(project_key)
-        # Relay may have logged more errors while it was trying to fetch project configs:
-        assert not mini_sentry.test_failures or {
-            str(e) for _, e in mini_sentry.test_failures
-        } == {
-            f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
-        }
-    finally:
-        mini_sentry.test_failures.clear()
+    relay.send_event(project_key)
+    relay.send_event(project_key)
+    relay.send_event(project_key)
+
     # Wait for caches to expire. And we will get into the grace period.
     time.sleep(3)
+
+    assert_clear_test_failures()
+
     # The state should be fixed and updated by now, since we keep re-trying to fetch new one all the time.
     data = get_response(relay, packed, signature)
     assert data["configs"][public_key]["projectId"] == project_key
