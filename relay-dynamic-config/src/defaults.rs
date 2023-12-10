@@ -77,74 +77,74 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
 
-    config.metrics.extend([
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/exclusive_time@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
-            tags: vec![TagSpec {
-                key: "transaction".into(),
-                field: Some("span.sentry_tags.transaction".into()),
-                value: None,
-                condition: None,
-            }],
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/exclusive_time_light@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
-            tags: Default::default(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/http.response_content_length@byte".into(),
-            field: Some("span.data.http\\.response_content_length".into()),
-            condition: Some(
-                span_op_conditions.clone()
-                    & resource_condition.clone()
-                    & RuleCondition::gt("span.data.http\\.response_content_length", 0),
-            ),
-            tags: Default::default(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/http.decoded_response_content_length@byte".into(),
-            field: Some("span.data.http\\.decoded_response_content_length".into()),
-            condition: Some(
-                span_op_conditions.clone()
-                    & resource_condition.clone()
-                    & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
-            ),
-            tags: Default::default(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "d:spans/http.response_transfer_size@byte".into(),
-            field: Some("span.data.http\\.response_transfer_size".into()),
-            condition: Some(
-                span_op_conditions.clone()
-                    & resource_condition.clone()
-                    & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
-            ),
-            tags: Default::default(),
-        },
-        MetricSpec {
-            category: DataCategory::Span,
-            mri: "c:spans/count_per_op@none".into(),
-            field: None,
-            condition: Some(duration_condition.clone()),
-            tags: ["category", "op", "system"]
-                .map(|key| TagSpec {
-                    key: format!("span.{key}"),
-                    field: Some(format!("span.sentry_tags.{key}")),
-                    value: None,
-                    condition: None,
-                })
-                .into(),
-        },
-    ]);
+    // config.metrics.extend([
+    //     MetricSpec {
+    //         category: DataCategory::Span,
+    //         mri: "d:spans/exclusive_time@millisecond".into(),
+    //         field: Some("span.exclusive_time".into()),
+    //         condition: Some(span_op_conditions.clone() & duration_condition.clone()),
+    //         tags: vec![TagSpec {
+    //             key: "transaction".into(),
+    //             field: Some("span.sentry_tags.transaction".into()),
+    //             value: None,
+    //             condition: None,
+    //         }],
+    //     },
+    //     MetricSpec {
+    //         category: DataCategory::Span,
+    //         mri: "d:spans/exclusive_time_light@millisecond".into(),
+    //         field: Some("span.exclusive_time".into()),
+    //         condition: Some(span_op_conditions.clone() & duration_condition.clone()),
+    //         tags: Default::default(),
+    //     },
+    //     MetricSpec {
+    //         category: DataCategory::Span,
+    //         mri: "d:spans/http.response_content_length@byte".into(),
+    //         field: Some("span.data.http\\.response_content_length".into()),
+    //         condition: Some(
+    //             span_op_conditions.clone()
+    //                 & resource_condition.clone()
+    //                 & RuleCondition::gt("span.data.http\\.response_content_length", 0),
+    //         ),
+    //         tags: Default::default(),
+    //     },
+    //     MetricSpec {
+    //         category: DataCategory::Span,
+    //         mri: "d:spans/http.decoded_response_content_length@byte".into(),
+    //         field: Some("span.data.http\\.decoded_response_content_length".into()),
+    //         condition: Some(
+    //             span_op_conditions.clone()
+    //                 & resource_condition.clone()
+    //                 & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
+    //         ),
+    //         tags: Default::default(),
+    //     },
+    //     MetricSpec {
+    //         category: DataCategory::Span,
+    //         mri: "d:spans/http.response_transfer_size@byte".into(),
+    //         field: Some("span.data.http\\.response_transfer_size".into()),
+    //         condition: Some(
+    //             span_op_conditions.clone()
+    //                 & resource_condition.clone()
+    //                 & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
+    //         ),
+    //         tags: Default::default(),
+    //     },
+    //     MetricSpec {
+    //         category: DataCategory::Span,
+    //         mri: "c:spans/count_per_op@none".into(),
+    //         field: None,
+    //         condition: Some(duration_condition.clone()),
+    //         tags: ["category", "op", "system"]
+    //             .map(|key| TagSpec {
+    //                 key: format!("span.{key}"),
+    //                 field: Some(format!("span.sentry_tags.{key}")),
+    //                 value: None,
+    //                 condition: None,
+    //             })
+    //             .into(),
+    //     },
+    // ]);
 
     config.tags.extend([
         TagMapping {
@@ -238,125 +238,296 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         },
     ]);
 
-    let module_enabled = RuleCondition::never(); // TODO
-    let is_mobile = module_enabled & RuleCondition::never(); // TODO
+    // / NEW /////
+    let mobile_condition = RuleCondition::eq("span.sentry_tags.mobile", "true");
     config.metrics.extend([
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(module_enabled),
+            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
             tags: vec![
                 Tag::with_key("environment")
                     .from_field("sentry_tags.environment")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("transaction.method")
                     .from_field("sentry_tags.transaction.method")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("transaction.op")
                     .from_field("sentry_tags.transaction.op")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.action")
                     .from_field("sentry_tags.action")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.category")
                     .from_field("sentry_tags.category")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.description")
                     .from_field("sentry_tags.description")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.domain")
                     .from_field("sentry_tags.domain")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.group")
                     .from_field("sentry_tags.group")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.module")
                     .from_field("sentry_tags.module")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.op")
                     .from_field("sentry_tags.op")
-                    .when(module_enabled),
+                    .always(),
+                Tag::with_key("span.status")
+                    .from_field("span.status") // from top-level field
+                    .always(),
                 Tag::with_key("span.status_code")
                     .from_field("sentry_tags.status_code")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.system")
                     .from_field("sentry_tags.system")
-                    .when(module_enabled),
+                    .always(),
                 // Mobile:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
                 Tag::with_key("span.main_thread")
                     .from_field("span.sentry_tags.main_thread")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
             ],
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(module_enabled),
+            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
             tags: vec![
                 // Common tags:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.action")
                     .from_field("span.sentry_tags.action")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.description")
                     .from_field("span.sentry_tags.description")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.module")
                     .from_field("span.sentry_tags.module")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.status_code")
                     .from_field("span.sentry_tags.status_code")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("span.system")
                     .from_field("span.sentry_tags.system")
-                    .when(module_enabled),
+                    .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
-                    .when(module_enabled),
+                    .always(),
                 // Mobile:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
                 Tag::with_key("ttfd")
                     .from_field("span.sentry_tags.ttfd")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
                 Tag::with_key("ttid")
                     .from_field("span.sentry_tags.ttid")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
                 Tag::with_key("span.main_thread")
                     .from_field("span.sentry_tags.main_thread")
-                    .when(is_mobile),
+                    .when(mobile_condition.clone()),
+                // Resource module:
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .when(resource_condition.clone()),
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .when(resource_condition.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/http.response_content_length@byte".into(),
+            field: Some("span.data.http\\.response_content_length".into()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone().clone()
+                    & RuleCondition::gt("span.data.http\\.response_content_length", 0),
+            ),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .when(resource_condition.clone()),
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .when(resource_condition.clone()),
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .when(resource_condition.clone()),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags")
+                    .when(resource_condition.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/http.response_content_length@byte".into(),
+            field: Some("span.data.http\\.response_content_length".into()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.response_content_length", 0),
+            ),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .when(resource_condition.clone()),
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .when(resource_condition.clone()),
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .when(resource_condition.clone()),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags")
+                    .when(resource_condition.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/http.decoded_response_content_length@byte".into(),
+            field: Some("span.data.http\\.decoded_response_content_length".into()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
+            ),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .when(resource_condition.clone()),
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .when(resource_condition.clone()),
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .when(resource_condition.clone()),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags")
+                    .when(resource_condition.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/http.response_transfer_size@byte".into(),
+            field: Some("span.data.http\\.response_transfer_size".into()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
+            ),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .when(resource_condition.clone()),
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .when(resource_condition.clone()),
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .when(resource_condition.clone()),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .when(resource_condition.clone()),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags")
+                    .when(resource_condition.clone()),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/count_per_op@none".into(),
+            field: None,
+            condition: Some(duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("category")
+                    .from_field("span.sentry_tags.category")
+                    .always(),
+                Tag::with_key("op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("system")
+                    .from_field("span.sentry_tags.system")
+                    .always(),
             ],
         },
     ]);
