@@ -25,6 +25,7 @@
 - Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
 - Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
 - Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
+- Keep only domain and extension for image resource span grouping. ([#2826](https://github.com/getsentry/relay/pull/2826))
 
 ## 23.11.2
 

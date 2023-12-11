@@ -25,7 +25,7 @@ const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
-const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css"];
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -130,9 +130,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     .when(mobile_condition.clone()),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
-                    .when(mobile_condition.clone()),
-                Tag::with_key("span.main_thread")
-                    .from_field("span.sentry_tags.main_thread")
                     .when(mobile_condition.clone()),
                 // Resource module:
                 Tag::with_key("file_extension")
