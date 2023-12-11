@@ -1,4 +1,4 @@
-use relay_statsd::CounterMetric;
+use relay_statsd::{CounterMetric, TimerMetric};
 
 /// Counter metrics for the Relay Cardinality Limiter.
 pub enum CardinalityLimiterCounters {
@@ -32,7 +32,7 @@ pub enum CardinalityLimiterCounters {
 
 impl CounterMetric for CardinalityLimiterCounters {
     fn name(&self) -> &'static str {
-        match *self {
+        match self {
             #[cfg(feature = "redis")]
             Self::Rejected => "cardinality.limiter.rejected",
             #[cfg(feature = "redis")]
@@ -41,6 +41,19 @@ impl CounterMetric for CardinalityLimiterCounters {
             Self::RedisHashCheck => "cardinality.limiter.redis.hash.check",
             #[cfg(feature = "redis")]
             Self::RedisHashUpdate => "cardinality.limiter.redis.hash.update",
+        }
+    }
+}
+
+pub enum CardinalityLimiterTimers {
+    /// Timer for the entire process of checking cardinality limits.
+    CardinalityLimiter,
+}
+
+impl TimerMetric for CardinalityLimiterTimers {
+    fn name(&self) -> &'static str {
+        match self {
+            CardinalityLimiterTimers::CardinalityLimiter => "cardinality.limiter.duration",
         }
     }
 }
