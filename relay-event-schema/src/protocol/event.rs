@@ -660,6 +660,13 @@ impl Getter for Event {
             "user.geo.subdivision" => self.user.value()?.geo.value()?.subdivision.as_str()?.into(),
             "request.method" => self.request.value()?.method.as_str()?.into(),
             "request.url" => self.request.value()?.url.as_str()?.into(),
+            "transaction.source" => self
+                .transaction_info
+                .value()?
+                .source
+                .value()?
+                .as_str()
+                .into(),
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
 
@@ -794,7 +801,9 @@ mod tests {
     use uuid::uuid;
 
     use super::*;
-    use crate::protocol::{Headers, IpAddr, JsonLenientString, PairList, TagEntry};
+    use crate::protocol::{
+        Headers, IpAddr, JsonLenientString, PairList, TagEntry, TransactionSource,
+    };
 
     #[test]
     fn test_event_roundtrip() {
@@ -1096,6 +1105,10 @@ mod tests {
                 ..Default::default()
             }),
             transaction: Annotated::new("some-transaction".into()),
+            transaction_info: Annotated::new(TransactionInfo {
+                source: Annotated::new(TransactionSource::Route),
+                ..Default::default()
+            }),
             tags: {
                 let items = vec![Annotated::new(TagEntry(
                     Annotated::new("custom".to_string()),
@@ -1214,7 +1227,11 @@ mod tests {
         assert_eq!(
             Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-8addadfeedaa"))),
             event.get_value("event.contexts.profile.profile_id")
-        )
+        );
+        assert_eq!(
+            Some(Val::String("route")),
+            event.get_value("event.transaction.source")
+        );
     }
 
     #[test]

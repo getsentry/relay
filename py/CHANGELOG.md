@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `_metrics_summary` as temporary key on `Event` for a DDM experiment. ([#2757](https://github.com/getsentry/relay/pull/2757))
+- Add new metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
 
 ## 0.8.38
 
