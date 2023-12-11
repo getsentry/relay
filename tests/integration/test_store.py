@@ -284,7 +284,7 @@ def make_transaction(event):
         {
             "type": "transaction",
             "timestamp": now.isoformat(),
-            "start_timestamp": now.isoformat(),
+            "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
             "spans": [],
             "contexts": {
                 "trace": {
