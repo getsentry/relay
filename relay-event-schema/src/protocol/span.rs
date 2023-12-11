@@ -253,6 +253,19 @@ mod tests {
                         "span_id": "FA90FDEAD5F74052",
                         "type": "trace"
                     }
+                },
+                "_metrics_summary": {
+                    "some_metric": [
+                        {
+                            "min": 1.0,
+                            "max": 2.0,
+                            "sum": 3.0,
+                            "count": 2,
+                            "tags": {
+                                "environment": "test"
+                            }
+                        }
+                    ]
                 }
             }"#,
         )
@@ -288,7 +301,37 @@ mod tests {
             sentry_tags: ~,
             received: ~,
             measurements: ~,
-            _metrics_summary: ~,
+            _metrics_summary: Object(
+                {
+                    "some_metric": Array(
+                        [
+                            Object(
+                                {
+                                    "count": I64(
+                                        2,
+                                    ),
+                                    "max": F64(
+                                        2.0,
+                                    ),
+                                    "min": F64(
+                                        1.0,
+                                    ),
+                                    "sum": F64(
+                                        3.0,
+                                    ),
+                                    "tags": Object(
+                                        {
+                                            "environment": String(
+                                                "test",
+                                            ),
+                                        },
+                                    ),
+                                },
+                            ),
+                        ],
+                    ),
+                },
+            ),
             other: {},
         }
         "###);
