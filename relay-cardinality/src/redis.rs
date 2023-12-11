@@ -95,13 +95,14 @@ impl RedisSetLimiter {
         }
 
         if !new_hashes.is_empty() {
-            for time_bucket in self.window.iter(timestamp) {
-                let key = self.to_redis_key(organization_id, &item_scope, time_bucket);
+            let keys = self
+                .window
+                .iter(timestamp)
+                .map(|time_bucket| self.to_redis_key(organization_id, &item_scope, time_bucket));
 
-                // The expiry is a off by `window.granularity_seconds`,
-                // but since this is only used for cleanup, this is not an issue.
-                client.add_to_set(&key, &new_hashes, self.window.window_seconds)?;
-            }
+            // The expiry is a off by `window.granularity_seconds`,
+            // but since this is only used for cleanup, this is not an issue.
+            client.add_to_sets(keys, &new_hashes, self.window.window_seconds)?;
 
             metric!(
                 counter(CardinalityLimiterCounters::RedisHashUpdate) += new_hashes.len() as i64,
@@ -233,30 +234,34 @@ impl<'a> RedisHelper<'a> {
         Ok(result)
     }
 
-    fn add_to_set<I: ToRedisArgs + std::fmt::Debug>(
+    fn add_to_sets<I: ToRedisArgs + std::fmt::Debug>(
         &mut self,
-        name: &str,
-        values: impl IntoIterator<Item = I>,
+        names: impl IntoIterator<Item = String>,
+        values: impl IntoIterator<Item = I> + Copy,
         expire: u64,
     ) -> Result<()> {
         let mut pipeline = redis::pipe();
 
-        for values in &values.into_iter().chunks(MAX_SADD_ARGS) {
-            let cmd = pipeline.cmd("SADD").arg(name);
+        for name in names {
+            for values in &values.into_iter().chunks(MAX_SADD_ARGS) {
+                let cmd = pipeline.cmd("SADD").arg(&name);
 
-            for arg in values {
-                cmd.arg(arg);
+                for arg in values {
+                    cmd.arg(arg);
+                }
+
+                cmd.ignore();
             }
 
-            cmd.ignore();
+            pipeline
+                .cmd("EXPIRE")
+                .arg(name)
+                .arg(expire)
+                // .arg("NX") - NX not supported for Redis < 7
+                .ignore();
         }
 
         pipeline
-            .cmd("EXPIRE")
-            .arg(name)
-            .arg(expire)
-            // .arg("NX") - NX not supported for Redis < 7
-            .ignore()
             .query(&mut self.0)
             .map_err(relay_redis::RedisError::Redis)?;
 
