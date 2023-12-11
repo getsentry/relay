@@ -128,6 +128,9 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
                     .when(mobile_condition.clone()),
+                Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                    .from_field("span.sentry_tags.os.name")
+                    .when(mobile_condition.clone()),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
                     .when(mobile_condition.clone()),
@@ -189,6 +192,9 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 // Mobile:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                    .from_field("span.sentry_tags.os.name")
                     .when(mobile_condition.clone()),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
