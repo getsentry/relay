@@ -858,6 +858,57 @@
 <a href="#858" id="858">858</a>
 <a href="#859" id="859">859</a>
 <a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -927,7 +978,7 @@
                     sql::scrub_queries(db_system, description)
                 }
             }
-            (<span class="string">&quot;resource&quot;</span>, <span class="kw">_</span>) =&gt; scrub_resource(description),
+            (<span class="string">&quot;resource&quot;</span>, ty) =&gt; scrub_resource(ty, description),
             (<span class="string">&quot;ui&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
                 <span class="comment">// `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
@@ -1067,7 +1118,7 @@
 }
 
 <span class="doccomment">/// Scrubber for spans with `span.op` &quot;resource.*&quot;.
-</span><span class="kw">fn </span>scrub_resource(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+</span><span class="kw">fn </span>scrub_resource(resource_type: <span class="kw-2">&amp;</span>str, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>(url, ty) = <span class="kw">match </span>Url::parse(string) {
         <span class="prelude-val">Ok</span>(url) =&gt; (url, UrlType::Full),
         <span class="prelude-val">Err</span>(url::ParseError::RelativeUrlWithoutBase) =&gt; {
@@ -1122,7 +1173,7 @@
                 .path_segments()
                 .and_then(|s| s.last())
                 .unwrap_or_default();
-            <span class="kw">let </span>last_segment = scrub_resource_filename(last_segment);
+            <span class="kw">let </span>last_segment = scrub_resource_filename(resource_type, last_segment);
 
             <span class="kw">if </span>segments.is_empty() {
                 <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}/{last_segment}&quot;</span>)
@@ -1142,11 +1193,14 @@
     <span class="prelude-val">Some</span>(formatted)
 }
 
-<span class="kw">fn </span>scrub_resource_filename(path: <span class="kw-2">&amp;</span>str) -&gt; String {
-    <span class="kw">let </span>(<span class="kw-2">mut </span>base_path, <span class="kw-2">mut </span>extension) = path.rsplit_once(<span class="string">&#39;.&#39;</span>).unwrap_or((path, <span class="string">&quot;&quot;</span>));
+<span class="kw">fn </span>scrub_resource_filename&lt;<span class="lifetime">&#39;a</span>&gt;(ty: <span class="kw-2">&amp;</span>str, path: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; Cow&lt;<span class="lifetime">&#39;a</span>, str&gt; {
+    <span class="kw">if </span>path.is_empty() {
+        <span class="kw">return </span>Cow::Borrowed(<span class="string">&quot;&quot;</span>);
+    }
+    <span class="kw">let </span>(<span class="kw-2">mut </span>basename, <span class="kw-2">mut </span>extension) = path.rsplit_once(<span class="string">&#39;.&#39;</span>).unwrap_or((path, <span class="string">&quot;&quot;</span>));
     <span class="kw">if </span>extension.contains(<span class="string">&#39;/&#39;</span>) {
         <span class="comment">// Not really an extension
-        </span>base_path = path;
+        </span>basename = path;
         extension = <span class="string">&quot;&quot;</span>;
     }
 
@@ -1158,14 +1212,20 @@
         extension = <span class="string">&quot;&quot;</span>;
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>segments = base_path.split(<span class="string">&#39;/&#39;</span>).map(scrub_resource_segment);
-    <span class="kw">let </span><span class="kw-2">mut </span>joined = segments.join(<span class="string">&quot;/&quot;</span>);
-    <span class="kw">if </span>!extension.is_empty() {
-        joined.push(<span class="string">&#39;.&#39;</span>);
-        joined.push_str(extension);
-    }
+    <span class="kw">let </span>basename = <span class="kw">if </span>ty == <span class="string">&quot;img&quot; </span>{
+        Cow::Borrowed(<span class="string">&quot;*&quot;</span>)
+    } <span class="kw">else </span>{
+        scrub_resource_segment(basename)
+    };
 
-    joined
+    <span class="kw">if </span>extension.is_empty() {
+        basename
+    } <span class="kw">else </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>filename = basename.to_string();
+        filename.push(<span class="string">&#39;.&#39;</span>);
+        filename.push_str(extension);
+        Cow::Owned(filename)
+    }
 }
 
 <span class="kw">fn </span>scrub_resource_segment(segment: <span class="kw-2">&amp;</span>str) -&gt; Cow&lt;str&gt; {
@@ -1415,14 +1475,35 @@
         resource_query_params2,
         <span class="string">&quot;https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/guide*.gif&quot;
+        <span class="string">&quot;https://*.domain.com/data/*.gif&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_query_params2_script,
+        <span class="string">&quot;https://data.domain.com/data/guide123.js?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
+        <span class="string">&quot;https://*.domain.com/data/guide*.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_no_ids,
+        <span class="string">&quot;https://data.domain.com/js/guide.js&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
+        <span class="string">&quot;https://*.domain.com/js/guide.js&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_no_ids_img_known_segment,
         <span class="string">&quot;https://data.domain.com/data/guide.gif&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/guide.gif&quot;
+        <span class="string">&quot;https://*.domain.com/data/*.gif&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_no_ids_img,
+        <span class="string">&quot;https://data.domain.com/something/guide.gif&quot;</span>,
+        <span class="string">&quot;resource.img&quot;</span>,
+        <span class="string">&quot;https://*.domain.com/*/*.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1464,6 +1545,13 @@
         random_string1,
         <span class="string">&quot;https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
+        <span class="string">&quot;https://*.domain.com/*/*&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        random_string1_script,
+        <span class="string">&quot;https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
         <span class="string">&quot;https://*.domain.com/*/foo-*&quot;
     </span>);
 
@@ -1513,7 +1601,7 @@
         resource_url_with_fragment,
         <span class="string">&quot;https://data.domain.com/data/guide123.gif#url=someotherurl&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/guide*.gif&quot;
+        <span class="string">&quot;https://*.domain.com/data/*.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1585,13 +1673,27 @@
         resource_img_comma_with_extension,
         <span class="string">&quot;https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://example.org/*/media/*/weird-stuff-*-*-*.jpg&quot;
+        <span class="string">&quot;https://example.org/*/media/*/*.jpg&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_script_comma_with_extension,
+        <span class="string">&quot;https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.js&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
+        <span class="string">&quot;https://example.org/*/media/*/weird-stuff-*-*-*.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_path_with_comma,
         <span class="string">&quot;/help/purchase-details/1,*,0&amp;fmt=webp&amp;qlt=*,1&amp;fit=constrain,0&amp;op_sharpen=0&amp;resMode=sharp2&amp;iccEmbed=0&amp;printRes=*&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
+        <span class="string">&quot;/*/*&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_script_path_with_comma,
+        <span class="string">&quot;/help/purchase-details/1,*,0&amp;fmt=webp&amp;qlt=*,1&amp;fit=constrain,0&amp;op_sharpen=0&amp;resMode=sharp2&amp;iccEmbed=0&amp;printRes=*&quot;</span>,
+        <span class="string">&quot;resource.script&quot;</span>,
         <span class="string">&quot;/*/*&quot;
     </span>);
 
