@@ -131,6 +131,7 @@ enum Status {
     Accepted,
 }
 
+/// Entry used by the Redis limiter.
 #[derive(Clone, Copy, Debug)]
 struct RedisEntry {
     /// The correlating entry id.
