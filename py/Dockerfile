@@ -18,7 +18,7 @@ RUN yum -y update \
     && ln -s "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so.1" "/usr/${TARGET}-linux-gnu/sys-root/usr/lib64/libgcc_s.so"; \
     elif [ ${TARGET} == "i686" ]; then \
     yum install -t -y glibc-devel.i686 libgcc.i686 \
-    && if ! [ -f /usr/lib/libatomic.so ]; then ln -s /usr/lib/libatomic.so.1 /usr/lib/libatomic.so; fi; \
+    && if ! [ -f /usr/lib/libatomic.so ]; then ln -s /usr/lib/libatomic.so.1 /usr/lib/libatomic.so; fi \
     && RG=$(find /opt -type f -executable -name gcc) \
     && if ! [ -z $RG ]; then ln -s $RG /usr/bin/i686-linux-gnu-gcc; else ln -s /usr/bin/gcc /usr/bin/i686-linux-gnu-gcc; fi; \
     fi \
