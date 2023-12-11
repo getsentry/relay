@@ -284,7 +284,7 @@ def make_transaction(event):
         {
             "type": "transaction",
             "timestamp": now.isoformat(),
-            "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
+            "start_timestamp": now.isoformat(),
             "spans": [],
             "contexts": {
                 "trace": {
@@ -709,6 +709,8 @@ def test_processing_quota_transaction_indexing(
     relay = relay_with_processing(
         {
             "processing": {"max_rate_limit": 100},
+            # make sure that sent envelopes will be processed sequentially.
+            "limits": {"max_thread_count": 1},
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
@@ -759,7 +761,7 @@ def test_processing_quota_transaction_indexing(
     assert len(buckets) > 0
 
     with pytest.raises(HTTPError) as exc_info:
-        relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+        relay.send_event(project_id, make_transaction({"message": "4nd tx"}))
 
     assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
 
