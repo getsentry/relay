@@ -679,6 +679,9 @@
 <a href="#679" id="679">679</a>
 <a href="#680" id="680">680</a>
 <a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -924,6 +927,8 @@
     <span class="doccomment">/// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     </span>EnvelopeTotalTime,
+    <span class="doccomment">/// Total time in milliseconds an envelope spends in the Relay&#39;s on-disk buffer.
+    </span>EnvelopeOnDiskBufferTime,
     <span class="doccomment">/// Total time in milliseconds spent evicting outdated and unused projects happens.
     </span>ProjectStateEvictionDuration,
     <span class="doccomment">/// Total time in milliseconds spent fetching queued project configuration updates requests to
@@ -1032,6 +1037,7 @@
             RelayTimers::EnvelopeWaitTime =&gt; <span class="string">&quot;event.wait_time&quot;</span>,
             RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">&quot;event.processing_time&quot;</span>,
             RelayTimers::EnvelopeTotalTime =&gt; <span class="string">&quot;event.total_time&quot;</span>,
+            RelayTimers::EnvelopeOnDiskBufferTime =&gt; <span class="string">&quot;envelope.on_disk_buffer_time&quot;</span>,
             RelayTimers::ProjectStateEvictionDuration =&gt; <span class="string">&quot;project_state.eviction.duration&quot;</span>,
             RelayTimers::ProjectStateRequestDuration =&gt; <span class="string">&quot;project_state.request.duration&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
