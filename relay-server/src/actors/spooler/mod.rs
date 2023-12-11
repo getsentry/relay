@@ -431,7 +431,7 @@ impl OnDisk {
                 tags.project_id = %envelope.meta().project_id().unwrap_or(ProjectId::new(0)),
                 event_id = ?envelope.event_id(),
                 duration = ?start_time_instant.elapsed(),
-                "Spooled envelope spent more than 1 hour in on-disk spool"
+                "Spooled envelope spent more than 2 hours in on-disk spool"
             );
         }
 
