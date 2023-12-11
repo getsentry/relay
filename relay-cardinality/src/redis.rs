@@ -14,9 +14,9 @@ use crate::{
 };
 
 /// Key prefix used for Redis keys.
-const REDIS_KEY_PREFIX: &str = "relay:cardinality";
+const KEY_PREFIX: &str = "relay:cardinality";
 /// Maximum amount of arguments for a Redis `SADD` call.
-const REDIS_MAX_SADD_ARGS: usize = 1000;
+const MAX_SADD_ARGS: usize = 1000;
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
@@ -37,9 +37,7 @@ impl RedisSetLimiter {
             time_offset: 0,
         }
     }
-}
 
-impl RedisSetLimiter {
     /// Checks the limits for a specific scope.
     ///
     /// Returns an iterator over all entries which have been accepted.
@@ -120,7 +118,7 @@ impl RedisSetLimiter {
         item_scope: &str,
         window: u64,
     ) -> String {
-        format!("{REDIS_KEY_PREFIX}:scope-{{{organization_id}}}-{item_scope}-{window}",)
+        format!("{KEY_PREFIX}:scope-{{{organization_id}}}-{item_scope}-{window}",)
     }
 }
 
@@ -242,7 +240,7 @@ impl<'a> RedisHelper<'a> {
     ) -> Result<()> {
         let mut pipeline = redis::pipe();
 
-        for values in &values.into_iter().chunks(REDIS_MAX_SADD_ARGS) {
+        for values in &values.into_iter().chunks(MAX_SADD_ARGS) {
             let cmd = pipeline.cmd("SADD").arg(name);
 
             for arg in values {
@@ -344,7 +342,7 @@ mod tests {
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
         fn flush_org(&self, organization_id: OrganizationId) {
-            let pattern = format!("{REDIS_KEY_PREFIX}:scope-{{{organization_id}}}-*");
+            let pattern = format!("{KEY_PREFIX}:scope-{{{organization_id}}}-*");
 
             let mut client = self.redis.client().unwrap();
             let mut connection = client.connection().unwrap();
