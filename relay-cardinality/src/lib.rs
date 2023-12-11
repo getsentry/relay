@@ -1,4 +1,4 @@
-//! Metrics Cardinality Limiter
+//! Relay Cardinality Module
 
 #![warn(missing_docs)]
 #![doc(
@@ -8,14 +8,14 @@
 
 mod error;
 #[cfg(feature = "redis")]
-mod limiter;
+pub mod limiter;
 #[cfg(feature = "redis")]
 mod redis;
 mod statsd;
 
 pub use self::error::*;
 #[cfg(feature = "redis")]
-pub use self::limiter::Config as CardinalityLimiterConfig;
+pub use self::limiter::{CardinalityLimits, Config as CardinalityLimiterConfig};
 #[cfg(feature = "redis")]
 pub use self::redis::{RedisSetLimiter, SlidingWindow};
 

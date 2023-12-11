@@ -1294,7 +1294,9 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         if let Some(ref cardinality_limiter) = self.inner.cardinality_limiter {
             return Ok(Box::new(
-                cardinality_limiter.check_cardinality_limits(_organization_id, buckets)?,
+                cardinality_limiter
+                    .check_cardinality_limits(_organization_id, buckets)?
+                    .into_accepted(),
             ));
         }
 

@@ -1,7 +1,6 @@
 use std::{collections::HashSet, time::SystemTime};
 
 use itertools::Itertools;
-use relay_metrics::MetricNamespace;
 use relay_redis::{
     redis::{self, ToRedisArgs},
     Connection, RedisPool,
@@ -9,7 +8,7 @@ use relay_redis::{
 use relay_statsd::metric;
 
 use crate::{
-    limiter::{Entry, Limiter},
+    limiter::{CardinalityScope, Entry, EntryId, Limiter, Rejection},
     statsd::CardinalityLimiterCounters,
     OrganizationId, Result,
 };
@@ -18,19 +17,6 @@ use crate::{
 const REDIS_KEY_PREFIX: &str = "relay:cardinality";
 /// Maximum amount of arguments for a Redis `SADD` call.
 const REDIS_MAX_SADD_ARGS: usize = 1000;
-
-/// Scope for which cardinality will be tracked.
-///
-/// Currently this includes the organization and [namespace](`MetricNamespace`).
-/// Eventually we want to track cardinality also on more fine grained namespaces,
-/// e.g. on individual metric basis.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
-struct Scope {
-    /// The organization.
-    pub organization_id: OrganizationId,
-    /// The metric namespace, extracted from the metric bucket name.
-    pub namespace: MetricNamespace,
-}
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
@@ -60,22 +46,26 @@ impl RedisSetLimiter {
     fn check_limits(
         &self,
         client: &mut RedisHelper,
-        scope: Scope,
-        mut entries: Vec<Entry>,
+        organization_id: OrganizationId,
+        item_scope: String,
+        mut entries: Vec<RedisEntry>,
         timestamp: u64,
         limit: usize,
-    ) -> Result<impl Iterator<Item = Entry>> {
+    ) -> Result<impl Iterator<Item = Rejection>> {
         metric!(
             counter(CardinalityLimiterCounters::RedisRead) += 1,
-            namespace = scope.namespace.as_str()
+            scope = &item_scope,
         );
         metric!(
             counter(CardinalityLimiterCounters::RedisHashCheck) += entries.len() as i64,
-            namespace = scope.namespace.as_str()
+            scope = &item_scope,
         );
 
-        let active_window = client
-            .read_set(&self.to_redis_key(&scope, self.window.active_time_bucket(timestamp)))?;
+        let active_window = client.read_set(&self.to_redis_key(
+            organization_id,
+            &item_scope,
+            self.window.active_time_bucket(timestamp),
+        ))?;
         let mut new_hashes = HashSet::new();
 
         let mut new_cardinality = active_window.len();
@@ -96,19 +86,19 @@ impl RedisSetLimiter {
 
         if rejected > 0 {
             relay_log::debug!(
-                organization_id = scope.organization_id,
-                namespace = scope.namespace.as_str(),
+                organization_id = organization_id,
+                scope = &item_scope,
                 "rejected {rejected} metrics due to cardinality limit"
             );
             metric!(
                 counter(CardinalityLimiterCounters::Rejected) += rejected,
-                namespace = scope.namespace.as_str()
+                scope = &item_scope,
             );
         }
 
         if !new_hashes.is_empty() {
             for time_bucket in self.window.iter(timestamp) {
-                let key = self.to_redis_key(&scope, time_bucket);
+                let key = self.to_redis_key(organization_id, &item_scope, time_bucket);
 
                 // The expiry is a off by `window.granularity_seconds`,
                 // but since this is only used for cleanup, this is not an issue.
@@ -117,38 +107,90 @@ impl RedisSetLimiter {
 
             metric!(
                 counter(CardinalityLimiterCounters::RedisHashUpdate) += new_hashes.len() as i64,
-                namespace = scope.namespace.as_str()
+                scope = &item_scope,
             );
         }
 
-        Ok(entries.into_iter().filter(|entry| entry.is_accepted()))
+        Ok(entries.into_iter().filter_map(|entry| entry.rejection()))
     }
 
-    fn to_redis_key(&self, scope: &Scope, window: u64) -> String {
-        // Pattern match here, to not forget to update the key, when modifying the scope.
-        let Scope {
-            organization_id,
-            namespace,
-        } = scope;
+    fn to_redis_key(
+        &self,
+        organization_id: OrganizationId,
+        item_scope: &str,
+        window: u64,
+    ) -> String {
+        format!("{REDIS_KEY_PREFIX}:scope-{{{organization_id}}}-{item_scope}-{window}",)
+    }
+}
 
-        format!("{REDIS_KEY_PREFIX}:scope-{{{organization_id}}}-{namespace}-{window}",)
+/// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
+#[derive(Clone, Copy, Debug)]
+enum Status {
+    /// Item is rejected.
+    Rejected,
+    /// Item is accepted.
+    Accepted,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct RedisEntry {
+    /// The correlating entry id.
+    id: EntryId,
+    /// The entry hash.
+    hash: u32,
+    /// The current status.
+    status: Status,
+}
+
+impl RedisEntry {
+    /// Creates a new Redis entry in the rejected status.
+    fn new(id: EntryId, hash: u32) -> Self {
+        Self {
+            id,
+            hash,
+            status: Status::Rejected,
+        }
+    }
+
+    /// Marks the entry as accepted.
+    fn accept(&mut self) {
+        self.status = Status::Accepted;
+    }
+
+    /// Marks the entry as rejected.
+    fn reject(&mut self) {
+        self.status = Status::Rejected;
+    }
+
+    /// Turns the item into a rejection when the status is rejected.
+    fn rejection(self) -> Option<Rejection> {
+        matches!(self.status, Status::Rejected).then_some(Rejection { id: self.id })
     }
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<I>(
+    fn check_cardinality_limits<I, T>(
         &self,
         organization_id: u64,
         entries: I,
         limit: usize,
-    ) -> Result<Box<dyn Iterator<Item = Entry>>>
+    ) -> Result<Box<dyn Iterator<Item = Rejection>>>
     where
-        I: IntoIterator<Item = Entry>,
+        I: IntoIterator<Item = Entry<T>>,
+        T: CardinalityScope,
     {
-        let entries = entries.into_iter().into_group_map_by(|f| Scope {
-            organization_id,
-            namespace: f.namespace,
-        });
+        let entries = entries
+            .into_iter()
+            .map(|entry| {
+                let Entry { id, scope, hash } = entry;
+
+                let key = (organization_id, scope);
+                let entry = RedisEntry::new(id, hash);
+
+                (key, entry)
+            })
+            .into_group_map();
 
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -162,12 +204,20 @@ impl Limiter for RedisSetLimiter {
         let mut client = self.redis.client()?;
         let mut client = RedisHelper(client.connection()?);
 
-        let mut accepted = Vec::new();
-        for (scope, entries) in entries {
-            accepted.push(self.check_limits(&mut client, scope, entries, timestamp, limit)?);
+        let mut rejected = Vec::new();
+        for ((organization_id, item_scope), entries) in entries {
+            // dbg!((organization_id, item_scope.to_string()), &entries);
+            rejected.push(self.check_limits(
+                &mut client,
+                organization_id,
+                item_scope.to_string(),
+                entries,
+                timestamp,
+                limit,
+            )?);
         }
 
-        Ok(Box::new(accepted.into_iter().flatten()))
+        Ok(Box::new(rejected.into_iter().flatten()))
     }
 }
 
@@ -329,29 +379,30 @@ mod tests {
             Entry::new(EntryId(5), MetricNamespace::Custom, 5),
         ];
 
-        let accepted = limiter
+        // 6 items, limit is 5 -> 1 rejection.
+        let rejected = limiter
             .check_cardinality_limits(org, entries, 5)
             .unwrap()
             .map(|e| e.id)
             .collect::<HashSet<_>>();
-        assert_eq!(accepted.len(), 5);
+        assert_eq!(rejected.len(), 1);
 
         // We're at the limit but it should still accept already accepted elements, even with a
         // samller limit than previously accepted.
-        let accepted2 = limiter
+        let rejected2 = limiter
             .check_cardinality_limits(org, entries, 3)
             .unwrap()
             .map(|e| e.id)
             .collect::<HashSet<_>>();
-        assert_eq!(accepted2, accepted);
+        assert_eq!(rejected2, rejected);
 
         // A higher limit should accept everthing
-        let accepted3 = limiter
+        let rejected3 = limiter
             .check_cardinality_limits(org, entries, 10)
             .unwrap()
             .map(|e| e.id)
             .collect::<HashSet<_>>();
-        assert_eq!(accepted3, entries.iter().map(|e| e.id).collect());
+        assert_eq!(rejected3.len(), 0);
     }
 
     #[test]
@@ -363,10 +414,10 @@ mod tests {
             .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
             .collect::<Vec<_>>();
 
-        let accepted = limiter
+        let rejected = limiter
             .check_cardinality_limits(org, entries, 80_000)
             .unwrap();
-        assert_eq!(accepted.count(), 80_000);
+        assert_eq!(rejected.count(), 20_000);
     }
 
     #[test]
@@ -377,8 +428,9 @@ mod tests {
         let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
         let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
 
-        let accepted = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
-        assert_eq!(accepted.count(), 1);
+        // 1 item and limit is 1 -> No rejections.
+        let rejected = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
+        assert_eq!(rejected.count(), 0);
 
         for i in 0..limiter.window.window_seconds / limiter.window.granularity_seconds {
             // Fast forward time.
@@ -386,20 +438,20 @@ mod tests {
 
             // Should accept the already inserted item.
             let accepted = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
-            assert_eq!(accepted.count(), 1);
+            assert_eq!(accepted.count(), 0);
             // Should reject the new item.
             let accepted = limiter.check_cardinality_limits(org, entries2, 1).unwrap();
-            assert_eq!(accepted.count(), 0);
+            assert_eq!(accepted.count(), 1);
         }
 
         // Fast forward time to where we're in the next window.
         limiter.time_offset = limiter.window.window_seconds + 1;
         // Accept the new element.
         let accepted = limiter.check_cardinality_limits(org, entries2, 1).unwrap();
-        assert_eq!(accepted.count(), 1);
+        assert_eq!(accepted.count(), 0);
         // Reject the old element now.
         let accepted = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
-        assert_eq!(accepted.count(), 0);
+        assert_eq!(accepted.count(), 1);
     }
 
     #[test]

@@ -5,19 +5,19 @@ pub enum CardinalityLimiterCounters {
     /// Incremented for every rejected item by the cardinality limiter.
     ///
     /// This metric is tagged with:
-    ///  - `namespace`: The namespace of the metric.
+    ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
     Rejected,
     /// Incremented for every loaded Redis set.
     ///
     /// This metric is tagged with:
-    ///  - `namespace`: The namespace of the metric.
+    ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
     RedisRead,
     /// Incremented for every hash requested to be cardinality checked.
     ///
     /// This metric is tagged with:
-    ///  - `namespace`: The namespace of the metric.
+    ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
     RedisHashCheck,
     /// Incremented for every hash added to the internal Redis sets.
@@ -25,7 +25,7 @@ pub enum CardinalityLimiterCounters {
     /// Note: there are multiple Redis commands executed for every update.
     ///
     /// This metric is tagged with:
-    ///  - `namespace`: The namespace of the metric.
+    ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
     RedisHashUpdate,
 }

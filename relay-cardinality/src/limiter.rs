@@ -1,7 +1,10 @@
-use std::collections::BTreeMap;
+//! Relay Cardinality Limiter
+
+use std::collections::BTreeSet;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier, UnixTimestamp};
+use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
 
 use hash32::{FnvHasher, Hasher as _};
 
@@ -12,33 +15,73 @@ pub trait Limiter {
     /// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    fn check_cardinality_limits<I>(
+    fn check_cardinality_limits<I, T>(
         &self,
         organization: OrganizationId,
         entries: I,
         limit: usize,
-    ) -> Result<Box<dyn Iterator<Item = Entry>>>
+    ) -> Result<Box<dyn Iterator<Item = Rejection>>>
     where
-        I: IntoIterator<Item = Entry>;
+        I: IntoIterator<Item = Entry<T>>,
+        T: CardinalityScope;
+}
+
+/// The scope of a [`CardinalityItem`].
+pub trait CardinalityScope: Debug + Display + Hash + PartialEq + Eq + 'static {}
+
+impl<T> CardinalityScope for T where T: Debug + Display + Hash + PartialEq + Eq + 'static {}
+
+/// Unit of operation for the cardinality limiter.
+pub trait CardinalityItem {
+    /// The cardinality limit scope.
+    type Scope: CardinalityScope;
+
+    /// Transforms this item into a consistent hash.
+    fn to_hash(&self) -> u32;
+
+    /// Extracts a scope to check cardinality limits for from this item.
+    fn to_scope(&self) -> Option<Self::Scope>;
+}
+
+// Implementation for a bucket, currently here, may also be implemented in `relay-metrics`, if it
+// makes sense to move it.
+impl CardinalityItem for Bucket {
+    type Scope = MetricNamespace;
+
+    fn to_scope(&self) -> Option<Self::Scope> {
+        let mri = match MetricResourceIdentifier::parse(&self.name) {
+            Err(error) => {
+                relay_log::debug!(
+                    error = &error as &dyn std::error::Error,
+                    metric = self.name,
+                    "rejecting metric with invalid MRI"
+                );
+                return None;
+            }
+            Ok(mri) => mri,
+        };
+
+        Some(mri.namespace)
+    }
+
+    fn to_hash(&self) -> u32 {
+        let mut hasher = FnvHasher::default();
+        self.name.hash(&mut hasher);
+        self.tags.hash(&mut hasher);
+        hasher.finish32()
+    }
 }
 
 /// A single entry to check cardinality for.
 #[derive(Clone, Copy, Debug)]
-pub struct Entry {
+pub struct Entry<T: CardinalityScope> {
     /// Opaque entry Id, used to keep track of indices and buckets.
     pub id: EntryId,
 
-    /// Metric namespace.
-    pub namespace: MetricNamespace,
+    /// Cardinality scope.
+    pub scope: T,
     /// Hash of the metric name and tags.
     pub hash: u32,
-
-    /// Implementation detail to optimize the implementation.
-    ///
-    /// Tracking the status directly on the entry means we do
-    /// not have to temporarily allocate a second data structure
-    /// to keep track of the status.
-    status: EntryStatus,
 }
 
 /// Represents a unique Id for a bucket within one invocation
@@ -49,45 +92,22 @@ pub struct Entry {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct EntryId(pub(crate) usize);
 
-/// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
-#[derive(Clone, Copy, Debug)]
-enum EntryStatus {
-    /// Entry is rejected.
-    Rejected,
-    /// Entry is accepted.
-    Accepted,
+impl<T: CardinalityScope> Entry<T> {
+    /// Creates a new entry.
+    pub fn new(id: EntryId, scope: T, hash: u32) -> Self {
+        Self { id, scope, hash }
+    }
 }
 
-impl Entry {
-    /// Creates a new entry.
-    pub fn new(id: EntryId, namespace: MetricNamespace, hash: u32) -> Self {
-        Self {
-            id,
-            namespace,
-            hash,
-            status: EntryStatus::Rejected,
-        }
-    }
+/// Represents a from the cardinality limiter rejected [`Entry`].
+pub struct Rejection {
+    pub(crate) id: EntryId,
+}
 
-    /// Marks the entry as accepted.
-    ///
-    /// Implementation detail, not exposed outside of the crate.
-    pub(crate) fn accept(&mut self) {
-        self.status = EntryStatus::Accepted;
-    }
-
-    /// Marks the entry as rejected.
-    ///
-    /// Implementation detail, not exposed outside of the crate.
-    pub(crate) fn reject(&mut self) {
-        self.status = EntryStatus::Rejected;
-    }
-
-    /// Whether the entry is accepted.
-    ///
-    /// Implementation detail, not exposed outside of the crate.
-    pub(crate) fn is_accepted(&self) -> bool {
-        matches!(self.status, EntryStatus::Accepted)
+impl Rejection {
+    /// Creates a new rejection.
+    pub fn new(id: EntryId) -> Self {
+        Self { id }
     }
 }
 
@@ -107,6 +127,7 @@ pub struct CardinalityLimiter<T: Limiter> {
 }
 
 impl<T: Limiter> CardinalityLimiter<T> {
+    /// Creates a new cardinality limiter.
     pub fn new(limiter: T, config: Config) -> Self {
         Self { limiter, config }
     }
@@ -114,56 +135,247 @@ impl<T: Limiter> CardinalityLimiter<T> {
     /// Checks cardinality limits of a list of buckets.
     ///
     /// Returns an iterator of all buckets that have been accepted.
-    pub fn check_cardinality_limits(
+    pub fn check_cardinality_limits<I: CardinalityItem>(
         &self,
         organization: OrganizationId,
-        mut buckets: Vec<Bucket>,
-    ) -> Result<impl Iterator<Item = Bucket>> {
-        let entries = buckets
-            .iter()
-            .enumerate()
-            .filter_map(|(id, bucket)| self.parse_bucket(EntryId(id), bucket));
+        items: Vec<I>,
+    ) -> Result<CardinalityLimits<I>> {
+        let entries = items.iter().enumerate().filter_map(|(id, item)| {
+            Some(Entry::new(EntryId(id), item.to_scope()?, item.to_hash()))
+        });
 
-        const EMPTY: Bucket = Bucket {
-            name: String::new(),
-            timestamp: UnixTimestamp::from_secs(0),
-            tags: BTreeMap::new(),
-            value: relay_metrics::BucketValue::Counter(0.0),
-            width: 0,
-        };
-
-        let accepted = self
+        let rejections = self
             .limiter
             .check_cardinality_limits(organization, entries, self.config.cardinality_limit)?
-            .map(move |entry| std::mem::replace(&mut buckets[entry.id.0], EMPTY));
+            .map(|rejection| rejection.id.0)
+            .collect::<BTreeSet<usize>>();
 
-        Ok(accepted)
+        Ok(CardinalityLimits {
+            source: items,
+            rejections,
+        })
     }
 }
 
-impl<T: Limiter> CardinalityLimiter<T> {
-    fn parse_bucket(&self, id: EntryId, bucket: &Bucket) -> Option<Entry> {
-        // Parsing in practice will never fail here, all buckets have been validated before.
-        let mri = match MetricResourceIdentifier::parse(&bucket.name) {
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn std::error::Error,
-                    metric = bucket.name,
-                    "rejecting metric with invalid MRI"
-                );
-                return None;
+/// Result of [`CardinalityLimiter::check_cardinality_limits`].
+pub struct CardinalityLimits<T> {
+    source: Vec<T>,
+    rejections: BTreeSet<usize>,
+}
+
+impl<T> CardinalityLimits<T> {
+    /// Consumes the result and returns an iterator over all accepted items.
+    pub fn into_accepted(self) -> Accepted<T> {
+        Accepted::new(self.source, self.rejections)
+    }
+}
+
+/// Iterator for all accepted elements.
+pub struct Accepted<T> {
+    source: std::vec::IntoIter<T>,
+    rejections: std::iter::Peekable<std::collections::btree_set::IntoIter<usize>>,
+    next_index: usize,
+}
+
+impl<T> Accepted<T> {
+    fn new(source: Vec<T>, rejections: BTreeSet<usize>) -> Self {
+        Self {
+            source: source.into_iter(),
+            rejections: rejections.into_iter().peekable(),
+            next_index: 0,
+        }
+    }
+}
+
+impl<T> Iterator for Accepted<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = loop {
+            let current_index = self.next_index;
+            let next = self.source.next();
+            self.next_index += 1;
+
+            match self.rejections.peek() {
+                Some(&index) if index == current_index => {
+                    // Current index matches a rejected element, skip it and advance the rejections.
+                    let _ = self.rejections.next();
+                }
+                _ => {
+                    break next;
+                }
             }
-            Ok(mri) => mri,
         };
 
-        Some(Entry::new(id, mri.namespace, cardinality_hash(bucket)))
+        next
     }
 }
 
-/// Hashes a bucket to use for the cardinality limiter.
-fn cardinality_hash(bucket: &Bucket) -> u32 {
-    let mut hasher = FnvHasher::default();
-    bucket.name.hash(&mut hasher);
-    bucket.tags.hash(&mut hasher);
-    hasher.finish32()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct Item {
+        hash: u32,
+        scope: Option<&'static str>,
+    }
+
+    impl Item {
+        fn new(hash: u32, scope: impl Into<Option<&'static str>>) -> Self {
+            Self {
+                hash,
+                scope: scope.into(),
+            }
+        }
+    }
+
+    impl CardinalityItem for Item {
+        type Scope = &'static str;
+
+        fn to_hash(&self) -> u32 {
+            self.hash
+        }
+
+        fn to_scope(&self) -> Option<Self::Scope> {
+            self.scope
+        }
+    }
+
+    #[test]
+    fn test_accepted() {
+        let limits = CardinalityLimits {
+            source: vec!['a', 'b', 'c', 'd', 'e'],
+            rejections: BTreeSet::from([0, 1, 3]),
+        };
+
+        assert_eq!(&limits.into_accepted().collect::<String>(), "ce");
+    }
+
+    #[test]
+    fn test_limiter_reject_all() {
+        struct RejectAllLimiter;
+
+        impl Limiter for RejectAllLimiter {
+            fn check_cardinality_limits<I, T>(
+                &self,
+                _organization: OrganizationId,
+                entries: I,
+                limit: usize,
+            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+            where
+                I: IntoIterator<Item = Entry<T>>,
+                T: CardinalityScope,
+            {
+                assert_eq!(limit, 1000);
+                let rejections = entries
+                    .into_iter()
+                    .map(|entry| Rejection::new(entry.id))
+                    .collect::<Vec<_>>();
+
+                Ok(Box::new(rejections.into_iter()))
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(
+            RejectAllLimiter,
+            Config {
+                cardinality_limit: 1000,
+            },
+        );
+
+        let result = limiter
+            .check_cardinality_limits(1, vec![Item::new(0, "a"), Item::new(1, "b")])
+            .unwrap();
+
+        assert_eq!(result.into_accepted().count(), 0);
+    }
+
+    #[test]
+    fn test_limiter_accept_all() {
+        struct AcceptAllLimiter;
+
+        impl Limiter for AcceptAllLimiter {
+            fn check_cardinality_limits<I, T>(
+                &self,
+                _organization: OrganizationId,
+                _entries: I,
+                limit: usize,
+            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+            where
+                I: IntoIterator<Item = Entry<T>>,
+                T: CardinalityScope,
+            {
+                assert_eq!(limit, 100);
+                Ok(Box::new(Vec::new().into_iter()))
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(
+            AcceptAllLimiter,
+            Config {
+                cardinality_limit: 100,
+            },
+        );
+
+        let items = vec![Item::new(0, "a"), Item::new(1, "b")];
+        let result = limiter.check_cardinality_limits(1, items.clone()).unwrap();
+
+        assert_eq!(result.into_accepted().collect::<Vec<_>>(), items);
+    }
+
+    #[test]
+    fn test_limiter_accept_odd_reject_even() {
+        struct RejectEvenLimiter;
+
+        impl Limiter for RejectEvenLimiter {
+            fn check_cardinality_limits<I, T>(
+                &self,
+                organization: OrganizationId,
+                entries: I,
+                limit: usize,
+            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+            where
+                I: IntoIterator<Item = Entry<T>>,
+                T: CardinalityScope,
+            {
+                assert_eq!(limit, 100);
+                assert_eq!(organization, 3);
+
+                let rejections = entries
+                    .into_iter()
+                    .filter_map(|entry| (entry.id.0 % 2 == 0).then_some(Rejection::new(entry.id)))
+                    .collect::<Vec<_>>();
+
+                Ok(Box::new(rejections.into_iter()))
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(
+            RejectEvenLimiter,
+            Config {
+                cardinality_limit: 100,
+            },
+        );
+
+        let items = vec![
+            Item::new(0, "a"),
+            Item::new(1, "b"),
+            Item::new(2, "c"),
+            Item::new(3, "d"),
+            Item::new(4, "e"),
+            Item::new(5, "f"),
+            Item::new(6, "g"),
+        ];
+        let accepted = limiter
+            .check_cardinality_limits(3, items)
+            .unwrap()
+            .into_accepted()
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            accepted,
+            vec![Item::new(1, "b"), Item::new(3, "d"), Item::new(5, "f"),]
+        );
+    }
 }
