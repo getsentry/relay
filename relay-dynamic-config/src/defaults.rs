@@ -24,7 +24,7 @@ const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
-const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css"];
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -181,20 +181,25 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         // Mobile-specific tags:
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: [
-                ("", "device.class"),
-                ("", "release"),
-                ("", "ttfd"),
-                ("", "ttid"),
-                ("span.", "main_thread"),
-            ]
-            .map(|(prefix, key)| TagSpec {
-                key: format!("{prefix}{key}"),
-                field: Some(format!("span.sentry_tags.{}", key)),
-                value: None,
-                condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
-            })
-            .into(),
+            tags: ["device.class", "release", "os.name"]
+                .map(|key| TagSpec {
+                    key: key.to_owned(),
+                    field: Some(format!("span.sentry_tags.{}", key)),
+                    value: None,
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
+                })
+                .into(),
+        },
+        TagMapping {
+            metrics: vec![LazyGlob::new("d:spans/exclusive_time@millisecond".into())],
+            tags: [("", "ttfd"), ("", "ttid"), ("span.", "main_thread")]
+                .map(|(prefix, key)| TagSpec {
+                    key: format!("{prefix}{key}"),
+                    field: Some(format!("span.sentry_tags.{}", key)),
+                    value: None,
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
+                })
+                .into(),
         },
         // Resource-specific tags:
         TagMapping {

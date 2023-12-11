@@ -1038,7 +1038,7 @@ mod tests {
         let json = r#"
         {
             "type": "transaction",
-            "sdk": {"name": "sentry.cocoa"},
+            "sdk": {"name": "sentry.javascript.react-native"},
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "timestamp": "2021-04-26T08:00:00+0100",
             "release": "1.2.3",
@@ -1052,6 +1052,14 @@ mod tests {
                 "device": {
                     "family": "iOS",
                     "model": "iPhone1,1"
+                },
+                "app": {
+                    "app_identifier": "org.reactjs.native.example.RnDiffApp",
+                    "app_name": "RnDiffApp"
+                },
+                "os": {
+                    "name": "iOS",
+                    "version": "16.2"
                 }
             },
             "spans": [
@@ -1059,6 +1067,13 @@ mod tests {
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "op": "ui.load.initial_display",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 }
             ]
@@ -1202,6 +1217,11 @@ mod tests {
         assert!(!metrics.is_empty());
         for metric in metrics {
             if metric.name == "c:spans/count_per_op@none" {
+                continue;
+            }
+            if metric.name == "d:spans/exclusive_time_light@millisecond" {
+                assert!(!metric.tags.contains_key("ttid"));
+                assert!(!metric.tags.contains_key("ttfd"));
                 continue;
             }
             assert_eq!(metric.tag("ttid"), Some("ttid"));
