@@ -1,11 +1,10 @@
 use relay_base_schema::data_category::DataCategory;
-use relay_common::glob2::LazyGlob;
 use relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 use relay_protocol::RuleCondition;
 use serde_json::Number;
 
 use crate::feature::Feature;
-use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
+use crate::metrics::{MetricExtractionConfig, MetricSpec};
 use crate::project::ProjectConfig;
 use crate::Tag;
 
