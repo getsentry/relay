@@ -423,8 +423,8 @@ impl OnDisk {
             timer(RelayTimers::EnvelopeOnDiskBufferTime) = start_time_instant.elapsed()
         );
 
-        // If envelope stays longer than an 2 hours in on-disk spool, produce an error, so we could
-        // debug what kind of envelope is that.
+        // If an envelope stays longer than 2 hours in on-disk spool, produce an error, so we could
+        // debug what kind of envelope it is.
         if start_time_instant.elapsed() > Duration::from_secs(7200) {
             relay_log::error!(
                 tags.project_key = %envelope.meta().public_key(),

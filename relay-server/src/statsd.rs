@@ -243,7 +243,7 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
-    /// Total time in milliseconds and envelope spends in the Relay on disk buffer.
+    /// Total time in milliseconds an envelope spends in the Relay's on-disk buffer.
     EnvelopeOnDiskBufferTime,
     /// Total time in milliseconds spent evicting outdated and unused projects happens.
     ProjectStateEvictionDuration,
