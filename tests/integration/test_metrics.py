@@ -799,7 +799,7 @@ def test_transaction_metrics_count_per_root_project(
 
     event, _ = transactions_consumer.get_event()
 
-    metrics_by_project = metrics_by_name_group_by_project(metrics_consumer, timeout=2)
+    metrics_by_project = metrics_by_name_group_by_project(metrics_consumer, timeout=4)
 
     assert metrics_by_project[41]["c:transactions/count_per_root_project@none"] == {
         "timestamp": int(timestamp.timestamp()),

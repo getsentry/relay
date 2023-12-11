@@ -24,7 +24,11 @@
 - Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
 - Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
 - Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
+<<<<<<< HEAD
 - Org rate limit metrics per bucket. ([#2758](https://github.com/getsentry/relay/pull/2758))
+=======
+- Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
+>>>>>>> master
 
 ## 23.11.2
 
