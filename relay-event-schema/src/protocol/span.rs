@@ -94,8 +94,8 @@ pub struct Span {
     pub other: Object<Value>,
 }
 
-impl From<&Event> for Span {
-    fn from(event: &Event) -> Self {
+impl From<&mut Event> for Span {
+    fn from(event: &mut Event) -> Self {
         let mut span = Self {
             description: event.transaction.clone(),
             is_segment: Some(true).into(),
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn span_from_event() {
-        let event = Annotated::<Event>::from_json(
+        let mut event = Annotated::<Event>::from_json(
             r#"{
                 "contexts": {
                     "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
@@ -273,7 +273,7 @@ mod tests {
         .into_value()
         .unwrap();
 
-        assert_debug_snapshot!(Span::from(&event), @r###"
+        assert_debug_snapshot!(Span::from(&mut event), @r###"
         Span {
             timestamp: ~,
             start_timestamp: ~,

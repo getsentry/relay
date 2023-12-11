@@ -1,5 +1,6 @@
 //! Contains the processing-only functionality.
 
+use std::collections::BTreeSet;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -7,9 +8,10 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
+use relay_event_normalization::span::attributes;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::Span;
+use relay_event_schema::protocol::{Span, SpanAttribute};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -147,9 +149,11 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         .has_feature(Feature::SpanMetricsExtraction);
     let custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
 
-    let Some(event) = state.event.value() else {
+    let Some(event) = state.event.value_mut() else {
         return;
     };
+
+    attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
 
     let extract_transaction_span = span_metrics_extraction_enabled
         || (custom_metrics_enabled && !event._metrics_summary.is_empty());

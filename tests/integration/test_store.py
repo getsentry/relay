@@ -1580,3 +1580,66 @@ def test_span_ingestion(
             "retention_days": 90,
         },
     ]
+
+
+def test_span_extraction_with_ddm(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+    ]
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    metrics_summary = {
+        "c:spans/some_metric@none": [
+            {
+                "min": 1.0,
+                "max": 2.0,
+                "sum": 3.0,
+                "count": 4,
+                "tags": {
+                    "environment": "test",
+                },
+            },
+        ],
+    }
+    event["_metrics_summary"] = metrics_summary
+
+    relay.send_event(project_id, event)
+
+    transaction_span = spans_consumer.get_span()
+    del transaction_span["start_time"]
+    del transaction_span["span"]["received"]
+    assert transaction_span == {
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "organization_id": 1,
+        "retention_days": 90,
+        "span": {
+            "description": "hi",
+            "exclusive_time": 2000.0,
+            "is_segment": True,
+            "op": "hi",
+            "segment_id": "968cff94913ebb07",
+            "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+            "span_id": "968cff94913ebb07",
+            "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "status": "unknown",
+            "timestamp": datetime.fromisoformat(event["timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+            "_metrics_summary": metrics_summary,
+        },
+    }
+
+    spans_consumer.assert_empty()
