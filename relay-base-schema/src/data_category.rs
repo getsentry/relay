@@ -42,7 +42,7 @@ pub enum DataCategory {
     /// contrast, `transaction` only guarantees that metrics have been accepted for the transaction.
     TransactionIndexed = 9,
     /// Monitor check-ins.
-    Monitor = 10,
+    MonitorCheckIn = 10,
     /// Indexed Profile
     ///
     /// This is the category for indexed profiles that will be stored later.
@@ -91,7 +91,9 @@ impl DataCategory {
             "replay" => Self::Replay,
             "transaction_processed" => Self::TransactionProcessed,
             "transaction_indexed" => Self::TransactionIndexed,
-            "monitor" => Self::Monitor,
+            // TODO(epurkhiser): May be removed once we validate this data category is not in use.
+            "monitor" => Self::MonitorCheckIn,
+            "monitor_checkin" => Self::MonitorCheckIn,
             "span" => Self::Span,
             "monitor_seat" => Self::MonitorSeat,
             "feedback" => Self::UserReportV2,
@@ -115,7 +117,7 @@ impl DataCategory {
             Self::Replay => "replay",
             Self::TransactionProcessed => "transaction_processed",
             Self::TransactionIndexed => "transaction_indexed",
-            Self::Monitor => "monitor",
+            Self::MonitorCheckIn => "monitor_checkin",
             Self::Span => "span",
             Self::MonitorSeat => "monitor_seat",
             Self::UserReportV2 => "feedback",

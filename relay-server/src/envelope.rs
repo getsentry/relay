@@ -606,7 +606,7 @@ impl Item {
             }),
             ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
             ItemType::ClientReport => None,
-            ItemType::CheckIn => Some(DataCategory::Monitor),
+            ItemType::CheckIn => Some(DataCategory::MonitorCheckIn),
             ItemType::Unknown(_) => None,
             ItemType::Span => None,     // No outcomes, for now
             ItemType::OtelSpan => None, // No outcomes, for now
