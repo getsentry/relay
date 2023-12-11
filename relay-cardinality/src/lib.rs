@@ -7,14 +7,12 @@
 )]
 
 mod error;
-#[cfg(feature = "redis")]
 pub mod limiter;
 #[cfg(feature = "redis")]
 mod redis;
 mod statsd;
 
 pub use self::error::*;
-#[cfg(feature = "redis")]
 pub use self::limiter::{CardinalityLimits, Config as CardinalityLimiterConfig};
 #[cfg(feature = "redis")]
 pub use self::redis::{RedisSetLimiter, SlidingWindow};
@@ -24,5 +22,4 @@ pub use self::redis::{RedisSetLimiter, SlidingWindow};
 pub type CardinalityLimiter = self::limiter::CardinalityLimiter<RedisSetLimiter>;
 
 /// Internal alias for better readability.
-#[cfg(feature = "redis")]
 type OrganizationId = u64;

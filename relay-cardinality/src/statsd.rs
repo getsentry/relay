@@ -32,7 +32,7 @@ pub enum CardinalityLimiterCounters {
 
 impl CounterMetric for CardinalityLimiterCounters {
     fn name(&self) -> &'static str {
-        match self {
+        match *self {
             #[cfg(feature = "redis")]
             Self::Rejected => "cardinality.limiter.rejected",
             #[cfg(feature = "redis")]
