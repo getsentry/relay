@@ -1264,6 +1264,7 @@ pub struct GeoIpConfig {
 
 /// Cardinality Limiter configuration options.
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct CardinalityLimiter {
     /// The number of seconds to apply the limit to.
     ///
@@ -1293,7 +1294,7 @@ impl Default for CardinalityLimiter {
     fn default() -> Self {
         Self {
             window_seconds: 3600,
-            granularity_seconds: 60,
+            granularity_seconds: 600,
             limit: 10_000,
         }
     }

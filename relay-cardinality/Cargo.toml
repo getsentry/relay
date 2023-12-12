@@ -10,13 +10,12 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
+default = []
 redis = ["relay-redis/impl"]
 
 [dependencies]
-hash32 = "0.3.1"
 itertools = { workspace = true }
 relay-log = { path = "../relay-log" }
-relay-metrics = { path = "../relay-metrics" }
 relay-redis = { path = "../relay-redis" }
 relay-statsd = { path = "../relay-statsd" }
 thiserror = { workspace = true }

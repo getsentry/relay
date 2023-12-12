@@ -13,7 +13,9 @@ mod redis;
 mod statsd;
 
 pub use self::error::*;
-pub use self::limiter::{CardinalityLimits, Config as CardinalityLimiterConfig};
+pub use self::limiter::{
+    CardinalityItem, CardinalityLimits, CardinalityScope, Config as CardinalityLimiterConfig,
+};
 #[cfg(feature = "redis")]
 pub use self::redis::{RedisSetLimiter, SlidingWindow};
 

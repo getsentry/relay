@@ -3488,10 +3488,8 @@ dependencies = [
 name = "relay-cardinality"
 version = "23.10.1"
 dependencies = [
- "hash32",
  "itertools",
  "relay-log",
- "relay-metrics",
  "relay-redis",
  "relay-statsd",
  "thiserror",
@@ -3740,6 +3738,7 @@ dependencies = [
  "itertools",
  "rand",
  "relay-base-schema",
+ "relay-cardinality",
  "relay-common",
  "relay-log",
  "relay-redis",

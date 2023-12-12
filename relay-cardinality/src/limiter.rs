@@ -4,9 +4,6 @@ use std::collections::BTreeSet;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
-
-use hash32::{FnvHasher, Hasher as _};
 use relay_statsd::metric;
 
 use crate::statsd::CardinalityLimiterTimers;
@@ -43,35 +40,6 @@ pub trait CardinalityItem {
 
     /// Extracts a scope to check cardinality limits for from this item.
     fn to_scope(&self) -> Option<Self::Scope>;
-}
-
-// Implementation for a bucket, currently here, may also be implemented in `relay-metrics`, if it
-// makes sense to move it.
-impl CardinalityItem for Bucket {
-    type Scope = MetricNamespace;
-
-    fn to_scope(&self) -> Option<Self::Scope> {
-        let mri = match MetricResourceIdentifier::parse(&self.name) {
-            Err(error) => {
-                relay_log::debug!(
-                    error = &error as &dyn std::error::Error,
-                    metric = self.name,
-                    "rejecting metric with invalid MRI"
-                );
-                return None;
-            }
-            Ok(mri) => mri,
-        };
-
-        Some(mri.namespace)
-    }
-
-    fn to_hash(&self) -> u32 {
-        let mut hasher = FnvHasher::default();
-        self.name.hash(&mut hasher);
-        self.tags.hash(&mut hasher);
-        hasher.finish32()
-    }
 }
 
 /// A single entry to check cardinality for.

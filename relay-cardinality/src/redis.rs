@@ -316,7 +316,6 @@ impl SlidingWindow {
 mod tests {
     use std::sync::atomic::AtomicU64;
 
-    use relay_metrics::MetricNamespace;
     use relay_redis::RedisConfigOptions;
 
     use crate::limiter::EntryId;
@@ -374,12 +373,12 @@ mod tests {
 
         let org = new_org(&limiter);
         let entries = [
-            Entry::new(EntryId(0), MetricNamespace::Custom, 0),
-            Entry::new(EntryId(1), MetricNamespace::Custom, 1),
-            Entry::new(EntryId(2), MetricNamespace::Custom, 2),
-            Entry::new(EntryId(3), MetricNamespace::Custom, 3),
-            Entry::new(EntryId(4), MetricNamespace::Custom, 4),
-            Entry::new(EntryId(5), MetricNamespace::Custom, 5),
+            Entry::new(EntryId(0), "custom", 0),
+            Entry::new(EntryId(1), "custom", 1),
+            Entry::new(EntryId(2), "custom", 2),
+            Entry::new(EntryId(3), "custom", 3),
+            Entry::new(EntryId(4), "custom", 4),
+            Entry::new(EntryId(5), "custom", 5),
         ];
 
         // 6 items, limit is 5 -> 1 rejection.
@@ -414,7 +413,7 @@ mod tests {
 
         let org = new_org(&limiter);
         let entries = (0..100_000)
-            .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
             .collect::<Vec<_>>();
 
         let rejected = limiter
@@ -428,8 +427,8 @@ mod tests {
         let mut limiter = build_limiter();
 
         let org = new_org(&limiter);
-        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
-        let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
+        let entries1 = [Entry::new(EntryId(0), "custom", 0)];
+        let entries2 = [Entry::new(EntryId(1), "custom", 1)];
 
         // 1 item and limit is 1 -> No rejections.
         let rejected = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
