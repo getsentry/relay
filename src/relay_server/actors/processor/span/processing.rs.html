@@ -387,6 +387,11 @@
 <a href="#387" id="387">387</a>
 <a href="#388" id="388">388</a>
 <a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -511,14 +516,6 @@
         <span class="kw">return</span>;
     };
 
-    <span class="comment">// Check feature flag.
-    </span><span class="kw">if </span>!state
-        .project_state
-        .has_feature(Feature::SpanMetricsExtraction)
-    {
-        <span class="kw">return</span>;
-    };
-
     <span class="kw">let </span><span class="kw-2">mut </span>add_span = |span: Annotated&lt;Span&gt;| {
         <span class="kw">let </span>span = <span class="kw">match </span>validate(span) {
             <span class="prelude-val">Ok</span>(span) =&gt; span,
@@ -539,52 +536,65 @@
         state.managed_envelope.envelope_mut().add_item(item);
     };
 
+    <span class="kw">let </span>span_metrics_extraction_enabled = state
+        .project_state
+        .has_feature(Feature::SpanMetricsExtraction);
+    <span class="kw">let </span>custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
+
     <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
 
+    <span class="kw">let </span>extract_transaction_span = span_metrics_extraction_enabled
+        || (custom_metrics_enabled &amp;&amp; !event._metrics_summary.is_empty());
+    <span class="kw">let </span>extract_child_spans = span_metrics_extraction_enabled;
+
     <span class="comment">// Extract transaction as a span.
     </span><span class="kw">let </span><span class="kw-2">mut </span>transaction_span: Span = event.into();
 
-    <span class="kw">let </span>all_modules_enabled = state
-        .project_state
-        .has_feature(Feature::SpanMetricsExtractionAllModules);
+    <span class="kw">if </span>extract_child_spans {
+        <span class="kw">let </span>all_modules_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionAllModules);
 
-    <span class="comment">// Add child spans as envelope items.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
-        <span class="kw">for </span>span <span class="kw">in </span>child_spans {
-            <span class="kw">let </span><span class="prelude-val">Some</span>(inner_span) = span.value() <span class="kw">else </span>{
-                <span class="kw">continue</span>;
-            };
-            <span class="comment">// HACK: filter spans based on module until we figure out grouping.
-            </span><span class="kw">if </span>!all_modules_enabled &amp;&amp; !is_allowed(inner_span) {
-                <span class="kw">continue</span>;
+        <span class="comment">// Add child spans as envelope items.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
+            <span class="kw">for </span>span <span class="kw">in </span>child_spans {
+                <span class="kw">let </span><span class="prelude-val">Some</span>(inner_span) = span.value() <span class="kw">else </span>{
+                    <span class="kw">continue</span>;
+                };
+                <span class="comment">// HACK: filter spans based on module until we figure out grouping.
+                </span><span class="kw">if </span>!all_modules_enabled &amp;&amp; !is_allowed(inner_span) {
+                    <span class="kw">continue</span>;
+                }
+                <span class="comment">// HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
+                new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
+                new_span.received = transaction_span.received.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
+
+                <span class="comment">// If a profile is associated with the transaction, also associate it with its
+                // child spans.
+                </span>new_span.profile_id = transaction_span.profile_id.clone();
+
+                add_span(Annotated::new(new_span));
             }
-            <span class="comment">// HACK: clone the span to set the segment_id. This should happen
-            // as part of normalization once standalone spans reach wider adoption.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
-            new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
-            new_span.received = transaction_span.received.clone();
-            new_span.segment_id = transaction_span.segment_id.clone();
-
-            <span class="comment">// If a profile is associated with the transaction, also associate it with its
-            // child spans.
-            </span>new_span.profile_id = transaction_span.profile_id.clone();
-
-            add_span(Annotated::new(new_span));
         }
     }
 
-    <span class="comment">// Extract tags to add to this span as well
-    </span><span class="kw">let </span>shared_tags = tag_extraction::extract_shared_tags(event);
-    transaction_span.sentry_tags = Annotated::new(
-        shared_tags
-            .clone()
-            .into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
-    add_span(transaction_span.into());
+    <span class="kw">if </span>extract_transaction_span {
+        <span class="comment">// Extract tags to add to this span as well
+        </span><span class="kw">let </span>shared_tags = tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
+    }
 }
 
 <span class="doccomment">/// Config needed to normalize a standalone span.
