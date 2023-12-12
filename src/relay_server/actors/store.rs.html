@@ -1315,6 +1315,11 @@
 <a href="#1315" id="1315">1315</a>
 <a href="#1316" id="1316">1316</a>
 <a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
+<a href="#1321" id="1321">1321</a>
+<a href="#1322" id="1322">1322</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2341,7 +2346,12 @@
     payload: Bytes,
 }
 
-<span class="attr">#[allow(dead_code)]
+<span class="doccomment">/// Used to discriminate cron monitor ingestion messages.
+///
+/// There are two types of messages that end up in the ingest-monitors kafka topic, &quot;check_in&quot; (the
+/// ones produced here in relay) and &quot;clock_pulse&quot; messages, which are produced externally and are
+/// intended to ensure the clock continues to run even when ingestion volume drops.
+</span><span class="attr">#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
 </span><span class="kw">enum </span>CheckInMessageType {
