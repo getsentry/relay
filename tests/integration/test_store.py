@@ -1592,6 +1592,7 @@ def test_span_extraction_with_ddm(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["spanAttributes"] = ["exclusive-time"]
     project_config["config"]["features"] = [
         "organizations:custom-metrics",
     ]

@@ -149,11 +149,9 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         .has_feature(Feature::SpanMetricsExtraction);
     let custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
 
-    let Some(event) = state.event.value_mut() else {
+    let Some(event) = state.event.value() else {
         return;
     };
-
-    attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
 
     let extract_transaction_span = span_metrics_extraction_enabled
         || (custom_metrics_enabled && !event._metrics_summary.is_empty());
