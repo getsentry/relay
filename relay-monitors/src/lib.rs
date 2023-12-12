@@ -110,7 +110,7 @@ pub struct MonitorConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     failure_issue_threshold: Option<u64>,
 
-    /// How many consecutive OK check-ins it takes to resolve an issue
+    /// How many consecutive OK check-ins it takes to resolve an issue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     recovery_threshold: Option<u64>,
 }
