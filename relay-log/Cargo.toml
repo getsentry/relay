@@ -15,12 +15,19 @@ chrono = { workspace = true, features = ["clock"], optional = true }
 console = { version = "0.15.5", optional = true }
 once_cell = { version = "1.13.1", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
-sentry = { version = "0.31.7", features = [
+sentry = { version = "0.32.0", features = [
     "debug-images",
     "tower-axum-matched-path",
     "tracing",
 ], optional = true }
-sentry-core = { version = "0.31.7" }
+sentry-core = { version = "0.32.0" }
+# sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "139cdf3922e31b53f5256fd14a590e61ee6dc240", features = [
+#     "debug-images",
+#     "tower-axum-matched-path",
+#     "tracing",
+#     "UNSTABLE_metrics",
+# ], optional = true }
+# sentry-core = { git = "https://github.com/getsentry/sentry-rust", rev = "139cdf3922e31b53f5256fd14a590e61ee6dc240" }
 tokio = { version = "1", default-features = false, features = [
     "sync",
 ], optional = true }

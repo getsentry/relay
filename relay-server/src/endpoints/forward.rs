@@ -9,9 +9,9 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, Request};
 use axum::handler::Handler;
-use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode, Uri};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
@@ -46,6 +46,14 @@ static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
 /// Root path of all API endpoints.
 const API_PATH: &str = "/api/";
 
+fn status_to_1(status: reqwest::StatusCode) -> StatusCode {
+    StatusCode::from_u16(status.as_u16()).unwrap()
+}
+
+fn status_to_1_opt(status: Option<reqwest::StatusCode>) -> Option<StatusCode> {
+    Some(StatusCode::from_u16(status?.as_u16()).unwrap())
+}
+
 /// A wrapper struct that allows conversion of UpstreamRequestError into a `dyn ResponseError`. The
 /// conversion logic is really only acceptable for blindly forwarded requests.
 #[derive(Debug, thiserror::Error)]
@@ -65,8 +73,7 @@ impl IntoResponse for ForwardError {
                 HttpError::Overflow => StatusCode::PAYLOAD_TOO_LARGE.into_response(),
                 HttpError::Reqwest(error) => {
                     relay_log::error!(error = error as &dyn Error);
-                    error
-                        .status()
+                    status_to_1_opt(error.status())
                         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
                         .into_response()
                 }
@@ -162,12 +169,18 @@ impl UpstreamRequest for ForwardRequest {
         Box::pin(async move {
             let result = match result {
                 Ok(response) => {
-                    let status = response.status();
+                    let status = status_to_1(response.status());
                     let headers = response
                         .headers()
                         .iter()
                         .filter(|(name, _)| !HOP_BY_HOP_HEADERS.contains(name))
-                        .map(|(name, value)| (name.clone(), value.clone()))
+                        .map(|(name, value)| {
+                            (
+                                // TODO: Undo this once reqwest is updated
+                                name.as_str().parse().unwrap(),
+                                value.as_str().parse().unwrap(),
+                            )
+                        })
                         .collect();
 
                     match response.bytes(self.max_response_size).await {
@@ -268,12 +281,7 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
 ///
 /// - Use it as [`Handler`] directly in router methods when registering this as a route.
 /// - Call this manually from other request handlers to conditionally forward from other endpoints.
-pub fn forward<B>(state: ServiceState, req: Request<B>) -> impl Future<Output = Response>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send,
-    B::Error: Into<axum::BoxError>,
-{
+pub fn forward(state: ServiceState, req: Request) -> impl Future<Output = Response> {
     let limit = get_limit_for_path(req.uri().path(), state.config());
     handle.layer(DefaultBodyLimit::max(limit)).call(req, state)
 }

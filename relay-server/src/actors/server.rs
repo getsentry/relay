@@ -82,9 +82,10 @@ impl Service for HttpServer {
             .layer(NewSentryLayer::new_from_top())
             .layer(SentryHttpLayer::with_transaction())
             .layer(middlewares::trace_http_layer())
-            .layer(HandleErrorLayer::new(middlewares::decompression_error))
-            .map_request(middlewares::remove_empty_encoding)
-            .layer(RequestDecompressionLayer::new());
+            // .layer(HandleErrorLayer::new(middlewares::decompression_error))
+            // .map_request(middlewares::remove_empty_encoding)
+            // .layer(RequestDecompressionLayer::new());
+            ;
 
         let router = crate::endpoints::routes(service.config())
             .layer(middleware)

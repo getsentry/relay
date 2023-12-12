@@ -2,7 +2,6 @@ use axum::extract::{DefaultBodyLimit, Json};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
-use bytes::Bytes;
 
 use relay_config::Config;
 use relay_spans::TracesData;
@@ -34,11 +33,6 @@ async fn handle(
     Ok(StatusCode::ACCEPTED)
 }
 
-pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_span_size()))
 }
