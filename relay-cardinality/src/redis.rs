@@ -206,7 +206,6 @@ impl Limiter for RedisSetLimiter {
 
         let mut rejected = Vec::new();
         for ((organization_id, item_scope), entries) in entries {
-            // dbg!((organization_id, item_scope.to_string()), &entries);
             rejected.push(self.check_limits(
                 &mut client,
                 organization_id,

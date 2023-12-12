@@ -195,7 +195,7 @@ impl<T> Iterator for Accepted<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let next = loop {
+        loop {
             let current_index = self.next_index;
             let next = self.source.next();
             self.next_index += 1;
@@ -206,12 +206,10 @@ impl<T> Iterator for Accepted<T> {
                     let _ = self.rejections.next();
                 }
                 _ => {
-                    break next;
+                    return next;
                 }
             }
-        };
-
-        next
+        }
     }
 }
 
@@ -252,8 +250,19 @@ mod tests {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 3]),
         };
-
         assert_eq!(&limits.into_accepted().collect::<String>(), "ce");
+
+        let limits = CardinalityLimits {
+            source: vec!['a', 'b', 'c', 'd', 'e'],
+            rejections: BTreeSet::from([]),
+        };
+        assert_eq!(&limits.into_accepted().collect::<String>(), "abcde");
+
+        let limits = CardinalityLimits {
+            source: vec!['a', 'b', 'c', 'd', 'e'],
+            rejections: BTreeSet::from([0, 1, 2, 3, 4]),
+        };
+        assert_eq!(&limits.into_accepted().collect::<String>(), "");
     }
 
     #[test]
