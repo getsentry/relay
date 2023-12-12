@@ -262,6 +262,8 @@ fn normalize(
             .collect(),
     );
 
+    tag_extraction::extract_measurements(span);
+
     process_value(
         annotated_span,
         &mut TrimmingProcessor::new(),
