@@ -81,7 +81,7 @@ pub struct UnixTimestamp(u64);
 
 impl UnixTimestamp {
     /// Creates a unix timestamp from the given number of seconds.
-    pub fn from_secs(secs: u64) -> Self {
+    pub const fn from_secs(secs: u64) -> Self {
         Self(secs)
     }
 

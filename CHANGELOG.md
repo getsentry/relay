@@ -12,6 +12,7 @@
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
 - Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
 - Allow access to more fields in dynamic sampling and metric extraction. ([#2820](https://github.com/getsentry/relay/pull/2820))
+- Add Redis set based cardinality limiter for metrics. ([#2745](https://github.com/getsentry/relay/pull/2745))
 - Support issue thresholds for Cron Monitor configurations ([#2842](https://github.com/getsentry/relay/pull/2842))
 
 **Bug Fixes**:
@@ -25,6 +26,7 @@
 - Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
 - Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
 - Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
+- Allow ingestion of metrics summary on spans. ([#2823](https://github.com/getsentry/relay/pull/2823))
 - Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
 - Keep only domain and extension for image resource span grouping. ([#2826](https://github.com/getsentry/relay/pull/2826))
 

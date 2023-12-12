@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::hash::Hash;
 use std::iter::FusedIterator;
 use std::{fmt, mem};
 
+use hash32::{FnvHasher, Hasher as _};
+use relay_cardinality::CardinalityItem;
 use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -10,7 +13,7 @@ use crate::protocol::{
     self, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
     MetricType, SetType,
 };
-use crate::ParseMetricError;
+use crate::{MetricNamespace, ParseMetricError};
 
 const VALUE_SEPARATOR: char = ':';
 
@@ -703,6 +706,33 @@ impl Bucket {
     /// If the tag exists, the removed value is returned.
     pub fn remove_tag(&mut self, name: &str) -> Option<String> {
         self.tags.remove(name)
+    }
+}
+
+impl CardinalityItem for Bucket {
+    type Scope = MetricNamespace;
+
+    fn to_scope(&self) -> Option<Self::Scope> {
+        let mri = match MetricResourceIdentifier::parse(&self.name) {
+            Err(error) => {
+                relay_log::debug!(
+                    error = &error as &dyn std::error::Error,
+                    metric = self.name,
+                    "rejecting metric with invalid MRI"
+                );
+                return None;
+            }
+            Ok(mri) => mri,
+        };
+
+        Some(mri.namespace)
+    }
+
+    fn to_hash(&self) -> u32 {
+        let mut hasher = FnvHasher::default();
+        self.name.hash(&mut hasher);
+        self.tags.hash(&mut hasher);
+        hasher.finish32()
     }
 }
 

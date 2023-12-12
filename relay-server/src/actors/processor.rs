@@ -38,6 +38,7 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -438,6 +439,8 @@ pub struct EncodeMetrics {
     pub scoping: Scoping,
     /// Transaction metrics extraction mode.
     pub extraction_mode: ExtractionMode,
+    /// Wether to check the contained metric buckets with the cardinality limiter.
+    pub enable_cardinality_limiter: bool,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -555,6 +558,8 @@ struct InnerProcessor {
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     metric_meta_store: Option<RedisMetricMetaStore>,
+    #[cfg(feature = "processing")]
+    cardinality_limiter: Option<CardinalityLimiter>,
 }
 
 impl EnvelopeProcessorService {
@@ -598,6 +603,21 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            }),
+            #[cfg(feature = "processing")]
+            cardinality_limiter: redis.clone().map(|pool| {
+                CardinalityLimiter::new(
+                    RedisSetLimiter::new(
+                        pool,
+                        SlidingWindow {
+                            window_seconds: config.cardinality_limiter_window(),
+                            granularity_seconds: config.cardinality_limiter_granularity(),
+                        },
+                    ),
+                    relay_cardinality::CardinalityLimiterConfig {
+                        cardinality_limit: config.cardinality_limit(),
+                    },
+                )
             }),
             config,
         };
@@ -1261,12 +1281,50 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn check_cardinality_limits(
+        &self,
+        enable_cardinality_limiter: bool,
+        _organization_id: u64,
+        buckets: Vec<Bucket>,
+    ) -> Result<Box<dyn Iterator<Item = Bucket>>, relay_cardinality::Error> {
+        if !enable_cardinality_limiter {
+            return Ok(Box::new(buckets.into_iter()));
+        }
+
+        #[cfg(feature = "processing")]
+        if let Some(ref cardinality_limiter) = self.inner.cardinality_limiter {
+            return Ok(Box::new(
+                cardinality_limiter
+                    .check_cardinality_limits(_organization_id, buckets)?
+                    .into_accepted(),
+            ));
+        }
+
+        Ok(Box::new(buckets.into_iter()))
+    }
+
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
             scoping,
             extraction_mode,
+            enable_cardinality_limiter,
         } = message;
+
+        let buckets = match self.check_cardinality_limits(
+            enable_cardinality_limiter,
+            scoping.organization_id,
+            buckets,
+        ) {
+            Ok(buckets) => buckets,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "cardinality limiter failed"
+                );
+                return;
+            }
+        };
 
         let partitions = self.inner.config.metrics_partitions();
         let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();

@@ -891,11 +891,11 @@ impl fmt::Debug for Aggregator {
 /// Splits buckets into N logical partitions, determined by the bucket key.
 pub fn partition_buckets(
     project_key: ProjectKey,
-    buckets: Vec<Bucket>,
+    buckets: impl IntoIterator<Item = Bucket>,
     flush_partitions: Option<u64>,
 ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
     let flush_partitions = match flush_partitions {
-        None => return BTreeMap::from([(None, buckets)]),
+        None => return BTreeMap::from([(None, buckets.into_iter().collect())]),
         Some(x) => x.max(1), // handle 0,
     };
     let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();

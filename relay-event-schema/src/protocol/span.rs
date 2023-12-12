@@ -81,6 +81,13 @@ pub struct Span {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
 
+    /// Temporary protocol support for metric summaries.
+    ///
+    /// This shall move to a stable location once we have stabilized the
+    /// interface.  This is intentionally not typed today.
+    #[metastructure(skip_serialization = "empty")]
+    pub _metrics_summary: Annotated<Value>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
@@ -95,6 +102,7 @@ impl From<&Event> for Span {
             received: event.received.clone(),
             start_timestamp: event.start_timestamp.clone(),
             timestamp: event.timestamp.clone(),
+            _metrics_summary: event._metrics_summary.clone(),
             ..Default::default()
         };
 
@@ -245,6 +253,19 @@ mod tests {
                         "span_id": "FA90FDEAD5F74052",
                         "type": "trace"
                     }
+                },
+                "_metrics_summary": {
+                    "some_metric": [
+                        {
+                            "min": 1.0,
+                            "max": 2.0,
+                            "sum": 3.0,
+                            "count": 2,
+                            "tags": {
+                                "environment": "test"
+                            }
+                        }
+                    ]
                 }
             }"#,
         )
@@ -280,6 +301,37 @@ mod tests {
             sentry_tags: ~,
             received: ~,
             measurements: ~,
+            _metrics_summary: Object(
+                {
+                    "some_metric": Array(
+                        [
+                            Object(
+                                {
+                                    "count": I64(
+                                        2,
+                                    ),
+                                    "max": F64(
+                                        2.0,
+                                    ),
+                                    "min": F64(
+                                        1.0,
+                                    ),
+                                    "sum": F64(
+                                        3.0,
+                                    ),
+                                    "tags": Object(
+                                        {
+                                            "environment": String(
+                                                "test",
+                                            ),
+                                        },
+                                    ),
+                                },
+                            ),
+                        ],
+                    ),
+                },
+            ),
             other: {},
         }
         "###);

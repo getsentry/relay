@@ -20,6 +20,7 @@ hash32 = { workspace = true }
 hashbrown = { workspace = true }
 itertools = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }
+relay-cardinality = { path = "../relay-cardinality" }
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log" }
 relay-redis = { path = "../relay-redis", optional = true }

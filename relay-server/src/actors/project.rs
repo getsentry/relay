@@ -1133,11 +1133,14 @@ impl Project {
         };
         let extraction_mode = ExtractionMode::from_usage(usage);
 
+        let enable_cardinality_limiter = project_state.has_feature(Feature::CardinalityLimiter);
+
         if !buckets.is_empty() {
             envelope_processor.send(EncodeMetrics {
                 buckets,
                 scoping,
                 extraction_mode,
+                enable_cardinality_limiter,
             });
         }
     }
