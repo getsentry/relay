@@ -1,6 +1,5 @@
 //! Contains the processing-only functionality.
 
-use std::collections::BTreeSet;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -8,10 +7,9 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
-use relay_event_normalization::span::attributes;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{Span, SpanAttribute};
+use relay_event_schema::protocol::Span;
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
