@@ -1279,10 +1279,43 @@
 <a href="#1279" id="1279">1279</a>
 <a href="#1280" id="1280">1280</a>
 <a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
+<a href="#1288" id="1288">1288</a>
+<a href="#1289" id="1289">1289</a>
+<a href="#1290" id="1290">1290</a>
+<a href="#1291" id="1291">1291</a>
+<a href="#1292" id="1292">1292</a>
+<a href="#1293" id="1293">1293</a>
+<a href="#1294" id="1294">1294</a>
+<a href="#1295" id="1295">1295</a>
+<a href="#1296" id="1296">1296</a>
+<a href="#1297" id="1297">1297</a>
+<a href="#1298" id="1298">1298</a>
+<a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
+<a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
+<a href="#1311" id="1311">1311</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
 <span class="kw">use </span>std::{fmt, mem};
 
+<span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
+<span class="kw">use </span>relay_cardinality::CardinalityItem;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -1291,7 +1324,7 @@
     <span class="self">self</span>, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
     MetricType, SetType,
 };
-<span class="kw">use </span><span class="kw">crate</span>::ParseMetricError;
+<span class="kw">use crate</span>::{MetricNamespace, ParseMetricError};
 
 <span class="kw">const </span>VALUE_SEPARATOR: char = <span class="string">&#39;:&#39;</span>;
 
@@ -1984,6 +2017,33 @@
     /// If the tag exists, the removed value is returned.
     </span><span class="kw">pub fn </span>remove_tag(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
         <span class="self">self</span>.tags.remove(name)
+    }
+}
+
+<span class="kw">impl </span>CardinalityItem <span class="kw">for </span>Bucket {
+    <span class="kw">type </span>Scope = MetricNamespace;
+
+    <span class="kw">fn </span>to_scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Scope&gt; {
+        <span class="kw">let </span>mri = <span class="kw">match </span>MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span><span class="self">self</span>.name) {
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="macro">relay_log::debug!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                    metric = <span class="self">self</span>.name,
+                    <span class="string">&quot;rejecting metric with invalid MRI&quot;
+                </span>);
+                <span class="kw">return </span><span class="prelude-val">None</span>;
+            }
+            <span class="prelude-val">Ok</span>(mri) =&gt; mri,
+        };
+
+        <span class="prelude-val">Some</span>(mri.namespace)
+    }
+
+    <span class="kw">fn </span>to_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+        <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
+        <span class="self">self</span>.name.hash(<span class="kw-2">&amp;mut </span>hasher);
+        <span class="self">self</span>.tags.hash(<span class="kw-2">&amp;mut </span>hasher);
+        hasher.finish32()
     }
 }
 

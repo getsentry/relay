@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Accepted","CardinalityLimiter","CardinalityLimits","Config","Entry","EntryId","Rejection"],"trait":["CardinalityItem","CardinalityScope","Limiter"]};

@@ -108,6 +108,9 @@
 <a href="#108" id="108">108</a>
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -149,6 +152,9 @@
     <span class="doccomment">/// Enable metric metadata.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:metric-meta&quot;</span>)]
     </span>MetricMeta,
+    <span class="doccomment">/// Enable the Relay cardinality limiter.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:relay-cardinality-limiter&quot;</span>)]
+    </span>CardinalityLimiter,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]

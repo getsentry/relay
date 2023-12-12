@@ -1407,6 +1407,9 @@
 <a href="#1407" id="1407">1407</a>
 <a href="#1408" id="1408">1408</a>
 <a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2542,11 +2545,14 @@
         };
         <span class="kw">let </span>extraction_mode = ExtractionMode::from_usage(usage);
 
+        <span class="kw">let </span>enable_cardinality_limiter = project_state.has_feature(Feature::CardinalityLimiter);
+
         <span class="kw">if </span>!buckets.is_empty() {
             envelope_processor.send(EncodeMetrics {
                 buckets,
                 scoping,
                 extraction_mode,
+                enable_cardinality_limiter,
             });
         }
     }

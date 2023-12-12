@@ -1704,6 +1704,64 @@
 <a href="#1704" id="1704">1704</a>
 <a href="#1705" id="1705">1705</a>
 <a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::sync::Arc;
@@ -1744,6 +1802,7 @@
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -2144,6 +2203,8 @@
     </span><span class="kw">pub </span>scoping: Scoping,
     <span class="doccomment">/// Transaction metrics extraction mode.
     </span><span class="kw">pub </span>extraction_mode: ExtractionMode,
+    <span class="doccomment">/// Wether to check the contained metric buckets with the cardinality limiter.
+    </span><span class="kw">pub </span>enable_cardinality_limiter: bool,
 }
 
 <span class="doccomment">/// Encodes metric meta into an envelope and sends it upstream.
@@ -2261,6 +2322,8 @@
     geoip_lookup: <span class="prelude-ty">Option</span>&lt;GeoIpLookup&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>metric_meta_store: <span class="prelude-ty">Option</span>&lt;RedisMetricMetaStore&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
 }
 
 <span class="kw">impl </span>EnvelopeProcessorService {
@@ -2304,6 +2367,21 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            }),
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>cardinality_limiter: redis.clone().map(|pool| {
+                CardinalityLimiter::new(
+                    RedisSetLimiter::new(
+                        pool,
+                        SlidingWindow {
+                            window_seconds: config.cardinality_limiter_window(),
+                            granularity_seconds: config.cardinality_limiter_granularity(),
+                        },
+                    ),
+                    relay_cardinality::CardinalityLimiterConfig {
+                        cardinality_limit: config.cardinality_limit(),
+                    },
+                )
             }),
             config,
         };
@@ -2967,12 +3045,50 @@
         }
     }
 
+    <span class="kw">fn </span>check_cardinality_limits(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        enable_cardinality_limiter: bool,
+        _organization_id: u64,
+        buckets: Vec&lt;Bucket&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Bucket&gt;&gt;, relay_cardinality::Error&gt; {
+        <span class="kw">if </span>!enable_cardinality_limiter {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(Box::new(buckets.into_iter()));
+        }
+
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>cardinality_limiter) = <span class="self">self</span>.inner.cardinality_limiter {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(Box::new(
+                cardinality_limiter
+                    .check_cardinality_limits(_organization_id, buckets)<span class="question-mark">?
+                    </span>.into_accepted(),
+            ));
+        }
+
+        <span class="prelude-val">Ok</span>(Box::new(buckets.into_iter()))
+    }
+
     <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
         <span class="kw">let </span>EncodeMetrics {
             buckets,
             scoping,
             extraction_mode,
+            enable_cardinality_limiter,
         } = message;
+
+        <span class="kw">let </span>buckets = <span class="kw">match </span><span class="self">self</span>.check_cardinality_limits(
+            enable_cardinality_limiter,
+            scoping.organization_id,
+            buckets,
+        ) {
+            <span class="prelude-val">Ok</span>(buckets) =&gt; buckets,
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                    <span class="string">&quot;cardinality limiter failed&quot;
+                </span>);
+                <span class="kw">return</span>;
+            }
+        };
 
         <span class="kw">let </span>partitions = <span class="self">self</span>.inner.config.metrics_partitions();
         <span class="kw">let </span>max_batch_size_bytes = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();

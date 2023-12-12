@@ -413,7 +413,7 @@
 
 <span class="kw">impl </span>UnixTimestamp {
     <span class="doccomment">/// Creates a unix timestamp from the given number of seconds.
-    </span><span class="kw">pub fn </span>from_secs(secs: u64) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub const fn </span>from_secs(secs: u64) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(secs)
     }
 
