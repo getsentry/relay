@@ -97,7 +97,7 @@ pub struct MonitorConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     checkin_margin: Option<u64>,
 
-    /// How long (in minutes) is the checkin allowed to run for in in_progress before it is
+    /// How long (in minutes) is the check-in allowed to run for in in_progress before it is
     /// considered failed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_runtime: Option<u64>,
