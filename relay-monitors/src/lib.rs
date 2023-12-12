@@ -106,7 +106,7 @@ pub struct MonitorConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timezone: Option<String>,
 
-    /// How many consecutive failed check-ins it takes to create an issue
+    /// How many consecutive failed check-ins it takes to create an issue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     failure_issue_threshold: Option<u64>,
 
