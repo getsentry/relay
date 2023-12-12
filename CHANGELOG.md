@@ -13,6 +13,7 @@
 - Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
 - Allow access to more fields in dynamic sampling and metric extraction. ([#2820](https://github.com/getsentry/relay/pull/2820))
 - Add Redis set based cardinality limiter for metrics. ([#2745](https://github.com/getsentry/relay/pull/2745))
+- Support issue thresholds for Cron Monitor configurations ([#2842](https://github.com/getsentry/relay/pull/2842))
 
 **Bug Fixes**:
 
