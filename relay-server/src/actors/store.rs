@@ -1024,6 +1024,11 @@ struct ProfileKafkaMessage {
     payload: Bytes,
 }
 
+/// Used to discriminate cron monitor ingestion messages.
+///
+/// There are two types of messages that end up in the ingest-monitors kafka topic, "check_in" (the
+/// ones produced here in relay) and "clock_pulse" messages, which are produced externally and are
+/// intended to ensure the clock continues to run even when ingestion volume drops.
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
