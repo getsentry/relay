@@ -3485,6 +3485,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-cardinality"
+version = "23.10.1"
+dependencies = [
+ "itertools",
+ "relay-log",
+ "relay-redis",
+ "relay-statsd",
+ "thiserror",
+]
+
+[[package]]
 name = "relay-common"
 version = "23.11.2"
 dependencies = [
@@ -3727,6 +3738,7 @@ dependencies = [
  "itertools",
  "rand",
  "relay-base-schema",
+ "relay-cardinality",
  "relay-common",
  "relay-log",
  "relay-redis",
@@ -3923,6 +3935,7 @@ dependencies = [
  "relay-auth",
  "relay-aws-extension",
  "relay-base-schema",
+ "relay-cardinality",
  "relay-common",
  "relay-config",
  "relay-dynamic-config",
