@@ -646,6 +646,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Event, Request};
     use relay_protocol::Annotated;
 
@@ -1034,6 +1035,9 @@ LIMIT 1
             tags.get("http.response_transfer_size").unwrap().as_str(),
             Some("3.3"),
         );
+
+        let measurements = span.value().unwrap().measurements.value().unwrap();
+        assert_debug_snapshot!(measurements, @"");
     }
 
     #[test]
