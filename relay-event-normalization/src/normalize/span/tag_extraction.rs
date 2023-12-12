@@ -1037,7 +1037,30 @@ LIMIT 1
         );
 
         let measurements = span.value().unwrap().measurements.value().unwrap();
-        assert_debug_snapshot!(measurements, @"");
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "http.decoded_response_content_length": Measurement {
+                    value: 2.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+                "http.response_content_length": Measurement {
+                    value: 1.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+                "http.response_transfer_size": Measurement {
+                    value: 3.3,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+            },
+        )
+        "###);
     }
 
     #[test]
