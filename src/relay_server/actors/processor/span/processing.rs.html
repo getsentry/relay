@@ -392,6 +392,8 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -660,6 +662,8 @@
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
             .collect(),
     );
+
+    tag_extraction::extract_measurements(span);
 
     process_value(
         annotated_span,
