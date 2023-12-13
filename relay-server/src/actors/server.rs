@@ -1,7 +1,9 @@
+use std::io;
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::extract::Request;
 use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
 use axum_server::Handle;
@@ -12,14 +14,18 @@ use tower::ServiceBuilder;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{self, CatchPanicLayer, NormalizePathLayer, RequestDecompressionLayer};
+use crate::middlewares::{self, CatchPanicLayer, NormalizePath, RequestDecompressionLayer};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 
 /// Indicates the type of failure of the server.
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ServerError {
+    /// Binding failed.
+    #[error("bind to interface failed")]
+    BindFailed(#[source] io::Error),
+
     /// TLS support was not compiled in.
     #[error("SSL is no longer supported by Relay, please use a proxy in front")]
     TlsNotSupported,
@@ -32,6 +38,7 @@ pub enum ServerError {
 pub struct HttpServer {
     config: Arc<Config>,
     service: ServiceState,
+    server: axum_server::Server,
 }
 
 /// Set a timeout for reading client request headers. If a client does not transmit the entire
@@ -48,7 +55,25 @@ impl HttpServer {
             return Err(ServerError::TlsNotSupported);
         }
 
-        Ok(Self { config, service })
+        let listener = TcpListener::bind(config.listen_addr()).map_err(ServerError::BindFailed)?;
+
+        let mut server = axum_server::from_tcp(listener);
+        server
+            .http_builder()
+            .http1()
+            .half_close(true)
+            .header_read_timeout(CLIENT_HEADER_TIMEOUT)
+            .writev(true);
+        server
+            .http_builder()
+            .http2()
+            .keep_alive_timeout(config.keepalive_timeout());
+
+        Ok(Self {
+            config,
+            service,
+            server,
+        })
     }
 }
 
@@ -56,7 +81,11 @@ impl Service for HttpServer {
     type Interface = ();
 
     fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
-        let Self { config, service } = self;
+        let Self {
+            config,
+            service,
+            server,
+        } = self;
 
         // Build the router middleware into a single service which runs _after_ routing. Service
         // builder order defines layers added first will be called first. This means:
@@ -85,37 +114,16 @@ impl Service for HttpServer {
 
         // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
         // ConnectInfo is special as it needs to last.
-        let app = ServiceBuilder::new()
-            .layer(NormalizePathLayer::new())
-            .service(router)
-            .into_make_service_with_connect_info::<SocketAddr>();
+        let app = NormalizePath::new(router);
+        let app = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
 
         relay_log::info!("spawning http server");
         relay_log::info!("  listening on http://{}/", config.listen_addr());
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
-        let listener = match TcpListener::bind(config.listen_addr()) {
-            Ok(listener) => listener,
-            Err(err) => {
-                relay_log::error!("Failed to start the HTTP server: {err}");
-                std::process::exit(1);
-            }
-        };
-
-        let server = axum_server::from_tcp(listener);
-        server
-            .http_builder()
-            .http1()
-            .half_close(true)
-            .header_read_timeout(CLIENT_HEADER_TIMEOUT)
-            .writev(true);
-        server
-            .http_builder()
-            .http2()
-            .keep_alive_timeout(config.keepalive_timeout());
-
         let handle = Handle::new();
         tokio::spawn(server.handle(handle.clone()).serve(app));
+
         tokio::spawn(async move {
             let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
             relay_log::info!("Shutting down HTTP server");
