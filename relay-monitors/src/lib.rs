@@ -97,7 +97,7 @@ pub struct MonitorConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     checkin_margin: Option<u64>,
 
-    /// How long (in minutes) is the checkin allowed to run for in in_rogress before it is
+    /// How long (in minutes) is the check-in allowed to run for in in_progress before it is
     /// considered failed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_runtime: Option<u64>,
@@ -105,6 +105,14 @@ pub struct MonitorConfig {
     /// tz database style timezone string
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timezone: Option<String>,
+
+    /// How many consecutive failed check-ins it takes to create an issue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    failure_issue_threshold: Option<u64>,
+
+    /// How many consecutive OK check-ins it takes to resolve an issue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recovery_threshold: Option<u64>,
 }
 
 /// The trace context sent with a check-in.
@@ -289,7 +297,9 @@ mod tests {
     },
     "checkin_margin": 5,
     "max_runtime": 10,
-    "timezone": "America/Los_Angles"
+    "timezone": "America/Los_Angles",
+    "failure_issue_threshold": 3,
+    "recovery_threshold": 1
   }
 }"#;
 
@@ -312,7 +322,9 @@ mod tests {
     },
     "checkin_margin": 5,
     "max_runtime": 10,
-    "timezone": "America/Los_Angles"
+    "timezone": "America/Los_Angles",
+    "failure_issue_threshold": 3,
+    "recovery_threshold": 1
   }
 }"#;
 

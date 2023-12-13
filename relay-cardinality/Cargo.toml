@@ -1,0 +1,23 @@
+[package]
+name = "relay-cardinality"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Metrics Cardiniality Limiter"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "23.10.1"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[features]
+default = []
+redis = ["relay-redis/impl"]
+
+[dependencies]
+itertools = { workspace = true }
+relay-log = { path = "../relay-log" }
+relay-redis = { path = "../relay-redis" }
+relay-statsd = { path = "../relay-statsd" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
