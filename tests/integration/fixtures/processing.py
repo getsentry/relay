@@ -211,22 +211,22 @@ def category_value(category):
 
 
 class OutcomesConsumer(ConsumerBase):
-    def _poll_all(self):
+    def _poll_all(self, timeout):
         while True:
-            outcome = self.poll()
+            outcome = self.poll(timeout)
             if outcome is None:
                 return
             else:
                 yield outcome
 
-    def get_outcomes(self):
-        outcomes = list(self._poll_all())
+    def get_outcomes(self, timeout=None):
+        outcomes = list(self._poll_all(timeout))
         for outcome in outcomes:
             assert outcome.error() is None
         return [json.loads(outcome.value()) for outcome in outcomes]
 
-    def get_outcome(self):
-        outcomes = self.get_outcomes()
+    def get_outcome(self, timeout=None):
+        outcomes = self.get_outcomes(timeout)
         assert len(outcomes) > 0, "No outcomes were consumed"
         assert len(outcomes) == 1, "More than one outcome was consumed"
         return outcomes[0]

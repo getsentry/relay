@@ -514,7 +514,7 @@ def test_sends_metric_bucket_outcome(
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "debounce_delay": 0,
-                "flush_interval": 1,
+                "flush_interval": 0,
             },
         }
     )
@@ -535,9 +535,8 @@ def test_sends_metric_bucket_outcome(
     metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
-    sleep(1)
+    outcome = outcomes_consumer.get_outcome(timeout=3)
 
-    outcome = outcomes_consumer.get_outcome()
     assert outcome["category"] == 15
     assert outcome["quantity"] == 1
 
