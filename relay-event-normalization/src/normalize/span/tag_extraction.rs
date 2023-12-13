@@ -6,8 +6,11 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::{AppContext, Event, OsContext, Span, Timestamp, TraceContext};
-use relay_protocol::Annotated;
+use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+use relay_event_schema::protocol::{
+    AppContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+};
+use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -157,10 +160,12 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             shared_tags
                 .clone()
                 .into_iter()
-                .chain(tags.clone())
+                .chain(tags)
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
         );
+
+        extract_measurements(span);
     }
 }
 
@@ -361,6 +366,7 @@ pub fn extract_tags(
         }
 
         if span_op.starts_with("resource.") {
+            // TODO: Remove response size tags once product uses measurements instead.
             if let Some(data) = span.data.value() {
                 if let Some(value) = data
                     .get("http.response_content_length")
@@ -433,6 +439,44 @@ pub fn extract_tags(
     }
 
     span_tags
+}
+
+/// Copies specific numeric values from span data to span measurements.
+pub fn extract_measurements(span: &mut Span) {
+    let Some(span_op) = span.op.as_str() else {
+        return;
+    };
+
+    if span_op.starts_with("resource.") {
+        if let Some(data) = span.data.value() {
+            let mut try_measurement = |key: &str| {
+                if let Some(value) = measurement_from_data(data, key) {
+                    let measurements = span.measurements.get_or_insert_with(Default::default);
+                    measurements.insert(
+                        key.into(),
+                        Measurement {
+                            value: value.into(),
+                            unit: MetricUnit::Information(InformationUnit::Byte).into(),
+                        }
+                        .into(),
+                    );
+                }
+            };
+            try_measurement("http.response_content_length");
+            try_measurement("http.decoded_response_content_length");
+            try_measurement("http.response_transfer_size");
+        }
+    }
+}
+
+fn measurement_from_data(data: &BTreeMap<String, Annotated<Value>>, key: &str) -> Option<f64> {
+    let value = data.get(key)?.value()?;
+    Some(match value {
+        Value::I64(n) => *n as f64,
+        Value::U64(n) => *n as f64,
+        Value::F64(f) => *f,
+        _ => return None,
+    })
 }
 
 /// Finds first matching span and get its timestamp.
@@ -602,6 +646,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Event, Request};
     use relay_protocol::Annotated;
 
@@ -990,6 +1035,32 @@ LIMIT 1
             tags.get("http.response_transfer_size").unwrap().as_str(),
             Some("3.3"),
         );
+
+        let measurements = span.value().unwrap().measurements.value().unwrap();
+        assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "http.decoded_response_content_length": Measurement {
+                    value: 2.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+                "http.response_content_length": Measurement {
+                    value: 1.0,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+                "http.response_transfer_size": Measurement {
+                    value: 3.3,
+                    unit: Information(
+                        Byte,
+                    ),
+                },
+            },
+        )
+        "###);
     }
 
     #[test]
