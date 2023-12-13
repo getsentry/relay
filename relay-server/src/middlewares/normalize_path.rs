@@ -11,6 +11,7 @@ use tower::{Layer, Service};
 pub struct NormalizePathLayer;
 
 impl NormalizePathLayer {
+    #[allow(unused)]
     pub fn new() -> Self {
         Self
     }
