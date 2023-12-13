@@ -1410,6 +1410,8 @@
 <a href="#1410" id="1410">1410</a>
 <a href="#1411" id="1411">1411</a>
 <a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2552,6 +2554,8 @@
                 buckets,
                 scoping,
                 extraction_mode,
+                project_state,
+                rate_limits: <span class="self">self</span>.rate_limits.clone(),
                 enable_cardinality_limiter,
             });
         }
