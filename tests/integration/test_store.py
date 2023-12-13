@@ -497,6 +497,49 @@ def test_processing_quotas(
             assert event["logentry"]["formatted"] == "application / http.error"
         else:
             assert event["logentry"]["formatted"] == f"otherkey{i}"
+    assert False
+
+
+def test_sends_metric_bucket_outcome(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    """
+    Checks that with a zero-quota without categories specified we send metric bucket outcomes.
+    """
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "flush_interval": 1,
+            },
+        }
+    )
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    projectconfig["config"]["features"] = ["organizations:custom-metrics"]
+    projectconfig["config"]["quotas"] = [
+        {
+            "scope": "organization",
+            "limit": 0,
+        }
+    ]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+
+    sleep(1)
+
+    outcome = outcomes_consumer.get_outcome()
+    assert outcome["category"] == 15
+    assert outcome["quantity"] == 1
 
 
 def test_rate_limit_metric_bucket(
