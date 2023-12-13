@@ -445,6 +445,71 @@
 <a href="#445" id="445">445</a>
 <a href="#446" id="446">446</a>
 <a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -778,6 +843,71 @@
             TagSource::Literal(value)
         } <span class="kw">else </span>{
             TagSource::Unknown
+        }
+    }
+}
+
+<span class="doccomment">/// Builder for [`TagSpec`].
+</span><span class="kw">pub struct </span>Tag {
+    key: String,
+}
+
+<span class="kw">impl </span>Tag {
+    <span class="doccomment">/// Prepares a tag with a given tag name.
+    </span><span class="kw">pub fn </span>with_key(key: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ key: key.into() }
+    }
+
+    <span class="doccomment">/// Defines the field from which the tag value gets its data.
+    </span><span class="kw">pub fn </span>from_field(<span class="self">self</span>, field_name: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; TagWithSource {
+        <span class="kw">let </span><span class="self">Self </span>{ key } = <span class="self">self</span>;
+        TagWithSource {
+            key,
+            field: <span class="prelude-val">Some</span>(field_name.into()),
+            value: <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="doccomment">/// Defines what value to set for a tag.
+    </span><span class="kw">pub fn </span>with_value(<span class="self">self</span>, value: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; TagWithSource {
+        <span class="kw">let </span><span class="self">Self </span>{ key } = <span class="self">self</span>;
+        TagWithSource {
+            key,
+            field: <span class="prelude-val">None</span>,
+            value: <span class="prelude-val">Some</span>(value.into()),
+        }
+    }
+}
+
+<span class="doccomment">/// Intermediate result of the tag spec builder.
+///
+/// Can be transformed into `[TagSpec]`.
+</span><span class="kw">pub struct </span>TagWithSource {
+    key: String,
+    field: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    value: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
+<span class="kw">impl </span>TagWithSource {
+    <span class="doccomment">/// Defines a tag that is extracted unconditionally.
+    </span><span class="kw">pub fn </span>always(<span class="self">self</span>) -&gt; TagSpec {
+        <span class="kw">let </span><span class="self">Self </span>{ key, field, value } = <span class="self">self</span>;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="doccomment">/// Defines a tag that is extracted under the given condition.
+    </span><span class="kw">pub fn </span>when(<span class="self">self</span>, condition: RuleCondition) -&gt; TagSpec {
+        <span class="kw">let </span><span class="self">Self </span>{ key, field, value } = <span class="self">self</span>;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: <span class="prelude-val">Some</span>(condition),
         }
     }
 }
