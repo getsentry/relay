@@ -29,6 +29,7 @@
 - Allow ingestion of metrics summary on spans. ([#2823](https://github.com/getsentry/relay/pull/2823))
 - Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
 - Keep only domain and extension for image resource span grouping. ([#2826](https://github.com/getsentry/relay/pull/2826))
+- Use a Lua script for cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
 
 ## 23.11.2
 
