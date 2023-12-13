@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
-use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
+use axum_server::Handle;
 use relay_config::Config;
 use relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 use relay_system::{Controller, Service, Shutdown};
@@ -12,9 +12,7 @@ use tower::ServiceBuilder;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
-use crate::middlewares::{
-    self, CatchPanicLayer, HandleErrorLayer, NormalizePathLayer, RequestDecompressionLayer,
-};
+use crate::middlewares::{self, CatchPanicLayer, NormalizePathLayer, RequestDecompressionLayer};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 
@@ -35,10 +33,6 @@ pub struct HttpServer {
     config: Arc<Config>,
     service: ServiceState,
 }
-
-/// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
-/// is not available.
-const KEEPALIVE_RETRIES: u32 = 5;
 
 /// Set a timeout for reading client request headers. If a client does not transmit the entire
 /// header within this time, the connection is closed.
@@ -82,10 +76,8 @@ impl Service for HttpServer {
             .layer(NewSentryLayer::new_from_top())
             .layer(SentryHttpLayer::with_transaction())
             .layer(middlewares::trace_http_layer())
-            // .layer(HandleErrorLayer::new(middlewares::decompression_error))
-            // .map_request(middlewares::remove_empty_encoding)
-            // .layer(RequestDecompressionLayer::new());
-            ;
+            .map_request(middlewares::remove_empty_encoding)
+            .layer(RequestDecompressionLayer::new());
 
         let router = crate::endpoints::routes(service.config())
             .layer(middleware)
@@ -98,39 +90,32 @@ impl Service for HttpServer {
             .service(router)
             .into_make_service_with_connect_info::<SocketAddr>();
 
-        let http_config = HttpConfig::new()
-            .http1_half_close(true)
-            .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
-            .http1_writev(true)
-            .http2_keep_alive_timeout(config.keepalive_timeout())
-            .build();
+        relay_log::info!("spawning http server");
+        relay_log::info!("  listening on http://{}/", config.listen_addr());
+        relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
-        let addr_config = AddrIncomingConfig::new()
-            .tcp_keepalive(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-            .tcp_keepalive_interval(Some(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-            .tcp_keepalive_retries(Some(KEEPALIVE_RETRIES))
-            .build();
-
-        let handle = Handle::new();
-        match TcpListener::bind(config.listen_addr()) {
-            Ok(listener) => {
-                listener.set_nonblocking(true).ok();
-                let server = axum_server::from_tcp(listener)
-                    .http_config(http_config)
-                    .addr_incoming_config(addr_config)
-                    .handle(handle.clone());
-
-                relay_log::info!("spawning http server");
-                relay_log::info!("  listening on http://{}/", config.listen_addr());
-                relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
-                tokio::spawn(server.serve(app));
-            }
+        let listener = match TcpListener::bind(config.listen_addr()) {
+            Ok(listener) => listener,
             Err(err) => {
                 relay_log::error!("Failed to start the HTTP server: {err}");
                 std::process::exit(1);
             }
-        }
+        };
 
+        let server = axum_server::from_tcp(listener);
+        server
+            .http_builder()
+            .http1()
+            .half_close(true)
+            .header_read_timeout(CLIENT_HEADER_TIMEOUT)
+            .writev(true);
+        server
+            .http_builder()
+            .http2()
+            .keep_alive_timeout(config.keepalive_timeout());
+
+        let handle = Handle::new();
+        tokio::spawn(server.handle(handle.clone()).serve(app));
         tokio::spawn(async move {
             let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
             relay_log::info!("Shutting down HTTP server");

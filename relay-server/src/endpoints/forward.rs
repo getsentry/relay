@@ -46,13 +46,40 @@ static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
 /// Root path of all API endpoints.
 const API_PATH: &str = "/api/";
 
-fn status_to_1(status: reqwest::StatusCode) -> StatusCode {
-    StatusCode::from_u16(status.as_u16()).unwrap()
+/// Shims to convert between http 0.2 and http 1.0. This is needed until reqwest is updated to a
+/// version that builds on hyper/http 1.0.
+mod legacy_shims {
+    use axum::http::StatusCode as AxumCode;
+    use reqwest::StatusCode as ReqwestCode;
+
+    use super::HOP_BY_HOP_HEADERS;
+
+    pub fn status_to_1(status: ReqwestCode) -> AxumCode {
+        AxumCode::from_u16(status.as_u16()).unwrap()
+    }
+
+    pub fn status_to_1_opt(status: Option<ReqwestCode>) -> Option<AxumCode> {
+        Some(AxumCode::from_u16(status?.as_u16()).unwrap())
+    }
+
+    pub fn is_hop_by_hop(header: &reqwest::header::HeaderName) -> bool {
+        HOP_BY_HOP_HEADERS
+            .iter()
+            .any(|h| h.as_str() == header.as_str())
+    }
+
+    pub fn header_to_1(
+        name: &reqwest::header::HeaderName,
+        value: &reqwest::header::HeaderValue,
+    ) -> (axum::http::HeaderName, axum::http::HeaderValue) {
+        (
+            name.as_str().parse().unwrap(),
+            axum::http::HeaderValue::from_bytes(value.as_bytes()).unwrap(),
+        )
+    }
 }
 
-fn status_to_1_opt(status: Option<reqwest::StatusCode>) -> Option<StatusCode> {
-    Some(StatusCode::from_u16(status?.as_u16()).unwrap())
-}
+use legacy_shims::*;
 
 /// A wrapper struct that allows conversion of UpstreamRequestError into a `dyn ResponseError`. The
 /// conversion logic is really only acceptable for blindly forwarded requests.
@@ -173,14 +200,8 @@ impl UpstreamRequest for ForwardRequest {
                     let headers = response
                         .headers()
                         .iter()
-                        .filter(|(name, _)| !HOP_BY_HOP_HEADERS.contains(name))
-                        .map(|(name, value)| {
-                            (
-                                // TODO: Undo this once reqwest is updated
-                                name.as_str().parse().unwrap(),
-                                value.as_str().parse().unwrap(),
-                            )
-                        })
+                        .filter(|(name, _)| is_hop_by_hop(name))
+                        .map(|(name, value)| header_to_1(name, value))
                         .collect();
 
                     match response.bytes(self.max_response_size).await {

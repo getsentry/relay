@@ -40,7 +40,7 @@ axum = { version = "0.7.2", features = [
     "multipart",
     "tracing",
 ] }
-axum-server = "0.5.1"
+axum-server = { git = "https://github.com/programatik29/axum-server", rev = "e575e90d1fc796401d144f306648553909336700" }
 backoff = "0.4.0"
 brotli = "3.3.4"
 bytecount = "0.6.0"
@@ -82,6 +82,8 @@ relay-sampling = { path = "../relay-sampling" }
 relay-spans = { path = "../relay-spans" }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
+# NOTE: When upgrading to a version of reqwest that depends on hyper/http 1.0, go to
+# relay-server/src/endpoints/forward.rs and remove `mod legacy_shims`.
 reqwest = { version = "0.11.1", features = [
     "gzip",
     "stream",

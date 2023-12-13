@@ -329,15 +329,18 @@ dependencies = [
 [[package]]
 name = "axum-server"
 version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "447f28c85900215cc1bea282f32d4a2f22d55c5a300afdfbc661c8d6a632e063"
+source = "git+https://github.com/programatik29/axum-server?rev=e575e90d1fc796401d144f306648553909336700#e575e90d1fc796401d144f306648553909336700"
 dependencies = [
  "bytes",
  "futures-util",
- "http 0.2.9",
- "http-body 0.4.5",
- "hyper 0.14.26",
+ "http 1.0.0",
+ "http-body 1.0.0",
+ "http-body-util",
+ "hyper 1.0.1",
+ "hyper-util",
+ "pin-project-lite",
  "tokio",
+ "tower",
  "tower-service",
 ]
 
