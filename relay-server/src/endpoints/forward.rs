@@ -11,7 +11,7 @@ use std::pin::Pin;
 
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::handler::Handler;
-use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
@@ -20,7 +20,7 @@ use relay_config::Config;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
-use crate::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
+use crate::actors::upstream::{SendRequest, UpstreamRequest, UpstreamRequestError};
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
 use crate::service::ServiceState;
@@ -146,8 +146,8 @@ impl fmt::Debug for ForwardRequest {
 }
 
 impl UpstreamRequest for ForwardRequest {
-    fn method(&self) -> Method {
-        self.method.clone()
+    fn method(&self) -> reqwest::Method {
+        self.method.as_str().parse().unwrap()
     }
 
     fn path(&self) -> Cow<'_, str> {
