@@ -497,7 +497,6 @@ def test_processing_quotas(
             assert event["logentry"]["formatted"] == "application / http.error"
         else:
             assert event["logentry"]["formatted"] == f"otherkey{i}"
-    assert False
 
 
 def test_sends_metric_bucket_outcome(
