@@ -1407,11 +1407,7 @@ impl EnvelopeProcessorService {
         }
 
         #[cfg(feature = "processing")]
-        {
-            let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-                return false;
-            };
-
+        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
             // Check with redis if the throughput limit has been exceeded, while also updating
             // the count so that other relays will be updated too.
             match rate_limiter.is_rate_limited(quotas, item_scoping, total_buckets, false) {
@@ -1443,7 +1439,7 @@ impl EnvelopeProcessorService {
                     );
                 }
             }
-        }
+        };
 
         false
     }
@@ -1475,8 +1471,8 @@ impl EnvelopeProcessorService {
             buckets,
             scoping,
             extraction_mode,
-            project_state: _project_state,
-            rate_limits: _cached_rate_limits,
+            project_state,
+            rate_limits: cached_rate_limits,
             enable_cardinality_limiter,
         } = message;
 
@@ -1504,11 +1500,11 @@ impl EnvelopeProcessorService {
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
         if self.rate_limit_batches(
-            _cached_rate_limits,
+            cached_rate_limits,
             scoping,
             &bucket_partitions,
             max_batch_size_bytes,
-            _project_state,
+            project_state,
         ) {
             return;
         }

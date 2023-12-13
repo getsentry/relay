@@ -567,13 +567,10 @@ def test_rate_limit_metric_bucket(
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
 
-    public_keys = mini_sentry.get_dsn_public_key_configs(project_id)
-    key_id = public_keys[0]["numericId"]
     projectconfig["config"]["quotas"] = [
         {
             "id": f"test_rate_limiting_{uuid.uuid4().hex}",
-            "scope": "key",
-            "scopeId": str(key_id),
+            "scope": "organization",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
             "window": 86400,
