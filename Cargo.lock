@@ -270,7 +270,7 @@ dependencies = [
  "http-body 1.0.0",
  "http-body-util",
  "hyper 1.0.1",
- "hyper-util",
+ "hyper-util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "itoa",
  "matchit",
  "memchr",
@@ -324,24 +324,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.38",
-]
-
-[[package]]
-name = "axum-server"
-version = "0.5.1"
-source = "git+https://github.com/programatik29/axum-server?rev=e575e90d1fc796401d144f306648553909336700#e575e90d1fc796401d144f306648553909336700"
-dependencies = [
- "bytes",
- "futures-util",
- "http 1.0.0",
- "http-body 1.0.0",
- "http-body-util",
- "hyper 1.0.1",
- "hyper-util",
- "pin-project-lite",
- "tokio",
- "tower",
- "tower-service",
 ]
 
 [[package]]
@@ -2124,6 +2106,25 @@ name = "hyper-util"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ca339002caeb0d159cc6e023dff48e199f081e42fa039895c7c6f38b37f2e9d"
+dependencies = [
+ "bytes",
+ "futures-channel",
+ "futures-util",
+ "http 1.0.0",
+ "http-body 1.0.0",
+ "hyper 1.0.1",
+ "pin-project-lite",
+ "socket2 0.5.3",
+ "tokio",
+ "tower",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "hyper-util"
+version = "0.1.1"
+source = "git+https://github.com/hyperium/hyper-util?rev=99409f5c4059633b7e2fa8b9c2e6c110b0f2f64b#99409f5c4059633b7e2fa8b9c2e6c110b0f2f64b"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -3980,7 +3981,6 @@ version = "23.11.2"
 dependencies = [
  "anyhow",
  "axum",
- "axum-server",
  "backoff",
  "brotli",
  "bytecount",
@@ -3991,6 +3991,8 @@ dependencies = [
  "futures",
  "hash32",
  "hashbrown 0.13.2",
+ "hyper 1.0.1",
+ "hyper-util 0.1.1 (git+https://github.com/hyperium/hyper-util?rev=99409f5c4059633b7e2fa8b9c2e6c110b0f2f64b)",
  "insta",
  "itertools",
  "json-forensics",

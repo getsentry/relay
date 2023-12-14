@@ -40,7 +40,6 @@ axum = { version = "0.7.2", features = [
     "multipart",
     "tracing",
 ] }
-axum-server = { git = "https://github.com/programatik29/axum-server", rev = "e575e90d1fc796401d144f306648553909336700" }
 backoff = "0.4.0"
 brotli = "3.3.4"
 bytecount = "0.6.0"
@@ -51,6 +50,11 @@ flate2 = "1.0.19"
 futures = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
+hyper = { version = "1.0.1", features = ["http1", "http2", "server"] }
+hyper-util = { git = "https://github.com/hyperium/hyper-util", rev = "99409f5c4059633b7e2fa8b9c2e6c110b0f2f64b", features = [
+    "server-auto",
+    "tokio",
+] }
 itertools = { workspace = true }
 json-forensics = { version = "0.1.1" }
 mime = "0.3.16"
