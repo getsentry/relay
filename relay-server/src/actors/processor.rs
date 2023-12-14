@@ -935,6 +935,77 @@ impl EnvelopeProcessorService {
             };
         }
 
+        relay_log::trace!(
+            "Items in the incoming envelope: {:?}",
+            state
+                .envelope()
+                .items()
+                .map(|item| item.ty())
+                .collect::<Vec<_>>()
+        );
+
+        let ty = state
+            .event_type()
+            // get the item type from the event type if there is an event
+            .map(ItemType::from_event_type)
+            // othrwise get the first item from the items list and assume it's the only one defined
+            // which we are waiting for.
+            .or_else(|| {
+                state
+                    .envelope()
+                    .items()
+                    .next()
+                    .map(|item| item.ty().clone())
+            });
+
+        match ty {
+            Some(ItemType::Event | ItemType::Attachment | ItemType::FormData) => {
+                relay_log::trace!("Event/Attachment/FormData")
+            }
+            Some(ItemType::Transaction | ItemType::Profile) => {
+                relay_log::trace!("Transaction/Profile")
+            }
+            Some(ItemType::Session | ItemType::Sessions) => {
+                relay_log::trace!("Sessions")
+            }
+            Some(ItemType::Security) => {
+                relay_log::trace!("Security")
+            }
+            Some(ItemType::RawSecurity) => {
+                relay_log::trace!("RawSecurity")
+            }
+            Some(ItemType::Nel) => {
+                relay_log::trace!("NEL")
+            }
+            Some(ItemType::UnrealReport) => {
+                relay_log::trace!("Unreal")
+            }
+            Some(ItemType::UserReport | ItemType::ClientReport) => {
+                relay_log::trace!("User/Clien report")
+            }
+            Some(ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta) => {
+                relay_log::error!("Statsd/Metrics should not go here")
+            }
+            Some(ItemType::ReplayEvent | ItemType::ReplayRecording) => {
+                relay_log::trace!("Replays")
+            }
+            Some(ItemType::CheckIn) => {
+                relay_log::trace!("Crons check in")
+            }
+            Some(ItemType::Span | ItemType::OtelSpan) => {
+                relay_log::trace!("Spans")
+            }
+            Some(ItemType::UserReportV2) => {
+                relay_log::trace!("User reports v2")
+            }
+            Some(ItemType::Unknown(t)) => {
+                relay_log::trace!("Unknown({t})")
+            }
+            None => {
+                relay_log::error!("There are not type and no items in the envelope")
+            }
+        }
+
         session::process(state, &self.inner.config);
         report::process(
             state,
@@ -1077,7 +1148,6 @@ impl EnvelopeProcessorService {
         let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
         });
-
         match result {
             Ok(response) => {
                 if let Some(managed_envelope) = response.envelope {

@@ -469,12 +469,6 @@ mod tests {
             item
         });
 
-        envelope.add_item({
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(ContentType::Json, "{}");
-            item
-        });
-
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
@@ -482,13 +476,8 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
             global_config: Arc::default(),
         };
-
         let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+        assert!(envelope_response.envelope.is_none());
     }
 
     #[test]

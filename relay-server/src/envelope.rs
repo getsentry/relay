@@ -1188,31 +1188,45 @@ impl Envelope {
         }))
     }
 
-    /// Splits the envelope by the given predicate.
+    /// Splits the envelope into envelope per item type.
     ///
-    /// The main differents from `split_by()` is this function returns the list of the newly
-    /// constracted envelopes with all the items where the predicate returns `true`. Otherwise it
-    /// returns an empty list.
-    ///
-    /// The returned envelopes assume the same headers.
-    pub fn split_all_by<F>(&mut self, f: F) -> SmallVec<[Box<Self>; 3]>
-    where
-        F: FnMut(&Item) -> bool,
-    {
-        let mut envelopes = smallvec![];
-        let Some(split_items) = self.split_off_items(|count| count == 0, f) else {
-            return envelopes;
-        };
+    /// Some of the items still kept together, since they must be processed as one unit.
+    pub fn into_processible_parts(mut self) -> SmallVec<[Box<Self>; 3]> {
+        let headers = self.headers.clone();
+        let mut items = std::mem::take(&mut self.items);
 
-        let headers = &mut self.headers;
+        // If we have a transaction item , we assume that it's a transaction, and all the related
+        // items are connected to it and a subject to dynamic sampling and related operations.
+        if items.iter().any(|item| item.ty() == &ItemType::Transaction) {
+            return smallvec![Box::new(Self { headers, items })];
+        }
 
-        for item in split_items {
-            // Each item should get an envelope with the new event id.
-            headers.event_id = Some(EventId::new());
+        // Events and attachments should always go together.
+        let event_with_attachement_items = items
+            .drain_filter(|item| {
+                item.ty() == &ItemType::Event
+                    || item.ty() == &ItemType::Attachment
+                    || item.ty() == &ItemType::FormData
+            })
+            .collect::<Vec<_>>();
 
-            envelopes.push(Box::new(Envelope {
-                items: smallvec![item],
+        // Get the rest of the envelopes, one per item.
+        let mut envelopes: SmallVec<[Box<Self>; 3]> = items
+            .into_iter()
+            .map(|item| {
+                let headers = headers.clone();
+                Box::new(Self {
+                    headers,
+                    items: smallvec![item],
+                })
+            })
+            .collect();
+
+        // Attachments must keep the original event id.
+        if !event_with_attachement_items.is_empty() {
+            envelopes.push(Box::new(Self {
                 headers: headers.clone(),
+                items: event_with_attachement_items.into(),
             }))
         }
 

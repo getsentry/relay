@@ -274,6 +274,7 @@ mod tests {
         }
     }
 
+    /// Always sets the processing item type to event.
     fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
         sampling_project_state: Option<Arc<ProjectState>>,
