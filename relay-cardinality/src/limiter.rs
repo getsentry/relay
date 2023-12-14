@@ -115,13 +115,13 @@ impl<T: Limiter> CardinalityLimiter<T> {
                 Some(Entry::new(EntryId(id), item.to_scope()?, item.to_hash()))
             });
 
-            let rejections = self.limiter.check_cardinality_limits(
+            let result = self.limiter.check_cardinality_limits(
                 organization,
                 entries,
                 self.config.cardinality_limit,
             );
 
-            let rejections = match rejections {
+            let rejections = match result {
                 Ok(rejections) => rejections
                     .map(|rejection| rejection.id.0)
                     .collect::<BTreeSet<usize>>(),

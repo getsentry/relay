@@ -1452,6 +1452,7 @@ impl EnvelopeProcessorService {
         buckets: Vec<Bucket>,
     ) -> impl Iterator<Item = Bucket> {
         if !enable_cardinality_limiter {
+            // Use left for original vector of buckets, right for cardinality limited/filtered buckets.
             return Either::Left(buckets.into_iter());
         }
 
