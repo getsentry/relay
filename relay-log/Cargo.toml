@@ -21,13 +21,6 @@ sentry = { version = "0.32.0", features = [
     "tracing",
 ], optional = true }
 sentry-core = { version = "0.32.0" }
-# sentry = { git = "https://github.com/getsentry/sentry-rust", rev = "139cdf3922e31b53f5256fd14a590e61ee6dc240", features = [
-#     "debug-images",
-#     "tower-axum-matched-path",
-#     "tracing",
-#     "UNSTABLE_metrics",
-# ], optional = true }
-# sentry-core = { git = "https://github.com/getsentry/sentry-rust", rev = "139cdf3922e31b53f5256fd14a590e61ee6dc240" }
 tokio = { version = "1", default-features = false, features = [
     "sync",
 ], optional = true }
