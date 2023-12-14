@@ -10,6 +10,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use itertools::Either;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
@@ -1449,21 +1450,29 @@ impl EnvelopeProcessorService {
         enable_cardinality_limiter: bool,
         _organization_id: u64,
         buckets: Vec<Bucket>,
-    ) -> Result<Box<dyn Iterator<Item = Bucket>>, relay_cardinality::Error> {
+    ) -> impl Iterator<Item = Bucket> {
         if !enable_cardinality_limiter {
-            return Ok(Box::new(buckets.into_iter()));
+            return Either::Left(buckets.into_iter());
         }
 
         #[cfg(feature = "processing")]
         if let Some(ref cardinality_limiter) = self.inner.cardinality_limiter {
-            return Ok(Box::new(
-                cardinality_limiter
-                    .check_cardinality_limits(_organization_id, buckets)?
-                    .into_accepted(),
-            ));
+            let limits = cardinality_limiter.check_cardinality_limits(_organization_id, buckets);
+
+            return match limits {
+                Ok(limits) => Either::Right(limits.into_accepted()),
+                Err((buckets, error)) => {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "cardinality limiter failed"
+                    );
+
+                    Either::Left(buckets.into_iter())
+                }
+            };
         }
 
-        Ok(Box::new(buckets.into_iter()))
+        Either::<_, relay_cardinality::limiter::Accepted<_>>::Left(buckets.into_iter())
     }
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
@@ -1476,20 +1485,11 @@ impl EnvelopeProcessorService {
             enable_cardinality_limiter,
         } = message;
 
-        let buckets = match self.check_cardinality_limits(
+        let buckets = self.check_cardinality_limits(
             enable_cardinality_limiter,
             scoping.organization_id,
             buckets,
-        ) {
-            Ok(buckets) => buckets,
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "cardinality limiter failed"
-                );
-                return;
-            }
-        };
+        );
 
         let partitions = self.inner.config.metrics_partitions();
         let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();

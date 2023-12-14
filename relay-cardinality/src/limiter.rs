@@ -7,7 +7,7 @@ use std::hash::Hash;
 use relay_statsd::metric;
 
 use crate::statsd::CardinalityLimiterTimers;
-use crate::{OrganizationId, Result};
+use crate::{Error, OrganizationId, Result};
 
 /// Limiter responsible to enforce limits.
 pub trait Limiter {
@@ -109,17 +109,24 @@ impl<T: Limiter> CardinalityLimiter<T> {
         &self,
         organization: OrganizationId,
         items: Vec<I>,
-    ) -> Result<CardinalityLimits<I>> {
+    ) -> Result<CardinalityLimits<I>, (Vec<I>, Error)> {
         metric!(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             let entries = items.iter().enumerate().filter_map(|(id, item)| {
                 Some(Entry::new(EntryId(id), item.to_scope()?, item.to_hash()))
             });
 
-            let rejections = self
-                .limiter
-                .check_cardinality_limits(organization, entries, self.config.cardinality_limit)?
-                .map(|rejection| rejection.id.0)
-                .collect::<BTreeSet<usize>>();
+            let rejections = self.limiter.check_cardinality_limits(
+                organization,
+                entries,
+                self.config.cardinality_limit,
+            );
+
+            let rejections = match rejections {
+                Ok(rejections) => rejections
+                    .map(|rejection| rejection.id.0)
+                    .collect::<BTreeSet<usize>>(),
+                Err(err) => return Err((items, err)),
+            };
 
             Ok(CardinalityLimits {
                 source: items,
