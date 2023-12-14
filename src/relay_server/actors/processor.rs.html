@@ -1927,6 +1927,7 @@
 <a href="#1927" id="1927">1927</a>
 <a href="#1928" id="1928">1928</a>
 <a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -1939,6 +1940,7 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
 <span class="kw">use </span>flate2::Compression;
+<span class="kw">use </span>itertools::Either;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
@@ -3378,21 +3380,30 @@
         enable_cardinality_limiter: bool,
         _organization_id: u64,
         buckets: Vec&lt;Bucket&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Bucket&gt;&gt;, relay_cardinality::Error&gt; {
+    ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = Bucket&gt; {
         <span class="kw">if </span>!enable_cardinality_limiter {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(Box::new(buckets.into_iter()));
+            <span class="comment">// Use left for original vector of buckets, right for cardinality limited/filtered buckets.
+            </span><span class="kw">return </span>Either::Left(buckets.into_iter());
         }
 
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>cardinality_limiter) = <span class="self">self</span>.inner.cardinality_limiter {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(Box::new(
-                cardinality_limiter
-                    .check_cardinality_limits(_organization_id, buckets)<span class="question-mark">?
-                    </span>.into_accepted(),
-            ));
+            <span class="kw">let </span>limits = cardinality_limiter.check_cardinality_limits(_organization_id, buckets);
+
+            <span class="kw">return match </span>limits {
+                <span class="prelude-val">Ok</span>(limits) =&gt; Either::Right(limits.into_accepted()),
+                <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">&quot;cardinality limiter failed&quot;
+                    </span>);
+
+                    Either::Left(buckets.into_iter())
+                }
+            };
         }
 
-        <span class="prelude-val">Ok</span>(Box::new(buckets.into_iter()))
+        Either::&lt;<span class="kw">_</span>, relay_cardinality::limiter::Accepted&lt;<span class="kw">_</span>&gt;&gt;::Left(buckets.into_iter())
     }
 
     <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
@@ -3405,20 +3416,11 @@
             enable_cardinality_limiter,
         } = message;
 
-        <span class="kw">let </span>buckets = <span class="kw">match </span><span class="self">self</span>.check_cardinality_limits(
+        <span class="kw">let </span>buckets = <span class="self">self</span>.check_cardinality_limits(
             enable_cardinality_limiter,
             scoping.organization_id,
             buckets,
-        ) {
-            <span class="prelude-val">Ok</span>(buckets) =&gt; buckets,
-            <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                    <span class="string">&quot;cardinality limiter failed&quot;
-                </span>);
-                <span class="kw">return</span>;
-            }
-        };
+        );
 
         <span class="kw">let </span>partitions = <span class="self">self</span>.inner.config.metrics_partitions();
         <span class="kw">let </span>max_batch_size_bytes = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();

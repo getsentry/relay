@@ -360,6 +360,13 @@
 <a href="#360" id="360">360</a>
 <a href="#361" id="361">361</a>
 <a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -369,7 +376,7 @@
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::CardinalityLimiterTimers;
-<span class="kw">use crate</span>::{OrganizationId, <span class="prelude-ty">Result</span>};
+<span class="kw">use crate</span>::{Error, OrganizationId, <span class="prelude-ty">Result</span>};
 
 <span class="doccomment">/// Limiter responsible to enforce limits.
 </span><span class="kw">pub trait </span>Limiter {
@@ -471,17 +478,24 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         organization: OrganizationId,
         items: Vec&lt;I&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;CardinalityLimits&lt;I&gt;&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;CardinalityLimits&lt;I&gt;, (Vec&lt;I&gt;, Error)&gt; {
         <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             <span class="kw">let </span>entries = items.iter().enumerate().filter_map(|(id, item)| {
                 <span class="prelude-val">Some</span>(Entry::new(EntryId(id), item.to_scope()<span class="question-mark">?</span>, item.to_hash()))
             });
 
-            <span class="kw">let </span>rejections = <span class="self">self
-                </span>.limiter
-                .check_cardinality_limits(organization, entries, <span class="self">self</span>.config.cardinality_limit)<span class="question-mark">?
-                </span>.map(|rejection| rejection.id.<span class="number">0</span>)
-                .collect::&lt;BTreeSet&lt;usize&gt;&gt;();
+            <span class="kw">let </span>result = <span class="self">self</span>.limiter.check_cardinality_limits(
+                organization,
+                entries,
+                <span class="self">self</span>.config.cardinality_limit,
+            );
+
+            <span class="kw">let </span>rejections = <span class="kw">match </span>result {
+                <span class="prelude-val">Ok</span>(rejections) =&gt; rejections
+                    .map(|rejection| rejection.id.<span class="number">0</span>)
+                    .collect::&lt;BTreeSet&lt;usize&gt;&gt;(),
+                <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>((items, err)),
+            };
 
             <span class="prelude-val">Ok</span>(CardinalityLimits {
                 source: items,
