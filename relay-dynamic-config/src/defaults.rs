@@ -286,9 +286,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
                     .always(), // already guarded by condition on metric
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
-                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {
@@ -321,9 +318,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     .always(), // already guarded by condition on metric
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
-                    .always(), // already guarded by condition on metric
-                Tag::with_key("transaction")
-                    .from_field("span.sentry_tags.transaction")
                     .always(), // already guarded by condition on metric
             ],
         },
