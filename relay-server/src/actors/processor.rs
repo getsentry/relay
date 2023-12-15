@@ -989,6 +989,13 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
+
+                attachment::scrub(state);
             }
             ItemType::Transaction | ItemType::Profile => {
                 relay_log::trace!("Transaction/Profile");
@@ -1028,6 +1035,16 @@ impl EnvelopeProcessorService {
                     self.enforce_quotas(state)?;
                     profile::process(state, &self.inner.config);
                 });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                    if_processing!({
+                        span::extract_from_event(state);
+                    });
+                }
+
+                attachment::scrub(state);
             }
             ItemType::Session | ItemType::Sessions => {
                 relay_log::trace!("Sessions");
@@ -1035,7 +1052,12 @@ impl EnvelopeProcessorService {
                 session::process(state, &self.inner.config);
                 if_processing!({
                     self.enforce_quotas(state)?;
-                })
+                });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::Security => {
                 relay_log::trace!("Security");
@@ -1055,6 +1077,11 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::RawSecurity => {
                 relay_log::trace!("RawSecurity");
@@ -1074,6 +1101,11 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::Nel => {
                 relay_log::trace!("NEL");
@@ -1093,6 +1125,11 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::UnrealReport => {
                 relay_log::trace!("Unreal");
@@ -1121,6 +1158,11 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::UserReport | ItemType::ClientReport => {
                 relay_log::trace!("User/Clien report");
@@ -1130,16 +1172,18 @@ impl EnvelopeProcessorService {
                     &self.inner.config,
                     self.inner.outcome_aggregator.clone(),
                 );
-                if_processing!({
-                    self.enforce_quotas(state)?;
-                })
-            }
-            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => {
-                relay_log::error!("Statsd/Metrics should not go here");
 
                 if_processing!({
                     self.enforce_quotas(state)?;
-                })
+                });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
+            }
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => {
+                relay_log::error!("Statsd/Metrics should not go here");
             }
             ItemType::ReplayEvent | ItemType::ReplayRecording => {
                 relay_log::trace!("Replays");
@@ -1147,7 +1191,12 @@ impl EnvelopeProcessorService {
                 replay::process(state, &self.inner.config)?;
                 if_processing!({
                     self.enforce_quotas(state)?;
-                })
+                });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::CheckIn => {
                 relay_log::trace!("Crons check in");
@@ -1155,7 +1204,12 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                     self.process_check_ins(state);
-                })
+                });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::Span | ItemType::OtelSpan => {
                 relay_log::trace!("Spans");
@@ -1164,7 +1218,12 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                     span::process(state, self.inner.config.clone());
-                })
+                });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::UserReportV2 => {
                 relay_log::trace!("User reports v2");
@@ -1184,84 +1243,16 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
+
+                if state.has_event() {
+                    event::scrub(state)?;
+                    event::serialize(state)?;
+                }
             }
             ItemType::Unknown(t) => {
                 relay_log::trace!("Unknown({t})")
             }
         }
-
-        // session::process(state, &self.inner.config);
-        // report::process(
-        //     state,
-        //     &self.inner.config,
-        //     self.inner.outcome_aggregator.clone(),
-        // );
-        // replay::process(state, &self.inner.config)?;
-        // profile::filter(state);
-        // span::filter(state);
-        //
-        // if state.creates_event() {
-        //     // Some envelopes only create events in processing relays; for example, unreal events.
-        //     // This makes it possible to get in this code block while not really having an event in
-        //     // the envelope.
-        //
-        //     if_processing!({
-        //         unreal::expand(state, &self.inner.config)?;
-        //     });
-        //
-        //     event::extract(state, &self.inner.config)?;
-        //     profile::transfer_id(state);
-        //
-        //     if_processing!({
-        //         unreal::process(state)?;
-        //         attachment::create_placeholders(state);
-        //     });
-        //
-        //     event::finalize(state, &self.inner.config)?;
-        //     self.light_normalize_event(state)?;
-        //     dynamic_sampling::normalize(state);
-        //     event::filter(state)?;
-        //     dynamic_sampling::run(state, &self.inner.config);
-        //
-        //     // We avoid extracting metrics if we are not sampling the event while in non-processing
-        //     // relays, in order to synchronize rate limits on indexed and processed transactions.
-        //     if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
-        //         self.extract_metrics(state)?;
-        //     }
-        //
-        //     dynamic_sampling::sample_envelope(state)?;
-        //
-        //     if_processing!({
-        //         event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-        //     });
-        // }
-        //
-        // if_processing!({
-        //     self.enforce_quotas(state)?;
-        //     profile::process(state, &self.inner.config);
-        //     self.process_check_ins(state);
-        //     span::process(state, self.inner.config.clone());
-        // });
-        //
-        // if state.has_event() {
-        //     event::scrub(state)?;
-        //     event::serialize(state)?;
-        //     if_processing!({
-        //         span::extract_from_event(state);
-        //     });
-        // }
-        //
-        // attachment::scrub(state);
-
-        if state.has_event() {
-            event::scrub(state)?;
-            event::serialize(state)?;
-            if_processing!({
-                span::extract_from_event(state);
-            });
-        }
-
-        attachment::scrub(state);
 
         Ok(())
     }
