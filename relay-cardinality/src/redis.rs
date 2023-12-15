@@ -48,7 +48,7 @@ impl FromRedisValue for Status {
 struct CardinalityScriptResult {
     cardinality: u64,
     rejected: usize,
-    bitmap: Vec<Status>,
+    stati: Vec<Status>,
 }
 
 impl FromRedisValue for CardinalityScriptResult {
@@ -72,20 +72,20 @@ impl FromRedisValue for CardinalityScriptResult {
             })
             .and_then(FromRedisValue::from_redis_value)?;
 
-        let mut bitmap = Vec::with_capacity(iter.len() - 1);
+        let mut stati = Vec::with_capacity(iter.len());
         let mut rejected = 0;
         for value in iter {
             let status = Status::from_redis_value(value)?;
             if status.is_rejected() {
                 rejected += 1;
             }
-            bitmap.push(status);
+            stati.push(status);
         }
 
         Ok(Self {
             cardinality,
             rejected,
-            bitmap,
+            stati,
         })
     }
 }
@@ -111,13 +111,27 @@ impl CardinalityScript {
 
         invocation.arg(limit);
         invocation.arg(expire);
+
+        let mut num_hashes = 0;
         for hash in hashes {
             invocation.arg(hash);
+            num_hashes += 1;
         }
 
-        Ok(invocation
+        let result: CardinalityScriptResult = invocation
             .invoke(con)
-            .map_err(relay_redis::RedisError::Redis)?)
+            .map_err(relay_redis::RedisError::Redis)?;
+
+        if num_hashes != result.stati.len() {
+            return Err(relay_redis::RedisError::Redis(redis::RedisError::from((
+                redis::ErrorKind::ResponseError,
+                "Script returned an invalid number of elements",
+                format!("Expected {num_hashes} results, got {}", result.stati.len()),
+            )))
+            .into());
+        }
+
+        Ok(result)
     }
 }
 
@@ -195,7 +209,7 @@ impl RedisSetLimiter {
             );
         }
 
-        let result = std::iter::zip(entries, result.bitmap)
+        let result = std::iter::zip(entries, result.stati)
             .filter_map(|(entry, status)| status.is_rejected().then_some(entry.rejection()));
 
         Ok(result)
@@ -421,6 +435,28 @@ mod tests {
             .map(|e| e.id)
             .collect::<HashSet<_>>();
         assert_eq!(rejected3.len(), 0);
+    }
+
+    #[test]
+    fn test_limiter_small_within_limits() {
+        let limiter = build_limiter();
+        let org = new_org(&limiter);
+
+        let entries = (0..50)
+            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
+            .collect::<Vec<_>>();
+        let rejected = limiter
+            .check_cardinality_limits(org, entries, 10_000)
+            .unwrap();
+        assert_eq!(rejected.count(), 0);
+
+        let entries = (100..150)
+            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
+            .collect::<Vec<_>>();
+        let rejected = limiter
+            .check_cardinality_limits(org, entries, 10_000)
+            .unwrap();
+        assert_eq!(rejected.count(), 0);
     }
 
     #[test]

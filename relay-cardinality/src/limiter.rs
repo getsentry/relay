@@ -60,7 +60,7 @@ pub struct Entry<T: CardinalityScope> {
 /// Opaque data structure used by [`CardinalityLimiter`] to track
 /// which buckets have been accepted and rejected.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct EntryId(pub(crate) usize);
+pub struct EntryId(pub usize);
 
 impl<T: CardinalityScope> Entry<T> {
     /// Creates a new entry.
