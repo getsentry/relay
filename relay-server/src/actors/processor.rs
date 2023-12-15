@@ -24,7 +24,9 @@ use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkRep
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
+use relay_metrics::{
+    Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace, MetricNamespaceCounter,
+};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
@@ -1351,8 +1353,8 @@ impl EnvelopeProcessorService {
         });
     }
 
-    /// Returns `true` if the batches should be rate limited.
-    fn rate_limit_batches(
+    /// Returns `true` if the buckets should be rate limited.
+    fn rate_limit_buckets(
         &self,
         cached_rate_limits: RateLimits,
         scoping: Scoping,
@@ -1406,6 +1408,28 @@ impl EnvelopeProcessorService {
             return true;
         }
 
+        let buckets = bucket_partitions.values().flatten();
+
+        // Check namespace rate limits
+        // hmm obviously all the buckets are the same namespace right
+        // or wait, hmm, what, idk
+
+        // so i should like, check each namespace separately ?
+        // if its over the limit, i should drop it all or just those namespaces?
+        let mut counter = MetricNamespaceCounter::default();
+        for quota in quotas {
+            if let Some(namespace) = quota.namespace {
+                for bucket in bucket_partitions.values().flatten() {
+                    if let Some(bucket_ns) = bucket.namespace() {
+                        if namespace == bucket_ns {
+                            counter.add(&namespace);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Checks the total org rate limits
         #[cfg(feature = "processing")]
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
             // Check with redis if the throughput limit has been exceeded, while also updating
@@ -1499,7 +1523,7 @@ impl EnvelopeProcessorService {
 
         let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
 
-        if self.rate_limit_batches(
+        if self.rate_limit_buckets(
             cached_rate_limits,
             scoping,
             &bucket_partitions,

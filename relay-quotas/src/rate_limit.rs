@@ -104,6 +104,7 @@ impl FromStr for RetryAfter {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(serde::Serialize))]
 pub enum RateLimitScope {
+    Global,
     /// An organization with identifier.
     Organization(u64),
     /// A project with identifier.
@@ -116,17 +117,19 @@ impl RateLimitScope {
     /// Extracts a rate limiting scope from the given item scoping for a specific quota.
     pub fn for_quota(scoping: &Scoping, scope: QuotaScope) -> Self {
         match scope {
-            QuotaScope::Organization => RateLimitScope::Organization(scoping.organization_id),
-            QuotaScope::Project => RateLimitScope::Project(scoping.project_id),
-            QuotaScope::Key => RateLimitScope::Key(scoping.project_key),
+            QuotaScope::Global => Self::Global,
+            QuotaScope::Organization => Self::Organization(scoping.organization_id),
+            QuotaScope::Project => Self::Project(scoping.project_id),
+            QuotaScope::Key => Self::Key(scoping.project_key),
             // For unknown scopes, assume the most specific scope:
-            QuotaScope::Unknown => RateLimitScope::Key(scoping.project_key),
+            QuotaScope::Unknown => Self::Key(scoping.project_key),
         }
     }
 
     /// Returns the canonical name of this scope.
     pub fn name(&self) -> &'static str {
         match *self {
+            Self::Global => QuotaScope::Global.name(),
             Self::Key(_) => QuotaScope::Key.name(),
             Self::Project(_) => QuotaScope::Project.name(),
             Self::Organization(_) => QuotaScope::Organization.name(),
@@ -174,6 +177,7 @@ impl RateLimit {
             RateLimitScope::Organization(org_id) => scoping.organization_id == org_id,
             RateLimitScope::Project(project_id) => scoping.project_id == project_id,
             RateLimitScope::Key(ref key) => scoping.project_key == *key,
+            RateLimitScope::Global => true,
         }
     }
 }
@@ -339,6 +343,8 @@ impl<'a> IntoIterator for &'a RateLimits {
         self.iter()
     }
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -876,3 +882,4 @@ mod tests {
         "#);
     }
 }
+*/

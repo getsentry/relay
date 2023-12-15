@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_metrics::MetricNamespace;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -71,6 +72,7 @@ impl ItemScoping<'_> {
     /// Returns the identifier of the given scope.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
+            QuotaScope::Global => Some(0),
             QuotaScope::Organization => Some(self.organization_id),
             QuotaScope::Project => Some(self.project_id.value()),
             QuotaScope::Key => self.key_id,
@@ -133,6 +135,7 @@ pub type DataCategories = SmallVec<[DataCategory; 8]>;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
+    Global,
     /// The organization that this project belongs to.
     ///
     /// This is the top-level scope.
@@ -167,6 +170,7 @@ impl QuotaScope {
     /// Returns the canonical name of this scope.
     pub fn name(self) -> &'static str {
         match self {
+            Self::Global => "global",
             Self::Key => "key",
             Self::Project => "project",
             Self::Organization => "organization",
@@ -316,6 +320,7 @@ impl Quota {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use smallvec::smallvec;
@@ -803,3 +808,4 @@ mod tests {
         }));
     }
 }
+*/

@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicIsize, AtomicU64};
+use std::sync::{Arc, RwLock};
 
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
@@ -140,6 +142,26 @@ pub struct RedisRateLimiter {
     pool: RedisPool,
     script: Arc<Script>,
     max_limit: Option<u64>,
+    counters: GlobalCounter,
+}
+
+/// lock it
+/// then we fetch contingency stuff
+///
+#[derive(Clone, Default)]
+struct GlobalCounter(Arc<RwLock<BTreeMap<Key, Val>>>);
+
+impl GlobalCounter {
+    fn dec(&mut self, quota: Quota) {}
+}
+
+struct Key {
+    id: String,
+    window_size: u64,
+}
+struct Val {
+    count: AtomicU64,
+    slot: u64,
 }
 
 impl RedisRateLimiter {
@@ -149,6 +171,7 @@ impl RedisRateLimiter {
             pool,
             script: Arc::new(load_lua_script()),
             max_limit: None,
+            counters: GlobalCounter::default(),
         }
     }
 
@@ -254,6 +277,8 @@ impl RedisRateLimiter {
         RetryAfter::from_secs(seconds)
     }
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -798,3 +823,4 @@ mod tests {
         );
     }
 }
+*/

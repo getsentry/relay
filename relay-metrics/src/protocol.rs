@@ -105,6 +105,30 @@ impl fmt::Display for ParseMetricError {
 
 impl Error for ParseMetricError {}
 
+#[derive(Default)]
+pub struct MetricNamespaceCounter {
+    pub sessions: usize,
+    pub transactions: usize,
+    pub spans: usize,
+    pub custom: usize,
+    pub unsupported: usize,
+}
+
+impl MetricNamespaceCounter {
+    /// nice
+    pub fn add(&mut self, ns: &MetricNamespace) {
+        let field = match ns {
+            MetricNamespace::Sessions => &mut self.sessions,
+            MetricNamespace::Transactions => &mut self.transactions,
+            MetricNamespace::Spans => &mut self.spans,
+            MetricNamespace::Custom => &mut self.custom,
+            MetricNamespace::Unsupported => &mut self.unsupported,
+        };
+
+        *field += 1;
+    }
+}
+
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and identify
