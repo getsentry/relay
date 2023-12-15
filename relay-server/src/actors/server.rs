@@ -96,7 +96,6 @@ pub struct HttpServer {
 impl HttpServer {
     pub fn new(config: Arc<Config>, service: ServiceState) -> Result<Self, ServerError> {
         let listener = listen(&config)?;
-        // let server = build_server(listener, &config);
 
         Ok(Self {
             config,
@@ -132,7 +131,7 @@ async fn serve(mut listener: TcpListener, app: App, config: Arc<Config>) {
     let mut graceful_shutdown = Controller::shutdown_handle();
     let (connections_tx, connections_rx) = watch::channel(());
 
-    // Create a connection builder to reuse across connections
+    // Create a connection builder to reuse across connections.
     let builder = Arc::new(connection_builder(&config));
 
     loop {
