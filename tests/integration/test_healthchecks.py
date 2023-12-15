@@ -114,30 +114,11 @@ def test_readiness_disk_spool(mini_sentry, relay):
         mini_sentry.add_full_project_config(project_key)
         # Set the broken config, so we won't be able to dequeue the envelopes.
         config = mini_sentry.project_configs[project_key]["config"]
-        ds = config.setdefault("sampling", {})
-        ds.setdefault("version", 2)
-        ds.setdefault("rules", []).append(
-            {
-                "condition": {
-                    "op": "and",
-                    "inner": [
-                        {"op": "glob", "name": "releases", "value": ["1.1.1", "1.1.2"]}
-                    ],
-                },
-                "samplingValue": {"strategy": "sampleRate", "value": 0.7},
-                "type": "trace",
-                "id": 1,
-                "timeRange": {
-                    "start": "2022-10-10T00:00:00.000000Z",
-                    "end": "2022-10-20T00:00:00.000000Z",
-                },
-                "decayingFn": {"function": "linear", "decayedSampleRate": 0.9},
-            }
-        )
+        config.setdefault("measurements", 1)
 
         relay_config = {
             "spool": {
-                "envelopes": {"path": dbfile, "max_memory_size": 0, "max_disk_size": 0}
+                "envelopes": {"path": dbfile, "max_memory_size": 1, "max_disk_size": 1}
             },
         }
 
@@ -151,6 +132,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
         # Wrapping this into the try block, to make sure we ignore those errors and just check the health at the end.
         try:
             # These events will consume all the disk sapce and we will report not ready.
+            relay.send_event(project_key)
             relay.send_event(project_key)
         finally:
             # Authentication failures would fail the test
