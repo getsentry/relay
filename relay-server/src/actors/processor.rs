@@ -944,7 +944,7 @@ impl EnvelopeProcessorService {
                 .collect::<Vec<_>>()
         );
 
-        let ty = state
+        let Some(ty) = state
             .event_type()
             // get the item type from the event type if there is an event
             .map(ItemType::from_event_type)
@@ -956,53 +956,54 @@ impl EnvelopeProcessorService {
                     .items()
                     .next()
                     .map(|item| item.ty().clone())
-            });
+            })
+        else {
+            relay_log::error!("There are not type and no items in the envelope");
+            return Err(ProcessingError::NoEventPayload);
+        };
 
         match ty {
-            Some(ItemType::Event | ItemType::Attachment | ItemType::FormData) => {
+            ItemType::Event | ItemType::Attachment | ItemType::FormData => {
                 relay_log::trace!("Event/Attachment/FormData")
             }
-            Some(ItemType::Transaction | ItemType::Profile) => {
+            ItemType::Transaction | ItemType::Profile => {
                 relay_log::trace!("Transaction/Profile")
             }
-            Some(ItemType::Session | ItemType::Sessions) => {
+            ItemType::Session | ItemType::Sessions => {
                 relay_log::trace!("Sessions")
             }
-            Some(ItemType::Security) => {
+            ItemType::Security => {
                 relay_log::trace!("Security")
             }
-            Some(ItemType::RawSecurity) => {
+            ItemType::RawSecurity => {
                 relay_log::trace!("RawSecurity")
             }
-            Some(ItemType::Nel) => {
+            ItemType::Nel => {
                 relay_log::trace!("NEL")
             }
-            Some(ItemType::UnrealReport) => {
+            ItemType::UnrealReport => {
                 relay_log::trace!("Unreal")
             }
-            Some(ItemType::UserReport | ItemType::ClientReport) => {
+            ItemType::UserReport | ItemType::ClientReport => {
                 relay_log::trace!("User/Clien report")
             }
-            Some(ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta) => {
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => {
                 relay_log::error!("Statsd/Metrics should not go here")
             }
-            Some(ItemType::ReplayEvent | ItemType::ReplayRecording) => {
+            ItemType::ReplayEvent | ItemType::ReplayRecording => {
                 relay_log::trace!("Replays")
             }
-            Some(ItemType::CheckIn) => {
+            ItemType::CheckIn => {
                 relay_log::trace!("Crons check in")
             }
-            Some(ItemType::Span | ItemType::OtelSpan) => {
+            ItemType::Span | ItemType::OtelSpan => {
                 relay_log::trace!("Spans")
             }
-            Some(ItemType::UserReportV2) => {
+            ItemType::UserReportV2 => {
                 relay_log::trace!("User reports v2")
             }
-            Some(ItemType::Unknown(t)) => {
+            ItemType::Unknown(t) => {
                 relay_log::trace!("Unknown({t})")
-            }
-            None => {
-                relay_log::error!("There are not type and no items in the envelope")
             }
         }
 
