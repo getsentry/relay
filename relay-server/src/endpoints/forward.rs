@@ -200,7 +200,7 @@ impl UpstreamRequest for ForwardRequest {
                     let headers = response
                         .headers()
                         .iter()
-                        .filter(|(name, _)| is_hop_by_hop(name))
+                        .filter(|(name, _)| !is_hop_by_hop(name))
                         .map(|(name, value)| header_to_1(name, value))
                         .collect();
 
