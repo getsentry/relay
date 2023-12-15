@@ -293,13 +293,7 @@ fn scrub_resource_filename<'a>(ty: &str, path: &'a str) -> Cow<'a, str> {
         extension = "";
     }
 
-    // Only accept short, clean file extensions.
-    if let Some(invalid) = extension.bytes().position(|c| !c.is_ascii_alphanumeric()) {
-        extension = &extension[..invalid];
-    }
-    if extension.len() > MAX_EXTENSION_LENGTH {
-        extension = "";
-    }
+    let extension = scrub_resource_file_extension(extension);
 
     let basename = if ty == "img" {
         Cow::Borrowed("*")
@@ -347,6 +341,30 @@ fn scrub_resource_segment(segment: &str) -> Cow<str> {
     }
 
     segment
+}
+
+fn scrub_resource_file_extension(mut extension: &str) -> &str {
+    // Only accept short, clean file extensions.
+    let mut digits = 0;
+    for (i, byte) in extension.bytes().enumerate() {
+        if byte.is_ascii_digit() {
+            digits += 1;
+        }
+        if digits > 1 {
+            // Allow extensions like `.mp4`
+            return "*";
+        }
+        if !byte.is_ascii_alphanumeric() {
+            extension = &extension[..i];
+            break;
+        }
+    }
+
+    if extension.len() > MAX_EXTENSION_LENGTH {
+        extension = "*";
+    }
+
+    extension
 }
 
 #[cfg(test)]
@@ -718,7 +736,7 @@ mod tests {
         resource_script_with_long_extension,
         "/path/to/file.thisismycustomfileextension2000",
         "resource.script",
-        "/*/file"
+        "/*/file.*"
     );
 
     span_description_test!(
@@ -733,6 +751,13 @@ mod tests {
         "/path/to/file.~~",
         "resource.script",
         "/*/file"
+    );
+
+    span_description_test!(
+        resource_img_extension,
+        "http://domain.com/something.123",
+        "resource.img",
+        "http://domain.com/*.*"
     );
 
     span_description_test!(
