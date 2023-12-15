@@ -253,7 +253,7 @@ pub struct Event {
     /// This field is semantically required to be set to non-empty string.
     pub name: String,
     /// time_unix_nano is the time the event occurred.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_number_from_string")]
     pub time_unix_nano: u64,
 }
 
