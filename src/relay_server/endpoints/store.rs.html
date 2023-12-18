@@ -146,6 +146,11 @@
 <a href="#146" id="146">146</a>
 <a href="#147" id="147">147</a>
 <a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Handles event store requests.
 
 </span><span class="kw">use </span>std::io::{<span class="self">self</span>, Read};
@@ -291,7 +296,12 @@
     <span class="prelude-val">Ok</span>(([(header::CONTENT_TYPE, <span class="string">&quot;image/gif&quot;</span>)], PIXEL))
 }
 
-<span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
     (post(handle_post).get(handle_get)).route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
 </code></pre></div></section></main></body></html>

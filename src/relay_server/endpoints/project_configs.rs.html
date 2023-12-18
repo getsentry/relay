@@ -203,11 +203,18 @@
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
 <a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>axum::extract::{Query, Request};
+<span class="kw">use </span>axum::extract::Query;
 <span class="kw">use </span>axum::handler::Handler;
+<span class="kw">use </span>axum::http::Request;
 <span class="kw">use </span>axum::response::{IntoResponse, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::{Json, RequestExt};
 <span class="kw">use </span>futures::future;
@@ -400,7 +407,12 @@
 /// Relays can drop compatibility with old versions of the project config endpoint, for instance the
 /// initial version 1. However, Sentry&#39;s HTTP endpoint will retain compatibility for much longer to
 /// support old Relay versions.
-</span><span class="kw">pub async fn </span>handle(state: ServiceState, <span class="kw-2">mut </span>req: Request) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse&gt; {
+</span><span class="kw">pub async fn </span>handle&lt;B&gt;(state: ServiceState, <span class="kw-2">mut </span>req: Request&lt;B&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
     <span class="kw">let </span>data = req.extract_parts().<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="kw">if </span>is_compatible(data) {
         inner.call(req, state).<span class="kw">await

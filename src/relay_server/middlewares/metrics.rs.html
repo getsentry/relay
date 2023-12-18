@@ -39,7 +39,12 @@
 <a href="#39" id="39">39</a>
 <a href="#40" id="40">40</a>
 <a href="#41" id="41">41</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{MatchedPath, Request};
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::MatchedPath;
+<span class="kw">use </span>axum::http::Request;
 <span class="kw">use </span>axum::middleware::Next;
 <span class="kw">use </span>axum::response::Response;
 <span class="kw">use </span>axum::RequestExt;
@@ -50,7 +55,10 @@
 <span class="doccomment">/// A middleware that logs web request timings as statsd metrics.
 ///
 /// Use this with [`axum::middleware::from_fn`].
-</span><span class="kw">pub async fn </span>metrics(<span class="kw-2">mut </span>request: Request, next: Next) -&gt; Response {
+</span><span class="kw">pub async fn </span>metrics&lt;B&gt;(<span class="kw-2">mut </span>request: Request&lt;B&gt;, next: Next&lt;B&gt;) -&gt; Response
+<span class="kw">where
+    </span>B: Send + <span class="lifetime">&#39;static</span>,
+{
     <span class="kw">let </span>start_time = StartTime::now();
     request.extensions_mut().insert(start_time);
 
