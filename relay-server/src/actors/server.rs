@@ -54,6 +54,7 @@ fn listen(config: &Config) -> Result<TcpListener, ServerError> {
 
 type App = NormalizePath<axum::Router>;
 
+/// Build the axum application with all routes and middleware.
 fn make_app(service: ServiceState) -> App {
     // Build the router middleware into a single service which runs _after_ routing. Service
     // builder order defines layers added first will be called first. This means:
@@ -80,6 +81,8 @@ fn make_app(service: ServiceState) -> App {
         .layer(middleware)
         .with_state(service);
 
+    // Add middlewares that need to run _before_ routing, which need to wrap the router. This are
+    // especially middlewares that modify the request path for the router:
     NormalizePath::new(router)
 }
 
