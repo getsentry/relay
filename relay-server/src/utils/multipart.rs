@@ -217,9 +217,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use axum::body::Body;
+    use axum::body::Full;
     use axum::extract::FromRequest;
     use axum::http::Request;
+    use bytes::Bytes;
 
     use super::*;
 
@@ -283,7 +284,7 @@ mod tests {
 
         let request = Request::builder()
             .header("content-type", "multipart/form-data; boundary=X-BOUNDARY")
-            .body(Body::from(data))
+            .body(Full::new(Bytes::from(data)))
             .unwrap();
 
         let mut multipart = Multipart::from_request(request, &()).await?;
