@@ -524,12 +524,38 @@
 <a href="#524" id="524">524</a>
 <a href="#525" id="525">525</a>
 <a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_repr::{Deserialize_repr, Serialize_repr};
 
+<span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
 <span class="kw">use </span>relay_event_schema::protocol::{Span <span class="kw">as </span>EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
 <span class="kw">use </span>relay_protocol::{Annotated, Object, Value};
 
@@ -595,6 +621,7 @@
     /// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
     ///
     /// This field is semantically required and it is expected that end_time &gt;= start_time.
+    </span><span class="attr">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
     </span><span class="kw">pub </span>start_time_unix_nano: i64,
     <span class="doccomment">/// end_time_unix_nano is the end time of the span. On the client side, this is the time
     /// kept by the local machine where the span execution ends. On the server side, this
@@ -602,6 +629,7 @@
     /// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
     ///
     /// This field is semantically required and it is expected that end_time &gt;= start_time.
+    </span><span class="attr">#[serde(deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
     </span><span class="kw">pub </span>end_time_unix_nano: i64,
     <span class="doccomment">/// attributes is a collection of key/value pairs. Note, global attributes
     /// like server name can be set using the resource API.
@@ -776,7 +804,7 @@
     /// This field is semantically required to be set to non-empty string.
     </span><span class="kw">pub </span>name: String,
     <span class="doccomment">/// time_unix_nano is the time the event occurred.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, deserialize_with = <span class="string">&quot;deserialize_number_from_string&quot;</span>)]
     </span><span class="kw">pub </span>time_unix_nano: u64,
 }
 
@@ -935,6 +963,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span>chrono::{DateTime, Utc};
     <span class="kw">use </span>relay_protocol::{get_path, Annotated};
 
     <span class="attr">#[test]
@@ -1048,6 +1077,27 @@
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>event_span: EventSpan = otel_span.into();
         <span class="macro">assert_eq!</span>(event_span.exclusive_time, Annotated::new(<span class="number">0.0788</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_span_with_timestamps_as_strings() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+            &quot;traceId&quot;: &quot;89143b0763095bd9c9955e8175d1fb23&quot;,
+            &quot;spanId&quot;: &quot;e342abb1214ca181&quot;,
+            &quot;parentSpanId&quot;: &quot;0c7a7dea069bf5a6&quot;,
+            &quot;name&quot;: &quot;middleware - fastify -&gt; @fastify/multipart&quot;,
+            &quot;kind&quot;: 1,
+            &quot;startTimeUnixNano&quot;: &quot;1697620454980000000&quot;,
+            &quot;endTimeUnixNano&quot;: &quot;1697620454980078800&quot;
+        }&quot;#</span>;
+        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        <span class="kw">let </span>event_span: EventSpan = otel_span.into();
+        <span class="macro">assert_eq!</span>(
+            event_span.start_timestamp,
+            Annotated::new(Timestamp(
+                DateTime::&lt;Utc&gt;::from_timestamp(<span class="number">1697620454</span>, <span class="number">980000000</span>).unwrap()
+            ))
+        );
     }
 }
 </code></pre></div></section></main></body></html>
