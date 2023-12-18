@@ -20,28 +20,8 @@
 <a href="#20" id="20">20</a>
 <a href="#21" id="21">21</a>
 <a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-</pre></div><pre class="rust"><code><span class="kw">pub use </span>axum::error_handling::HandleErrorLayer;
-<span class="kw">use </span>axum::http::{header, Request, StatusCode};
-<span class="kw">use </span>axum::response::IntoResponse;
+</pre></div><pre class="rust"><code><span class="kw">use </span>axum::http::{header, Request};
 <span class="kw">pub use </span>tower_http::decompression::RequestDecompressionLayer;
-<span class="kw">use </span>tower_http::BoxError;
-
-<span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
 
 <span class="doccomment">/// Map request middleware that removes empty content encoding headers.
 ///
@@ -61,15 +41,5 @@
     <span class="comment">// sentry-ruby/5.x sends an empty string
     // sentry.java.android/2.0.0 sends &quot;UTF-8&quot;
     </span>value == <span class="string">b&quot;&quot; </span>|| value.eq_ignore_ascii_case(<span class="string">b&quot;utf-8&quot;</span>)
-}
-
-<span class="doccomment">/// Error function to be used with [`RequestDecompressionLayer`].
-///
-/// To use decompression in axum, wrap it in a [`HandleErrorLayer`] with this function.
-</span><span class="kw">pub async fn </span>decompression_error(error: BoxError) -&gt; <span class="kw">impl </span>IntoResponse {
-    (
-        StatusCode::BAD_REQUEST,
-        ApiErrorResponse::from_error(error.as_ref()),
-    )
 }
 </code></pre></div></section></main></body></html>

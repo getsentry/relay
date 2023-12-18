@@ -120,8 +120,7 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::task::{Context, Poll};
 
-<span class="kw">use </span>axum::http::{Request, Uri};
-<span class="kw">use </span>axum::response::Response;
+<span class="kw">use </span>axum::http::{Request, Response, Uri};
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>tower::{Layer, Service};
@@ -131,7 +130,8 @@
 </span><span class="kw">pub struct </span>NormalizePathLayer;
 
 <span class="kw">impl </span>NormalizePathLayer {
-    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+    <span class="attr">#[allow(unused)]
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self
     </span>}
 }

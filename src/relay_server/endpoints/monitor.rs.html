@@ -72,23 +72,11 @@
 <a href="#72" id="72">72</a>
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Path, Query};
-<span class="kw">use </span>axum::http::{Request, StatusCode};
+</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Path, Query, Request};
+<span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{on, MethodFilter, MethodRouter};
 <span class="kw">use </span>axum::{Json, RequestExt};
-<span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
 <span class="kw">use </span>relay_monitors::{CheckIn, CheckInStatus};
@@ -113,18 +101,13 @@
     duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
 }
 
-<span class="kw">async fn </span>handle&lt;B&gt;(
+<span class="kw">async fn </span>handle(
     state: ServiceState,
     content_type: RawContentType,
     meta: RequestMeta,
     Path(path): Path&lt;MonitorPath&gt;,
-    request: Request&lt;B&gt;,
-) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt;
-<span class="kw">where
-    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
-    B::Data: Send + Into&lt;Bytes&gt;,
-    B::Error: Into&lt;axum::BoxError&gt;,
-{
+    request: Request,
+) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
     <span class="kw">let </span>check_in = <span class="kw">if </span>content_type.as_ref().starts_with(<span class="string">&quot;application/json&quot;</span>) {
         <span class="kw">let </span>Json(<span class="kw-2">mut </span>check_in): Json&lt;CheckIn&gt; = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
         check_in.monitor_slug = path.monitor_slug;
@@ -159,13 +142,8 @@
     </span><span class="prelude-val">Ok</span>(StatusCode::ACCEPTED)
 }
 
-<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
-<span class="kw">where
-    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
-    B::Data: Send + Into&lt;Bytes&gt;,
-    B::Error: Into&lt;axum::BoxError&gt;,
-{
-    on(MethodFilter::GET | MethodFilter::POST, handle)
+<span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
+    on(MethodFilter::GET.or(MethodFilter::POST), handle)
         .route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
 </code></pre></div></section></main></body></html>

@@ -141,63 +141,203 @@
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::net::{SocketAddr, TcpListener};
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
+<span class="kw">use </span>std::net::{SocketAddr, TcpListener <span class="kw">as </span>StdTcpListener};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span>axum::extract::ConnectInfo;
 <span class="kw">use </span>axum::http::{header, HeaderName, HeaderValue};
-<span class="kw">use </span>axum::ServiceExt;
-<span class="kw">use </span>axum_server::{AddrIncomingConfig, Handle, HttpConfig};
+<span class="kw">use </span>hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
+<span class="kw">use </span>hyper_util::server::conn::auto::Builder;
+<span class="kw">use </span>hyper_util::service::TowerToHyperService;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_log::tower::{NewSentryLayer, SentryHttpLayer};
-<span class="kw">use </span>relay_system::{Controller, Service, Shutdown};
-<span class="kw">use </span>tower::ServiceBuilder;
+<span class="kw">use </span>relay_system::{Controller, Service};
+<span class="kw">use </span>tokio::net::{TcpListener, TcpStream};
+<span class="kw">use </span>tokio::sync::{watch, Notify};
+<span class="kw">use </span>tower::{Layer, ServiceBuilder};
 <span class="kw">use </span>tower_http::set_header::SetResponseHeaderLayer;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants;
-<span class="kw">use </span><span class="kw">crate</span>::middlewares::{
-    <span class="self">self</span>, CatchPanicLayer, HandleErrorLayer, NormalizePathLayer, RequestDecompressionLayer,
-};
+<span class="kw">use </span><span class="kw">crate</span>::middlewares::{<span class="self">self</span>, CatchPanicLayer, NormalizePath, RequestDecompressionLayer};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-
-<span class="doccomment">/// Indicates the type of failure of the server.
-</span><span class="attr">#[allow(clippy::enum_variant_names)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
-</span><span class="kw">pub enum </span>ServerError {
-    <span class="doccomment">/// TLS support was not compiled in.
-    </span><span class="attr">#[error(<span class="string">&quot;SSL is no longer supported by Relay, please use a proxy in front&quot;</span>)]
-    </span>TlsNotSupported,
-}
-
-<span class="doccomment">/// HTTP server service.
-///
-/// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
-/// incoming traffic to them. The server stops when a [`Shutdown`] is triggered.
-</span><span class="kw">pub struct </span>HttpServer {
-    config: Arc&lt;Config&gt;,
-    service: ServiceState,
-}
-
-<span class="doccomment">/// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
-/// is not available.
-</span><span class="kw">const </span>KEEPALIVE_RETRIES: u32 = <span class="number">5</span>;
 
 <span class="doccomment">/// Set a timeout for reading client request headers. If a client does not transmit the entire
 /// header within this time, the connection is closed.
 </span><span class="kw">const </span>CLIENT_HEADER_TIMEOUT: Duration = Duration::from_secs(<span class="number">5</span>);
 
+<span class="doccomment">/// Indicates the type of failure of the server.
+</span><span class="attr">#[allow(clippy::enum_variant_names)]
+#[derive(Debug, thiserror::Error)]
+</span><span class="kw">pub enum </span>ServerError {
+    <span class="doccomment">/// Binding failed.
+    </span><span class="attr">#[error(<span class="string">&quot;bind to interface failed&quot;</span>)]
+    </span>BindFailed(<span class="attr">#[from] </span>io::Error),
+
+    <span class="doccomment">/// TLS support was not compiled in.
+    </span><span class="attr">#[error(<span class="string">&quot;SSL is no longer supported by Relay, please use a proxy in front&quot;</span>)]
+    </span>TlsNotSupported,
+}
+
+<span class="kw">fn </span>listen(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;TcpListener, ServerError&gt; {
+    <span class="comment">// Inform the user about a removed feature.
+    </span><span class="kw">if </span>config.tls_listen_addr().is_some()
+        || config.tls_identity_password().is_some()
+        || config.tls_identity_path().is_some()
+    {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ServerError::TlsNotSupported);
+    }
+
+    <span class="kw">let </span>listener = StdTcpListener::bind(config.listen_addr())<span class="question-mark">?</span>;
+    listener.set_nonblocking(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(listener.try_into()<span class="question-mark">?</span>)
+}
+
+<span class="kw">type </span>App = NormalizePath&lt;axum::Router&gt;;
+
+<span class="doccomment">/// Build the axum application with all routes and middleware.
+</span><span class="kw">fn </span>make_app(service: ServiceState) -&gt; App {
+    <span class="comment">// Build the router middleware into a single service which runs _after_ routing. Service
+    // builder order defines layers added first will be called first. This means:
+    //  - Requests go from top to bottom
+    //  - Responses go from bottom to top
+    </span><span class="kw">let </span>middleware = ServiceBuilder::new()
+        .layer(axum::middleware::from_fn(middlewares::metrics))
+        .layer(CatchPanicLayer::custom(middlewares::handle_panic))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::SERVER,
+            HeaderValue::from_static(constants::SERVER),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            HeaderName::from_static(<span class="string">&quot;cross-origin-resource-policy&quot;</span>),
+            HeaderValue::from_static(<span class="string">&quot;cross-origin&quot;</span>),
+        ))
+        .layer(NewSentryLayer::new_from_top())
+        .layer(SentryHttpLayer::with_transaction())
+        .layer(middlewares::trace_http_layer())
+        .map_request(middlewares::remove_empty_encoding)
+        .layer(RequestDecompressionLayer::new());
+
+    <span class="kw">let </span>router = <span class="kw">crate</span>::endpoints::routes(service.config())
+        .layer(middleware)
+        .with_state(service);
+
+    <span class="comment">// Add middlewares that need to run _before_ routing, which need to wrap the router. This are
+    // especially middlewares that modify the request path for the router:
+    </span>NormalizePath::new(router)
+}
+
+<span class="doccomment">/// HTTP server service.
+///
+/// This is the main HTTP server of Relay which hosts all [services](ServiceState) and dispatches
+/// incoming traffic to them. The server stops when a shutdown is triggered.
+</span><span class="kw">pub struct </span>HttpServer {
+    config: Arc&lt;Config&gt;,
+    service: ServiceState,
+    listener: TcpListener,
+}
+
 <span class="kw">impl </span>HttpServer {
     <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, service: ServiceState) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ServerError&gt; {
-        <span class="comment">// Inform the user about a removed feature.
-        </span><span class="kw">if </span>config.tls_listen_addr().is_some()
-            || config.tls_identity_password().is_some()
-            || config.tls_identity_path().is_some()
-        {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ServerError::TlsNotSupported);
-        }
+        <span class="kw">let </span>listener = listen(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ config, service })
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            config,
+            service,
+            listener,
+        })
     }
 }
 
@@ -205,83 +345,123 @@
     <span class="kw">type </span>Interface = ();
 
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, _rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="kw">let </span><span class="self">Self </span>{ config, service } = <span class="self">self</span>;
+        <span class="kw">let </span><span class="self">Self </span>{
+            config,
+            service,
+            listener,
+        } = <span class="self">self</span>;
 
-        <span class="comment">// Build the router middleware into a single service which runs _after_ routing. Service
-        // builder order defines layers added first will be called first. This means:
-        //  - Requests go from top to bottom
-        //  - Responses go from bottom to top
-        </span><span class="kw">let </span>middleware = ServiceBuilder::new()
-            .layer(axum::middleware::from_fn(middlewares::metrics))
-            .layer(CatchPanicLayer::custom(middlewares::handle_panic))
-            .layer(SetResponseHeaderLayer::overriding(
-                header::SERVER,
-                HeaderValue::from_static(constants::SERVER),
-            ))
-            .layer(SetResponseHeaderLayer::overriding(
-                HeaderName::from_static(<span class="string">&quot;cross-origin-resource-policy&quot;</span>),
-                HeaderValue::from_static(<span class="string">&quot;cross-origin&quot;</span>),
-            ))
-            .layer(NewSentryLayer::new_from_top())
-            .layer(SentryHttpLayer::with_transaction())
-            .layer(middlewares::trace_http_layer())
-            .layer(HandleErrorLayer::new(middlewares::decompression_error))
-            .map_request(middlewares::remove_empty_encoding)
-            .layer(RequestDecompressionLayer::new());
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;spawning http server&quot;</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">&quot;  listening on http://{}/&quot;</span>, config.listen_addr());
+        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
 
-        <span class="kw">let </span>router = <span class="kw">crate</span>::endpoints::routes(service.config())
-            .layer(middleware)
-            .with_state(service);
+        <span class="kw">let </span>app = make_app(service);
 
-        <span class="comment">// Bundle middlewares that need to run _before_ routing, which need to wrap the router.
-        // ConnectInfo is special as it needs to last.
-        </span><span class="kw">let </span>app = ServiceBuilder::new()
-            .layer(NormalizePathLayer::new())
-            .service(router)
-            .into_make_service_with_connect_info::&lt;SocketAddr&gt;();
+        tokio::spawn(serve(listener, app, config.clone()));
+    }
+}
 
-        <span class="kw">let </span>http_config = HttpConfig::new()
-            .http1_half_close(<span class="bool-val">true</span>)
-            .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
-            .http1_writev(<span class="bool-val">true</span>)
-            .http2_keep_alive_timeout(config.keepalive_timeout())
-            .build();
+<span class="kw">async fn </span>serve(<span class="kw-2">mut </span>listener: TcpListener, app: App, config: Arc&lt;Config&gt;) {
+    <span class="comment">// Create channels to track shutdown and open connections.
+    </span><span class="kw">let </span>hard_shutdown = monitor_hard_shutdown();
+    <span class="kw">let </span><span class="kw-2">mut </span>graceful_shutdown = Controller::shutdown_handle();
+    <span class="kw">let </span>(connections_tx, connections_rx) = watch::channel(());
 
-        <span class="kw">let </span>addr_config = AddrIncomingConfig::new()
-            .tcp_keepalive(<span class="prelude-val">Some</span>(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-            .tcp_keepalive_interval(<span class="prelude-val">Some</span>(config.keepalive_timeout()).filter(|d| !d.is_zero()))
-            .tcp_keepalive_retries(<span class="prelude-val">Some</span>(KEEPALIVE_RETRIES))
-            .build();
+    <span class="comment">// Create a connection builder to reuse across connections.
+    </span><span class="kw">let </span>builder = Arc::new(connection_builder(<span class="kw-2">&amp;</span>config));
 
-        <span class="kw">let </span>handle = Handle::new();
-        <span class="kw">match </span>TcpListener::bind(config.listen_addr()) {
-            <span class="prelude-val">Ok</span>(listener) =&gt; {
-                listener.set_nonblocking(<span class="bool-val">true</span>).ok();
-                <span class="kw">let </span>server = axum_server::from_tcp(listener)
-                    .http_config(http_config)
-                    .addr_incoming_config(addr_config)
-                    .handle(handle.clone());
+    <span class="kw">loop </span>{
+        <span class="kw">let </span>(stream, addr) = <span class="macro">tokio::select! </span>{
+            biased;
+            result = accept(<span class="kw-2">&amp;mut </span>listener) =&gt; result,
+            <span class="kw">_ </span>= graceful_shutdown.notified() =&gt; <span class="kw">break</span>, <span class="comment">// stop connecting on shutdown signal
+        </span>};
 
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;spawning http server&quot;</span>);
-                <span class="macro">relay_log::info!</span>(<span class="string">&quot;  listening on http://{}/&quot;</span>, config.listen_addr());
-                <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
-                tokio::spawn(server.serve(app));
-            }
-            <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to start the HTTP server: {err}&quot;</span>);
-                std::process::exit(<span class="number">1</span>);
-            }
-        }
+        <span class="comment">// We don&#39;t need to call `poll_ready` because `Router` is always ready.
+        </span><span class="kw">let </span>tower_service = axum::Extension(ConnectInfo(addr)).layer(app.clone());
+        <span class="kw">let </span>hyper_service = TowerToHyperService::new(tower_service);
+
+        <span class="kw">let </span>connection_rx = connections_rx.clone();
+        <span class="kw">let </span>hard_shutdown = hard_shutdown.clone();
+        <span class="kw">let </span>connection_builder = builder.clone();
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span>Shutdown { timeout } = Controller::shutdown_handle().notified().<span class="kw">await</span>;
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;Shutting down HTTP server&quot;</span>);
+            <span class="macro">tokio::select! </span>{
+                biased;
+                <span class="kw">_ </span>= connection_builder.serve_connection_with_upgrades(stream, hyper_service) =&gt; (),
+                <span class="kw">_ </span>= hard_shutdown.notified() =&gt; () <span class="comment">// keep polling until we reach hard shutdown
+            </span>}
 
-            <span class="kw">match </span>timeout {
-                <span class="prelude-val">Some</span>(timeout) =&gt; handle.graceful_shutdown(<span class="prelude-val">Some</span>(timeout)),
-                <span class="prelude-val">None </span>=&gt; handle.shutdown(),
-            }
+            drop(connection_rx);
         });
     }
+
+    <span class="comment">// Close the listener to stop accepting new connections.
+    </span>drop(listener);
+
+    <span class="comment">// Drop the last rx and wait for all open connections to close (or hard shutdown).
+    </span>drop(connections_rx);
+    connections_tx.closed().<span class="kw">await</span>;
+}
+
+<span class="kw">fn </span>connection_builder(config: <span class="kw-2">&amp;</span>Config) -&gt; Builder&lt;TokioExecutor&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>builder = Builder::new(TokioExecutor::new());
+
+    builder
+        .http1()
+        .timer(TokioTimer::new())
+        .half_close(<span class="bool-val">true</span>)
+        .header_read_timeout(CLIENT_HEADER_TIMEOUT)
+        .writev(<span class="bool-val">true</span>);
+
+    builder
+        .http2()
+        .timer(TokioTimer::new())
+        .keep_alive_timeout(config.keepalive_timeout());
+
+    builder
+}
+
+<span class="kw">fn </span>monitor_hard_shutdown() -&gt; Arc&lt;Notify&gt; {
+    <span class="kw">let </span>shutdown_tx = Arc::new(Notify::new());
+    <span class="kw">let </span>shutdown_rx = shutdown_tx.clone();
+
+    <span class="comment">// `finished()` is not thread-safe, so we need a dedicated task and a notify.
+    </span>tokio::spawn(<span class="kw">async move </span>{
+        Controller::shutdown_handle().finished().<span class="kw">await</span>;
+        shutdown_tx.notify_waiters();
+    });
+
+    shutdown_rx
+}
+
+<span class="kw">async fn </span>accept(listener: <span class="kw-2">&amp;mut </span>TcpListener) -&gt; (TokioIo&lt;TcpStream&gt;, SocketAddr) {
+    <span class="kw">loop </span>{
+        <span class="kw">match </span>listener.accept().<span class="kw">await </span>{
+            <span class="prelude-val">Ok</span>((stream, addr)) =&gt; <span class="kw">return </span>(TokioIo::new(stream), addr),
+            <span class="prelude-val">Err</span>(e) =&gt; {
+                <span class="comment">// Connection errors can be ignored directly, continue
+                // by accepting the next request.
+                </span><span class="kw">if </span>is_connection_error(<span class="kw-2">&amp;</span>e) {
+                    <span class="kw">continue</span>;
+                }
+
+                <span class="comment">// A possible scenario is that the process has hit the max open files allowed, and
+                // so trying to accept a new connection will fail with `EMFILE`. In some cases, it&#39;s
+                // preferable to just wait for some time, if the application will likely close some
+                // files (or connections), and try to accept the connection again.
+                </span>tokio::time::sleep(Duration::from_millis(<span class="number">50</span>)).<span class="kw">await
+            </span>}
+        }
+    }
+}
+
+<span class="kw">fn </span>is_connection_error(e: <span class="kw-2">&amp;</span>io::Error) -&gt; bool {
+    <span class="macro">matches!</span>(
+        e.kind(),
+        io::ErrorKind::ConnectionRefused
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::ConnectionReset
+    )
 }
 </code></pre></div></section></main></body></html>
