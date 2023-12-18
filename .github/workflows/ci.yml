@@ -271,7 +271,7 @@ jobs:
 
     steps:
       - name: Download Docker Image
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.image_name }}-docker-image
 
@@ -432,7 +432,7 @@ jobs:
           symbolicator: true
 
       - name: Download Docker Image
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: relay-docker-image
 
