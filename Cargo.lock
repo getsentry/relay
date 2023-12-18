@@ -3490,7 +3490,6 @@ version = "23.10.1"
 dependencies = [
  "criterion",
  "hashbrown 0.13.2",
- "itertools",
  "relay-log",
  "relay-redis",
  "relay-statsd",
