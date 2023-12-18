@@ -646,10 +646,10 @@ impl HitCounter {
     {
         for (scope, (hits, misses)) in self.0 {
             if hits > 0 {
-                metric!(counter(hit) += hits, scope = &scope.to_string());
+                metric!(counter(hit) += hits, scope = &scope);
             }
             if misses > 0 {
-                metric!(counter(miss) += misses, scope = &scope.to_string());
+                metric!(counter(miss) += misses, scope = &scope);
             }
         }
     }
