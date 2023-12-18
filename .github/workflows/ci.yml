@@ -222,7 +222,7 @@ jobs:
         run: docker save -o ${{ matrix.image_name }}-docker-image.tgz $IMG_VERSIONED
 
       - name: Upload Docker Image to Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}-docker-image
