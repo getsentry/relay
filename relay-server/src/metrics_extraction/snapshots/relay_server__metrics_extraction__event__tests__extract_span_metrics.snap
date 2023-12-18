@@ -1603,7 +1603,6 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
-            "transaction": "gEt /api/:version/users/",
         },
     },
     Bucket {
@@ -1623,7 +1622,6 @@ expression: metrics
             "span.domain": "*.domain.com",
             "span.group": "d744fa0716ef1142",
             "span.op": "resource.css",
-            "transaction": "gEt /api/:version/users/",
         },
     },
     Bucket {

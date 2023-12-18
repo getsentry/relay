@@ -30,6 +30,7 @@
 - Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
 - Org rate limit metrics per bucket. ([#2836](https://github.com/getsentry/relay/pull/2836))
 - Keep only domain and extension for image resource span grouping. ([#2826](https://github.com/getsentry/relay/pull/2826))
+- Parse timestamps from strings in span OpenTelemetry schema. ([#2857](https://github.com/getsentry/relay/pull/2857))
 
 ## 23.11.2
 
