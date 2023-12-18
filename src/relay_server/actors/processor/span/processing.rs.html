@@ -394,6 +394,7 @@
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -710,16 +711,17 @@
         .unwrap_or_default();
     op.contains(<span class="string">&quot;resource.script&quot;</span>)
         || op.contains(<span class="string">&quot;resource.css&quot;</span>)
-        || op == <span class="string">&quot;http.client&quot;
+        || op == <span class="string">&quot;resource.img&quot;
+        </span>|| op == <span class="string">&quot;http.client&quot;
         </span>|| op.starts_with(<span class="string">&quot;app.&quot;</span>)
         || op.starts_with(<span class="string">&quot;ui.load&quot;</span>)
         || op.starts_with(<span class="string">&quot;file&quot;</span>)
-        || op.starts_with(<span class="string">&quot;db&quot;</span>)
+        || (op.starts_with(<span class="string">&quot;db&quot;</span>)
             &amp;&amp; !(op.contains(<span class="string">&quot;clickhouse&quot;</span>)
                 || op.contains(<span class="string">&quot;mongodb&quot;</span>)
                 || op.contains(<span class="string">&quot;redis&quot;</span>)
                 || op.contains(<span class="string">&quot;compiler&quot;</span>))
-            &amp;&amp; !(op == <span class="string">&quot;db.sql.query&quot; </span>&amp;&amp; (description.contains(<span class="string">&quot;\&quot;$&quot;</span>) || system == <span class="string">&quot;mongodb&quot;</span>))
+            &amp;&amp; !(op == <span class="string">&quot;db.sql.query&quot; </span>&amp;&amp; (description.contains(<span class="string">&quot;\&quot;$&quot;</span>) || system == <span class="string">&quot;mongodb&quot;</span>)))
 }
 
 <span class="doccomment">/// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
