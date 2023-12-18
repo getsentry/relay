@@ -4,6 +4,7 @@ use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+use crate::utils::deserialize_number_from_string;
 use relay_event_schema::protocol::{Span as EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
 use relay_protocol::{Annotated, Object, Value};
 
@@ -69,6 +70,7 @@ pub struct OtelSpan {
     /// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
     ///
     /// This field is semantically required and it is expected that end_time >= start_time.
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub start_time_unix_nano: i64,
     /// end_time_unix_nano is the end time of the span. On the client side, this is the time
     /// kept by the local machine where the span execution ends. On the server side, this
@@ -76,6 +78,7 @@ pub struct OtelSpan {
     /// Value is UNIX Epoch time in nanoseconds since 00:00:00 UTC on 1 January 1970.
     ///
     /// This field is semantically required and it is expected that end_time >= start_time.
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub end_time_unix_nano: i64,
     /// attributes is a collection of key/value pairs. Note, global attributes
     /// like server name can be set using the resource API.
@@ -250,7 +253,7 @@ pub struct Event {
     /// This field is semantically required to be set to non-empty string.
     pub name: String,
     /// time_unix_nano is the time the event occurred.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_number_from_string")]
     pub time_unix_nano: u64,
 }
 
@@ -409,6 +412,7 @@ pub struct KeyValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{DateTime, Utc};
     use relay_protocol::{get_path, Annotated};
 
     #[test]
@@ -522,5 +526,26 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_span.into();
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
+    }
+
+    #[test]
+    fn parse_span_with_timestamps_as_strings() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "middleware - fastify -> @fastify/multipart",
+            "kind": 1,
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800"
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_span.into();
+        assert_eq!(
+            event_span.start_timestamp,
+            Annotated::new(Timestamp(
+                DateTime::<Utc>::from_timestamp(1697620454, 980000000).unwrap()
+            ))
+        );
     }
 }
