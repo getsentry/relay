@@ -3,7 +3,8 @@
 use std::convert::Infallible;
 
 use axum::extract::rejection::BytesRejection;
-use axum::extract::{DefaultBodyLimit, FromRequest, Request};
+use axum::extract::{DefaultBodyLimit, FromRequest};
+use axum::http::Request;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::{Json, RequestExt};
@@ -70,11 +71,16 @@ impl EnvelopeParams {
 }
 
 #[axum::async_trait]
-impl FromRequest<ServiceState> for EnvelopeParams {
+impl<B> FromRequest<ServiceState, B> for EnvelopeParams
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
     type Rejection = BadEnvelopeParams;
 
     async fn from_request(
-        mut request: Request,
+        mut request: Request<B>,
         state: &ServiceState,
     ) -> Result<Self, Self::Rejection> {
         let result = request.extract_parts_with_state(state).await;
@@ -119,6 +125,11 @@ async fn handle(
     Ok(Json(StoreResponse { id }))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
     post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
 }

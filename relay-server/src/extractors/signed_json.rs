@@ -1,6 +1,6 @@
 use axum::extract::rejection::BytesRejection;
-use axum::extract::{FromRequest, Request};
-use axum::http::StatusCode;
+use axum::extract::FromRequest;
+use axum::http::{Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use relay_auth::{RelayId, UnpackError};
@@ -72,13 +72,19 @@ fn get_header<'a, B>(
 }
 
 #[axum::async_trait]
-impl<T> FromRequest<ServiceState> for SignedJson<T>
+impl<T, B> FromRequest<ServiceState, B> for SignedJson<T>
 where
     T: DeserializeOwned,
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
 {
     type Rejection = SignatureError;
 
-    async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
+    async fn from_request(
+        request: Request<B>,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
         let relay_id = get_header(&request, "x-sentry-relay-id")?
             .parse::<RelayId>()
             .map_err(|_| SignatureError::MalformedHeader("x-sentry-relay-id"))?;
