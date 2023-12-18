@@ -74,7 +74,7 @@ local HASHES_OFFSET = 2 -- arg1: max_cardinality, arg2: expiry
 
 local working_set = KEYS[1]
 local max_cardinality = tonumber(ARGV[1])
-local expire = tonumber(ARGV[2])
+local expiry = tonumber(ARGV[2])
 local num_hashes = #ARGV - HASHES_OFFSET
 
 local results = {
@@ -105,7 +105,7 @@ end
 -- Bumps to expiry of all sets by the passed expiry
 local function bump_expiry()
     for _, key in ipairs(KEYS) do
-        redis.call('EXPIRE', key, expire)
+        redis.call('EXPIRE', key, expiry)
     end
 end
 
@@ -159,6 +159,7 @@ if budget <= 0 and offset < #ARGV then
     for arg_i = offset + 1, #ARGV do
         local value = ARGV[arg_i]
 
+        -- Can be optimized with `SMISMEMBER` once we switch to Redis 6.2.
         if redis.call('SISMEMBER', working_set, value) == 1 then
             table.insert(results, ACCEPTED)
         else

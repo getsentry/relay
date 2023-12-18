@@ -9,7 +9,7 @@ use relay_redis::{
     redis::{self, FromRedisValue, Script},
     Connection, RedisPool,
 };
-use relay_statsd::metric;
+use relay_statsd::{metric, CounterMetric};
 
 use crate::{
     limiter::{CardinalityScope, Entry, EntryId, Limiter, Rejection},
@@ -51,8 +51,7 @@ impl FromRedisValue for Status {
 #[derive(Debug)]
 struct CardinalityScriptResult {
     cardinality: u64,
-    rejected: usize,
-    stati: Vec<Status>,
+    statuses: Vec<Status>,
 }
 
 impl FromRedisValue for CardinalityScriptResult {
@@ -76,20 +75,14 @@ impl FromRedisValue for CardinalityScriptResult {
             })
             .and_then(FromRedisValue::from_redis_value)?;
 
-        let mut stati = Vec::with_capacity(iter.len());
-        let mut rejected = 0;
+        let mut statuses = Vec::with_capacity(iter.len());
         for value in iter {
-            let status = Status::from_redis_value(value)?;
-            if status.is_rejected() {
-                rejected += 1;
-            }
-            stati.push(status);
+            statuses.push(Status::from_redis_value(value)?);
         }
 
         Ok(Self {
             cardinality,
-            rejected,
-            stati,
+            statuses,
         })
     }
 }
@@ -104,8 +97,8 @@ impl CardinalityScript {
         con: &mut Connection,
         limit: usize,
         expire: u64,
-        keys: impl Iterator<Item = String>,
         hashes: impl Iterator<Item = u32>,
+        keys: impl Iterator<Item = String>,
     ) -> Result<CardinalityScriptResult> {
         let mut invocation = self.0.prepare_invoke();
 
@@ -126,11 +119,14 @@ impl CardinalityScript {
             .invoke(con)
             .map_err(relay_redis::RedisError::Redis)?;
 
-        if num_hashes != result.stati.len() {
+        if num_hashes != result.statuses.len() {
             return Err(relay_redis::RedisError::Redis(redis::RedisError::from((
                 redis::ErrorKind::ResponseError,
                 "Script returned an invalid number of elements",
-                format!("Expected {num_hashes} results, got {}", result.stati.len()),
+                format!(
+                    "Expected {num_hashes} results, got {}",
+                    result.statuses.len()
+                ),
             )))
             .into());
         }
@@ -141,14 +137,14 @@ impl CardinalityScript {
 
 struct CheckedLimits {
     entries: Vec<RedisEntry>,
-    stati: Vec<Status>,
+    statuses: Vec<Status>,
 }
 
 impl CheckedLimits {
     fn empty() -> Self {
         Self {
             entries: Vec::new(),
-            stati: Vec::new(),
+            statuses: Vec::new(),
         }
     }
 }
@@ -160,10 +156,10 @@ impl IntoIterator for CheckedLimits {
     fn into_iter(self) -> Self::IntoIter {
         debug_assert_eq!(
             self.entries.len(),
-            self.stati.len(),
-            "expected same amount of entries as stati"
+            self.statuses.len(),
+            "expected same amount of entries as statuses"
         );
-        std::iter::zip(self.entries, self.stati)
+        std::iter::zip(self.entries, self.statuses)
     }
 }
 
@@ -208,11 +204,7 @@ impl RedisSetLimiter {
         }
 
         metric!(
-            counter(CardinalityLimiterCounters::RedisRead) += 1,
-            scope = &item_scope,
-        );
-        metric!(
-            counter(CardinalityLimiterCounters::RedisHashCheck) += entries.len() as i64,
+            histogram(CardinalityLimiterHistograms::RedisHashCheckSize) = entries.len() as u64,
             scope = &item_scope,
         );
 
@@ -227,29 +219,16 @@ impl RedisSetLimiter {
         // but since this is only used for cleanup, this is not an issue.
         let result = self
             .script
-            .invoke(con, limit, self.window.window_seconds, keys, hashes)?;
+            .invoke(con, limit, self.window.window_seconds, hashes, keys)?;
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
             scope = &item_scope,
         );
 
-        if result.rejected > 0 {
-            relay_log::debug!(
-                organization_id = organization_id,
-                scope = &item_scope,
-                "rejected {} metrics due to cardinality limit",
-                result.rejected,
-            );
-            metric!(
-                counter(CardinalityLimiterCounters::Rejected) += result.rejected as i64,
-                scope = &item_scope,
-            );
-        }
-
         Ok(CheckedLimits {
             entries,
-            stati: result.stati,
+            statuses: result.statuses,
         })
     }
 
@@ -310,7 +289,8 @@ impl Limiter for RedisSetLimiter {
         // There are currently 5 metric namespaces and we know the scope is currently only the
         // metric namespace -> we can be smart about it and pre-allocate the hashmap.
         let mut entries_by_scope = HashMap::with_capacity(5);
-        let mut cache_hits = CacheHits::default();
+        let mut cache_hits = HitCounter::default();
+        let mut acceptions_rejections = HitCounter::default();
 
         let cache = self.cache.read(organization_id, cache_window, limit);
         for Entry { id, scope, hash } in entries {
@@ -318,15 +298,17 @@ impl Limiter for RedisSetLimiter {
             match cache.check(&item_scope, hash) {
                 CacheOutcome::Accepted => {
                     // Accepted already, nothing to do.
-                    cache_hits.hit(scope);
+                    cache_hits.hit(&item_scope);
+                    acceptions_rejections.hit(&item_scope);
                 }
                 CacheOutcome::Rejected => {
                     // Rejected, add it to the rejected list and move on.
                     rejected.push(Rejection::new(id));
-                    cache_hits.hit(scope);
+                    cache_hits.hit(&item_scope);
+                    acceptions_rejections.miss(&item_scope);
                 }
                 CacheOutcome::Unknown => {
-                    cache_hits.miss(scope);
+                    cache_hits.miss(&item_scope);
 
                     let key = (organization_id, item_scope);
                     let entry = RedisEntry::new(id, hash);
@@ -341,7 +323,10 @@ impl Limiter for RedisSetLimiter {
         // Give up cache lock!
         drop(cache);
 
-        cache_hits.report();
+        cache_hits.report(
+            CardinalityLimiterCounters::RedisHashCacheHit,
+            CardinalityLimiterCounters::RedisHashCacheMiss,
+        );
 
         let mut client = self.redis.client()?;
         let mut connection = client.connection()?;
@@ -363,12 +348,27 @@ impl Limiter for RedisSetLimiter {
 
             for (entry, status) in results {
                 if status.is_rejected() {
+                    acceptions_rejections.miss(&item_scope);
                     rejected.push(entry.rejection());
                 } else {
+                    acceptions_rejections.hit(&item_scope);
                     cache.accept(entry.hash);
                 }
             }
         }
+
+        if !rejected.is_empty() {
+            relay_log::debug!(
+                organization_id = organization_id,
+                "rejected {} metrics due to cardinality limit",
+                rejected.len(),
+            );
+        }
+
+        acceptions_rejections.report(
+            CardinalityLimiterCounters::Accepted,
+            CardinalityLimiterCounters::Rejected,
+        );
 
         Ok(Box::new(rejected.into_iter()))
     }
@@ -625,42 +625,40 @@ impl hashbrown::Equivalent<CacheKey> for CacheKeyRef<'_> {
 
 /// Helper to aggregate cache hits by scope before reporting them to statsd.
 #[derive(Debug)]
-struct CacheHits<T: CardinalityScope>(HashMap<T, (i64, i64)>);
+struct HitCounter(hashbrown::HashMap<String, (i64, i64)>);
 
-impl<T: CardinalityScope> CacheHits<T> {
+impl HitCounter {
     /// Tracks a hit for a scope.
-    fn hit(&mut self, scope: T) {
-        self.0.entry(scope).or_default().0 += 1;
+    fn hit(&mut self, scope: &str) {
+        self.0.entry_ref(scope).or_default().0 += 1;
     }
 
     /// Tracks a miss for a scope.
-    fn miss(&mut self, scope: T) {
-        self.0.entry(scope).or_default().1 += 1;
+    fn miss(&mut self, scope: &str) {
+        self.0.entry_ref(scope).or_default().1 += 1;
     }
 
     /// Consumes all counters and reports to statsd.
-    fn report(self) {
+    fn report<H, M>(self, hit: H, miss: M)
+    where
+        H: CounterMetric,
+        M: CounterMetric,
+    {
         for (scope, (hits, misses)) in self.0 {
             if hits > 0 {
-                metric!(
-                    counter(CardinalityLimiterCounters::RedisHashCacheHit) += hits,
-                    scope = &scope.to_string()
-                );
+                metric!(counter(hit) += hits, scope = &scope.to_string());
             }
             if misses > 0 {
-                metric!(
-                    counter(CardinalityLimiterCounters::RedisHashCacheMiss) += misses,
-                    scope = &scope.to_string()
-                );
+                metric!(counter(miss) += misses, scope = &scope.to_string());
             }
         }
     }
 }
 
-impl<T: CardinalityScope> Default for CacheHits<T> {
+impl Default for HitCounter {
     fn default() -> Self {
         // We know that currently the only scope being tracked is a `MetricNamespace`.
-        Self(HashMap::with_capacity(5))
+        Self(hashbrown::HashMap::with_capacity(5))
     }
 }
 
