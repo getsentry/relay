@@ -1,9 +1,11 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
-use relay_common::{MetricUnit, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    CounterType, DistributionType, DurationUnit, Metric, MetricNamespace, MetricValue,
+    Bucket, BucketValue, DistributionType, DurationUnit, MetricNamespace, MetricResourceIdentifier,
+    MetricUnit,
 };
 
 use crate::metrics_extraction::IntoMetric;
@@ -21,20 +23,28 @@ pub enum TransactionMetric {
         value: DistributionType,
         tags: TransactionDurationTags,
     },
+    /// A distribution metric for the transaction duration with limited tags.
+    DurationLight {
+        unit: DurationUnit,
+        value: DistributionType,
+        tags: LightTransactionTags,
+    },
+    /// An internal counter metric that tracks transaction usage.
+    ///
+    /// This metric does not have any of the common tags for the performance product, but instead
+    /// carries internal information for accounting purposes.
+    Usage { tags: UsageTags },
     /// An internal counter metric used to compute dynamic sampling biases.
     ///
     /// See '<https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40>'.
-    CountPerRootProject {
-        value: CounterType,
-        tags: TransactionCPRTags,
-    },
-    /// A metric created from [`relay_general::protocol::Breakdowns`].
+    CountPerRootProject { tags: TransactionCPRTags },
+    /// A metric created from [`relay_event_schema::protocol::Breakdowns`].
     Breakdown {
         name: String,
         value: DistributionType,
         tags: CommonTags,
     },
-    /// A metric created from a [`relay_general::protocol::Measurement`].
+    /// A metric created from a [`relay_event_schema::protocol::Measurement`].
     Measurement {
         name: String,
         value: DistributionType,
@@ -44,54 +54,72 @@ pub enum TransactionMetric {
 }
 
 impl IntoMetric for TransactionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
         let namespace = MetricNamespace::Transactions;
-        match self {
-            TransactionMetric::User { value, tags } => Metric::new_mri(
-                namespace,
-                "user",
+
+        let (name, value, unit, tags) = match self {
+            Self::User { value, tags } => (
+                Cow::Borrowed("user"),
+                BucketValue::set_from_str(&value),
                 MetricUnit::None,
-                MetricValue::set_from_str(&value),
-                timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Breakdown { value, tags, name } => Metric::new_mri(
-                namespace,
-                format!("breakdowns.{name}").as_str(),
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(value),
-                timestamp,
-                tags.into(),
-            ),
-            TransactionMetric::CountPerRootProject { value, tags } => Metric::new_mri(
-                namespace,
-                "count_per_root_project",
-                MetricUnit::None,
-                MetricValue::Counter(value),
-                timestamp,
-                tags.into(),
-            ),
-            TransactionMetric::Duration { unit, value, tags } => Metric::new_mri(
-                namespace,
-                "duration",
+            Self::Duration { unit, value, tags } => (
+                Cow::Borrowed("duration"),
+                BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
-                MetricValue::Distribution(value),
-                timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Measurement {
-                name: kind,
+            Self::DurationLight { unit, value, tags } => (
+                Cow::Borrowed("duration_light"),
+                BucketValue::distribution(value),
+                MetricUnit::Duration(unit),
+                tags.into(),
+            ),
+            Self::Usage { tags } => (
+                Cow::Borrowed("usage"),
+                BucketValue::counter(1.0),
+                MetricUnit::None,
+                tags.into(),
+            ),
+            Self::CountPerRootProject { tags } => (
+                Cow::Borrowed("count_per_root_project"),
+                BucketValue::counter(1.0),
+                MetricUnit::None,
+                tags.into(),
+            ),
+            Self::Breakdown { name, value, tags } => (
+                Cow::Owned(format!("breakdowns.{name}")),
+                BucketValue::distribution(value),
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                tags.into(),
+            ),
+            Self::Measurement {
+                name,
                 value,
                 unit,
                 tags,
-            } => Metric::new_mri(
-                namespace,
-                format!("measurements.{kind}").as_str(),
+            } => (
+                Cow::Owned(format!("measurements.{name}")),
+                BucketValue::distribution(value),
                 unit,
-                MetricValue::Distribution(value),
-                timestamp,
                 tags.into(),
             ),
+        };
+
+        let mri = MetricResourceIdentifier {
+            ty: value.ty(),
+            namespace,
+            name,
+            unit,
+        };
+
+        Bucket {
+            timestamp,
+            width: 0,
+            name: mri.to_string(),
+            value,
+            tags,
         }
     }
 }
@@ -105,6 +133,36 @@ pub struct TransactionDurationTags {
 impl From<TransactionDurationTags> for BTreeMap<String, String> {
     fn from(tags: TransactionDurationTags) -> Self {
         let mut map: BTreeMap<String, String> = tags.universal_tags.into();
+        if tags.has_profile {
+            map.insert("has_profile".to_string(), "true".to_string());
+        }
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub struct LightTransactionTags {
+    pub transaction: Option<String>,
+}
+
+impl From<LightTransactionTags> for BTreeMap<String, String> {
+    fn from(tags: LightTransactionTags) -> Self {
+        let mut map = BTreeMap::new();
+        if let Some(transaction) = tags.transaction {
+            map.insert(CommonTag::Transaction.to_string(), transaction);
+        }
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub struct UsageTags {
+    pub has_profile: bool,
+}
+
+impl From<UsageTags> for BTreeMap<String, String> {
+    fn from(tags: UsageTags) -> Self {
+        let mut map = BTreeMap::new();
         if tags.has_profile {
             map.insert("has_profile".to_string(), "true".to_string());
         }
@@ -170,6 +228,7 @@ pub enum CommonTag {
     BrowserName,
     OsName,
     GeoCountryCode,
+    DeviceClass,
     Custom(String),
 }
 
@@ -188,6 +247,7 @@ impl Display for CommonTag {
             CommonTag::BrowserName => "browser.name",
             CommonTag::OsName => "os.name",
             CommonTag::GeoCountryCode => "geo.country_code",
+            CommonTag::DeviceClass => "device.class",
             CommonTag::Custom(s) => s,
         };
         write!(f, "{name}")
@@ -203,8 +263,8 @@ pub enum ExtractMetricsError {
     /// The event timestamp is outside the supported range.
     ///
     /// The supported range is derived from the
-    /// [`max_secs_in_past`](relay_metrics::AggregatorConfig::max_secs_in_past) and
-    /// [`max_secs_in_future`](relay_metrics::AggregatorConfig::max_secs_in_future) configuration options.
+    /// [`max_secs_in_past`](relay_metrics::aggregator::AggregatorConfig::max_secs_in_past) and
+    /// [`max_secs_in_future`](relay_metrics::aggregator::AggregatorConfig::max_secs_in_future) configuration options.
     #[error("timestamp too old or too far in the future")]
     InvalidTimestamp,
 }

@@ -5,10 +5,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, HttpEncoding};
-use relay_general::protocol::ClientReport;
-use relay_metrics::{Aggregator, Bucket, MergeBuckets};
+use relay_event_schema::protocol::ClientReport;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
@@ -137,26 +136,11 @@ pub struct SendClientReports {
     pub scoping: Scoping,
 }
 
-/// Sends a batch of pre-aggregated metrics to the upstream or Kafka.
-///
-/// Responds with `Err` if there was an error sending some or all of the buckets, containing the
-/// failed buckets.
-#[derive(Debug)]
-pub struct SendMetrics {
-    /// The pre-aggregated metric buckets.
-    pub buckets: Vec<Bucket>,
-    /// Scoping information for the metrics.
-    pub scoping: Scoping,
-    /// The key of the logical partition to send the metrics to.
-    pub partition_key: Option<u64>,
-}
-
 /// Dispatch service for generating and submitting Envelopes.
 #[derive(Debug)]
 pub enum EnvelopeManager {
     SubmitEnvelope(Box<SubmitEnvelope>),
     SendClientReports(SendClientReports),
-    SendMetrics(SendMetrics),
 }
 
 impl relay_system::Interface for EnvelopeManager {}
@@ -177,14 +161,6 @@ impl FromMessage<SendClientReports> for EnvelopeManager {
     }
 }
 
-impl FromMessage<SendMetrics> for EnvelopeManager {
-    type Response = NoResponse;
-
-    fn from_message(message: SendMetrics, _: ()) -> Self {
-        Self::SendMetrics(message)
-    }
-}
-
 /// Service implementing the [`EnvelopeManager`] interface.
 ///
 /// This service will produce envelopes to one the following backends:
@@ -196,7 +172,6 @@ impl FromMessage<SendMetrics> for EnvelopeManager {
 #[derive(Debug)]
 pub struct EnvelopeManagerService {
     config: Arc<Config>,
-    aggregator: Addr<Aggregator>,
     enveloper_processor: Addr<EnvelopeProcessor>,
     project_cache: Addr<ProjectCache>,
     test_store: Addr<TestStore>,
@@ -209,7 +184,6 @@ impl EnvelopeManagerService {
     /// Creates a new instance of the [`EnvelopeManager`] service.
     pub fn new(
         config: Arc<Config>,
-        aggregator: Addr<Aggregator>,
         enveloper_processor: Addr<EnvelopeProcessor>,
         project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
@@ -217,7 +191,6 @@ impl EnvelopeManagerService {
     ) -> Self {
         Self {
             config,
-            aggregator,
             enveloper_processor,
             project_cache,
             test_store,
@@ -238,7 +211,7 @@ impl EnvelopeManagerService {
         &self,
         mut envelope: Box<Envelope>,
         scoping: Scoping,
-        partition_key: Option<String>,
+        partition_key: Option<u64>,
     ) -> Result<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
         {
@@ -280,7 +253,7 @@ impl EnvelopeManagerService {
             http_encoding: self.config.http_encoding(),
             response_sender: tx,
             project_key: scoping.project_key,
-            partition_key,
+            partition_key: partition_key.map(|k| k.to_string()),
         };
 
         if let HttpEncoding::Identity = request.http_encoding {
@@ -300,9 +273,13 @@ impl EnvelopeManagerService {
         let SubmitEnvelope { mut envelope } = message;
 
         let scoping = envelope.scoping();
+        let partition_key = envelope.partition_key();
 
         let inner_envelope = envelope.take_envelope();
-        match self.submit_envelope(inner_envelope, scoping, None).await {
+        match self
+            .submit_envelope(inner_envelope, scoping, partition_key)
+            .await
+        {
             Ok(_) => {
                 envelope.accept();
             }
@@ -327,40 +304,6 @@ impl EnvelopeManagerService {
         }
     }
 
-    async fn handle_send_metrics(&self, message: SendMetrics) {
-        let SendMetrics {
-            buckets,
-            scoping,
-            partition_key,
-        } = message;
-
-        let upstream = self.config.upstream_descriptor();
-        let dsn = PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: "".to_owned(),
-            project_id: Some(scoping.project_id),
-        };
-
-        let mut item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(ContentType::Json, Bucket::serialize_all(&buckets).unwrap());
-        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
-        envelope.add_item(item);
-
-        let partition_key = partition_key.map(|x| x.to_string());
-        let result = self.submit_envelope(envelope, scoping, partition_key).await;
-        if let Err(err) = result {
-            relay_log::trace!(
-                error = &err as &dyn Error,
-                "failed to submit the envelope, merging buckets back",
-            );
-            self.aggregator
-                .send(MergeBuckets::new(scoping.project_key, buckets));
-        }
-    }
-
     async fn handle_send_client_reports(&self, message: SendClientReports) {
         let SendClientReports {
             client_reports,
@@ -368,14 +311,7 @@ impl EnvelopeManagerService {
         } = message;
 
         let upstream = self.config.upstream_descriptor();
-        let dsn = PartialDsn {
-            scheme: upstream.scheme(),
-            public_key: scoping.project_key,
-            host: upstream.host().to_owned(),
-            port: upstream.port(),
-            path: "".to_owned(),
-            project_id: Some(scoping.project_id),
-        };
+        let dsn = PartialDsn::outbound(&scoping, upstream);
 
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         for client_report in client_reports {
@@ -399,9 +335,6 @@ impl EnvelopeManagerService {
             }
             EnvelopeManager::SendClientReports(message) => {
                 self.handle_send_client_reports(message).await;
-            }
-            EnvelopeManager::SendMetrics(message) => {
-                self.handle_send_metrics(message).await;
             }
         }
     }

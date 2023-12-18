@@ -1,4 +1,5 @@
 use std::fmt;
+use std::time::Duration;
 
 use r2d2::{Pool, PooledConnection};
 pub use redis;
@@ -78,18 +79,38 @@ enum PooledClientInner {
 
 /// A pooled Redis client.
 pub struct PooledClient {
+    opts: RedisConfigOptions,
     inner: PooledClientInner,
 }
 
 impl PooledClient {
     /// Returns a pooled connection to this client.
-    pub fn connection(&mut self) -> Connection<'_> {
+    ///
+    /// When the connection is fetched from the pool, we also set the read and write timeouts to
+    /// the configured values.
+    pub fn connection(&mut self) -> Result<Connection<'_>, RedisError> {
         let inner = match self.inner {
-            PooledClientInner::Cluster(ref mut client) => ConnectionInner::Cluster(client),
-            PooledClientInner::Single(ref mut client) => ConnectionInner::Single(client),
+            PooledClientInner::Cluster(ref mut client) => {
+                client
+                    .set_read_timeout(Some(Duration::from_secs(self.opts.read_timeout)))
+                    .map_err(RedisError::Redis)?;
+                client
+                    .set_write_timeout(Some(Duration::from_secs(self.opts.write_timeout)))
+                    .map_err(RedisError::Redis)?;
+                ConnectionInner::Cluster(client)
+            }
+            PooledClientInner::Single(ref mut client) => {
+                client
+                    .set_read_timeout(Some(Duration::from_secs(self.opts.read_timeout)))
+                    .map_err(RedisError::Redis)?;
+                client
+                    .set_write_timeout(Some(Duration::from_secs(self.opts.write_timeout)))
+                    .map_err(RedisError::Redis)?;
+                ConnectionInner::Single(client)
+            }
         };
 
-        Connection { inner }
+        Ok(Connection { inner })
     }
 }
 
@@ -118,6 +139,7 @@ impl fmt::Debug for RedisPoolInner {
 /// upstreaming to the redis crate.
 #[derive(Clone, Debug)]
 pub struct RedisPool {
+    opts: RedisConfigOptions,
     inner: RedisPoolInner,
 }
 
@@ -127,41 +149,47 @@ impl RedisPool {
         match config {
             RedisConfig::Cluster {
                 ref cluster_nodes,
-                ref options,
+                options,
             } => {
                 let servers = cluster_nodes.iter().map(String::as_str).collect();
-                Self::cluster(servers, options)
+                Self::cluster(servers, options.clone())
             }
-            RedisConfig::Single(ref server) => Self::single(server, &RedisConfigOptions::default()),
+            RedisConfig::Single(ref server) => Self::single(server, RedisConfigOptions::default()),
             RedisConfig::SingleWithOpts {
                 ref server,
-                ref options,
-            } => Self::single(server, options),
+                options,
+            } => Self::single(server, options.clone()),
         }
     }
 
     /// Creates a `RedisPool` in cluster configuration.
-    pub fn cluster(servers: Vec<&str>, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+    pub fn cluster(servers: Vec<&str>, opts: RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(false)
+            .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
+            .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
+            .connection_timeout(Duration::from_secs(opts.connection_timeout))
             .build(redis::cluster::ClusterClient::new(servers).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
         let inner = RedisPoolInner::Cluster(pool);
-        Ok(RedisPool { inner })
+        Ok(RedisPool { opts, inner })
     }
 
     /// Creates a `RedisPool` in single-node configuration.
-    pub fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+    pub fn single(server: &str, opts: RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(false)
+            .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
+            .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
+            .connection_timeout(Duration::from_secs(opts.connection_timeout))
             .build(redis::Client::open(server).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
         let inner = RedisPoolInner::Single(pool);
-        Ok(RedisPool { inner })
+        Ok(RedisPool { opts, inner })
     }
 
     /// Returns a pooled connection to a client.
@@ -175,6 +203,9 @@ impl RedisPool {
             }
         };
 
-        Ok(PooledClient { inner })
+        Ok(PooledClient {
+            opts: self.opts.clone(),
+            inner,
+        })
     }
 }

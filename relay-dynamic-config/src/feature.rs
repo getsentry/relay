@@ -11,6 +11,11 @@ pub enum Feature {
     /// Enables data scrubbing of replay recording payloads.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
+    /// Enables new User Feedback ingest.
+    ///
+    /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
+    #[serde(rename = "organizations:user-feedback-ingest")]
+    UserReportV2Ingest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
@@ -19,9 +24,24 @@ pub enum Feature {
     /// Enables metric extraction from spans.
     #[serde(rename = "projects:span-metrics-extraction")]
     SpanMetricsExtraction,
-    /// Extract spans from transactions and convert them to standalone spans.
-    #[serde(rename = "projects:extract-standalone-spans")]
-    ExtractStandaloneSpans,
+    /// Allow ingestion of metrics in the "custom" namespace.
+    #[serde(rename = "organizations:custom-metrics")]
+    CustomMetrics,
+    /// Enable extracting spans for all modules.
+    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
+    SpanMetricsExtractionAllModules,
+    /// Enable processing profiles
+    #[serde(rename = "organizations:profiling")]
+    Profiling,
+    /// Enable standalone span ingestion.
+    #[serde(rename = "organizations:standalone-span-ingestion")]
+    StandaloneSpanIngestion,
+    /// Enable metric metadata.
+    #[serde(rename = "organizations:metric-meta")]
+    MetricMeta,
+    /// Enable the Relay cardinality limiter.
+    #[serde(rename = "organizations:relay-cardinality-limiter")]
+    CardinalityLimiter,
     /// Enable processing and extracting data from non dinamycally sampled profiles.
     /// Only some data for slowest function aggregation will be used. The profile
     /// itself won't be stored on GCS.
@@ -35,8 +55,11 @@ pub enum Feature {
     #[serde(rename = "organizations:transaction-name-normalize")]
     Deprecated2,
     /// Deprecated, still forwarded for older downstream Relays.
-    #[serde(rename = "organizations:profiling")]
-    Deprecated3,
+    #[serde(rename = "projects:extract-standalone-spans")]
+    Deprecated4,
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[serde(rename = "projects:span-metrics-extraction-resource")]
+    Deprecated5,
     /// Forward compatibility.
     #[serde(other)]
     Unknown,
@@ -51,6 +74,17 @@ impl FeatureSet {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Returns `true` if the given feature is in the set.
+    pub fn has(&self, feature: Feature) -> bool {
+        self.0.contains(&feature)
+    }
+}
+
+impl FromIterator<Feature> for FeatureSet {
+    fn from_iter<T: IntoIterator<Item = Feature>>(iter: T) -> Self {
+        Self(BTreeSet::from_iter(iter))
+    }
 }
 
 impl<'de> Deserialize<'de> for FeatureSet {
@@ -63,6 +97,7 @@ impl<'de> Deserialize<'de> for FeatureSet {
         Ok(Self(set))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

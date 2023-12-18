@@ -16,8 +16,10 @@
 )]
 #![warn(missing_docs)]
 
-use relay_common::Uuid;
+use once_cell::sync::OnceCell;
+use relay_base_schema::project::ProjectId;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Maximum length of monitor slugs.
 const SLUG_LENGTH: usize = 50;
@@ -95,7 +97,7 @@ pub struct MonitorConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     checkin_margin: Option<u64>,
 
-    /// How long (in minutes) is the checkin allowed to run for in in_rogress before it is
+    /// How long (in minutes) is the check-in allowed to run for in in_progress before it is
     /// considered failed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_runtime: Option<u64>,
@@ -103,6 +105,14 @@ pub struct MonitorConfig {
     /// tz database style timezone string
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timezone: Option<String>,
+
+    /// How many consecutive failed check-ins it takes to create an issue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    failure_issue_threshold: Option<u64>,
+
+    /// How many consecutive OK check-ins it takes to resolve an issue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    recovery_threshold: Option<u64>,
 }
 
 /// The trace context sent with a check-in.
@@ -125,10 +135,11 @@ pub struct CheckInContexts {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckIn {
     /// Unique identifier of this check-in.
-    #[serde(serialize_with = "uuid_simple")]
+    #[serde(default, serialize_with = "uuid_simple")]
     pub check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.
+    #[serde(default)]
     pub monitor_slug: String,
 
     /// Status of this check-in. Defaults to `"unknown"`.
@@ -152,8 +163,23 @@ pub struct CheckIn {
     pub contexts: Option<CheckInContexts>,
 }
 
+/// The result from calling process_check_in
+pub struct ProcessedCheckInResult {
+    /// The routing key to be used for the check-in payload.
+    ///
+    /// Important to help ensure monitor check-ins are processed in order by routing check-ins from
+    /// the same monitor to the same place.
+    pub routing_hint: Uuid,
+
+    /// The JSON payload of the processed check-in.
+    pub payload: Vec<u8>,
+}
+
 /// Normalizes a monitor check-in payload.
-pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> {
+pub fn process_check_in(
+    payload: &[u8],
+    project_id: ProjectId,
+) -> Result<ProcessedCheckInResult, ProcessCheckInError> {
     let mut check_in = serde_json::from_slice::<CheckIn>(payload)?;
 
     // Missed status cannot be ingested, this is computed on the server.
@@ -175,7 +201,22 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
         return Err(ProcessCheckInError::InvalidEnvironment);
     }
 
-    Ok(serde_json::to_vec(&check_in)?)
+    static NAMESPACE: OnceCell<Uuid> = OnceCell::new();
+    let namespace = NAMESPACE
+        .get_or_init(|| Uuid::new_v5(&Uuid::NAMESPACE_URL, b"https://sentry.io/crons/#did"));
+
+    // Use the project_id + monitor_slug as the routing key hint. This helps ensure monitor
+    // check-ins are processed in order by consistently routing check-ins from the same monitor.
+
+    let slug = &check_in.monitor_slug;
+    let project_id_slug_key = format!("{project_id}:{slug}");
+
+    let routing_hint = Uuid::new_v5(namespace, project_id_slug_key.as_bytes());
+
+    Ok(ProcessedCheckInResult {
+        routing_hint,
+        payload: serde_json::to_vec(&check_in)?,
+    })
 }
 
 fn trim_slug(slug: &mut String) {
@@ -202,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn process_json_roundtrip() {
+    fn serialize_json_roundtrip() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
@@ -223,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn process_with_upsert_short() {
+    fn serialize_with_upsert_short() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
@@ -243,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn process_with_upsert_interval() {
+    fn serialize_with_upsert_interval() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
@@ -256,7 +297,9 @@ mod tests {
     },
     "checkin_margin": 5,
     "max_runtime": 10,
-    "timezone": "America/Los_Angles"
+    "timezone": "America/Los_Angles",
+    "failure_issue_threshold": 3,
+    "recovery_threshold": 1
   }
 }"#;
 
@@ -267,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn process_with_upsert_full() {
+    fn serialize_with_upsert_full() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
@@ -279,7 +322,9 @@ mod tests {
     },
     "checkin_margin": 5,
     "max_runtime": 10,
-    "timezone": "America/Los_Angles"
+    "timezone": "America/Los_Angles",
+    "failure_issue_threshold": 3,
+    "recovery_threshold": 1
   }
 }"#;
 
@@ -290,6 +335,23 @@ mod tests {
     }
 
     #[test]
+    fn process_simple() {
+        let json = r#"{"check_in_id":"a460c25ff2554577b920fcfacae4e5eb","monitor_slug":"my-monitor","status":"ok"}"#;
+
+        let result = process_check_in(json.as_bytes(), ProjectId::new(1));
+
+        // The routing_hint should be consistent for the (project_id, monitor_slug)
+        let expected_uuid = Uuid::parse_str("66e5c5fa-b1b9-5980-8d85-432c1874521a").unwrap();
+
+        if let Ok(processed_result) = result {
+            assert_eq!(String::from_utf8(processed_result.payload).unwrap(), json);
+            assert_eq!(processed_result.routing_hint, expected_uuid);
+        } else {
+            panic!("Failed to process check-in")
+        }
+    }
+
+    #[test]
     fn process_empty_slug() {
         let json = r#"{
           "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
@@ -297,7 +359,7 @@ mod tests {
           "status": "in_progress"
         }"#;
 
-        let result = process_check_in(json.as_bytes());
+        let result = process_check_in(json.as_bytes(), ProjectId::new(1));
         assert!(matches!(result, Err(ProcessCheckInError::EmptySlug)));
     }
 
@@ -310,7 +372,7 @@ mod tests {
           "environment": "1234567890123456789012345678901234567890123456789012345678901234567890"
         }"#;
 
-        let result = process_check_in(json.as_bytes());
+        let result = process_check_in(json.as_bytes(), ProjectId::new(1));
         assert!(matches!(
             result,
             Err(ProcessCheckInError::InvalidEnvironment)

@@ -88,11 +88,10 @@ def _add_sampling_config(
     """
     Adds a sampling configuration rule to a project configuration
     """
-    ds = config["config"].setdefault("dynamicSampling", {})
-    # We set the old rules v1 as empty array.
-    ds.setdefault("rules", [])
-    # We set the new rules v2 as empty array, and we add rules to it.
-    rules = ds.setdefault("rulesV2", [])
+    ds = config["config"].setdefault("sampling", {})
+    ds.setdefault("version", 2)
+    # We set the rules as empty array, and we add rules to it.
+    rules = ds.setdefault("rules", [])
 
     if rule_type is None:
         rule_type = "trace"
@@ -429,6 +428,8 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # and it should create an outcome
     outcomes = mini_sentry.captured_outcomes.get(timeout=2)
     assert outcomes is not None
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_outcomes.get(timeout=1)
 
     # Second
     # send trace with project_id2 context (should go through)

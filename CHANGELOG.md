@@ -2,14 +2,208 @@
 
 ## Unreleased
 
+**Features**:
+
+- Ingest OpenTelemetry and standalone Sentry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
+- Partition and split metric buckets just before sending. Log outcomes for metrics. ([#2682](https://github.com/getsentry/relay/pull/2682))
+- Support optional `PerformanceScoreWeightedComponent` in performance score processing. ([#2783](https://github.com/getsentry/relay/pull/2783))
+- Return global config ready status to downstream relays. ([#2765](https://github.com/getsentry/relay/pull/2765))
+- Add Mixed JS/Android Profiles events processing. ([#2706](https://github.com/getsentry/relay/pull/2706))
+- Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
+- Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
+- Allow access to more fields in dynamic sampling and metric extraction. ([#2820](https://github.com/getsentry/relay/pull/2820))
+- Add Redis set based cardinality limiter for metrics. ([#2745](https://github.com/getsentry/relay/pull/2745))
+- Support issue thresholds for Cron Monitor configurations ([#2842](https://github.com/getsentry/relay/pull/2842))
+
+**Bug Fixes**:
+
+- In on-demand metric extraction, use the normalized URL instead of raw URLs sent by SDKs. This bug prevented metrics for certain dashboard queries from being extracted. ([#2819](https://github.com/getsentry/relay/pull/2819))
+- Ignore whitespaces when parsing user reports. ([#2798](https://github.com/getsentry/relay/pull/2798))
+
+**Internal**:
+
+- Support source context in metric code locations metadata entries. ([#2781](https://github.com/getsentry/relay/pull/2781))
+- Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
+- Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
+- Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
+- Allow ingestion of metrics summary on spans. ([#2823](https://github.com/getsentry/relay/pull/2823))
+- Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
+- Org rate limit metrics per bucket. ([#2836](https://github.com/getsentry/relay/pull/2836))
+- Keep only domain and extension for image resource span grouping. ([#2826](https://github.com/getsentry/relay/pull/2826))
+- Parse timestamps from strings in span OpenTelemetry schema. ([#2857](https://github.com/getsentry/relay/pull/2857))
+
+## 23.11.2
+
+**Features**:
+
+- Normalize invalid metric names. ([#2769](https://github.com/getsentry/relay/pull/2769))
+
+**Internal**:
+
+- Add support for metric metadata. ([#2751](https://github.com/getsentry/relay/pull/2751))
+- `normalize_performance_score` now handles `PerformanceScoreProfile` configs with zero weight components and component weight sums of any number greater than 0. ([#2756](https://github.com/getsentry/relay/pull/2756))
+
+## 23.11.1
+
+**Features**:
+
+- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
+- Add Bytespider (Bytedance) to web crawler filter. ([#2747](https://github.com/getsentry/relay/pull/2747))
+
+**Bug Fixes**:
+
+- Fix bug introduced in 23.11.0 that broke profile-transaction association. ([#2733](https://github.com/getsentry/relay/pull/2733))
+
+**Internal**:
+
+- License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
+- Support `device.model` in dynamic sampling and metric extraction. ([#2728](https://github.com/getsentry/relay/pull/2728))
+- Support comparison operators (`>`, `>=`, `<`, `<=`) for strings in dynamic sampling and metric extraction rules. Previously, these comparisons were only possible on numbers. ([#2730](https://github.com/getsentry/relay/pull/2730))
+- Postpone processing till the global config is available. ([#2697](https://github.com/getsentry/relay/pull/2697))
+- Skip running `NormalizeProcessor` on renormalization. ([#2744](https://github.com/getsentry/relay/pull/2744))
+
+## 23.11.0
+
+**Features**:
+
+- Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))
+- Add User Feedback Ingestion. ([#2604](https://github.com/getsentry/relay/pull/2604))
+- Group resource spans by scrubbed domain and filename. ([#2654](https://github.com/getsentry/relay/pull/2654))
+- Convert transactions to spans for all organizations. ([#2659](https://github.com/getsentry/relay/pull/2659))
+- Filter outliers (>180s) for mobile measurements. ([#2649](https://github.com/getsentry/relay/pull/2649))
+- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640), [#2675](https://github.com/getsentry/relay/pull/2675), [#2707](https://github.com/getsentry/relay/pull/2707), [#2715](https://github.com/getsentry/relay/pull/2715))
+- Allow advanced scrubbing expressions for datascrubbing safe fields. ([#2670](https://github.com/getsentry/relay/pull/2670))
+- Disable graphql scrubbing when datascrubbing is disabled. ([#2689](https://github.com/getsentry/relay/pull/2689))
+- Track when a span was received. ([#2688](https://github.com/getsentry/relay/pull/2688))
+- Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
+- Add `validate_pii_selector` to CABI for safe fields validation. ([#2687](https://github.com/getsentry/relay/pull/2687))
+- Do not scrub Prisma spans. ([#2711](https://github.com/getsentry/relay/pull/2711))
+- Count spans by op. ([#2712](https://github.com/getsentry/relay/pull/2712))
+- Extract resource spans & metrics regardless of feature flag. ([#2713](https://github.com/getsentry/relay/pull/2713))
+
+**Bug Fixes**:
+
+- Disable scrubbing for the User-Agent header. ([#2641](https://github.com/getsentry/relay/pull/2641))
+- Fixes certain safe fields disabling data scrubbing for all string fields. ([#2701](https://github.com/getsentry/relay/pull/2701))
+
+**Internal**:
+
+- Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
+- Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
+- Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
+- Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
+- Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
+- Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
+- Emit error on continued project config fetch failures after a time interval. ([#2700](https://github.com/getsentry/relay/pull/2700))
+
+## 23.10.1
+
+**Features**:
+
+- Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
+- Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
+
+**Internal**:
+
+- Report global config fetch errors after interval of constant failures elapsed. ([#2628](https://github.com/getsentry/relay/pull/2628))
+- Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
+- Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
+- Scrub random strings in resource span descriptions. ([#2614](https://github.com/getsentry/relay/pull/2614))
+- Apply consistent rate-limiting prior to aggregation. ([#2652](https://github.com/getsentry/relay/pull/2652))
+
+## 23.10.0
+
+**Features**:
+
+- Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
+- Accept spans needed for the mobile Starfish module. ([#2570](https://github.com/getsentry/relay/pull/2570))
+- Extract size metrics and blocking status tag for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
+- Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+- Add support for X-Sentry-Forwarded-For header. ([#2572](https://github.com/getsentry/relay/pull/2572))
+- Add a generic way of configuring inbound filters via project configs. ([#2595](https://github.com/getsentry/relay/pull/2595))
+
+**Bug Fixes**:
+
+- Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
+- Fix reporting of Relay's crashes to Sentry. The `crash-handler` feature did not enable the crash reporter and uploads of crashes were broken. ([#2532](https://github.com/getsentry/relay/pull/2532))
+- Use correct field to pick SQL parser for span normalization. ([#2536](https://github.com/getsentry/relay/pull/2536))
+- Prevent stack overflow on SQL serialization. ([#2538](https://github.com/getsentry/relay/pull/2538))
+- Bind exclusively to the port for the HTTP server. ([#2582](https://github.com/getsentry/relay/pull/2582))
+- Scrub resource spans even when there's no domain or extension or when the description is an image. ([#2591](https://github.com/getsentry/relay/pull/2591))
+
+**Internal**:
+
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522)), [#2525](https://github.com/getsentry/relay/pull/2525), [#2545](https://github.com/getsentry/relay/pull/2545), [#2566](https://github.com/getsentry/relay/pull/2566))
+- Remove filtering for Android events with missing close events. ([#2524](https://github.com/getsentry/relay/pull/2524))
+- Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
+- Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
+- Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
+- Write span tags to `span.sentry_tags` instead of `span.data`. ([#2555](https://github.com/getsentry/relay/pull/2555), [#2598](https://github.com/getsentry/relay/pull/2598))
+- Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
+- Add `profile_id` to spans. ([#2569](https://github.com/getsentry/relay/pull/2569))
+- Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571), [#2589](https://github.com/getsentry/relay/pull/2589))
+- Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
+- Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+- Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
+
+## 23.9.1
+
+- No documented changes.
+
+## 23.9.0
+
+**Features**:
+
+- Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
+- Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
+- The Crons monitor check-in APIs have learned to accept JSON via POST. This allows for monitor upserts by specifying the `monitor_config` in the JSON body. ([#2448](https://github.com/getsentry/relay/pull/2448))
+- Add an experimental web interface for local Relay deployments. ([#2422](https://github.com/getsentry/relay/pull/2422))
+
+**Bug Fixes**:
+
+- Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
+- Fixes the `TraceContext.status` not being defaulted to `unknown` before the new metrics extraction pipeline. ([#2436](https://github.com/getsentry/relay/pull/2436))
+- Support on-demand metrics for alerts and widgets in external Relays. ([#2440](https://github.com/getsentry/relay/pull/2440))
+- Prevent sporadic data loss in `EnvelopeProcessorService`. ([#2454](https://github.com/getsentry/relay/pull/2454))
+- Prevent panic when android trace contains invalid start time. ([#2457](https://github.com/getsentry/relay/pull/2457))
+
+**Internal**:
+
+- Use static global configuration if file is provided and not in managed mode. ([#2458](https://github.com/getsentry/relay/pull/2458))
+- Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
+- Support ingestion of custom metrics when the `organizations:custom-metrics` feature flag is enabled. ([#2443](https://github.com/getsentry/relay/pull/2443))
+- Merge span metrics and standalone spans extraction options. ([#2447](https://github.com/getsentry/relay/pull/2447))
+- Support parsing aggregated metric buckets directly from statsd payloads. ([#2468](https://github.com/getsentry/relay/pull/2468), [#2472](https://github.com/getsentry/relay/pull/2472))
+- Improve performance when ingesting distribution metrics with a large number of data points. ([#2483](https://github.com/getsentry/relay/pull/2483))
+- Improve documentation for metrics bucketing. ([#2503](https://github.com/getsentry/relay/pull/2503))
+- Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
+- Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
+- Add a timestamp field to report profile's start time on Android. ([#2486](https://github.com/getsentry/relay/pull/2486))
+- Filter span metrics extraction based on features. ([#2511](https://github.com/getsentry/relay/pull/2511), [#2520](https://github.com/getsentry/relay/pull/2520))
+- Extract shared tags on the segment. ([#2512](https://github.com/getsentry/relay/pull/2512))
+
+## 23.8.0
+
+**Features**:
+
+- Add `Cross-Origin-Resource-Policy` HTTP header to responses. ([#2394](https://github.com/getsentry/relay/pull/2394))
+
+## 23.7.2
+
+**Features**:
+
+- Normalize old React Native SDK app start time measurements and spans. ([#2358](https://github.com/getsentry/relay/pull/2358))
+
 **Bug Fixes**:
 
 - Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
 
 **Internal**:
 
+- Add new service for fetching global configs. ([#2320](https://github.com/getsentry/relay/pull/2320))
 - Feature-flagged extraction & publishing of spans from transactions. ([#2350](https://github.com/getsentry/relay/pull/2350))
-
 
 ## 23.7.1
 
@@ -86,7 +280,7 @@
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
 - Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
 
-- Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
+- Relay now supports a simplified cron check-in API. ([#2153](https://github.com/getsentry/relay/pull/2153))
 
 ## 23.5.1
 

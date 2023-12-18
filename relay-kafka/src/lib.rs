@@ -20,7 +20,7 @@
 //!
 //!     // build the client
 //!     let kafka_client = builder.build();
-//!     
+//!
 //!     // send the message
 //!     kafka_client.send_message(KafkaTopic::Events, 1u64, &kafka_message).unwrap();
 //! ```

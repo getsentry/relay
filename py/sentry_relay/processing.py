@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 
 from sentry_relay._lowlevel import lib, ffi
@@ -19,24 +21,21 @@ __all__ = [
     "is_glob_match",
     "is_codeowners_path_match",
     "parse_release",
+    "validate_pii_selector",
     "validate_pii_config",
     "convert_datascrubbing_config",
     "pii_strip_event",
     "pii_selector_suggestions_from_event",
     "VALID_PLATFORMS",
+    "validate_rule_condition",
     "validate_sampling_condition",
     "validate_sampling_configuration",
     "validate_project_config",
-    "run_dynamic_sampling",
+    "normalize_global_config",
 ]
 
 
-VALID_PLATFORMS = frozenset()
-
-
-def _init_valid_platforms():
-    global VALID_PLATFORMS
-
+def _init_valid_platforms() -> frozenset[str]:
     size_out = ffi.new("uintptr_t *")
     strings = rustcall(lib.relay_valid_platforms, size_out)
 
@@ -44,10 +43,10 @@ def _init_valid_platforms():
     for i in range(int(size_out[0])):
         valid_platforms.append(decode_str(strings[i], free=True))
 
-    VALID_PLATFORMS = frozenset(valid_platforms)
+    return frozenset(valid_platforms)
 
 
-_init_valid_platforms()
+VALID_PLATFORMS = _init_valid_platforms()
 
 
 def split_chunks(string, remarks):
@@ -169,6 +168,17 @@ def is_codeowners_path_match(value, pattern):
     )
 
 
+def validate_pii_selector(selector):
+    """
+    Validate a PII selector spec. Used to validate datascrubbing safe fields.
+    """
+    assert isinstance(selector, str)
+    raw_error = rustcall(lib.relay_validate_pii_selector, encode_str(selector))
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
+
+
 def validate_pii_config(config):
     """
     Validate a PII config against the schema. Used in project options UI.
@@ -228,11 +238,20 @@ def compare_version(a, b):
 
 def validate_sampling_condition(condition):
     """
-    Validate a dynamic rule condition. Used in dynamic sampling serializer.
-    The parameter is a string containing the rule condition as JSON.
+    Deprecated legacy alias. Please use ``validate_rule_condition`` instead.
+    """
+    return validate_rule_condition(condition)
+
+
+def validate_rule_condition(condition):
+    """
+    Validate a dynamic rule condition. Used by dynamic sampling, metric extraction, and metric
+    tagging.
+
+    :param condition: A string containing the condition encoded as JSON.
     """
     assert isinstance(condition, str)
-    raw_error = rustcall(lib.relay_validate_sampling_condition, encode_str(condition))
+    raw_error = rustcall(lib.relay_validate_rule_condition, encode_str(condition))
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
@@ -264,21 +283,20 @@ def validate_project_config(config, strict: bool):
         raise ValueError(error)
 
 
-def run_dynamic_sampling(sampling_config, root_sampling_config, dsc, event):
-    """
-    Runs dynamic sampling on an event and returns the merged rules together with the sample rate.
-    """
-    assert isinstance(sampling_config, str)
-    assert isinstance(root_sampling_config, str)
-    assert isinstance(dsc, str)
-    assert isinstance(event, str)
+def normalize_global_config(config):
+    """Normalize the global config.
 
-    result_json = rustcall(
-        lib.run_dynamic_sampling,
-        encode_str(sampling_config),
-        encode_str(root_sampling_config),
-        encode_str(dsc),
-        encode_str(event),
-    )
+    Normalization consists of deserializing and serializing back the given
+    global config. If deserializing fails, throw an exception. Note that even if
+    the roundtrip doesn't produce errors, the given config may differ from
+    normalized one.
 
-    return json.loads(decode_str(result_json, free=True))
+    :param config: the global config to validate.
+    """
+    serialized = json.dumps(config)
+    normalized = rustcall(lib.normalize_global_config, encode_str(serialized))
+    rv = decode_str(normalized, free=True)
+    try:
+        return json.loads(rv)
+    except json.JSONDecodeError:
+        raise ValueError(rv)

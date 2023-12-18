@@ -20,6 +20,8 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
+    /// The current count of the keys in the "in-memory" buffer.
+    BufferProjectsMemoryCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -29,6 +31,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
+            RelayGauges::BufferProjectsMemoryCount => "buffer.projects_mem_count",
         }
     }
 }
@@ -69,6 +72,12 @@ pub enum RelayHistograms {
     /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
     /// always be one.
     BufferDequeueAttempts,
+    /// The number of batches emitted per partition.
+    BatchesPerPartition,
+    /// The number of buckets in a batch emitted.
+    ///
+    /// This corresponds to the number of buckets that will end up in an envelope.
+    BucketsPerBatch,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -157,6 +166,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
+            RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
+            RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
@@ -232,6 +243,8 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
+    /// Total time in milliseconds an envelope spends in the Relay's on-disk buffer.
+    EnvelopeOnDiskBufferTime,
     /// Total time in milliseconds spent evicting outdated and unused projects happens.
     ProjectStateEvictionDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
@@ -316,6 +329,8 @@ pub enum RelayTimers {
     OutcomeAggregatorFlushTime,
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
+    /// Total time spent to send a request and receive the response from upstream.
+    GlobalConfigRequestDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -338,6 +353,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
+            RelayTimers::EnvelopeOnDiskBufferTime => "envelope.on_disk_buffer_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
@@ -349,6 +365,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
+            RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
         }
     }
 }
@@ -389,7 +406,6 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
-    ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
@@ -456,6 +472,16 @@ pub enum RelayCounters {
     /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
     /// many attempts were made respectively.
     ProjectUpstreamCompleted,
+    /// Number of times an upstream request for a project config failed.
+    ///
+    /// Failure can happen, for example, when there's a network error. Refer to
+    /// [`UpstreamRequestError`](crate::actors::upstream::UpstreamRequestError) for all cases.
+    ProjectUpstreamFailed,
+    /// Number of full metric data flushes.
+    ///
+    /// A full flush takes all contained items of the aggregator and flushes them upstream,
+    /// at best this happens once per freshly loaded project.
+    ProjectStateFlushAllMetricMeta,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -532,6 +558,8 @@ pub enum RelayCounters {
     EvictingStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
+    /// Number of times that parsing a metric meta item from an envelope failed.
+    MetricMetaParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
@@ -541,6 +569,12 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     OpenTelemetryEvent,
+    /// Number of global config fetches from upstream. Only 2XX responses are
+    /// considered and ignores send errors (e.g. auth or network errors).
+    ///
+    /// This metric is tagged with:
+    ///  - `success`: whether deserializing the global config succeeded.
+    GlobalConfigFetched,
 }
 
 impl CounterMetric for RelayCounters {
@@ -558,9 +592,11 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectStateNoCache => "project_state.no_cache",
+            RelayCounters::ProjectStateFlushAllMetricMeta => "project_state.flush_all_metric_meta",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
+            RelayCounters::ProjectUpstreamFailed => "project_upstream.failed",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",
@@ -573,8 +609,10 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
+            RelayCounters::MetricMetaParsingFailed => "metrics.meta.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
+            RelayCounters::GlobalConfigFetched => "global_config.fetch",
         }
     }
 }

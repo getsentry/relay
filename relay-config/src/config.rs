@@ -10,14 +10,18 @@ use std::{env, fmt, fs, io};
 
 use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::{Dsn, Uuid};
+use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::{AggregatorConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig};
+use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
+use relay_metrics::{
+    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
+};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use uuid::Uuid;
 
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
@@ -219,6 +223,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
+    /// The log level of this relay.
+    pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
     /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -440,10 +446,13 @@ pub struct Relay {
     /// The port to bind for the unencrypted relay HTTP server.
     pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
+    #[serde(skip_serializing)]
     pub tls_port: Option<u16>,
     /// The path to the identity (DER-encoded PKCS12) to use for TLS.
+    #[serde(skip_serializing)]
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
+    #[serde(skip_serializing)]
     pub tls_identity_password: Option<String>,
     /// Always override project IDs from the URL and DSN with the identifier used at the upstream.
     ///
@@ -493,6 +502,14 @@ struct Metrics {
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     sample_rate: f32,
+    /// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    meta_locations_expiry: u64,
+    /// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    meta_locations_max: usize,
 }
 
 impl Default for Metrics {
@@ -504,6 +521,8 @@ impl Default for Metrics {
             hostname_tag: None,
             buffering: true,
             sample_rate: 1.0,
+            meta_locations_expiry: 15 * 24 * 60 * 60,
+            meta_locations_max: 5,
         }
     }
 }
@@ -544,6 +563,12 @@ struct Limits {
     max_profile_size: ByteSize,
     /// The maximum payload size for a span.
     max_span_size: ByteSize,
+    /// The maximum payload size for a statsd metric.
+    max_statsd_size: ByteSize,
+    /// The maximum payload size for metric buckets.
+    max_metric_buckets_size: ByteSize,
+    /// The maximum payload size for metric metadata.
+    max_metric_meta_size: ByteSize,
     /// The maximum payload size for a compressed replay.
     max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
@@ -585,6 +610,9 @@ impl Default for Limits {
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
             max_span_size: ByteSize::mebibytes(1),
+            max_statsd_size: ByteSize::mebibytes(1),
+            max_metric_buckets_size: ByteSize::mebibytes(1),
+            max_metric_meta_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
@@ -705,6 +733,15 @@ struct Http {
     /// During a network outage relay will try to reconnect and will buffer all upstream messages
     /// until it manages to reconnect.
     outage_grace_period: u64,
+    /// The time Relay waits before retrying an upstream request, in seconds.
+    ///
+    /// This time is only used before going into a network outage mode.
+    retry_delay: u64,
+    /// The interval in seconds for continued failed project fetches at which Relay will error.
+    ///
+    /// A successful fetch resets this interval. Relay does nothing during long
+    /// times without emitting requests.
+    project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -731,9 +768,21 @@ impl Default for Http {
             host_header: None,
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
+            retry_delay: default_retry_delay(),
+            project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
         }
     }
+}
+
+/// Default for unavailable upstream retry period, 1s.
+fn default_retry_delay() -> u64 {
+    1
+}
+
+/// Default for project failure interval, 90s.
+fn default_project_failure_interval() -> u64 {
+    90
 }
 
 /// Default for max memory size, 500 MB.
@@ -754,6 +803,11 @@ fn spool_envelopes_min_connections() -> u32 {
 /// Default for max connections to keep open in the pool.
 fn spool_envelopes_max_connections() -> u32 {
     20
+}
+
+/// Defaualt period for garbage collection in the spooler.
+fn spool_envelopes_check_interval() -> u64 {
+    60
 }
 
 /// Persistent buffering configuration for incoming envelopes.
@@ -779,6 +833,11 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
+
+    /// The interval for the internal check to run and issue specific to the spooler metrics and
+    /// errors.
+    #[serde(default = "spool_envelopes_check_interval")]
+    check_interval: u64,
 }
 
 impl Default for EnvelopeSpool {
@@ -789,6 +848,7 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
+            check_interval: spool_envelopes_check_interval(),
         }
     }
 }
@@ -804,6 +864,8 @@ pub struct Spool {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Cache {
+    /// The full project state will be requested by this Relay if set to `true`.
+    project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
     project_expiry: u32,
     /// Continue using project state this many seconds after cache expiry while a new state is
@@ -833,11 +895,14 @@ struct Cache {
     file_interval: u32,
     /// Interval for evicting outdated project configs from memory.
     eviction_interval: u32,
+    /// Interval for fetching new global configs from the upstream, in seconds.
+    global_config_fetch_interval: u32,
 }
 
 impl Default for Cache {
     fn default() -> Self {
         Cache {
+            project_request_full_config: false,
             project_expiry: 300, // 5 minutes
             project_grace_period: 0,
             relay_expiry: 3600,   // 1 hour
@@ -846,8 +911,9 @@ impl Default for Cache {
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             batch_size: 500,
-            file_interval: 10,     // 10 seconds
-            eviction_interval: 60, // 60 seconds
+            file_interval: 10,                // 10 seconds
+            eviction_interval: 60,            // 60 seconds
+            global_config_fetch_interval: 10, // 10 seconds
         }
     }
 }
@@ -1196,6 +1262,44 @@ pub struct GeoIpConfig {
     path: Option<PathBuf>,
 }
 
+/// Cardinality Limiter configuration options.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct CardinalityLimiter {
+    /// The number of seconds to apply the limit to.
+    ///
+    /// Defaults to: 1 hour.
+    pub window_seconds: u64,
+    /// A number between 1 and `window_seconds`. Since `window_seconds` is a
+    /// sliding window, configure what the granularity of that window is.
+    ///
+    /// If this is equal to `window_seconds`, the quota resets to 0 every
+    /// `window_seconds`.  If this is a very small number, the window slides
+    /// "more smoothly" at the expense of having much more redis keys.
+    ///
+    /// The number of redis keys required to enforce a quota is `window_seconds /
+    /// granularity_seconds`.
+    ///
+    /// Defaults to: 10 minutes.
+    pub granularity_seconds: u64,
+    /// Cardinality limit per bucket.
+    ///
+    /// The current bucket scope is comprised of organization and namespace.
+    ///
+    /// Defaults to: 10_000.
+    pub limit: usize,
+}
+
+impl Default for CardinalityLimiter {
+    fn default() -> Self {
+        Self {
+            window_seconds: 3600,
+            granularity_seconds: 600,
+            limit: 10_000,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1221,7 +1325,7 @@ struct ConfigValues {
     #[serde(default)]
     outcomes: Outcomes,
     #[serde(default)]
-    aggregator: AggregatorConfig,
+    aggregator: AggregatorServiceConfig,
     #[serde(default)]
     secondary_aggregators: Vec<ScopedAggregatorConfig>,
     #[serde(default)]
@@ -1230,6 +1334,8 @@ struct ConfigValues {
     aws: AwsConfig,
     #[serde(default)]
     geoip: GeoIpConfig,
+    #[serde(default)]
+    cardinality_limiter: CardinalityLimiter,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1306,6 +1412,10 @@ impl Config {
             relay.mode = mode
                 .parse::<RelayMode>()
                 .with_context(|| ConfigError::field("mode"))?;
+        }
+
+        if let Some(log_level) = overrides.log_level {
+            self.values.logging.level = log_level.parse()?;
         }
 
         if let Some(upstream) = overrides.upstream {
@@ -1454,9 +1564,11 @@ impl Config {
     /// Regenerates the relay credentials.
     ///
     /// This also writes the credentials back to the file.
-    pub fn regenerate_credentials(&mut self) -> anyhow::Result<()> {
+    pub fn regenerate_credentials(&mut self, save: bool) -> anyhow::Result<()> {
         let creds = Credentials::generate();
-        creds.save(&self.path)?;
+        if save {
+            creds.save(&self.path)?;
+        }
         self.credentials = Some(creds);
         Ok(())
     }
@@ -1592,6 +1704,19 @@ impl Config {
         Duration::from_secs(self.values.http.outage_grace_period)
     }
 
+    /// Time Relay waits before retrying an upstream request.
+    ///
+    /// Before going into a network outage, Relay may fail to make upstream
+    /// requests. This is the time Relay waits before retrying the same request.
+    pub fn http_retry_delay(&self) -> Duration {
+        Duration::from_secs(self.values.http.retry_delay)
+    }
+
+    /// Time of continued project request failures before Relay emits an error.
+    pub fn http_project_failure_interval(&self) -> Duration {
+        Duration::from_secs(self.values.http.project_failure_interval)
+    }
+
     /// Content encoding of upstream requests.
     pub fn http_encoding(&self) -> HttpEncoding {
         self.values.http.encoding
@@ -1692,6 +1817,16 @@ impl Config {
         self.values.metrics.sample_rate
     }
 
+    /// Returns the maximum amount of code locations per metric.
+    pub fn metrics_meta_locations_max(&self) -> usize {
+        self.values.metrics.meta_locations_max
+    }
+
+    /// Returns the expiry for code locations.
+    pub fn metrics_meta_locations_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.metrics.meta_locations_expiry)
+    }
+
     /// Returns the default timeout for all upstream HTTP requests.
     pub fn http_timeout(&self) -> Duration {
         Duration::from_secs(self.values.http.timeout.into())
@@ -1710,6 +1845,11 @@ impl Config {
     /// Returns the expiry timeout for cached projects.
     pub fn project_cache_expiry(&self) -> Duration {
         Duration::from_secs(self.values.cache.project_expiry.into())
+    }
+
+    /// Returns `true` if the full project state should be requested from upstream.
+    pub fn request_full_project_config(&self) -> bool {
+        self.values.cache.project_request_full_config
     }
 
     /// Returns the expiry timeout for cached relay infos (public keys).
@@ -1753,6 +1893,12 @@ impl Config {
         Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
+    /// Returns the interval in seconds in which fresh global configs should be
+    /// fetched from  upstream.
+    pub fn global_config_fetch_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cache.global_config_fetch_interval.into())
+    }
+
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
     pub fn spool_envelopes_path(&self) -> Option<PathBuf> {
         self.values
@@ -1781,6 +1927,11 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
+    }
+
+    /// The interval to run the check.
+    pub fn spool_envelopes_check_interval(&self) -> Duration {
+        Duration::from_secs(self.values.spool.envelopes.check_interval)
     }
 
     /// Returns the maximum size of an event payload in bytes.
@@ -1824,6 +1975,21 @@ impl Config {
     /// Returns the maximum number of sessions per envelope.
     pub fn max_session_count(&self) -> usize {
         self.values.limits.max_session_count
+    }
+
+    /// Returns the maximum payload size of a statsd metric in bytes.
+    pub fn max_statsd_size(&self) -> usize {
+        self.values.limits.max_statsd_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of metric buckets in bytes.
+    pub fn max_metric_buckets_size(&self) -> usize {
+        self.values.limits.max_metric_buckets_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of metric metadata in bytes.
+    pub fn max_metric_meta_size(&self) -> usize {
+        self.values.limits.max_metric_meta_size.as_bytes()
     }
 
     /// Returns the maximum payload size for general API requests.
@@ -1957,6 +2123,18 @@ impl Config {
         self.values.processing.attachment_chunk_size.as_bytes()
     }
 
+    /// Amount of metric partitions.
+    pub fn metrics_partitions(&self) -> Option<u64> {
+        // TODO(dav1dde): move config to a better place
+        self.values.aggregator.flush_partitions
+    }
+
+    /// Maximum metrics batch size in bytes.
+    pub fn metrics_max_batch_size_bytes(&self) -> usize {
+        // TODO(dav1dde): move config to a better place
+        self.values.aggregator.max_flush_bytes
+    }
+
     /// Default prefix to use when looking up project configs in Redis. This is only done when
     /// Relay is in processing mode.
     pub fn projectconfig_cache_prefix(&self) -> &str {
@@ -1968,8 +2146,77 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
-    pub fn aggregator_config(&self) -> &AggregatorConfig {
+    /// Cardinality limit per org and namespace.
+    pub fn cardinality_limit(&self) -> usize {
+        self.values.cardinality_limiter.limit
+    }
+
+    /// Sliding window size to enforce cardinality limit.
+    pub fn cardinality_limiter_window(&self) -> u64 {
+        self.values.cardinality_limiter.window_seconds
+    }
+
+    /// Granularity of the sliding window to enforce cardinality limit.
+    pub fn cardinality_limiter_granularity(&self) -> u64 {
+        self.values.cardinality_limiter.granularity_seconds
+    }
+
+    /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.
+    ///
+    /// A lossless aggregator can be put in front of any of the configured aggregators without losing data that the configured aggregator would keep.
+    /// This is useful for pre-aggregating metrics together in a single aggregator instance.
+    pub fn permissive_aggregator_config(&self) -> AggregatorConfig {
+        let AggregatorConfig {
+            mut bucket_interval,
+            mut max_secs_in_past,
+            mut max_secs_in_future,
+            mut max_name_length,
+            mut max_tag_key_length,
+            mut max_tag_value_length,
+            mut max_project_key_bucket_bytes,
+            ..
+        } = AggregatorConfig::from(self.default_aggregator_config());
+
+        for secondary_config in self.secondary_aggregator_configs() {
+            let agg = &secondary_config.config;
+
+            bucket_interval = bucket_interval.min(agg.bucket_interval);
+            max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
+            max_secs_in_future = max_secs_in_future.max(agg.max_secs_in_future);
+            max_name_length = max_name_length.max(agg.max_name_length);
+            max_tag_key_length = max_tag_key_length.max(agg.max_tag_key_length);
+            max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
+            max_project_key_bucket_bytes =
+                max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
+        }
+
+        for agg in self
+            .secondary_aggregator_configs()
+            .iter()
+            .map(|sc| &sc.config)
+            .chain(std::iter::once(self.default_aggregator_config()))
+        {
+            if agg.bucket_interval % bucket_interval != 0 {
+                relay_log::error!("buckets don't align");
+            }
+        }
+
+        AggregatorConfig {
+            bucket_interval,
+            max_secs_in_past,
+            max_secs_in_future,
+            max_name_length,
+            max_tag_key_length,
+            max_tag_value_length,
+            max_project_key_bucket_bytes,
+            initial_delay: 30,
+            debounce_delay: 10,
+            shift_key: ShiftKey::Project,
+        }
+    }
+
+    /// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
+    pub fn default_aggregator_config(&self) -> &AggregatorServiceConfig {
         &self.values.aggregator
     }
 
@@ -1979,7 +2226,7 @@ impl Config {
     }
 
     /// Returns aggregator config for a given metrics namespace.
-    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorConfig {
+    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
         for entry in &self.values.secondary_aggregators {
             match entry.condition {
                 Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,

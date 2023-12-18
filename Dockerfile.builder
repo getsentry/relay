@@ -9,6 +9,7 @@ RUN yum -y update \
     && yum -y install centos-release-scl epel-release \
     # install a modern compiler toolchain
     && yum -y install cmake3 devtoolset-10 git \
+    perl-core openssl openssl-devel pkgconfig libatomic \
     # below required for sentry-native
     llvm-toolset-7.0-clang-devel \
     && yum clean all \

@@ -53,7 +53,22 @@ function(region) {
             timeout: 1200,
             elastic_profile_id: 'relay',
             tasks: [
-              gocdtasks.script(importstr '../bash/create-sentry-release.sh'),
+              gocdtasks.script(importstr '../bash/create-sentry-relay-release.sh'),
+            ],
+          },
+          create_sentry_st_release: {
+            environment_variables: {
+              SENTRY_ORG: 'sentry-st',
+              SENTRY_PROJECT: 'sentry-for-sentry',
+              SENTRY_URL: 'https://sentry-st.sentry.io/',
+              // Temporary; self-service encrypted secrets aren't implemented yet.
+              // This should really be rotated to an internal integration token.
+              SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_st_auth_token]}}',
+            },
+            timeout: 1200,
+            elastic_profile_id: 'relay',
+            tasks: [
+              gocdtasks.script(importstr '../bash/create-sentry-relay-release.sh'),
             ],
           },
           deploy: {

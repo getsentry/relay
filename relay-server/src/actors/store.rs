@@ -7,20 +7,25 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
-use relay_common::{ProjectId, UnixTimestamp, Uuid};
+use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
-use relay_general::types::Value;
+use relay_event_schema::protocol::{
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+};
+
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
+use relay_protocol::Value;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
+use serde_json::value::RawValue;
+use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::service::ServiceError;
 use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
@@ -57,12 +62,8 @@ impl Producer {
         for topic in KafkaTopic::iter()
             .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
         {
-            let kafka_config = &config
-                .kafka_config(*topic)
-                .map_err(|_| ServiceError::Kafka)?;
-            client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServiceError::Kafka)?
+            let kafka_config = &config.kafka_config(*topic)?;
+            client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
         }
 
         Ok(Self {
@@ -122,7 +123,10 @@ impl StoreService {
         let event_item = envelope.get_item_by(|item| {
             matches!(
                 item.ty(),
-                ItemType::Event | ItemType::Transaction | ItemType::Security
+                ItemType::Event
+                    | ItemType::Transaction
+                    | ItemType::Security
+                    | ItemType::UserReportV2
             )
         });
 
@@ -206,7 +210,9 @@ impl StoreService {
                 ItemType::Span => self.produce_span(
                     scoping.organization_id,
                     scoping.project_id,
+                    event_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 _ => {}
@@ -540,22 +546,15 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let (topic, namespace) = match mri.map(|mri| mri.namespace) {
-            Ok(namespace @ MetricNamespace::Transactions) => {
-                (KafkaTopic::MetricsTransactions, namespace)
-            }
-            Ok(namespace @ MetricNamespace::Spans) => (KafkaTopic::MetricsTransactions, namespace),
             Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
-                    |scope| {
-                        scope.set_extra("metric_message.name", message.name.into());
-                    },
-                    || {
-                        relay_log::error!("store service dropping unknown metric usecase");
-                    },
+                    |scope| scope.set_extra("metric_message.name", message.name.into()),
+                    || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
             }
+            Ok(namespace) => (KafkaTopic::MetricsGeneric, namespace),
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
@@ -580,7 +579,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let payload = item.payload();
 
-        for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
+        for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
             self.send_metric_message(
                 org_id,
                 MetricKafkaMessage {
@@ -727,11 +726,13 @@ impl StoreService {
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = KafkaMessage::CheckIn(CheckInKafkaMessage {
+            message_type: CheckInMessageType::CheckIn,
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             sdk: client.map(str::to_owned),
             payload: item.payload(),
+            routing_key_hint: item.routing_hint(),
         });
 
         self.produce(KafkaTopic::Monitors, organization_id, message)?;
@@ -748,11 +749,13 @@ impl StoreService {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        event_id: Option<EventId>,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
-        let span: serde_json::Value = match serde_json::from_slice(&item.payload()) {
+        let payload = item.payload();
+        let span = match serde_json::from_slice(&payload) {
             Ok(span) => span,
             Err(error) => {
                 relay_log::error!(
@@ -762,13 +765,19 @@ impl StoreService {
                 return Ok(());
             }
         };
-        let message = KafkaMessage::Span(SpanKafkaMessage {
-            project_id,
+        let message = SpanKafkaMessage {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            event_id,
+            organization_id,
+            project_id,
+            retention_days,
             span,
-        });
-
-        self.produce(KafkaTopic::Spans, organization_id, message)?;
+        };
+        self.produce(
+            KafkaTopic::Spans,
+            organization_id,
+            KafkaMessage::Span(message),
+        )?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -1022,8 +1031,26 @@ struct ProfileKafkaMessage {
     payload: Bytes,
 }
 
+/// Used to discriminate cron monitor ingestion messages.
+///
+/// There are two types of messages that end up in the ingest-monitors kafka topic, "check_in" (the
+/// ones produced here in relay) and "clock_pulse" messages, which are produced externally and are
+/// intended to ensure the clock continues to run even when ingestion volume drops.
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum CheckInMessageType {
+    ClockPulse,
+    CheckIn,
+}
+
 #[derive(Debug, Serialize)]
 struct CheckInKafkaMessage {
+    #[serde(skip)]
+    routing_key_hint: Option<Uuid>,
+
+    /// Used by the consumer to discrinminate the message.
+    message_type: CheckInMessageType,
     /// Raw event payload.
     payload: Bytes,
     /// Time at which the event was received by Relay.
@@ -1032,25 +1059,35 @@ struct CheckInKafkaMessage {
     sdk: Option<String>,
     /// The project id for the current event.
     project_id: ProjectId,
-    // Number of days to retain.
+    /// Number of days to retain.
     retention_days: u16,
 }
 
 #[derive(Debug, Serialize)]
-struct SpanKafkaMessage {
-    /// Raw span data.
-    span: serde_json::Value,
-    /// Time at which the span was received by Relay.
+struct SpanKafkaMessage<'a> {
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
     start_time: u64,
-    /// The project id for the current span.
+    /// The ID of the transaction event associated to this span, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_id: Option<EventId>,
+    /// The numeric ID of the organization.
+    organization_id: u64,
+    /// The numeric ID of the project.
     project_id: ProjectId,
+    /// Number of days until these data should be deleted.
+    retention_days: u16,
+    /// Fields from the original span payload.
+    /// See [`relay-event-schema::protocol::span::Span`] for schema.
+    ///
+    /// By using a [`RawValue`] here, we can embed the span's JSON without additional parsing.
+    span: &'a RawValue,
 }
 
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[allow(clippy::large_enum_variant)]
-enum KafkaMessage {
+enum KafkaMessage<'a> {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
@@ -1066,10 +1103,10 @@ enum KafkaMessage {
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage),
+    Span(SpanKafkaMessage<'a>),
 }
 
-impl Message for KafkaMessage {
+impl Message for KafkaMessage<'_> {
     fn variant(&self) -> &'static str {
         match self {
             KafkaMessage::Event(_) => "event",
@@ -1093,13 +1130,22 @@ impl Message for KafkaMessage {
             Self::Attachment(message) => message.event_id.0,
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
-            Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
-            Self::Metric { .. } => Uuid::nil(),     // TODO(ja): Determine a partitioning key
-            Self::Profile(_message) => Uuid::nil(),
             Self::ReplayEvent(message) => message.replay_id.0,
-            Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
-            Self::CheckIn(_message) => Uuid::nil(),
-            Self::Span(_) => Uuid::nil(), // random partitioning
+
+            // Monitor check-ins use the hinted UUID passed through from the Envelope.
+            //
+            // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
+            // recieve the routing_key_hint form their envelopes.
+            Self::CheckIn(message) => message.routing_key_hint.unwrap_or_else(Uuid::nil),
+
+            // Random partitioning
+            Self::Session(_)
+            | Self::Profile(_)
+            | Self::ReplayRecordingNotChunked(_)
+            | Self::Span(_) => Uuid::nil(),
+
+            // TODO(ja): Determine a partitioning key
+            Self::Metric { .. } => Uuid::nil(),
         };
 
         if uuid.is_nil() {
@@ -1130,6 +1176,9 @@ impl Message for KafkaMessage {
             KafkaMessage::ReplayEvent(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
+            KafkaMessage::Span(message) => {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
             _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
         }
     }
@@ -1144,7 +1193,7 @@ fn is_slow_item(item: &Item) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::ProjectKey;
+    use relay_base_schema::project::ProjectKey;
 
     use super::*;
 

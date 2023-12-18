@@ -2,9 +2,12 @@
 
 use std::collections::BTreeSet;
 
-use relay_common::DataCategory;
-use relay_sampling::RuleCondition;
+use relay_base_schema::data_category::DataCategory;
+use relay_common::glob2::LazyGlob;
+use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
+
+use crate::project::ProjectConfig;
 
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +28,6 @@ pub struct TaggingRule {
 /// Current version of metrics extraction.
 const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
-const METRIC_EXTRACTION_VERSION: u16 = 1;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -76,8 +78,14 @@ pub struct CustomMeasurementConfig {
 
 /// Maximum supported version of metrics extraction from transactions.
 ///
-/// The version is an integer scalar, incremented by one on each new version.
-const TRANSACTION_EXTRACT_VERSION: u16 = 1;
+/// The version is an integer scalar, incremented by one on each new version:
+///  - 1: Initial version.
+///  - 2: Moves `acceptTransactionNames` to global config.
+///  - 3:
+///      - Emit a `usage` metric and use it for rate limiting.
+///      - Delay metrics extraction for indexed transactions.
+///  - 4: Adds support for `RuleConfigs` with string comparisons.
+const TRANSACTION_EXTRACT_VERSION: u16 = 4;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -126,6 +134,11 @@ impl TransactionMetricsConfig {
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= TRANSACTION_EXTRACT_VERSION
     }
+
+    /// Returns `true` if usage should be tracked through a dedicated metric.
+    pub fn usage_metric(&self) -> bool {
+        self.version >= 3
+    }
 }
 
 /// Configuration for generic extraction of metrics from all data categories.
@@ -145,13 +158,57 @@ pub struct MetricExtractionConfig {
     /// tag extracted, the existing tag is left unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagMapping>,
+
+    /// This config has been extended with fields from `conditional_tagging`.
+    ///
+    /// At the moment, Relay will parse `conditional_tagging` rules and insert them into the `tags`
+    /// mapping in this struct. If the flag is `true`, this has already happened and should not be
+    /// repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    #[serde(default)]
+    pub _conditional_tags_extended: bool,
+
+    /// This config has been extended with default span metrics.
+    ///
+    /// Relay checks for the span extraction flag and adds built-in metrics and tags to this struct.
+    /// If the flag is `true`, this has already happened and should not be repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    #[serde(default)]
+    pub _span_metrics_extended: bool,
 }
 
 impl MetricExtractionConfig {
-    /// Returns `true` if metric extraction is configured.
+    /// The latest version for this config struct.
+    ///
+    /// This is the maximum version supported by this Relay instance.
+    pub const VERSION: u16 = 2;
+
+    /// Returns an empty `MetricExtractionConfig` with the latest version.
+    ///
+    /// As opposed to `default()`, this will be enabled once populated with specs.
+    pub fn empty() -> Self {
+        Self {
+            version: Self::VERSION,
+            metrics: Vec::new(),
+            tags: Vec::new(),
+            _conditional_tags_extended: false,
+            _span_metrics_extended: false,
+        }
+    }
+
+    /// Returns `true` if the version of this metric extraction config is supported.
+    pub fn is_supported(&self) -> bool {
+        self.version <= Self::VERSION
+    }
+
+    /// Returns `true` if metric extraction is configured and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
         self.version > 0
-            && self.version <= METRIC_EXTRACTION_VERSION
+            && self.is_supported()
             && !(self.metrics.is_empty() && self.tags.is_empty())
     }
 }
@@ -169,9 +226,8 @@ pub struct MetricSpec {
     /// A path to the field to extract the metric from.
     ///
     /// This value contains a fully qualified expression pointing at the data field in the payload
-    /// to extract the metric from. It follows the
-    /// [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax that is also used for
-    /// dynamic sampling.
+    /// to extract the metric from. It follows the `Getter` syntax that is also used for dynamic
+    /// sampling.
     ///
     /// How the value is treated depends on the metric type:
     ///
@@ -212,7 +268,7 @@ pub struct TagMapping {
     ///
     /// Entries in this list can contain wildcards to match metrics with dynamic MRIs.
     #[serde(default)]
-    pub metrics: Vec<String>,
+    pub metrics: Vec<LazyGlob>,
 
     /// A list of tags to add to the metric.
     ///
@@ -221,6 +277,16 @@ pub struct TagMapping {
     /// condition will be applied.
     #[serde(default)]
     pub tags: Vec<TagSpec>,
+}
+
+impl TagMapping {
+    /// Returns `true` if this mapping matches the provided MRI.
+    pub fn matches(&self, mri: &str) -> bool {
+        // TODO: Use a globset, instead.
+        self.metrics
+            .iter()
+            .any(|glob| glob.compiled().is_match(mri))
+    }
 }
 
 /// Configuration for a tag to add to a metric.
@@ -236,8 +302,7 @@ pub struct TagSpec {
 
     /// Path to a field containing the tag's value.
     ///
-    /// It follows the [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax to read
-    /// data from the payload.
+    /// It follows the `Getter` syntax to read data from the payload.
     ///
     /// Mutually exclusive with `value`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -270,6 +335,71 @@ impl TagSpec {
     }
 }
 
+/// Builder for [`TagSpec`].
+pub struct Tag {
+    key: String,
+}
+
+impl Tag {
+    /// Prepares a tag with a given tag name.
+    pub fn with_key(key: impl Into<String>) -> Self {
+        Self { key: key.into() }
+    }
+
+    /// Defines the field from which the tag value gets its data.
+    pub fn from_field(self, field_name: impl Into<String>) -> TagWithSource {
+        let Self { key } = self;
+        TagWithSource {
+            key,
+            field: Some(field_name.into()),
+            value: None,
+        }
+    }
+
+    /// Defines what value to set for a tag.
+    pub fn with_value(self, value: impl Into<String>) -> TagWithSource {
+        let Self { key } = self;
+        TagWithSource {
+            key,
+            field: None,
+            value: Some(value.into()),
+        }
+    }
+}
+
+/// Intermediate result of the tag spec builder.
+///
+/// Can be transformed into `[TagSpec]`.
+pub struct TagWithSource {
+    key: String,
+    field: Option<String>,
+    value: Option<String>,
+}
+
+impl TagWithSource {
+    /// Defines a tag that is extracted unconditionally.
+    pub fn always(self) -> TagSpec {
+        let Self { key, field, value } = self;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: None,
+        }
+    }
+
+    /// Defines a tag that is extracted under the given condition.
+    pub fn when(self, condition: RuleCondition) -> TagSpec {
+        let Self { key, field, value } = self;
+        TagSpec {
+            key,
+            field,
+            value,
+            condition: Some(condition),
+        }
+    }
+}
+
 /// Specifies how to obtain the value of a tag in [`TagSpec`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum TagSource<'a> {
@@ -279,6 +409,72 @@ pub enum TagSource<'a> {
     Field(&'a str),
     /// An unsupported or unknown source.
     Unknown,
+}
+
+/// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
+/// config.
+pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
+    // NOTE: This clones the rules so that they remain in the project state for old Relays that
+    // do not support generic metrics extraction. Once the migration is complete, this can be
+    // removed with a version bump of the transaction metrics config.
+    let rules = &project_config.metric_conditional_tagging;
+    if rules.is_empty() {
+        return;
+    }
+
+    let config = project_config
+        .metric_extraction
+        .get_or_insert_with(MetricExtractionConfig::empty);
+
+    if !config.is_supported() || config._conditional_tags_extended {
+        return;
+    }
+
+    config.tags.extend(TaggingRuleConverter {
+        rules: rules.iter().cloned().peekable(),
+        tags: Vec::new(),
+    });
+
+    config._conditional_tags_extended = true;
+    if config.version == 0 {
+        config.version = MetricExtractionConfig::VERSION;
+    }
+}
+
+struct TaggingRuleConverter<I: Iterator<Item = TaggingRule>> {
+    rules: std::iter::Peekable<I>,
+    tags: Vec<TagSpec>,
+}
+
+impl<I> Iterator for TaggingRuleConverter<I>
+where
+    I: Iterator<Item = TaggingRule>,
+{
+    type Item = TagMapping;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let old = self.rules.next()?;
+
+            self.tags.push(TagSpec {
+                key: old.target_tag,
+                field: None,
+                value: Some(old.tag_value),
+                condition: Some(old.condition),
+            });
+
+            // Optimization: Collect tags for consecutive tagging rules for the same set of metrics.
+            // Then, emit a single entry with all tag specs at once.
+            if self.rules.peek().map(|r| &r.target_metrics) == Some(&old.target_metrics) {
+                continue;
+            }
+
+            return Some(TagMapping {
+                metrics: old.target_metrics.into_iter().map(LazyGlob::new).collect(),
+                tags: std::mem::take(&mut self.tags),
+            });
+        }
+    }
 }
 
 #[cfg(test)]
@@ -305,5 +501,12 @@ mod tests {
         let json = r#"{"key":"foo","somethingNew":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();
         assert_eq!(spec.source(), TagSource::Unknown);
+    }
+
+    #[test]
+    fn parse_tag_mapping() {
+        let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
+        let mapping: TagMapping = serde_json::from_str(json).unwrap();
+        assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 }

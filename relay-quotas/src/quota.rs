@@ -1,9 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+#[doc(inline)]
+pub use relay_base_schema::data_category::DataCategory;
 
 /// Data scoping information.
 ///
@@ -85,9 +88,6 @@ impl ItemScoping<'_> {
     }
 }
 
-#[doc(inline)]
-pub use relay_common::DataCategory;
-
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CategoryUnit {
@@ -108,9 +108,14 @@ impl CategoryUnit {
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
-            | DataCategory::Monitor => Some(Self::Count),
+            | DataCategory::Span
+            | DataCategory::MonitorSeat
+            | DataCategory::Monitor
+            | DataCategory::MetricBucket
+            | DataCategory::UserReportV2 => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+
             DataCategory::Unknown => None,
         }
     }
@@ -291,16 +296,14 @@ impl Quota {
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
-        let scope_id = match self.scope_id {
-            Some(ref scope_id) => scope_id,
-            None => return true,
+        let Some(scope_id) = self.scope_id.as_ref() else {
+            return true;
         };
 
         // Check if the scope identifier in the quota is parseable. If not, this means we cannot
         // fulfill the constraint, so the quota does not match.
-        let parsed = match scope_id.parse::<u64>() {
-            Ok(parsed) => parsed,
-            Err(_) => return false,
+        let Ok(parsed) = scope_id.parse::<u64>() else {
+            return false;
         };
 
         // At this stage, require that the scope is known since we have to fulfill the constraint.

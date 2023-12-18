@@ -732,9 +732,9 @@ def test_outcome_to_client_report(relay, mini_sentry):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["transactionMetrics"] = {"version": 1}
-    project_config["config"]["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    project_config["config"]["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
@@ -899,9 +899,9 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    project_config["config"]["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
@@ -1023,9 +1023,9 @@ def test_graceful_shutdown(relay, mini_sentry):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["transactionMetrics"] = {"version": 1}
-    project_config["config"]["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    project_config["config"]["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
@@ -1111,9 +1111,9 @@ def test_profile_outcomes(
     project_config["transactionMetrics"] = {
         "version": 1,
     }
-    project_config["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
+    project_config["sampling"] = {
+        "version": 2,
+        "rules": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
@@ -1310,10 +1310,11 @@ def test_profile_outcomes_invalid(
 
     if not metrics_already_extracted:
         # Make sure the profile will not be counted as accepted:
-        metric = metrics_by_name(metrics_consumer, 2)[
-            "d:transactions/duration@millisecond"
-        ]
-        assert "has_profile" not in metric["tags"]
+        metrics = metrics_by_name(metrics_consumer, 4)
+        assert (
+            "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
+        )
+        assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 
 def test_profile_outcomes_too_many(
@@ -1399,9 +1400,11 @@ def test_profile_outcomes_too_many(
     assert outcomes == expected_outcomes, outcomes
 
     # Make sure one profile will not be counted as accepted
-    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
-    assert metric["tags"]["has_profile"] == "true"
-    assert len(metric["value"]) == 1
+    metrics = metrics_by_name(metrics_consumer, 4)
+    assert (
+        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
+    )
+    assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
 
 
 def test_profile_outcomes_data_invalid(
@@ -1484,9 +1487,11 @@ def test_profile_outcomes_data_invalid(
     assert outcomes == expected_outcomes, outcomes
 
     # Because invalid data is detected _after_ metrics extraction, there is still a metric:
-    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
-    assert metric["tags"]["has_profile"] == "true"
-    assert len(metric["value"]) == 1
+    metrics = metrics_by_name(metrics_consumer, 4)
+    assert (
+        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
+    )
+    assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
 
 
 @pytest.mark.parametrize("metrics_already_extracted", [False, True])

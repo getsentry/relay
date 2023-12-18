@@ -1,9 +1,13 @@
 import time
 
-import requests
+from requests import Session
+from requests.adapters import HTTPAdapter
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from urllib3.util import Retry
 
-session = requests.session()
+session = Session()
+retries = Retry(total=5, backoff_factor=0.1)
+session.mount("http://", HTTPAdapter(max_retries=retries))
 
 
 class SentryLike:
@@ -149,6 +153,76 @@ class SentryLike:
         response.raise_for_status()
         return response.json()
 
+    def send_nel_event(
+        self,
+        project_id,
+        payload=None,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        if payload is None:
+            payload = [
+                {
+                    "age": 1200000,
+                    "body": {
+                        "elapsed_time": 37,
+                        "method": "GET",
+                        "phase": "application",
+                        "protocol": "http/1.1",
+                        "referrer": "https://example.com/nel/",
+                        "sampling_fraction": 1,
+                        "server_ip": "123.123.123.123",
+                        "status_code": 500,
+                        "type": "http.error",
+                    },
+                    "type": "network-error",
+                    "url": "https://example.com/index.html",
+                    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                }
+            ]
+
+        if isinstance(payload, list):
+            kwargs = {"json": payload}
+        else:
+            raise ValueError(f"Invalid type {type(payload)} for payload.")
+
+        headers = {
+            "Content-Type": "application/reports+json",
+            **(headers or {}),
+        }
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/nel/?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, **kwargs)
+        response.raise_for_status()
+
+        return
+
+    def send_otel_span(
+        self,
+        project_id,
+        payload,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        headers = {
+            "Content-Type": "application/json",
+            **(headers or {}),
+        }
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/spans/?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+
     def send_options(self, project_id, headers=None, dsn_key_idx=0):
         headers = {
             "X-Sentry-Auth": self.get_auth_header(project_id, dsn_key_idx),
@@ -220,26 +294,21 @@ class SentryLike:
         envelope.add_item(Item(PayloadRef(json=payload), type="client_report"))
         self.send_envelope(project_id, envelope)
 
-    def send_metrics(self, project_id, payload, timestamp=None):
+    def send_user_feedback(self, project_id, payload):
+        envelope = Envelope()
+        envelope.add_item(Item(PayloadRef(json=payload), type="feedback"))
+        self.send_envelope(project_id, envelope)
+
+    def send_metrics(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=payload.encode()),
-                type="metrics",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
+            Item(payload=PayloadRef(bytes=payload.encode()), type="statsd")
         )
         self.send_envelope(project_id, envelope)
 
-    def send_metrics_buckets(self, project_id, payload, timestamp=None):
+    def send_metrics_buckets(self, project_id, payload):
         envelope = Envelope()
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(json=payload),
-                type="metric_buckets",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
-        )
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
         self.send_envelope(project_id, envelope)
 
     def send_security_report(

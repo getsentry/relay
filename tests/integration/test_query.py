@@ -8,6 +8,7 @@ import threading
 
 import pytest
 
+from flask import request as flask_request
 from requests.exceptions import HTTPError
 import zstandard
 
@@ -67,7 +68,8 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        fetched_project_config.set()
+        if not flask_request.json.get("global") is True:
+            fetched_project_config.set()
         return get_project_config_original()
 
     relay = relay(
@@ -138,9 +140,9 @@ def test_query_retry(failure_type, mini_sentry, relay):
     try:
         relay.send_event(42)
 
-        event = mini_sentry.captured_events.get(timeout=8).get_event()
+        event = mini_sentry.captured_events.get(timeout=12).get_event()
         assert event["logentry"] == {"formatted": "Hello, World!"}
-        assert retry_count == 2
+        assert retry_count == 3
 
         if mini_sentry.test_failures:
             for _, error in mini_sentry.test_failures:
@@ -160,8 +162,13 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
 
     events_consumer = events_consumer()
 
+    original_get_project_config = mini_sentry.app.view_functions["get_project_config"]
+
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
+        if flask_request.json.get("global") is True:
+            return original_get_project_config()
+
         nonlocal request_count
         request_count += 1
         print("RETRY", request_count)

@@ -51,20 +51,6 @@
 //!            }
 //!        ],
 //!        "maxCustomMeasurements": 1
-//!     },
-//!     "metricsConditionalTagging": {
-//!        {
-//!            "condition": {
-//!                "op": "gt",
-//!                "name": "event.duration",
-//!                "value": 1200
-//!            },
-//!            "targetMetrics": [
-//!                "s:transactions/user@none"
-//!            ],
-//!            "targetTag": "satisfaction",
-//!            "tagValue": "frustrated"
-//!        }
 //!     }
 //! }
 //!
@@ -75,6 +61,7 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+mod defaults;
 mod error_boundary;
 mod feature;
 mod global;

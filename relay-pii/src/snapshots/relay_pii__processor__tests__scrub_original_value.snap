@@ -1,0 +1,123 @@
+---
+source: relay-pii/src/processor.rs
+expression: "&data"
+---
+Event {
+    id: ~,
+    level: ~,
+    version: ~,
+    ty: ~,
+    fingerprint: ~,
+    culprit: ~,
+    transaction: ~,
+    transaction_info: ~,
+    time_spent: ~,
+    logentry: ~,
+    logger: ~,
+    modules: ~,
+    platform: ~,
+    timestamp: ~,
+    start_timestamp: ~,
+    received: ~,
+    server_name: ~,
+    release: ~,
+    dist: ~,
+    environment: ~,
+    site: ~,
+    user: User {
+        id: ~,
+        email: ~,
+        ip_address: Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: InvalidData,
+                    data: {
+                        "reason": String(
+                            "expected an ip address",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                String(
+                    "is this an ip address? [ip]",
+                ),
+            ),
+        },
+        username: Annotated(
+            "hey  man [ip]",
+            Meta {
+                remarks: [
+                    Remark {
+                        ty: Substituted,
+                        rule_id: "@ip:replace",
+                        range: Some(
+                            (
+                                9,
+                                13,
+                            ),
+                        ),
+                    },
+                ],
+                errors: [],
+                original_length: Some(
+                    22,
+                ),
+                original_value: None,
+            },
+        ),
+        name: ~,
+        geo: ~,
+        segment: ~,
+        data: ~,
+        other: {},
+    },
+    request: ~,
+    contexts: ~,
+    breadcrumbs: ~,
+    exceptions: ~,
+    stacktrace: ~,
+    template: ~,
+    threads: ~,
+    tags: ~,
+    extra: ~,
+    debug_meta: ~,
+    client_sdk: ~,
+    ingest_path: ~,
+    errors: ~,
+    key_id: ~,
+    project: ~,
+    grouping_config: ~,
+    checksum: ~,
+    csp: ~,
+    hpkp: Meta {
+        remarks: [],
+        errors: [
+            Error {
+                kind: InvalidData,
+                data: {
+                    "reason": String(
+                        "expected hpkp",
+                    ),
+                },
+            },
+        ],
+        original_length: None,
+        original_value: Some(
+            String(
+                "invalid data my ip address is  [ip] and my credit card number is  [Filtered] ",
+            ),
+        ),
+    },
+    expectct: ~,
+    expectstaple: ~,
+    spans: ~,
+    measurements: ~,
+    breakdowns: ~,
+    scraping_attempts: ~,
+    _metrics: ~,
+    _metrics_summary: ~,
+    other: {},
+}

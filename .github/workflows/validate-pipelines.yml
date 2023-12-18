@@ -9,20 +9,6 @@ on:
   pull_request:
 
 jobs:
-    render:
-        name: Render GoCD Pipelines with Jsonnet
-        runs-on: ubuntu-latest
-        steps:
-          - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c  # v3
-          - uses: getsentry/action-gocd-jsonnet@v1
-            with:
-              jb-install: true
-              check-for-changes: true
-              convert-to-yaml: true
-              jsonnet-dir: gocd/templates
-              generated-dir: gocd/generated-pipelines
-              render-as-single-file: false
-
     files-changed:
         name: files-changed
         runs-on: ubuntu-latest
@@ -30,7 +16,7 @@ jobs:
         outputs:
             gocd: ${{ steps.changes.outputs.gocd }}
         steps:
-          - uses: actions/checkout@v3
+          - uses: actions/checkout@v4
           - name: Check for relevant file changes
             uses: getsentry/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
             id: changes
@@ -52,9 +38,9 @@ jobs:
             id-token: "write"
 
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - id: 'auth'
-              uses: google-github-actions/auth@v1
+              uses: google-github-actions/auth@v2
               with:
                 workload_identity_provider: 'projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool'
                 service_account: 'gha-gocd-api@sac-prod-sa.iam.gserviceaccount.com'
@@ -64,10 +50,8 @@ jobs:
             - uses: getsentry/action-gocd-jsonnet@v1
               with:
                 jb-install: true
-                convert-to-yaml: true
                 jsonnet-dir: gocd/templates
                 generated-dir: gocd/generated-pipelines
-                render-as-single-file: true
             - uses: getsentry/action-validate-gocd-pipelines@v1
               with:
                 configrepo: relay__master

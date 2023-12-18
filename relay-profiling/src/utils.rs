@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use serde::{de, Deserialize};
+use serde_json::{Map, Value};
 
 pub fn is_zero(n: &u64) -> bool {
     *n == 0
@@ -15,13 +16,34 @@ where
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum StringOrInt<T> {
-        String(String),
+    enum AnyType<T> {
+        Array(Vec<Value>),
+        Bool(bool),
+        Null,
         Number(T),
+        Object(Map<String, Value>),
+        String(String),
     }
 
-    match StringOrInt::<T>::deserialize(deserializer)? {
-        StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-        StringOrInt::Number(i) => Ok(i),
+    match AnyType::<T>::deserialize(deserializer)? {
+        AnyType::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+        AnyType::Number(n) => Ok(n),
+        AnyType::Bool(v) => Err(serde::de::Error::custom(format!(
+            "unsupported value: {:?}",
+            v
+        ))),
+        AnyType::Array(v) => Err(serde::de::Error::custom(format!(
+            "unsupported value: {:?}",
+            v
+        ))),
+        AnyType::Object(v) => Err(serde::de::Error::custom(format!(
+            "unsupported value: {:?}",
+            v
+        ))),
+        AnyType::Null => Err(serde::de::Error::custom("unsupported null value")),
     }
+}
+
+pub fn string_is_null_or_empty(s: &Option<String>) -> bool {
+    s.as_deref().map_or(true, |s| s.is_empty())
 }

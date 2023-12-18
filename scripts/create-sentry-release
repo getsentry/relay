@@ -11,6 +11,7 @@
 set -eu
 
 REVISION="${1:-}"
+NAME="${2:-relay}"
 GITHUB_PROJECT="getsentry/relay"
 
 if [ -z "${REVISION}" ]; then
@@ -27,10 +28,10 @@ fi
 
 echo 'Downloading debug info, source bundle, system symbols...'
 gsutil cp \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/release-name" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/relay-debug.zip" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/relay.src.zip" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/libs.tar" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/release-name" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/relay-debug.zip" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/relay.src.zip" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}/libs.tar" \
   .
 
 echo 'Uploading debug information and source bundle...'

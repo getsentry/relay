@@ -1,7 +1,7 @@
-use relay_common::EventType;
-use relay_general::protocol::{Event, TransactionSource};
-use relay_general::store::utils::extract_http_status_code;
-use relay_general::types::{Annotated, RemarkType};
+use relay_base_schema::events::EventType;
+use relay_event_normalization::utils::extract_http_status_code;
+use relay_event_schema::protocol::{Event, TransactionSource};
+use relay_protocol::{Annotated, RemarkType};
 
 use crate::statsd::RelayCounters;
 
