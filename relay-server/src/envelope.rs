@@ -1211,10 +1211,16 @@ impl Envelope {
             .collect::<Vec<_>>();
 
         // Get the rest of the envelopes, one per item.
+        //
+        // TODO(olek): New event id per envelope?
         let mut envelopes: SmallVec<[Box<Self>; 3]> = items
             .into_iter()
             .map(|item| {
-                let headers = headers.clone();
+                let mut headers = headers.clone();
+                // NEL item type should always we recieving a new event id.
+                if item.ty() == &ItemType::Nel {
+                    headers.event_id = Some(EventId::new());
+                }
                 Box::new(Self {
                     headers,
                     items: smallvec![item],

@@ -967,8 +967,6 @@ impl EnvelopeProcessorService {
         match ty {
             // This stil can contain attachements.
             ItemType::Event => {
-                relay_log::trace!("Event");
-
                 event::extract(state, &self.inner.config)?;
 
                 if_processing!({
@@ -996,8 +994,6 @@ impl EnvelopeProcessorService {
             }
             // Contains data which belongs together with transactions.
             ItemType::Transaction | ItemType::Profile => {
-                relay_log::trace!("Transaction/Profile");
-
                 profile::filter(state);
 
                 event::extract(state, &self.inner.config)?;
@@ -1040,8 +1036,6 @@ impl EnvelopeProcessorService {
             }
             // Standalone attachments.
             ItemType::Attachment | ItemType::FormData => {
-                relay_log::trace!("Attachment / FormData");
-
                 // Only some attachments types have create event set to true.
                 if state.creates_event() {
                     event::extract(state, &self.inner.config)?;
@@ -1070,8 +1064,6 @@ impl EnvelopeProcessorService {
                 attachment::scrub(state);
             }
             ItemType::Session | ItemType::Sessions => {
-                relay_log::trace!("Sessions");
-
                 session::process(state, &self.inner.config);
                 if_processing!({
                     self.enforce_quotas(state)?;
@@ -1083,8 +1075,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::Security => {
-                relay_log::trace!("Security");
-
                 event::extract(state, &self.inner.config)?;
 
                 event::finalize(state, &self.inner.config)?;
@@ -1102,8 +1092,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::RawSecurity => {
-                relay_log::trace!("RawSecurity");
-
                 event::extract(state, &self.inner.config)?;
 
                 event::finalize(state, &self.inner.config)?;
@@ -1121,8 +1109,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::Nel => {
-                relay_log::trace!("NEL");
-
                 event::extract(state, &self.inner.config)?;
 
                 event::finalize(state, &self.inner.config)?;
@@ -1140,8 +1126,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::UnrealReport => {
-                relay_log::trace!("Unreal");
-
                 if_processing!({
                     unreal::expand(state, &self.inner.config)?;
                 });
@@ -1168,8 +1152,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::UserReport | ItemType::ClientReport => {
-                relay_log::trace!("User/Clien report");
-
                 report::process(
                     state,
                     &self.inner.config,
@@ -1189,8 +1171,6 @@ impl EnvelopeProcessorService {
                 relay_log::error!("Statsd/Metrics should not go here");
             }
             ItemType::ReplayEvent | ItemType::ReplayRecording => {
-                relay_log::trace!("Replays");
-
                 replay::process(state, &self.inner.config)?;
                 if_processing!({
                     self.enforce_quotas(state)?;
@@ -1202,8 +1182,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::CheckIn => {
-                relay_log::trace!("Crons check in");
-
                 if_processing!({
                     self.enforce_quotas(state)?;
                     self.process_check_ins(state);
@@ -1215,8 +1193,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::Span | ItemType::OtelSpan => {
-                relay_log::trace!("Spans");
-
                 span::filter(state);
                 if_processing!({
                     self.enforce_quotas(state)?;
@@ -1229,8 +1205,6 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::UserReportV2 => {
-                relay_log::trace!("User reports v2");
-
                 event::extract(state, &self.inner.config)?;
 
                 event::finalize(state, &self.inner.config)?;
@@ -1248,7 +1222,7 @@ impl EnvelopeProcessorService {
                 }
             }
             ItemType::Unknown(t) => {
-                relay_log::trace!("Unknown({t})")
+                relay_log::trace!("Received Unknown({t}) item type.")
             }
         }
 
