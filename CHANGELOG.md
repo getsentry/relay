@@ -28,7 +28,9 @@
 - Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
 - Allow ingestion of metrics summary on spans. ([#2823](https://github.com/getsentry/relay/pull/2823))
 - Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
-- Keep only domain and extension for image resource span grouping. ([#2826](https://github.com/getsentry/relay/pull/2826))
+- Org rate limit metrics per bucket. ([#2836](https://github.com/getsentry/relay/pull/2836))
+- Emit image resource spans, grouped by domain and extension. ([#2826](https://github.com/getsentry/relay/pull/2826), [#2855](https://github.com/getsentry/relay/pull/2855))
+- Parse timestamps from strings in span OpenTelemetry schema. ([#2857](https://github.com/getsentry/relay/pull/2857))
 - Use a Lua script for cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
 
 ## 23.11.2

@@ -267,6 +267,8 @@ fn normalize(
             .collect(),
     );
 
+    tag_extraction::extract_measurements(span);
+
     process_value(
         annotated_span,
         &mut TrimmingProcessor::new(),
@@ -312,16 +314,17 @@ fn is_allowed(span: &Span) -> bool {
         .unwrap_or_default();
     op.contains("resource.script")
         || op.contains("resource.css")
+        || op == "resource.img"
         || op == "http.client"
         || op.starts_with("app.")
         || op.starts_with("ui.load")
         || op.starts_with("file")
-        || op.starts_with("db")
+        || (op.starts_with("db")
             && !(op.contains("clickhouse")
                 || op.contains("mongodb")
                 || op.contains("redis")
                 || op.contains("compiler"))
-            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb"))
+            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb")))
 }
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.

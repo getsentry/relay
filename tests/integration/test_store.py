@@ -499,6 +499,119 @@ def test_processing_quotas(
             assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
+def test_sends_metric_bucket_outcome(
+    mini_sentry, relay_with_processing, outcomes_consumer
+):
+    """
+    Checks that with a zero-quota without categories specified we send metric bucket outcomes.
+    """
+    outcomes_consumer = outcomes_consumer()
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "flush_interval": 0,
+            },
+        }
+    )
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    projectconfig["config"]["features"] = ["organizations:custom-metrics"]
+    projectconfig["config"]["quotas"] = [
+        {
+            "scope": "organization",
+            "limit": 0,
+        }
+    ]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+
+    outcome = outcomes_consumer.get_outcome(timeout=3)
+
+    assert outcome["category"] == 15
+    assert outcome["quantity"] == 1
+
+
+def test_rate_limit_metric_bucket(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+):
+    metrics_consumer = metrics_consumer()
+
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metric_bucket_limit = 5
+    buckets_sent = 10
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "organization",
+            "categories": ["metric_bucket"],
+            "limit": metric_bucket_limit,
+            "window": 86400,
+            "reasonCode": "throughput rate limiting",
+        }
+    ]
+
+    def generate_ticks():
+        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
+        tick = int(datetime.utcnow().timestamp() // bucket_interval * bucket_interval)
+        while True:
+            yield tick
+            tick += bucket_interval
+
+    tick = generate_ticks()
+
+    def make_bucket(name, type_, values):
+        return {
+            "org_id": 1,
+            "project_id": project_id,
+            "timestamp": next(tick),
+            "name": name,
+            "type": type_,
+            "value": values,
+            "width": bucket_interval,
+        }
+
+    def send_buckets(buckets):
+        relay.send_metrics_buckets(project_id, buckets)
+        sleep(0.2)
+
+    for _ in range(buckets_sent):
+        bucket = make_bucket("d:transactions/measurements.lcp@millisecond", "d", [1.0])
+        send_buckets(
+            [bucket],
+        )
+    produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
+
+    assert metric_bucket_limit < buckets_sent
+    assert len(produced_buckets) == metric_bucket_limit
+
+
 @pytest.mark.parametrize("violating_bucket", [[4.0, 5.0], [4.0, 5.0, 6.0]])
 def test_rate_limit_metrics_buckets(
     mini_sentry,
