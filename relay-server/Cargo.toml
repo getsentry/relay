@@ -35,24 +35,27 @@ processing = [
 
 [dependencies]
 anyhow = { workspace = true }
-axum = { version = "0.6.20", features = [
-    "headers",
+axum = { version = "0.7.2", features = [
     "macros",
     "matched-path",
     "multipart",
     "tracing",
 ] }
-axum-server = "0.4.7"
 backoff = "0.4.0"
 brotli = "3.3.4"
 bytecount = "0.6.0"
-bytes = { version = "1.4.0" }
+bytes = { version = "1.5.0" }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = "2.3.3"
 flate2 = "1.0.19"
 futures = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
+hyper = { version = "1.0.1", features = ["http1", "http2", "server"] }
+hyper-util = { git = "https://github.com/hyperium/hyper-util", rev = "99409f5c4059633b7e2fa8b9c2e6c110b0f2f64b", features = [
+    "server-auto",
+    "tokio",
+] }
 itertools = { workspace = true }
 json-forensics = { version = "0.1.1" }
 mime = "0.3.16"
@@ -85,6 +88,8 @@ relay-sampling = { path = "../relay-sampling" }
 relay-spans = { path = "../relay-spans" }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
+# NOTE: When upgrading to a version of reqwest that depends on hyper/http 1.0, go to
+# relay-server/src/endpoints/forward.rs and remove `mod legacy_shims`.
 reqwest = { version = "0.11.1", features = [
     "gzip",
     "stream",
@@ -95,7 +100,7 @@ rmp-serde = "1.1.1"
 rust-embed = { version = "8.0.0", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-smallvec = { workspace = true, features = ["drain_filter"]  }
+smallvec = { workspace = true, features = ["drain_filter"] }
 sqlx = { version = "0.7.0", features = [
     "macros",
     "migrate",
@@ -109,7 +114,7 @@ symbolic-unreal = { version = "12.1.2", optional = true, default-features = fals
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tower = { version = "0.4.13", default-features = false }
-tower-http = { version = "0.4.0", default-features = false, features = [
+tower-http = { version = "0.5.0", default-features = false, features = [
     "catch-panic",
     "cors",
     "decompression-br",
