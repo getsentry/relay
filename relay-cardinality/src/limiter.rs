@@ -70,6 +70,7 @@ impl<T: CardinalityScope> Entry<T> {
 }
 
 /// Represents a from the cardinality limiter rejected [`Entry`].
+#[derive(Debug)]
 pub struct Rejection {
     pub(crate) id: EntryId,
 }

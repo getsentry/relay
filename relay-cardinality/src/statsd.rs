@@ -20,6 +20,18 @@ pub enum CardinalityLimiterCounters {
     ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
     RedisHashCheck,
+    /// Incremented for every hash which was served from the in memory cache.
+    ///
+    /// This metric is tagged with:
+    ///  - `scope`: The scope of check operation.
+    #[cfg(feature = "redis")]
+    RedisHashCacheHit,
+    /// Incremented for every hash which was not served from the in memory cache.
+    ///
+    /// This metric is tagged with:
+    ///  - `scope`: The scope of check operation.
+    #[cfg(feature = "redis")]
+    RedisHashCacheMiss,
 }
 
 impl CounterMetric for CardinalityLimiterCounters {
@@ -31,6 +43,10 @@ impl CounterMetric for CardinalityLimiterCounters {
             Self::RedisRead => "cardinality.limiter.redis.read",
             #[cfg(feature = "redis")]
             Self::RedisHashCheck => "cardinality.limiter.redis.hash.check",
+            #[cfg(feature = "redis")]
+            Self::RedisHashCacheHit => "cardinality.limiter.redis.hash.cache_hit",
+            #[cfg(feature = "redis")]
+            Self::RedisHashCacheMiss => "cardinality.limiter.redis.hash.cache_miss",
         }
     }
 }

@@ -1,6 +1,10 @@
-use std::time::SystemTime;
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    time::SystemTime,
+};
 
-use itertools::Itertools;
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
     Connection, RedisPool,
@@ -19,7 +23,7 @@ const KEY_PREFIX: &str = "relay:cardinality";
 struct CardinalityScript(Script);
 
 /// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Status {
     /// Item is rejected.
     Rejected,
@@ -135,11 +139,40 @@ impl CardinalityScript {
     }
 }
 
+struct CheckedLimits {
+    entries: Vec<RedisEntry>,
+    stati: Vec<Status>,
+}
+
+impl CheckedLimits {
+    fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+            stati: Vec::new(),
+        }
+    }
+}
+
+impl IntoIterator for CheckedLimits {
+    type Item = (RedisEntry, Status);
+    type IntoIter = std::iter::Zip<std::vec::IntoIter<RedisEntry>, std::vec::IntoIter<Status>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        debug_assert_eq!(
+            self.entries.len(),
+            self.stati.len(),
+            "expected same amount of entries as stati"
+        );
+        std::iter::zip(self.entries, self.stati)
+    }
+}
+
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
     redis: RedisPool,
     window: SlidingWindow,
     script: CardinalityScript,
+    cache: Cache,
     #[cfg(test)]
     time_offset: u64,
 }
@@ -152,6 +185,7 @@ impl RedisSetLimiter {
             redis,
             window,
             script: CardinalityScript::load(),
+            cache: Cache::default(),
             #[cfg(test)]
             time_offset: 0,
         }
@@ -168,7 +202,11 @@ impl RedisSetLimiter {
         entries: Vec<RedisEntry>,
         timestamp: u64,
         limit: usize,
-    ) -> Result<impl Iterator<Item = Rejection>> {
+    ) -> Result<CheckedLimits> {
+        if entries.is_empty() {
+            return Ok(CheckedLimits::empty());
+        }
+
         metric!(
             counter(CardinalityLimiterCounters::RedisRead) += 1,
             scope = &item_scope,
@@ -209,10 +247,10 @@ impl RedisSetLimiter {
             );
         }
 
-        let result = std::iter::zip(entries, result.stati)
-            .filter_map(|(entry, status)| status.is_rejected().then_some(entry.rejection()));
-
-        Ok(result)
+        Ok(CheckedLimits {
+            entries,
+            stati: result.stati,
+        })
     }
 
     fn to_redis_key(
@@ -257,18 +295,6 @@ impl Limiter for RedisSetLimiter {
         I: IntoIterator<Item = Entry<T>>,
         T: CardinalityScope,
     {
-        let entries = entries
-            .into_iter()
-            .map(|entry| {
-                let Entry { id, scope, hash } = entry;
-
-                let key = (organization_id, scope);
-                let entry = RedisEntry::new(id, hash);
-
-                (key, entry)
-            })
-            .into_group_map();
-
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
@@ -278,22 +304,73 @@ impl Limiter for RedisSetLimiter {
         #[cfg(test)]
         let timestamp = timestamp + self.time_offset;
 
+        let cache_window = self.window.active_time_bucket(timestamp);
+
+        let mut rejected = Vec::new();
+        // There are currently 5 metric namespaces and we know the scope is currently only the
+        // metric namespace -> we can be smart about it and pre-allocate the hashmap.
+        let mut entries_by_scope = HashMap::with_capacity(5);
+        let mut cache_hits = CacheHits::default();
+
+        let cache = self.cache.read(organization_id, cache_window, limit);
+        for Entry { id, scope, hash } in entries {
+            let item_scope = scope.to_string();
+            match cache.check(&item_scope, hash) {
+                CacheOutcome::Accepted => {
+                    // Accepted already, nothing to do.
+                    cache_hits.hit(scope);
+                }
+                CacheOutcome::Rejected => {
+                    // Rejected, add it to the rejected list and move on.
+                    rejected.push(Rejection::new(id));
+                    cache_hits.hit(scope);
+                }
+                CacheOutcome::Unknown => {
+                    cache_hits.miss(scope);
+
+                    let key = (organization_id, item_scope);
+                    let entry = RedisEntry::new(id, hash);
+
+                    entries_by_scope
+                        .entry(key)
+                        .or_insert_with(Vec::new)
+                        .push(entry)
+                }
+            }
+        }
+        // Give up cache lock!
+        drop(cache);
+
+        cache_hits.report();
+
         let mut client = self.redis.client()?;
         let mut connection = client.connection()?;
 
-        let mut rejected = Vec::new();
-        for ((organization_id, item_scope), entries) in entries {
-            rejected.push(self.check_limits(
+        for ((organization_id, item_scope), entries) in entries_by_scope {
+            let results = self.check_limits(
                 &mut connection,
                 organization_id,
-                item_scope.to_string(),
+                item_scope.clone(),
                 entries,
                 timestamp,
                 limit,
-            )?);
+            )?;
+
+            // This always acquires a write lock, but since
+            let mut cache = self
+                .cache
+                .update(organization_id, &item_scope, cache_window);
+
+            for (entry, status) in results {
+                if status.is_rejected() {
+                    rejected.push(entry.rejection());
+                } else {
+                    cache.accept(entry.hash);
+                }
+            }
         }
 
-        Ok(Box::new(rejected.into_iter().flatten()))
+        Ok(Box::new(rejected.into_iter()))
     }
 }
 
@@ -338,6 +415,252 @@ impl SlidingWindow {
     /// The active bucket is the oldest active granule.
     pub fn active_time_bucket(&self, timestamp: u64) -> u64 {
         self.iter(timestamp).last().unwrap_or(0)
+    }
+}
+
+/// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
+/// this hash.
+#[derive(Debug)]
+enum CacheOutcome {
+    /// Hash accepted by cache.
+    Accepted,
+    /// Hash rejected by cache.
+    Rejected,
+    /// Cache has no information about the hash.
+    Unknown,
+}
+
+/// Internal cache remembering already accepted elements and current cardinality.
+///
+/// Only caches for the currently active granule of the sliding window.
+#[derive(Default)]
+struct Cache {
+    inner: RwLock<CacheInner>,
+}
+
+impl Cache {
+    /// Acquires a read lock from the cache and returns a read handle.
+    ///
+    /// All operations done on the handle share the same lock. To release the lock
+    /// the returned [`CacheRead`] must be dropped.
+    fn read(&self, organization_id: OrganizationId, window: u64, limit: usize) -> CacheRead<'_> {
+        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
+
+        // If the window does not match, we can already release the lock.
+        if window != inner.current_window {
+            return CacheRead::Empty;
+        }
+
+        CacheRead::Read {
+            inner,
+            organization_id,
+            limit,
+        }
+    }
+
+    /// Acquires a write lock from the cache and returns an update handle.
+    ///
+    /// All operations done on the handle share the same lock. To release the lock
+    /// the returned [`CacheUpdate`] must be dropped.
+    fn update<'a>(
+        &'a self,
+        organization_id: OrganizationId,
+        item_scope: &'a str,
+        window: u64,
+    ) -> CacheUpdate<'a> {
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
+
+        // If the passed window is newer then the current window, reset the cache to the new window.
+        if window > inner.current_window {
+            inner.current_window = window;
+            inner.cache.clear();
+        } else if window != inner.current_window {
+            // If the window is older don't do anything and give up the lock early.
+            return CacheUpdate::Empty;
+        }
+
+        CacheUpdate::Update {
+            inner,
+            key: CacheKeyRef {
+                organization_id,
+                item_scope,
+            },
+        }
+    }
+}
+
+/// Cache read handle.
+///
+/// Holds a cache read lock, the lock is released on drop.
+enum CacheRead<'a> {
+    Empty,
+    Read {
+        inner: RwLockReadGuard<'a, CacheInner>,
+        organization_id: OrganizationId,
+        limit: usize,
+    },
+}
+
+impl<'a> CacheRead<'a> {
+    fn check(&self, item_scope: &str, hash: u32) -> CacheOutcome {
+        match self {
+            CacheRead::Empty => CacheOutcome::Unknown,
+            CacheRead::Read {
+                inner,
+                organization_id,
+                limit,
+            } => inner
+                .cache
+                .get(&CacheKeyRef {
+                    organization_id: *organization_id,
+                    item_scope,
+                })
+                .map_or(CacheOutcome::Unknown, |s| s.check(hash, *limit)),
+        }
+    }
+}
+
+/// Cache update handle.
+///
+/// Holds a cache write lock, the lock is released on drop.
+enum CacheUpdate<'a> {
+    Empty,
+    Update {
+        inner: RwLockWriteGuard<'a, CacheInner>,
+        key: CacheKeyRef<'a>,
+    },
+}
+
+impl<'a> CacheUpdate<'a> {
+    /// Marks a hash as accepted in the cache, future checks of the item will immediately mark the
+    /// item as accepted.
+    pub fn accept(&mut self, hash: u32) {
+        if let Self::Update { inner, key } = self {
+            inner.cache.entry_ref(key).or_default().0.insert(hash);
+        }
+    }
+}
+
+/// Critical section of the [`Cache`].
+#[derive(Debug, Default)]
+struct CacheInner {
+    cache: hashbrown::HashMap<CacheKey, CacheValue>,
+    current_window: u64,
+}
+
+/// Scope specific information of the cache.
+#[derive(Debug, Default)]
+struct CacheValue(hashbrown::HashSet<u32>);
+
+impl CacheValue {
+    fn check(&self, hash: u32, limit: usize) -> CacheOutcome {
+        if self.0.contains(&hash) {
+            // Local cache copy contains the hash -> accept it straight away
+            CacheOutcome::Accepted
+        } else if self.0.len() >= limit {
+            // We have more or the same amount of items in the local cache as the cardinality
+            // limit -> this new item/hash is rejected.
+            CacheOutcome::Rejected
+        } else {
+            // Check with Redis.
+            CacheOutcome::Unknown
+        }
+    }
+}
+
+/// Key/scoping for the cardinality cache.
+#[derive(Debug, PartialEq, Eq)]
+struct CacheKey {
+    organization_id: OrganizationId,
+    item_scope: String,
+}
+
+impl Hash for CacheKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        CacheKeyRef {
+            organization_id: self.organization_id,
+            item_scope: &self.item_scope,
+        }
+        .hash(state)
+    }
+}
+
+impl hashbrown::Equivalent<CacheKeyRef<'_>> for CacheKey {
+    fn equivalent(&self, key: &CacheKeyRef<'_>) -> bool {
+        let CacheKeyRef {
+            organization_id,
+            item_scope,
+        } = key;
+
+        self.organization_id == *organization_id && &self.item_scope == item_scope
+    }
+}
+
+impl From<&CacheKeyRef<'_>> for CacheKey {
+    fn from(value: &CacheKeyRef<'_>) -> Self {
+        Self {
+            organization_id: value.organization_id,
+            item_scope: value.item_scope.to_owned(),
+        }
+    }
+}
+
+/// A borrowed [`CacheKey`].
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct CacheKeyRef<'a> {
+    organization_id: OrganizationId,
+    item_scope: &'a str,
+}
+
+impl hashbrown::Equivalent<CacheKey> for CacheKeyRef<'_> {
+    fn equivalent(&self, key: &CacheKey) -> bool {
+        let CacheKey {
+            organization_id,
+            item_scope,
+        } = key;
+
+        self.organization_id == *organization_id && self.item_scope == item_scope
+    }
+}
+
+/// Helper to aggregate cache hits by scope before reporting them to statsd.
+#[derive(Debug)]
+struct CacheHits<T: CardinalityScope>(HashMap<T, (i64, i64)>);
+
+impl<T: CardinalityScope> CacheHits<T> {
+    /// Tracks a hit for a scope.
+    fn hit(&mut self, scope: T) {
+        self.0.entry(scope).or_default().0 += 1;
+    }
+
+    /// Tracks a miss for a scope.
+    fn miss(&mut self, scope: T) {
+        self.0.entry(scope).or_default().1 += 1;
+    }
+
+    /// Consumes all counters and reports to statsd.
+    fn report(self) {
+        for (scope, (hits, misses)) in self.0 {
+            if hits > 0 {
+                metric!(
+                    counter(CardinalityLimiterCounters::RedisHashCacheHit) += hits,
+                    scope = &scope.to_string()
+                );
+            }
+            if misses > 0 {
+                metric!(
+                    counter(CardinalityLimiterCounters::RedisHashCacheMiss) += misses,
+                    scope = &scope.to_string()
+                );
+            }
+        }
+    }
+}
+
+impl<T: CardinalityScope> Default for CacheHits<T> {
+    fn default() -> Self {
+        // We know that currently the only scope being tracked is a `MetricNamespace`.
+        Self(HashMap::with_capacity(5))
     }
 }
 

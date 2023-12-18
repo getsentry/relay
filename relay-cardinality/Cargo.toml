@@ -14,6 +14,7 @@ default = []
 redis = ["relay-redis/impl"]
 
 [dependencies]
+hashbrown = { workspace = true }
 itertools = { workspace = true }
 relay-log = { path = "../relay-log" }
 relay-redis = { path = "../relay-redis" }
@@ -21,3 +22,8 @@ relay-statsd = { path = "../relay-statsd" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "redis"
+harness = false
