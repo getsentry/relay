@@ -1,8 +1,7 @@
 use std::borrow::Cow;
 use std::task::{Context, Poll};
 
-use axum::http::{Request, Uri};
-use axum::response::Response;
+use axum::http::{Request, Response, Uri};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use tower::{Layer, Service};
@@ -12,6 +11,7 @@ use tower::{Layer, Service};
 pub struct NormalizePathLayer;
 
 impl NormalizePathLayer {
+    #[allow(unused)]
     pub fn new() -> Self {
         Self
     }
