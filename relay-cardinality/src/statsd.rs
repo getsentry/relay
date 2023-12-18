@@ -19,13 +19,13 @@ pub enum CardinalityLimiterCounters {
     /// This metric is tagged with:
     ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
-    RedisHashCacheHit,
+    RedisCacheHit,
     /// Incremented for every hash which was not served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
-    RedisHashCacheMiss,
+    RedisCacheMiss,
 }
 
 impl CounterMetric for CardinalityLimiterCounters {
@@ -36,9 +36,9 @@ impl CounterMetric for CardinalityLimiterCounters {
             #[cfg(feature = "redis")]
             Self::Rejected => "cardinality.limiter.rejected",
             #[cfg(feature = "redis")]
-            Self::RedisHashCacheHit => "cardinality.limiter.redis.hash.cache_hit",
+            Self::RedisCacheHit => "cardinality.limiter.redis.cache_hit",
             #[cfg(feature = "redis")]
-            Self::RedisHashCacheMiss => "cardinality.limiter.redis.hash.cache_miss",
+            Self::RedisCacheMiss => "cardinality.limiter.redis.cache_miss",
         }
     }
 }
@@ -62,7 +62,7 @@ pub enum CardinalityLimiterHistograms {
     /// This metric is tagged with:
     ///  - `scope`: The scope of check operation.
     #[cfg(feature = "redis")]
-    RedisHashCheckSize,
+    RedisCheckHashes,
     /// Redis stored set cardinality.
     ///
     /// This metric is tagged with:
@@ -75,7 +75,7 @@ impl HistogramMetric for CardinalityLimiterHistograms {
     fn name(&self) -> &'static str {
         match *self {
             #[cfg(feature = "redis")]
-            Self::RedisHashCheckSize => "cardinality.limiter.redis.hash.size",
+            Self::RedisCheckHashes => "cardinality.limiter.redis.check_hashes",
             #[cfg(feature = "redis")]
             Self::RedisSetCardinality => "cardinality.limiter.redis.set_cardinality",
         }

@@ -204,7 +204,7 @@ impl RedisSetLimiter {
         }
 
         metric!(
-            histogram(CardinalityLimiterHistograms::RedisHashCheckSize) = entries.len() as u64,
+            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
             scope = &item_scope,
         );
 
@@ -324,8 +324,8 @@ impl Limiter for RedisSetLimiter {
         drop(cache);
 
         cache_hits.report(
-            CardinalityLimiterCounters::RedisHashCacheHit,
-            CardinalityLimiterCounters::RedisHashCacheMiss,
+            CardinalityLimiterCounters::RedisCacheHit,
+            CardinalityLimiterCounters::RedisCacheMiss,
         );
 
         let mut client = self.redis.client()?;
