@@ -3,6 +3,7 @@
 **Internal**:
 
 - Use a Lua script and in-memory cache for the cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
+ - Extract metrics for file spans. ([#2874](https://github.com/getsentry/relay/pull/2874))
 
 ## 23.12.0
 
