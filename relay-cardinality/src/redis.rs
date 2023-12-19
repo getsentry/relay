@@ -341,7 +341,9 @@ impl Limiter for RedisSetLimiter {
                 limit,
             )?;
 
-            // This always acquires a write lock, but since
+            // This always acquires a write lock, but we only hit this
+            // if we previously didn't satisfy the request from the cache,
+            // -> there is a very high chance we actually need the lock.
             let mut cache = self
                 .cache
                 .update(organization_id, &item_scope, cache_window);
@@ -470,13 +472,15 @@ impl Cache {
     ) -> CacheUpdate<'a> {
         let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
 
-        // If the passed window is newer then the current window, reset the cache to the new window.
+        // If the window is older don't do anything and give up the lock early.
+        if window < inner.current_window {
+            return CacheUpdate::Empty;
+        }
+
+        // If the window is newer then the current window, reset the cache to the new window.
         if window > inner.current_window {
             inner.current_window = window;
             inner.cache.clear();
-        } else if window != inner.current_window {
-            // If the window is older don't do anything and give up the lock early.
-            return CacheUpdate::Empty;
         }
 
         CacheUpdate::Update {
@@ -544,15 +548,18 @@ impl<'a> CacheUpdate<'a> {
 /// Critical section of the [`Cache`].
 #[derive(Debug, Default)]
 struct CacheInner {
-    cache: hashbrown::HashMap<CacheKey, CacheValue>,
+    cache: hashbrown::HashMap<CacheKey, ScopedCache>,
     current_window: u64,
 }
 
 /// Scope specific information of the cache.
 #[derive(Debug, Default)]
-struct CacheValue(hashbrown::HashSet<u32>);
+struct ScopedCache(
+    // Uses hashbrown for a faster hasher `ahash`, benchmarks show about 10% speedup.
+    hashbrown::HashSet<u32>,
+);
 
-impl CacheValue {
+impl ScopedCache {
     fn check(&self, hash: u32, limit: usize) -> CacheOutcome {
         if self.0.contains(&hash) {
             // Local cache copy contains the hash -> accept it straight away
@@ -625,7 +632,7 @@ impl hashbrown::Equivalent<CacheKey> for CacheKeyRef<'_> {
 
 /// Helper to aggregate cache hits by scope before reporting them to statsd.
 #[derive(Debug)]
-struct HitCounter(hashbrown::HashMap<String, (i64, i64)>);
+struct HitCounter(hashbrown::HashMap<String, (i64, i64)>); // uses hashbrown for `entry_ref`
 
 impl HitCounter {
     /// Tracks a hit for a scope.

@@ -31,7 +31,7 @@
 - Org rate limit metrics per bucket. ([#2836](https://github.com/getsentry/relay/pull/2836))
 - Emit image resource spans, grouped by domain and extension. ([#2826](https://github.com/getsentry/relay/pull/2826), [#2855](https://github.com/getsentry/relay/pull/2855))
 - Parse timestamps from strings in span OpenTelemetry schema. ([#2857](https://github.com/getsentry/relay/pull/2857))
-- Use a Lua script for cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
+- Use a Lua script and in-memory cache for the cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
 
 ## 23.11.2
 
