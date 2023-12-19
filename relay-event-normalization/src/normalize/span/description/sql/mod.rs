@@ -628,7 +628,7 @@ mod tests {
     scrub_sql_test_with_dialect!(
         mysql_escape_quote,
         "mysql",
-        r#"SELECT "Wayne's World"#,
+        r#"SELECT "Wayne's World""#,
         "SELECT %s"
     );
 

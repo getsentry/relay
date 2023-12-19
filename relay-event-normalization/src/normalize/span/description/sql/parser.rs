@@ -429,6 +429,10 @@ impl DialectWithParameters {
 }
 
 impl Dialect for DialectWithParameters {
+    fn dialect(&self) -> std::any::TypeId {
+        self.0.dialect()
+    }
+
     fn is_identifier_start(&self, ch: char) -> bool {
         Self::PARAMETERS.contains(ch) || self.0.is_identifier_start(ch)
     }
