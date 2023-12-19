@@ -757,6 +757,12 @@ mod tests {
     );
 
     scrub_sql_test!(
+        select_with_nulls,
+        r#"SELECT foo, NULL, "bar", baz, NULL, NULL, zap FROM my_table"#,
+        "SELECT .. FROM my_table"
+    );
+
+    scrub_sql_test!(
         fallback_hex,
         r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#,
         "SELECT %s, %s"
