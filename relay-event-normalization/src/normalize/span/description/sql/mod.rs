@@ -736,7 +736,7 @@ mod tests {
 
     scrub_sql_test!(
         fallback_hex,
-        r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789abcdef"#,
+        r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#,
         "SELECT %s, %s"
     );
 
