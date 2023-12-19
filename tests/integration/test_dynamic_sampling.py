@@ -620,21 +620,22 @@ def test_relay_chain_keep_unsampled_profile(
     project_id = 42
     relay = relay(relay(mini_sentry))
     config = mini_sentry.add_basic_project_config(project_id)
-    # config["config"]["features"] = ["organizations:profiling-ingest-unsampled-profiles"]
+    config["config"]["transactionMetrics"] = {"version": 1}
+    config["config"]["features"] = ["organizations:profiling-ingest-unsampled-profiles"]
 
     public_key = config["publicKeys"][0]["publicKey"]
-    SAMPLE_RATE = 0
+    SAMPLE_RATE = 0.0
     _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="transaction")
 
     envelope = make_envelope(public_key)
     relay.send_envelope(project_id, envelope)
     envelope = mini_sentry.captured_events.get(timeout=1)
 
-    # print(f"Envelope: {envelope}")
-    profiles = list(
-        filter(lambda item: item.data_category == "profile", envelope.items)
-    )
-    print(f"Profiles: {json.loads(profiles[0].payload.bytes.decode('utf-8'))}")
+    print(f"Envelope: {envelope}")
+    # profiles = list(
+    #     filter(lambda item: item.data_category == "profile", envelope.items)
+    # )
+    # print(f"Profiles: {json.loads(profiles[0].payload.bytes.decode('utf-8'))}")
 
 
 def get_profile_payload(transaction):
