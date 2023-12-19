@@ -1195,14 +1195,20 @@ impl Envelope {
         let headers = self.headers.clone();
         let mut items = std::mem::take(&mut self.items);
 
-        // If we have a transaction item , we assume that it's a transaction, and all the related
-        // items are connected to it and a subject to dynamic sampling and related operations.
+        // Extract transaction related items if one of the item in the envelope is a `ItemType::Transaction`.
+        let mut transaction_items = vec![];
         if items.iter().any(|item| item.ty() == &ItemType::Transaction) {
-            return smallvec![Box::new(Self { headers, items })];
+            transaction_items = items
+                .drain_filter(|item| {
+                    item.ty() == &ItemType::Transaction
+                        || item.ty() == &ItemType::Attachment
+                        || item.ty() == &ItemType::Profile
+                })
+                .collect::<Vec<_>>();
         }
 
         // Events and attachments should always go together.
-        let event_with_attachement_items = items
+        let event_items = items
             .drain_filter(|item| {
                 item.ty() == &ItemType::Event
                     || item.ty() == &ItemType::Attachment
@@ -1211,13 +1217,11 @@ impl Envelope {
             .collect::<Vec<_>>();
 
         // Get the rest of the envelopes, one per item.
-        //
-        // TODO(olek): New event id per envelope?
         let mut envelopes: SmallVec<[Box<Self>; 3]> = items
             .into_iter()
             .map(|item| {
                 let mut headers = headers.clone();
-                // NEL item type should always we recieving a new event id.
+                // NEL item type should always be recieving a new event id.
                 if item.ty() == &ItemType::Nel {
                     headers.event_id = Some(EventId::new());
                 }
@@ -1229,10 +1233,18 @@ impl Envelope {
             .collect();
 
         // Attachments must keep the original event id.
-        if !event_with_attachement_items.is_empty() {
+        if !transaction_items.is_empty() {
             envelopes.push(Box::new(Self {
                 headers: headers.clone(),
-                items: event_with_attachement_items.into(),
+                items: transaction_items.into(),
+            }))
+        }
+
+        // Attachments must keep the original event id.
+        if !event_items.is_empty() {
+            envelopes.push(Box::new(Self {
+                headers: headers.clone(),
+                items: event_items.into(),
             }))
         }
 
