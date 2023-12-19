@@ -738,6 +738,14 @@
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
 <a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -774,6 +782,8 @@
         # Capture ODBC escape sequence.
         ((?-x)(?P&lt;odbc_escape_sequence&gt;\{(?:ts?|d)\s+&#39;.+&#39;\})) |
         ((?-x)(?P&lt;number&gt;(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
+        # Hex constants
+        ((?-x)(?P&lt;hex&gt;(\b0x[0-9a-f]+\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P&lt;bool&gt;(\b(?:true|false)\b)))
         &quot;#</span>,
@@ -1470,6 +1480,12 @@
         rename_table,
         <span class="string">r#&quot;ALTER TABLE &quot;foo&quot;.&quot;tmp&quot; RENAME TO &quot;foo&quot;.&quot;bar&quot;#</span>,
         <span class="string">&quot;ALTER TABLE tmp RENAME TO bar&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        fallback_hex,
+        <span class="string">r#&quot;SELECT {ts &#39;2023-12-24 23:59&#39;}, 0x123456789AbCdEf&quot;#</span>,
+        <span class="string">&quot;SELECT %s, %s&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
