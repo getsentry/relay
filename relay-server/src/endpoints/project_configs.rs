@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::extract::{Query, Request};
+use axum::extract::Query;
 use axum::handler::Handler;
+use axum::http::Request;
 use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
@@ -195,7 +196,12 @@ fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
 /// Relays can drop compatibility with old versions of the project config endpoint, for instance the
 /// initial version 1. However, Sentry's HTTP endpoint will retain compatibility for much longer to
 /// support old Relay versions.
-pub async fn handle(state: ServiceState, mut req: Request) -> Result<impl IntoResponse> {
+pub async fn handle<B>(state: ServiceState, mut req: Request<B>) -> Result<impl IntoResponse>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
     let data = req.extract_parts().await?;
     Ok(if is_compatible(data) {
         inner.call(req, state).await
