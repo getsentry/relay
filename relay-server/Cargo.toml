@@ -101,6 +101,7 @@ rust-embed = { version = "8.0.0", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
+socket2 = "0.5.5"
 sqlx = { version = "0.7.0", features = [
     "macros",
     "migrate",

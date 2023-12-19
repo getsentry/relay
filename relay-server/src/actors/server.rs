@@ -11,6 +11,7 @@ use hyper_util::service::TowerToHyperService;
 use relay_config::Config;
 use relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 use relay_system::{Controller, Service};
+use socket2::TcpKeepalive;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{watch, Notify};
 use tower::{Layer, ServiceBuilder};
@@ -20,6 +21,10 @@ use crate::constants;
 use crate::middlewares::{self, CatchPanicLayer, NormalizePath, RequestDecompressionLayer};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
+
+/// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
+/// is not available.
+const KEEPALIVE_RETRIES: u32 = 5;
 
 /// Set a timeout for reading client request headers. If a client does not transmit the entire
 /// header within this time, the connection is closed.
@@ -136,11 +141,12 @@ async fn serve(mut listener: TcpListener, app: App, config: Arc<Config>) {
 
     // Create a connection builder to reuse across connections.
     let builder = Arc::new(connection_builder(&config));
+    let tcp_keepalive = build_keepalive(&config);
 
     loop {
         let (stream, addr) = tokio::select! {
             biased;
-            result = accept(&mut listener) => result,
+            result = accept(&mut listener, &tcp_keepalive) => result,
             _ = graceful_shutdown.notified() => break, // stop connecting on shutdown signal
         };
 
@@ -202,10 +208,22 @@ fn monitor_hard_shutdown() -> Arc<Notify> {
     shutdown_rx
 }
 
-async fn accept(listener: &mut TcpListener) -> (TokioIo<TcpStream>, SocketAddr) {
+async fn accept(
+    listener: &mut TcpListener,
+    tcp_keepalive: &Option<TcpKeepalive>,
+) -> (TokioIo<TcpStream>, SocketAddr) {
     loop {
         match listener.accept().await {
-            Ok((stream, addr)) => return (TokioIo::new(stream), addr),
+            Ok((stream, addr)) => {
+                if let Some(tcp_keepalive) = tcp_keepalive {
+                    let sock_ref = socket2::SockRef::from(&stream);
+                    if let Err(e) = sock_ref.set_tcp_keepalive(tcp_keepalive) {
+                        relay_log::warn!("failed to set TCP keepalive: {}", e);
+                    }
+                }
+
+                return (TokioIo::new(stream), addr);
+            }
             Err(e) => {
                 // Connection errors can be ignored directly, continue
                 // by accepting the next request.
@@ -230,4 +248,29 @@ fn is_connection_error(e: &io::Error) -> bool {
             | io::ErrorKind::ConnectionAborted
             | io::ErrorKind::ConnectionReset
     )
+}
+
+fn build_keepalive(config: &Config) -> Option<TcpKeepalive> {
+    let ka_timeout = config.keepalive_timeout();
+    if ka_timeout.is_zero() {
+        return None;
+    }
+
+    let mut ka = TcpKeepalive::new().with_time(ka_timeout);
+    #[cfg(not(any(target_os = "openbsd", target_os = "redox", target_os = "solaris")))]
+    {
+        ka = ka.with_interval(ka_timeout);
+    }
+
+    #[cfg(not(any(
+        target_os = "openbsd",
+        target_os = "redox",
+        target_os = "solaris",
+        target_os = "windows"
+    )))]
+    {
+        ka = ka.with_retries(KEEPALIVE_RETRIES);
+    }
+
+    Some(ka)
 }
