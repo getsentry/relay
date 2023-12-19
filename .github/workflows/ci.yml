@@ -222,7 +222,7 @@ jobs:
         run: docker save -o ${{ matrix.image_name }}-docker-image.tgz $IMG_VERSIONED
 
       - name: Upload Docker Image to Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           retention-days: 1
           name: ${{ matrix.image_name }}-docker-image
@@ -271,7 +271,7 @@ jobs:
 
     steps:
       - name: Download Docker Image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: ${{ matrix.image_name }}-docker-image
 
@@ -432,7 +432,7 @@ jobs:
           symbolicator: true
 
       - name: Download Docker Image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: relay-docker-image
 
