@@ -338,6 +338,23 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     .always(),
             ],
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/count_per_segment@none".into(),
+            field: None,
+            condition: Some(mobile_condition.clone() & duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
     ]);
 
     config._span_metrics_extended = true;
