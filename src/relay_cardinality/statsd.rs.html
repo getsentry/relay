@@ -57,49 +57,71 @@
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, TimerMetric};
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Counter metrics for the Relay Cardinality Limiter.
 </span><span class="kw">pub enum </span>CardinalityLimiterCounters {
+    <span class="doccomment">/// Incremented for every accepted item by the cardinality limiter.
+    ///
+    /// This metric is tagged with:
+    ///  - `scope`: The scope of check operation.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+    </span>Accepted,
     <span class="doccomment">/// Incremented for every rejected item by the cardinality limiter.
     ///
     /// This metric is tagged with:
     ///  - `scope`: The scope of check operation.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>Rejected,
-    <span class="doccomment">/// Incremented for every loaded Redis set.
+    <span class="doccomment">/// Incremented for every hash which was served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `scope`: The scope of check operation.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-    </span>RedisRead,
-    <span class="doccomment">/// Incremented for every hash requested to be cardinality checked.
+    </span>RedisCacheHit,
+    <span class="doccomment">/// Incremented for every hash which was not served from the in memory cache.
     ///
     /// This metric is tagged with:
     ///  - `scope`: The scope of check operation.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-    </span>RedisHashCheck,
-    <span class="doccomment">/// Incremented for every hash added to the internal Redis sets.
-    ///
-    /// Note: there are multiple Redis commands executed for every update.
-    ///
-    /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-    </span>RedisHashUpdate,
+    </span>RedisCacheMiss,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>CardinalityLimiterCounters {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+            </span><span class="self">Self</span>::Accepted =&gt; <span class="string">&quot;cardinality.limiter.accepted&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
             </span><span class="self">Self</span>::Rejected =&gt; <span class="string">&quot;cardinality.limiter.rejected&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-            </span><span class="self">Self</span>::RedisRead =&gt; <span class="string">&quot;cardinality.limiter.redis.read&quot;</span>,
+            </span><span class="self">Self</span>::RedisCacheHit =&gt; <span class="string">&quot;cardinality.limiter.redis.cache_hit&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-            </span><span class="self">Self</span>::RedisHashCheck =&gt; <span class="string">&quot;cardinality.limiter.redis.hash.check&quot;</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-            </span><span class="self">Self</span>::RedisHashUpdate =&gt; <span class="string">&quot;cardinality.limiter.redis.hash.update&quot;</span>,
+            </span><span class="self">Self</span>::RedisCacheMiss =&gt; <span class="string">&quot;cardinality.limiter.redis.cache_miss&quot;</span>,
         }
     }
 }
@@ -113,6 +135,32 @@
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             CardinalityLimiterTimers::CardinalityLimiter =&gt; <span class="string">&quot;cardinality.limiter.duration&quot;</span>,
+        }
+    }
+}
+
+<span class="kw">pub enum </span>CardinalityLimiterHistograms {
+    <span class="doccomment">/// Amount of hashes sent to Redis to check the cardinality.
+    ///
+    /// This metric is tagged with:
+    ///  - `scope`: The scope of check operation.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+    </span>RedisCheckHashes,
+    <span class="doccomment">/// Redis stored set cardinality.
+    ///
+    /// This metric is tagged with:
+    ///  - `scope`: The scope of check operation.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+    </span>RedisSetCardinality,
+}
+
+<span class="kw">impl </span>HistogramMetric <span class="kw">for </span>CardinalityLimiterHistograms {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+            </span><span class="self">Self</span>::RedisCheckHashes =&gt; <span class="string">&quot;cardinality.limiter.redis.check_hashes&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+            </span><span class="self">Self</span>::RedisSetCardinality =&gt; <span class="string">&quot;cardinality.limiter.redis.set_cardinality&quot;</span>,
         }
     }
 }
