@@ -51,7 +51,7 @@ flate2 = "1.0.19"
 futures = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
-hyper = { version = "1.0.1", features = ["http1", "http2", "server"] }
+hyper = { version = "1.1.0", features = ["http1", "http2", "server"] }
 hyper-util = { git = "https://github.com/hyperium/hyper-util", rev = "99409f5c4059633b7e2fa8b9c2e6c110b0f2f64b", features = [
     "server-auto",
     "tokio",

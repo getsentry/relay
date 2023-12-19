@@ -269,7 +269,7 @@ dependencies = [
  "http 1.0.0",
  "http-body 1.0.0",
  "http-body-util",
- "hyper 1.0.1",
+ "hyper 1.1.0",
  "hyper-util 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "itoa",
  "matchit",
@@ -2071,9 +2071,9 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "403f9214f3e703236b221f1a9cd88ec8b4adfa5296de01ab96216361f4692f56"
+checksum = "fb5aa53871fc917b1a9ed87b683a5d86db645e23acb32c2e0785a353e522fb75"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -2112,7 +2112,7 @@ dependencies = [
  "futures-util",
  "http 1.0.0",
  "http-body 1.0.0",
- "hyper 1.0.1",
+ "hyper 1.1.0",
  "pin-project-lite",
  "socket2 0.5.3",
  "tokio",
@@ -2131,7 +2131,7 @@ dependencies = [
  "futures-util",
  "http 1.0.0",
  "http-body 1.0.0",
- "hyper 1.0.1",
+ "hyper 1.1.0",
  "pin-project-lite",
  "socket2 0.5.3",
  "tokio",
@@ -4004,7 +4004,7 @@ dependencies = [
  "futures",
  "hash32",
  "hashbrown 0.13.2",
- "hyper 1.0.1",
+ "hyper 1.1.0",
  "hyper-util 0.1.1 (git+https://github.com/hyperium/hyper-util?rev=99409f5c4059633b7e2fa8b9c2e6c110b0f2f64b)",
  "insta",
  "itertools",
