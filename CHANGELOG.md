@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 23.12.0
 
 **Features**:
 
