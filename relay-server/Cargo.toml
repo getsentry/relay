@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.11.2"
+version = "23.12.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -24,6 +24,7 @@ processing = [
     "dep:symbolic-unreal",
     "dep:zstd",
     "bytes/serde",
+    "relay-cardinality/redis",
     "relay-config/processing",
     "relay-kafka/producer",
     "relay-metrics/redis",
@@ -66,6 +67,7 @@ regex = { workspace = true }
 relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
 relay-base-schema = { path = "../relay-base-schema" }
+relay-cardinality = { path = "../relay-cardinality" }
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-dynamic-config = { path = "../relay-dynamic-config" }

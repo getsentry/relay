@@ -122,14 +122,6 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         return;
     };
 
-    // Check feature flag.
-    if !state
-        .project_state
-        .has_feature(Feature::SpanMetricsExtraction)
-    {
-        return;
-    };
-
     let mut add_span = |span: Annotated<Span>| {
         let span = match validate(span) {
             Ok(span) => span,
@@ -150,52 +142,65 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         state.managed_envelope.envelope_mut().add_item(item);
     };
 
+    let span_metrics_extraction_enabled = state
+        .project_state
+        .has_feature(Feature::SpanMetricsExtraction);
+    let custom_metrics_enabled = state.project_state.has_feature(Feature::CustomMetrics);
+
     let Some(event) = state.event.value() else {
         return;
     };
 
+    let extract_transaction_span = span_metrics_extraction_enabled
+        || (custom_metrics_enabled && !event._metrics_summary.is_empty());
+    let extract_child_spans = span_metrics_extraction_enabled;
+
     // Extract transaction as a span.
     let mut transaction_span: Span = event.into();
 
-    let all_modules_enabled = state
-        .project_state
-        .has_feature(Feature::SpanMetricsExtractionAllModules);
+    if extract_child_spans {
+        let all_modules_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionAllModules);
 
-    // Add child spans as envelope items.
-    if let Some(child_spans) = event.spans.value() {
-        for span in child_spans {
-            let Some(inner_span) = span.value() else {
-                continue;
-            };
-            // HACK: filter spans based on module until we figure out grouping.
-            if !all_modules_enabled && !is_allowed(inner_span) {
-                continue;
+        // Add child spans as envelope items.
+        if let Some(child_spans) = event.spans.value() {
+            for span in child_spans {
+                let Some(inner_span) = span.value() else {
+                    continue;
+                };
+                // HACK: filter spans based on module until we figure out grouping.
+                if !all_modules_enabled && !is_allowed(inner_span) {
+                    continue;
+                }
+                // HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                let mut new_span = inner_span.clone();
+                new_span.is_segment = Annotated::new(false);
+                new_span.received = transaction_span.received.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
+
+                // If a profile is associated with the transaction, also associate it with its
+                // child spans.
+                new_span.profile_id = transaction_span.profile_id.clone();
+
+                add_span(Annotated::new(new_span));
             }
-            // HACK: clone the span to set the segment_id. This should happen
-            // as part of normalization once standalone spans reach wider adoption.
-            let mut new_span = inner_span.clone();
-            new_span.is_segment = Annotated::new(false);
-            new_span.received = transaction_span.received.clone();
-            new_span.segment_id = transaction_span.segment_id.clone();
-
-            // If a profile is associated with the transaction, also associate it with its
-            // child spans.
-            new_span.profile_id = transaction_span.profile_id.clone();
-
-            add_span(Annotated::new(new_span));
         }
     }
 
-    // Extract tags to add to this span as well
-    let shared_tags = tag_extraction::extract_shared_tags(event);
-    transaction_span.sentry_tags = Annotated::new(
-        shared_tags
-            .clone()
-            .into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
-    add_span(transaction_span.into());
+    if extract_transaction_span {
+        // Extract tags to add to this span as well
+        let shared_tags = tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
+    }
 }
 
 /// Config needed to normalize a standalone span.
@@ -262,6 +267,8 @@ fn normalize(
             .collect(),
     );
 
+    tag_extraction::extract_measurements(span);
+
     process_value(
         annotated_span,
         &mut TrimmingProcessor::new(),
@@ -307,16 +314,17 @@ fn is_allowed(span: &Span) -> bool {
         .unwrap_or_default();
     op.contains("resource.script")
         || op.contains("resource.css")
+        || op == "resource.img"
         || op == "http.client"
         || op.starts_with("app.")
         || op.starts_with("ui.load")
         || op.starts_with("file")
-        || op.starts_with("db")
+        || (op.starts_with("db")
             && !(op.contains("clickhouse")
                 || op.contains("mongodb")
                 || op.contains("redis")
                 || op.contains("compiler"))
-            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb"))
+            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb")))
 }
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::Write;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use itertools::Either;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
@@ -27,8 +29,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-
-use relay_quotas::{DataCategory, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -38,6 +39,7 @@ use tokio::sync::Semaphore;
 use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -231,6 +233,23 @@ impl ExtractedMetrics {
             ));
         }
     }
+}
+
+fn source_quantities_from_buckets(
+    buckets: &BucketsView,
+    extraction_mode: ExtractionMode,
+) -> SourceQuantities {
+    buckets
+        .iter()
+        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
+        .fold(SourceQuantities::default(), |acc, c| {
+            let profile_count = if c.has_profile { c.count } else { 0 };
+
+            SourceQuantities {
+                transactions: acc.transactions + c.count,
+                profiles: acc.profiles + profile_count,
+            }
+        })
 }
 
 /// A state container for envelope processing.
@@ -438,6 +457,12 @@ pub struct EncodeMetrics {
     pub scoping: Scoping,
     /// Transaction metrics extraction mode.
     pub extraction_mode: ExtractionMode,
+    /// Project state for extracting quotas.
+    pub project_state: Arc<ProjectState>,
+    /// The ratelimits belonging to the project.
+    pub rate_limits: RateLimits,
+    /// Wether to check the contained metric buckets with the cardinality limiter.
+    pub enable_cardinality_limiter: bool,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -555,6 +580,8 @@ struct InnerProcessor {
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     metric_meta_store: Option<RedisMetricMetaStore>,
+    #[cfg(feature = "processing")]
+    cardinality_limiter: Option<CardinalityLimiter>,
 }
 
 impl EnvelopeProcessorService {
@@ -598,6 +625,21 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             metric_meta_store: redis.clone().map(|pool| {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
+            }),
+            #[cfg(feature = "processing")]
+            cardinality_limiter: redis.clone().map(|pool| {
+                CardinalityLimiter::new(
+                    RedisSetLimiter::new(
+                        pool,
+                        SlidingWindow {
+                            window_seconds: config.cardinality_limiter_window(),
+                            granularity_seconds: config.cardinality_limiter_granularity(),
+                        },
+                    ),
+                    relay_cardinality::CardinalityLimiterConfig {
+                        cardinality_limit: config.cardinality_limit(),
+                    },
+                )
             }),
             config,
         };
@@ -1172,8 +1214,6 @@ impl EnvelopeProcessorService {
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
-        use relay_quotas::ItemScoping;
-
         let RateLimitBuckets { mut bucket_limiter } = message;
 
         let scoping = *bucket_limiter.scoping();
@@ -1261,12 +1301,196 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Records the outcomes of the dropped buckets.
+    fn drop_buckets_with_outcomes(
+        &self,
+        reason_code: Option<ReasonCode>,
+        total_buckets: usize,
+        scoping: Scoping,
+        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        mode: ExtractionMode,
+    ) {
+        let mut source_quantities = SourceQuantities::default();
+
+        for buckets in bucket_partitions.values() {
+            source_quantities += source_quantities_from_buckets(&BucketsView::new(buckets), mode);
+        }
+
+        let timestamp = Utc::now();
+
+        if source_quantities.transactions > 0 {
+            self.inner.outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Transaction,
+                quantity: source_quantities.transactions as u32,
+            });
+        }
+        if source_quantities.profiles > 0 {
+            self.inner.outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: Outcome::RateLimited(reason_code.clone()),
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Profile,
+                quantity: source_quantities.profiles as u32,
+            });
+        }
+
+        self.inner.outcome_aggregator.send(TrackOutcome {
+            timestamp,
+            scoping,
+            outcome: Outcome::RateLimited(reason_code),
+            event_id: None,
+            remote_addr: None,
+            category: DataCategory::MetricBucket,
+            quantity: total_buckets as u32,
+        });
+    }
+
+    /// Returns `true` if the batches should be rate limited.
+    fn rate_limit_batches(
+        &self,
+        cached_rate_limits: RateLimits,
+        scoping: Scoping,
+        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        max_batch_size_bytes: usize,
+        project_state: Arc<ProjectState>,
+    ) -> bool {
+        let mode = {
+            let usage = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+                _ => false,
+            };
+            ExtractionMode::from_usage(usage)
+        };
+
+        let quotas = &project_state.config.quotas;
+        let item_scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: &scoping,
+        };
+
+        // We couldn't use the bucket length directly because batching may change the amount of buckets.
+        let total_buckets: usize = bucket_partitions
+            .values()
+            .flat_map(|buckets| {
+                // Cheap operation because there's no allocations.
+                BucketsView::new(buckets)
+                    .by_size(max_batch_size_bytes)
+                    .map(|batch| batch.len())
+            })
+            .sum();
+
+        // For limiting the amount of redis calls we make, in case we already passed the limit.
+        if cached_rate_limits
+            .check_with_quotas(quotas, item_scoping)
+            .is_limited()
+        {
+            relay_log::info!("dropping {total_buckets} buckets due to throughput ratelimit");
+            let reason_code = cached_rate_limits
+                .longest()
+                .and_then(|limit| limit.reason_code.clone());
+
+            self.drop_buckets_with_outcomes(
+                reason_code,
+                total_buckets,
+                scoping,
+                bucket_partitions,
+                mode,
+            );
+
+            return true;
+        }
+
+        #[cfg(feature = "processing")]
+        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
+            // Check with redis if the throughput limit has been exceeded, while also updating
+            // the count so that other relays will be updated too.
+            match rate_limiter.is_rate_limited(quotas, item_scoping, total_buckets, false) {
+                Ok(limits) if limits.is_limited() => {
+                    relay_log::info!(
+                        "dropping {total_buckets} buckets due to throughput ratelimit"
+                    );
+
+                    let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                    self.drop_buckets_with_outcomes(
+                        reason_code,
+                        total_buckets,
+                        scoping,
+                        bucket_partitions,
+                        mode,
+                    );
+
+                    self.inner
+                        .project_cache
+                        .send(UpdateRateLimits::new(scoping.project_key, limits));
+
+                    return true;
+                }
+                Ok(_) => {} // not ratelimited
+                Err(e) => {
+                    relay_log::error!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to check redis rate limits"
+                    );
+                }
+            }
+        };
+
+        false
+    }
+
+    fn check_cardinality_limits(
+        &self,
+        enable_cardinality_limiter: bool,
+        _organization_id: u64,
+        buckets: Vec<Bucket>,
+    ) -> impl Iterator<Item = Bucket> {
+        if !enable_cardinality_limiter {
+            // Use left for original vector of buckets, right for cardinality limited/filtered buckets.
+            return Either::Left(buckets.into_iter());
+        }
+
+        #[cfg(feature = "processing")]
+        if let Some(ref cardinality_limiter) = self.inner.cardinality_limiter {
+            let limits = cardinality_limiter.check_cardinality_limits(_organization_id, buckets);
+
+            return match limits {
+                Ok(limits) => Either::Right(limits.into_accepted()),
+                Err((buckets, error)) => {
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "cardinality limiter failed"
+                    );
+
+                    Either::Left(buckets.into_iter())
+                }
+            };
+        }
+
+        Either::<_, relay_cardinality::limiter::Accepted<_>>::Left(buckets.into_iter())
+    }
+
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
             scoping,
             extraction_mode,
+            project_state,
+            rate_limits: cached_rate_limits,
+            enable_cardinality_limiter,
         } = message;
+
+        let buckets = self.check_cardinality_limits(
+            enable_cardinality_limiter,
+            scoping.organization_id,
+            buckets,
+        );
 
         let partitions = self.inner.config.metrics_partitions();
         let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();
@@ -1274,8 +1498,19 @@ impl EnvelopeProcessorService {
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        for (partition_key, buckets) in partition_buckets(scoping.project_key, buckets, partitions)
-        {
+        let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
+
+        if self.rate_limit_batches(
+            cached_rate_limits,
+            scoping,
+            &bucket_partitions,
+            max_batch_size_bytes,
+            project_state,
+        ) {
+            return;
+        }
+
+        for (partition_key, buckets) in bucket_partitions {
             let mut num_batches = 0;
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
@@ -1409,18 +1644,7 @@ impl Service for EnvelopeProcessorService {
 }
 
 fn create_metrics_item(buckets: &BucketsView<'_>, extraction_mode: ExtractionMode) -> Item {
-    let source_quantities = buckets
-        .iter()
-        .filter_map(|bucket| extract_transaction_count(&bucket, extraction_mode))
-        .fold(SourceQuantities::default(), |acc, c| {
-            let profile_count = if c.has_profile { c.count } else { 0 };
-
-            SourceQuantities {
-                transactions: acc.transactions + c.count,
-                profiles: acc.profiles + profile_count,
-            }
-        });
-
+    let source_quantities = source_quantities_from_buckets(buckets, extraction_mode);
     let mut item = Item::new(ItemType::MetricBuckets);
     item.set_source_quantities(source_quantities);
     item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());

@@ -39,6 +39,9 @@ pub enum Feature {
     /// Enable metric metadata.
     #[serde(rename = "organizations:metric-meta")]
     MetricMeta,
+    /// Enable the Relay cardinality limiter.
+    #[serde(rename = "organizations:relay-cardinality-limiter")]
+    CardinalityLimiter,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

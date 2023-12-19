@@ -1,12 +1,12 @@
 use relay_base_schema::data_category::DataCategory;
-use relay_common::glob2::LazyGlob;
 use relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 use relay_protocol::RuleCondition;
 use serde_json::Number;
 
 use crate::feature::Feature;
-use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
+use crate::metrics::{MetricExtractionConfig, MetricSpec};
 use crate::project::ProjectConfig;
+use crate::Tag;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
 const DISABLED_DATABASES: &[&str] = &[
@@ -24,7 +24,7 @@ const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
-const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css"];
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -75,6 +75,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             "span.exclusive_time",
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
+    let mobile_condition = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
     config.metrics.extend([
         MetricSpec {
@@ -82,19 +83,141 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
             condition: Some(span_op_conditions.clone() & duration_condition.clone()),
-            tags: vec![TagSpec {
-                key: "transaction".into(),
-                field: Some("span.sentry_tags.transaction".into()),
-                value: None,
-                condition: None,
-            }],
+            tags: vec![
+                // Common tags:
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("transaction.method")
+                    .from_field("span.sentry_tags.transaction.method")
+                    .always(),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("span.action")
+                    .from_field("span.sentry_tags.action")
+                    .always(),
+                Tag::with_key("span.category")
+                    .from_field("span.sentry_tags.category")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(),
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(),
+                Tag::with_key("span.module")
+                    .from_field("span.sentry_tags.module")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.status")
+                    .from_field("span.status") // from top-level field
+                    .always(),
+                Tag::with_key("span.status_code")
+                    .from_field("span.sentry_tags.status_code")
+                    .always(),
+                Tag::with_key("span.system")
+                    .from_field("span.sentry_tags.system")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                // Mobile:
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                    .from_field("span.sentry_tags.os.name")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("ttfd")
+                    .from_field("span.sentry_tags.ttfd")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("ttid")
+                    .from_field("span.sentry_tags.ttid")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("span.main_thread")
+                    .from_field("span.sentry_tags.main_thread")
+                    .when(mobile_condition.clone()),
+                // Resource module:
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .when(resource_condition.clone()),
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .when(resource_condition.clone()),
+            ],
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
             condition: Some(span_op_conditions.clone() & duration_condition.clone()),
-            tags: Default::default(),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("transaction.method")
+                    .from_field("span.sentry_tags.transaction.method")
+                    .always(),
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("span.action")
+                    .from_field("span.sentry_tags.action")
+                    .always(),
+                Tag::with_key("span.category")
+                    .from_field("span.sentry_tags.category")
+                    .always(),
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(),
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .always(),
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(),
+                Tag::with_key("span.module")
+                    .from_field("span.sentry_tags.module")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.status")
+                    .from_field("span.status") // from top-level field
+                    .always(),
+                Tag::with_key("span.status_code")
+                    .from_field("span.sentry_tags.status_code")
+                    .always(),
+                Tag::with_key("span.system")
+                    .from_field("span.sentry_tags.system")
+                    .always(),
+                // Mobile:
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
+                    .from_field("span.sentry_tags.os.name")
+                    .when(mobile_condition.clone()),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .when(mobile_condition.clone()),
+                // Resource module:
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .when(resource_condition.clone()),
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .when(resource_condition.clone()),
+            ],
         },
         MetricSpec {
             category: DataCategory::Span,
@@ -105,7 +228,32 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     & resource_condition.clone()
                     & RuleCondition::gt("span.data.http\\.response_content_length", 0),
             ),
-            tags: Default::default(),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(), // already guarded by condition on metric
+            ],
         },
         MetricSpec {
             category: DataCategory::Span,
@@ -116,7 +264,29 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     & resource_condition.clone()
                     & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
             ),
-            tags: Default::default(),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+            ],
         },
         MetricSpec {
             category: DataCategory::Span,
@@ -127,113 +297,46 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     & resource_condition.clone()
                     & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
             ),
-            tags: Default::default(),
+            tags: vec![
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("file_extension")
+                    .from_field("span.sentry_tags.file_extension")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("resource.render_blocking_status")
+                    .from_field("span.sentry_tags.resource.render_blocking_status")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.domain")
+                    .from_field("span.sentry_tags.domain")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+            ],
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "c:spans/count_per_op@none".into(),
             field: None,
             condition: Some(duration_condition.clone()),
-            tags: ["category", "op", "system"]
-                .map(|key| TagSpec {
-                    key: format!("span.{key}"),
-                    field: Some(format!("span.sentry_tags.{key}")),
-                    value: None,
-                    condition: None,
-                })
-                .into(),
-        },
-    ]);
-
-    config.tags.extend([
-        TagMapping {
-            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: [
-                ("", "environment"),
-                ("span.", "action"),
-                ("span.", "category"),
-                ("span.", "description"),
-                ("span.", "domain"),
-                ("span.", "group"),
-                ("span.", "module"),
-                ("span.", "op"),
-                ("span.", "status_code"),
-                ("span.", "system"),
-                ("", "transaction.method"),
-                ("", "transaction.op"),
-            ]
-            .map(|(prefix, key)| TagSpec {
-                key: format!("{prefix}{key}"),
-                field: Some(format!("span.sentry_tags.{}", key)),
-                value: None,
-                condition: None,
-            })
-            .into_iter()
-            // Tags taken directly from the span payload:
-            .chain(std::iter::once(TagSpec {
-                key: "span.status".into(),
-                field: Some("span.status".into()),
-                value: None,
-                condition: None,
-            }))
-            .collect(),
-        },
-        // Mobile-specific tags:
-        TagMapping {
-            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: [
-                ("", "device.class"),
-                ("", "release"),
-                ("", "ttfd"),
-                ("", "ttid"),
-                ("span.", "main_thread"),
-            ]
-            .map(|(prefix, key)| TagSpec {
-                key: format!("{prefix}{key}"),
-                field: Some(format!("span.sentry_tags.{}", key)),
-                value: None,
-                condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
-            })
-            .into(),
-        },
-        // Resource-specific tags:
-        TagMapping {
-            metrics: vec![
-                LazyGlob::new("d:spans/http.response_content_length@byte".into()),
-                LazyGlob::new("d:spans/http.decoded_response_content_length@byte".into()),
-                LazyGlob::new("d:spans/http.response_transfer_size@byte".into()),
+            tags: vec![
+                Tag::with_key("span.category")
+                    .from_field("span.sentry_tags.category")
+                    .always(),
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("span.system")
+                    .from_field("span.sentry_tags.system")
+                    .always(),
             ],
-            tags: [
-                ("", "environment"),
-                ("", "file_extension"),
-                ("", "resource.render_blocking_status"),
-                ("", "transaction"),
-                ("span.", "description"),
-                ("span.", "domain"),
-                ("span.", "group"),
-                ("span.", "op"),
-            ]
-            .map(|(prefix, key)| TagSpec {
-                key: format!("{prefix}{key}"),
-                field: Some(format!("span.sentry_tags.{}", key)),
-                value: None,
-                condition: Some(resource_condition.clone()),
-            })
-            .into(),
-        },
-        TagMapping {
-            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: [
-                ("", "file_extension"),
-                ("", "resource.render_blocking_status"),
-            ]
-            .map(|(prefix, key)| TagSpec {
-                key: format!("{prefix}{key}"),
-                field: Some(format!("span.sentry_tags.{}", key)),
-                value: None,
-                condition: Some(resource_condition.clone()),
-            })
-            .into(),
         },
     ]);
 

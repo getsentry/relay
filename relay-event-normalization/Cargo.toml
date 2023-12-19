@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Event normalization and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.11.2"
+version = "23.12.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -30,7 +30,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = "0.7.1"
 smallvec = { workspace = true }
-sqlparser = { version = "0.37.0", features = ["visitor"] }
+# Use a fork of sqlparser until https://github.com/sqlparser-rs/sqlparser-rs/pull/1065 gets merged:
+sqlparser = { git = "https://github.com/getsentry/sqlparser-rs.git", rev = "0bb7ec6ce661ecfc468f647fd1003b7839d37fa6", features = [
+    "visitor",
+] }
 thiserror = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }

@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+**Internal**:
+
+- Use a Lua script and in-memory cache for the cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
+
+## 23.12.0
 
 **Features**:
 
@@ -12,11 +16,14 @@
 - Allow to ingest measurements on a span. ([#2792](https://github.com/getsentry/relay/pull/2792))
 - Extract size metrics for all resource spans when permitted. ([#2805](https://github.com/getsentry/relay/pull/2805))
 - Allow access to more fields in dynamic sampling and metric extraction. ([#2820](https://github.com/getsentry/relay/pull/2820))
+- Add Redis set based cardinality limiter for metrics. ([#2745](https://github.com/getsentry/relay/pull/2745))
+- Support issue thresholds for Cron Monitor configurations ([#2842](https://github.com/getsentry/relay/pull/2842))
 
 **Bug Fixes**:
 
 - In on-demand metric extraction, use the normalized URL instead of raw URLs sent by SDKs. This bug prevented metrics for certain dashboard queries from being extracted. ([#2819](https://github.com/getsentry/relay/pull/2819))
 - Ignore whitespaces when parsing user reports. ([#2798](https://github.com/getsentry/relay/pull/2798))
+- Fix parsing bug for SQL queries. ([#2846](https://github.com/getsentry/relay/pull/2846))
 
 **Internal**:
 
@@ -24,6 +31,11 @@
 - Temporarily add metric summaries on spans and top-level transaction events to link DDM with performance monitoring. ([#2757](https://github.com/getsentry/relay/pull/2757))
 - Add size limits on metric related envelope items. ([#2800](https://github.com/getsentry/relay/pull/2800))
 - Include the size offending item in the size limit error message. ([#2801](https://github.com/getsentry/relay/pull/2801))
+- Allow ingestion of metrics summary on spans. ([#2823](https://github.com/getsentry/relay/pull/2823))
+- Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
+- Org rate limit metrics per bucket. ([#2836](https://github.com/getsentry/relay/pull/2836))
+- Emit image resource spans, grouped by domain and extension. ([#2826](https://github.com/getsentry/relay/pull/2826), [#2855](https://github.com/getsentry/relay/pull/2855))
+- Parse timestamps from strings in span OpenTelemetry schema. ([#2857](https://github.com/getsentry/relay/pull/2857))
 
 ## 23.11.2
 
