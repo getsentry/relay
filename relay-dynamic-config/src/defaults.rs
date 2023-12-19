@@ -352,7 +352,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     .always(),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
-                    .always(), // already guarded by condition on metric
+                    .always(), // mobile only - already guarded by condition on metric
             ],
         },
     ]);
