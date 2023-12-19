@@ -589,3 +589,179 @@ def test_relay_chain(
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     envelope.get_transaction_event()
+
+
+from .test_outcome import _get_event_payload
+
+
+def test_relay_chain_keep_unsampled_profile(
+    mini_sentry,
+    relay,
+):
+
+    # Create an envelope with a profile:
+    def make_envelope():
+        transaction_payload = _get_event_payload("transaction")
+        profile_payload = get_profile_payload(transaction_payload)
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(transaction_payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(profile_payload).encode()),
+                type="profile",
+            )
+        )
+        return envelope
+
+    project_id = 42
+    relay = relay(relay(mini_sentry))
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+    SAMPLE_RATE = 0.001
+    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="transaction")
+
+    envelope = make_envelope()
+    relay.send_envelope(project_id, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+
+    profiles = list(
+        filter(lambda item: item.data_category == "profile", envelope.items)
+    )
+    print(f"Profiles: {json.loads(profiles[0].payload.bytes.decode('utf-8'))}")
+
+
+def get_profile_payload(transaction):
+    return {
+        "debug_meta": {"images": []},
+        "device": {
+            "architecture": "x86_64",
+            "classification": "",
+            "locale": "",
+            "manufacturer": "",
+            "model": "",
+        },
+        "environment": "prod",
+        "event_id": "429c1ffa194f41f5b6a6650929744177",
+        "os": {"build_number": "", "name": "Linux", "version": "5.15.107+"},
+        "organization_id": 1,
+        "platform": "python",
+        "project_id": 1,
+        "received": transaction["start_timestamp"],
+        "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
+        "retention_days": 90,
+        "runtime": {"name": "CPython", "version": "3.8.18"},
+        "timestamp": transaction["start_timestamp"] + "Z",
+        "profile": {
+            "frames": [
+                {
+                    "data": {},
+                    "filename": "concurrent/futures/thread.py",
+                    "function": "_worker",
+                    "in_app": False,
+                    "lineno": 78,
+                    "module": "concurrent.futures.thread",
+                    "abs_path": "/usr/local/lib/python3.8/concurrent/futures/thread.py",
+                },
+                {
+                    "data": {},
+                    "filename": "threading.py",
+                    "function": "Thread.run",
+                    "in_app": False,
+                    "lineno": 870,
+                    "module": "threading",
+                    "abs_path": "/usr/local/lib/python3.8/threading.py",
+                },
+                {
+                    "data": {},
+                    "filename": "sentry_sdk/integrations/threading.py",
+                    "function": "run",
+                    "in_app": False,
+                    "lineno": 70,
+                    "module": "sentry_sdk.integrations.threading",
+                    "abs_path": "/usr/local/lib/python3.8/site-packages/sentry_sdk/integrations/threading.py",
+                },
+                {
+                    "data": {},
+                    "filename": "threading.py",
+                    "function": "Thread._bootstrap_inner",
+                    "in_app": False,
+                    "lineno": 932,
+                    "module": "threading",
+                    "abs_path": "/usr/local/lib/python3.8/threading.py",
+                },
+                {
+                    "data": {},
+                    "filename": "threading.py",
+                    "function": "Thread._bootstrap",
+                    "in_app": False,
+                    "lineno": 890,
+                    "module": "threading",
+                    "abs_path": "/usr/local/lib/python3.8/threading.py",
+                },
+            ],
+            "queue_metadata": None,
+            "samples": [
+                {
+                    "elapsed_since_start_ns": 2668948,
+                    "stack_id": 0,
+                    "thread_id": 140510151571200,
+                },
+                {
+                    "elapsed_since_start_ns": 2668948,
+                    "stack_id": 0,
+                    "thread_id": 140510673217280,
+                },
+                {
+                    "elapsed_since_start_ns": 2668948,
+                    "stack_id": 0,
+                    "thread_id": 140510673217280,
+                },
+            ],
+            "stacks": [[0, 1, 2, 3, 4]],
+            "thread_metadata": {
+                "140510151571200": {"name": "ThreadPoolExecutor-1_4"},
+                "140510673217280": {"name": "ThreadPoolExecutor-1_3"},
+                "140510710716160": {"name": "Thread-19"},
+                "140510719108864": {"name": "Thread-18"},
+                "140510727501568": {"name": "ThreadPoolExecutor-1_2"},
+                "140511074039552": {"name": "ThreadPoolExecutor-1_1"},
+                "140511082432256": {"name": "ThreadPoolExecutor-1_0"},
+                "140511090824960": {"name": "Thread-17"},
+                "140511099217664": {"name": "raven-sentry.BackgroundWorker"},
+                "140511117047552": {"name": "raven-sentry.BackgroundWorker"},
+                "140511574738688": {"name": "sentry.profiler.ThreadScheduler"},
+                "140511583131392": {"name": "sentry.monitor"},
+                "140512539440896": {"name": "uWSGIWorker6Core1"},
+                "140512620431104": {"name": "Thread-1"},
+                "140514768926528": {"name": "uWSGIWorker6Core0"},
+            },
+        },
+        "transaction": {
+            "active_thread_id": 140512539440896,
+            "id": "61b6961a17b64d57be6ab04974f4cf61",
+            "name": "/api/0/organizations/{organization_slug}/broadcasts/",
+            "trace_id": "ad09f484cdca48c79542f02b474fd651",
+        },
+        "transaction_metadata": {
+            "environment": "prod",
+            "http.method": "GET",
+            "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
+            "transaction": "/api/0/organizations/{organization_slug}/broadcasts/",
+            "transaction.end": transaction["timestamp"],
+            "transaction.op": "http.server",
+            "transaction.start": transaction["start_timestamp"],
+            "transaction.status": "ok",
+        },
+        "transaction_tags": {
+            "http.status_code": "200",
+            "organization": "4506315662819328",
+            "organization.slug": "uta-inc",
+        },
+        "version": "1",
+    }
