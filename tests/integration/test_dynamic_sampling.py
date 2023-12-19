@@ -1,3 +1,4 @@
+from datetime import datetime
 import uuid
 import json
 
@@ -591,25 +592,23 @@ def test_relay_chain(
     envelope.get_transaction_event()
 
 
-from .test_outcome import _get_event_payload
-
-
 def test_relay_chain_keep_unsampled_profile(
     mini_sentry,
     relay,
 ):
 
     # Create an envelope with a profile:
-    def make_envelope():
-        transaction_payload = _get_event_payload("transaction")
-        profile_payload = get_profile_payload(transaction_payload)
-        envelope = Envelope()
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=json.dumps(transaction_payload).encode()),
-                type="transaction",
-            )
+    def make_envelope(public_key):
+        trace_uuid = "414e119d37694a32869f9d81b76a0bbb"
+        transaction_uuid = "414e119d37694a32869f9d81b76a0baa"
+
+        envelope, trace_id, event_id = _create_transaction_envelope(
+            public_key,
+            trace_id=trace_uuid,
+            event_id=transaction_uuid,
         )
+        te = envelope.get_transaction_event()
+        profile_payload = get_profile_payload(te)
         envelope.add_item(
             Item(
                 payload=PayloadRef(bytes=json.dumps(profile_payload).encode()),
@@ -621,15 +620,17 @@ def test_relay_chain_keep_unsampled_profile(
     project_id = 42
     relay = relay(relay(mini_sentry))
     config = mini_sentry.add_basic_project_config(project_id)
+    # config["config"]["features"] = ["organizations:profiling-ingest-unsampled-profiles"]
+
     public_key = config["publicKeys"][0]["publicKey"]
-    SAMPLE_RATE = 0.001
+    SAMPLE_RATE = 0
     _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="transaction")
 
-    envelope = make_envelope()
+    envelope = make_envelope(public_key)
     relay.send_envelope(project_id, envelope)
-
     envelope = mini_sentry.captured_events.get(timeout=1)
 
+    # print(f"Envelope: {envelope}")
     profiles = list(
         filter(lambda item: item.data_category == "profile", envelope.items)
     )
@@ -656,7 +657,8 @@ def get_profile_payload(transaction):
         "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
         "retention_days": 90,
         "runtime": {"name": "CPython", "version": "3.8.18"},
-        "timestamp": transaction["start_timestamp"] + "Z",
+        "timestamp": datetime.fromtimestamp(transaction["start_timestamp"]).isoformat()
+        + "Z",
         "profile": {
             "frames": [
                 {
@@ -744,18 +746,22 @@ def get_profile_payload(transaction):
         },
         "transaction": {
             "active_thread_id": 140512539440896,
-            "id": "61b6961a17b64d57be6ab04974f4cf61",
+            "id": transaction["event_id"],
             "name": "/api/0/organizations/{organization_slug}/broadcasts/",
-            "trace_id": "ad09f484cdca48c79542f02b474fd651",
+            "trace_id": transaction["contexts"]["trace"]["trace_id"],
         },
         "transaction_metadata": {
             "environment": "prod",
             "http.method": "GET",
             "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
             "transaction": "/api/0/organizations/{organization_slug}/broadcasts/",
-            "transaction.end": transaction["timestamp"],
+            "transaction.end": datetime.fromtimestamp(
+                transaction["timestamp"]
+            ).isoformat(),
             "transaction.op": "http.server",
-            "transaction.start": transaction["start_timestamp"],
+            "transaction.start": datetime.fromtimestamp(
+                transaction["start_timestamp"]
+            ).isoformat(),
             "transaction.status": "ok",
         },
         "transaction_tags": {
