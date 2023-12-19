@@ -965,7 +965,7 @@ impl EnvelopeProcessorService {
 
         // Defined processing pipeilnes based on the event type and/or item type they contain.
         match ty {
-            // This stil can contain attachements.
+            // This can still contain attachements.
             ItemType::Event => {
                 event::extract(state, &self.inner.config)?;
 
@@ -992,7 +992,7 @@ impl EnvelopeProcessorService {
 
                 attachment::scrub(state);
             }
-            // Contains data which belongs together with transactions.
+            // Contains data which belongs together with transactions, e.g. profiles attachments.
             ItemType::Transaction | ItemType::Profile => {
                 profile::filter(state);
 
