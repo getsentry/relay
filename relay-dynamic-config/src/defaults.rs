@@ -26,6 +26,9 @@ const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
 
+/// A list of file span ops we'd like to ingest.
+const FILE_OPS: &[&str] = &["file.read", "file.write"];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -63,6 +66,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         (
             RuleCondition::eq("span.op", "http.client")
                 | RuleCondition::glob("span.op", MOBILE_OPS)
+                | RuleCondition::glob("span.op", FILE_OPS)
                 | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
                 | resource_condition.clone(),
             resource_condition,
