@@ -768,6 +768,12 @@
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1524,6 +1530,12 @@
         rename_table,
         <span class="string">r#&quot;ALTER TABLE &quot;foo&quot;.&quot;tmp&quot; RENAME TO &quot;foo&quot;.&quot;bar&quot;#</span>,
         <span class="string">&quot;ALTER TABLE tmp RENAME TO bar&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        select_with_nulls,
+        <span class="string">r#&quot;SELECT foo, NULL, &quot;bar&quot;, baz, NULL, NULL, zap FROM my_table&quot;#</span>,
+        <span class="string">&quot;SELECT .. FROM my_table&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(

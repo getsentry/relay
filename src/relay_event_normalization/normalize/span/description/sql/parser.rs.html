@@ -591,15 +591,15 @@
         Ident::new(<span class="string">&quot;..&quot;</span>)
     }
 
-    <span class="doccomment">/// Check if a selected item can be erased into `..`. Currently we only collapse simple
-    /// columns (`col1` or `col1 AS foo`).
+    <span class="doccomment">/// Check if a selected item can be erased into `..`.
+    /// We only collapse simple values (e.g. NULL) and columns (`col1` or `col1 AS foo`).
     </span><span class="kw">fn </span>is_collapsible(item: <span class="kw-2">&amp;</span>SelectItem) -&gt; bool {
         <span class="kw">match </span>item {
-            SelectItem::UnnamedExpr(expr) =&gt; {
-                <span class="macro">matches!</span>(expr, Expr::Identifier(<span class="kw">_</span>) | Expr::CompoundIdentifier(<span class="kw">_</span>))
-            }
-            SelectItem::ExprWithAlias { expr, .. } =&gt; {
-                <span class="macro">matches!</span>(expr, Expr::Identifier(<span class="kw">_</span>) | Expr::CompoundIdentifier(<span class="kw">_</span>))
+            SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } =&gt; {
+                <span class="macro">matches!</span>(
+                    expr,
+                    Expr::Value(<span class="kw">_</span>) | Expr::Identifier(<span class="kw">_</span>) | Expr::CompoundIdentifier(<span class="kw">_</span>)
+                )
             }
             <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
         }
