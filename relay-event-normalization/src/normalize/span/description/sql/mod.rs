@@ -34,6 +34,8 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         # Capture ODBC escape sequence.
         ((?-x)(?P<odbc_escape_sequence>\{(?:ts?|d)\s+'.+'\})) |
         ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
+        # Hex constants
+        ((?-x)(?P<hex>(\b0x[0-9a-f]+\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P<bool>(\b(?:true|false)\b)))
         "#,
@@ -730,6 +732,12 @@ mod tests {
         rename_table,
         r#"ALTER TABLE "foo"."tmp" RENAME TO "foo"."bar"#,
         "ALTER TABLE tmp RENAME TO bar"
+    );
+
+    scrub_sql_test!(
+        fallback_hex,
+        r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789abcdef"#,
+        "SELECT %s, %s"
     );
 
     scrub_sql_test!(
