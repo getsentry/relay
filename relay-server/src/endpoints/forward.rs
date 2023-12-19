@@ -9,9 +9,9 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use axum::extract::{DefaultBodyLimit, Request};
+use axum::extract::DefaultBodyLimit;
 use axum::handler::Handler;
-use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
@@ -20,7 +20,7 @@ use relay_config::Config;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
-use crate::actors::upstream::{SendRequest, UpstreamRequest, UpstreamRequestError};
+use crate::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
 use crate::service::ServiceState;
@@ -46,41 +46,6 @@ static IGNORED_REQUEST_HEADERS: &[HeaderName] = &[
 /// Root path of all API endpoints.
 const API_PATH: &str = "/api/";
 
-/// Shims to convert between http 0.2 and http 1.0. This is needed until reqwest is updated to a
-/// version that builds on hyper/http 1.0.
-mod legacy_shims {
-    use axum::http::StatusCode as AxumCode;
-    use reqwest::StatusCode as ReqwestCode;
-
-    use super::HOP_BY_HOP_HEADERS;
-
-    pub fn status_to_1(status: ReqwestCode) -> AxumCode {
-        AxumCode::from_u16(status.as_u16()).unwrap()
-    }
-
-    pub fn status_to_1_opt(status: Option<ReqwestCode>) -> Option<AxumCode> {
-        Some(AxumCode::from_u16(status?.as_u16()).unwrap())
-    }
-
-    pub fn is_hop_by_hop(header: &reqwest::header::HeaderName) -> bool {
-        HOP_BY_HOP_HEADERS
-            .iter()
-            .any(|h| h.as_str() == header.as_str())
-    }
-
-    pub fn header_to_1(
-        name: &reqwest::header::HeaderName,
-        value: &reqwest::header::HeaderValue,
-    ) -> (axum::http::HeaderName, axum::http::HeaderValue) {
-        (
-            name.as_str().parse().unwrap(),
-            axum::http::HeaderValue::from_bytes(value.as_bytes()).unwrap(),
-        )
-    }
-}
-
-use legacy_shims::*;
-
 /// A wrapper struct that allows conversion of UpstreamRequestError into a `dyn ResponseError`. The
 /// conversion logic is really only acceptable for blindly forwarded requests.
 #[derive(Debug, thiserror::Error)]
@@ -100,7 +65,8 @@ impl IntoResponse for ForwardError {
                 HttpError::Overflow => StatusCode::PAYLOAD_TOO_LARGE.into_response(),
                 HttpError::Reqwest(error) => {
                     relay_log::error!(error = error as &dyn Error);
-                    status_to_1_opt(error.status())
+                    error
+                        .status()
                         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
                         .into_response()
                 }
@@ -146,8 +112,8 @@ impl fmt::Debug for ForwardRequest {
 }
 
 impl UpstreamRequest for ForwardRequest {
-    fn method(&self) -> reqwest::Method {
-        self.method.as_str().parse().unwrap()
+    fn method(&self) -> Method {
+        self.method.clone()
     }
 
     fn path(&self) -> Cow<'_, str> {
@@ -196,12 +162,12 @@ impl UpstreamRequest for ForwardRequest {
         Box::pin(async move {
             let result = match result {
                 Ok(response) => {
-                    let status = status_to_1(response.status());
+                    let status = response.status();
                     let headers = response
                         .headers()
                         .iter()
-                        .filter(|(name, _)| !is_hop_by_hop(name))
-                        .map(|(name, value)| header_to_1(name, value))
+                        .filter(|(name, _)| !HOP_BY_HOP_HEADERS.contains(name))
+                        .map(|(name, value)| (name.clone(), value.clone()))
                         .collect();
 
                     match response.bytes(self.max_response_size).await {
@@ -302,7 +268,12 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
 ///
 /// - Use it as [`Handler`] directly in router methods when registering this as a route.
 /// - Call this manually from other request handlers to conditionally forward from other endpoints.
-pub fn forward(state: ServiceState, req: Request) -> impl Future<Output = Response> {
+pub fn forward<B>(state: ServiceState, req: Request<B>) -> impl Future<Output = Response>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
     let limit = get_limit_for_path(req.uri().path(), state.config());
     handle.layer(DefaultBodyLimit::max(limit)).call(req, state)
 }

@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
-use axum::extract::{DefaultBodyLimit, Multipart, Request};
+use axum::extract::{DefaultBodyLimit, Multipart};
+use axum::http::Request;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
@@ -125,12 +126,17 @@ fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>,
     Ok(envelope)
 }
 
-async fn handle(
+async fn handle<B>(
     state: ServiceState,
     meta: RequestMeta,
     content_type: RawContentType,
-    request: Request,
-) -> axum::response::Result<impl IntoResponse> {
+    request: Request<B>,
+) -> axum::response::Result<impl IntoResponse>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send + Into<Bytes>,
+    B::Error: Into<axum::BoxError>,
+{
     // The minidump can either be transmitted as the request body, or as
     // `upload_file_minidump` in a multipart form-data/ request.
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
@@ -155,7 +161,12 @@ async fn handle(
     Ok(TextResponse(id))
 }
 
-pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send + Into<Bytes>,
+    B::Error: Into<axum::BoxError>,
+{
     post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }
 
