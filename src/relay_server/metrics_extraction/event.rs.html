@@ -1229,6 +1229,8 @@
 <a href="#1229" id="1229">1229</a>
 <a href="#1230" id="1230">1230</a>
 <a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2447,7 +2449,9 @@
 
         <span class="macro">assert!</span>(!metrics.is_empty());
         <span class="kw">for </span>metric <span class="kw">in </span>metrics {
-            <span class="kw">if </span>metric.name == <span class="string">&quot;c:spans/count_per_op@none&quot; </span>{
+            <span class="kw">if </span>metric.name == <span class="string">&quot;c:spans/count_per_op@none&quot;
+                </span>|| metric.name == <span class="string">&quot;c:spans/count_per_segment@none&quot;
+            </span>{
                 <span class="kw">continue</span>;
             }
             <span class="kw">if </span>metric.name == <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot; </span>{
