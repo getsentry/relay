@@ -202,6 +202,13 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     // Check for required and non-empty values
     schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
+    normalize_timestamps(
+        event,
+        meta,
+        config.received_at,
+        config.max_secs_in_past,
+        config.max_secs_in_future,
+    )?; // Timestamps are core in the metrics extraction
     TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
     // Process security reports first to ensure all props.
@@ -245,13 +252,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     // Default required attributes, even if they have errors
     normalize_logentry(&mut event.logentry, meta)?;
     normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
-    normalize_timestamps(
-        event,
-        meta,
-        config.received_at,
-        config.max_secs_in_past,
-        config.max_secs_in_future,
-    )?; // Timestamps are core in the metrics extraction
     normalize_event_tags(event)?; // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
@@ -2320,5 +2320,25 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_accept_recent_transactions_with_stale_timestamps() {
+        let config = NormalizationConfig {
+            received_at: Some(Utc::now()),
+            max_secs_in_past: Some(2),
+            max_secs_in_future: Some(1),
+            ..Default::default()
+        };
+
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "transaction": "i have an stale timestamp, but im recent!",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(normalize_event(&mut event, &config).is_ok());
     }
 }
