@@ -112,7 +112,7 @@ setup(
     package_data={"sentry_relay": ["py.typed", "_lowlevel.pyi"]},
     zip_safe=False,
     platforms="any",
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     install_requires=["milksnake>=0.1.6"],
     setup_requires=["milksnake>=0.1.6"],
     milksnake_tasks=[build_native],
