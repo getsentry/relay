@@ -2344,20 +2344,24 @@ mod tests {
 
     #[test]
     fn test_reject_stale_transactions_after_timestamp_normalization() {
+        let now = Utc::now();
         let config = NormalizationConfig {
-            received_at: Some(Utc::now()),
+            received_at: Some(now),
             max_secs_in_past: Some(2),
             max_secs_in_future: Some(1),
             ..Default::default()
         };
 
-        let json = r#"{
-  "event_id": "52df9022835246eeb317dbd739ccd059",
-  "transaction": "clockdrift is not enough to accept me :(",
-  "start_timestamp": -62135811111,
-  "timestamp": 1697711111
-}"#;
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        let json = format!(
+            r#"{{
+          "event_id": "52df9022835246eeb317dbd739ccd059",
+          "transaction": "clockdrift is not enough to accept me :(",
+          "start_timestamp": -62135811111,
+          "timestamp": {}
+        }}"#,
+            now.timestamp()
+        );
+        let mut event = Annotated::<Event>::from_json(json.as_str()).unwrap();
 
         assert_eq!(
             normalize_event(&mut event, &config)
