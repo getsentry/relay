@@ -497,6 +497,22 @@ pub enum EnvelopeProcessor {
     RateLimitBuckets(RateLimitBuckets),
 }
 
+impl EnvelopeProcessor {
+    /// Returns the name of the message variant.
+    pub fn variant(&self) -> &'static str {
+        match self {
+            EnvelopeProcessor::ProcessEnvelope(_) => "ProcessEnvelope",
+            EnvelopeProcessor::ProcessMetrics(_) => "ProcessMetrics",
+            EnvelopeProcessor::ProcessMetricMeta(_) => "ProcessMetricMeta",
+            EnvelopeProcessor::EncodeEnvelope(_) => "EncodeEnvelope",
+            EnvelopeProcessor::EncodeMetrics(_) => "EncodeMetrics",
+            EnvelopeProcessor::EncodeMetricMeta(_) => "EncodeMetricMeta",
+            #[cfg(feature = "processing")]
+            EnvelopeProcessor::RateLimitBuckets(_) => "RateLimitBuckets",
+        }
+    }
+}
+
 impl relay_system::Interface for EnvelopeProcessor {}
 
 impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
@@ -1587,22 +1603,19 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_message(&self, message: EnvelopeProcessor) {
-        match message {
-            EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
-            EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
-            EnvelopeProcessor::ProcessMetricMeta(message) => {
-                self.handle_process_metric_meta(*message)
+        let ty = message.variant();
+        metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+            match message {
+                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
+                EnvelopeProcessor::ProcessMetrics(m) => self.handle_process_metrics(*m),
+                EnvelopeProcessor::ProcessMetricMeta(m) => self.handle_process_metric_meta(*m),
+                EnvelopeProcessor::EncodeEnvelope(m) => self.handle_encode_envelope(*m),
+                EnvelopeProcessor::EncodeMetrics(m) => self.handle_encode_metrics(*m),
+                EnvelopeProcessor::EncodeMetricMeta(m) => self.handle_encode_metric_meta(*m),
+                #[cfg(feature = "processing")]
+                EnvelopeProcessor::RateLimitBuckets(m) => self.handle_rate_limit_buckets(m),
             }
-            EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
-            EnvelopeProcessor::EncodeMetrics(message) => self.handle_encode_metrics(*message),
-            EnvelopeProcessor::EncodeMetricMeta(message) => {
-                self.handle_encode_metric_meta(*message)
-            }
-            #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitBuckets(message) => {
-                self.handle_rate_limit_buckets(message);
-            }
-        }
+        });
     }
 }
 
