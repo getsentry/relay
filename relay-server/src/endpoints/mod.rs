@@ -4,6 +4,8 @@
 //! `forward` endpoint that sends unknown requests to the upstream.
 
 mod attachments;
+mod batch_metrics;
+mod batch_outcomes;
 mod common;
 #[cfg(feature = "dashboard")]
 mod dashboard;
@@ -16,7 +18,6 @@ mod logs;
 mod minidump;
 mod monitor;
 mod nel;
-mod outcomes;
 mod project_configs;
 mod public_keys;
 mod security_report;
@@ -61,7 +62,8 @@ where
     let web_routes = Router::new()
         .route("/api/0/relays/projectconfigs/", post(project_configs::handle))
         .route("/api/0/relays/publickeys/", post(public_keys::handle))
-        .route("/api/0/relays/outcomes/", post(outcomes::handle))
+        .route("/api/0/relays/outcomes/", post(batch_outcomes::handle))
+        .route("/api/0/relays/metrics/", post(batch_metrics::handle))
         // Network connectivity check for downstream Relays, same as the internal health check.
         .route("/api/0/relays/live/", get(health_check::handle_live))
         .route_layer(DefaultBodyLimit::max(crate::constants::MAX_JSON_SIZE));
