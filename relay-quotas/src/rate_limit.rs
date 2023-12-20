@@ -104,6 +104,7 @@ impl FromStr for RetryAfter {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(serde::Serialize))]
 pub enum RateLimitScope {
+    /// Global scope.
     Global,
     /// An organization with identifier.
     Organization(u64),
@@ -174,10 +175,10 @@ impl RateLimit {
     /// Returns `true` if the rate limiting scope matches the given item.
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
         match self.scope {
+            RateLimitScope::Global => true,
             RateLimitScope::Organization(org_id) => scoping.organization_id == org_id,
             RateLimitScope::Project(project_id) => scoping.project_id == project_id,
             RateLimitScope::Key(ref key) => scoping.project_key == *key,
-            RateLimitScope::Global => true,
         }
     }
 }

@@ -2,7 +2,6 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_metrics::MetricNamespace;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -135,6 +134,7 @@ pub type DataCategories = SmallVec<[DataCategory; 8]>;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
+    /// Global scope.
     Global,
     /// The organization that this project belongs to.
     ///
@@ -297,6 +297,10 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
+        if self.scope == QuotaScope::Global {
+            return true;
+        }
+
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.

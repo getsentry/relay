@@ -30,7 +30,7 @@ use relay_metrics::{
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, QuotaScope, RateLimits, ReasonCode, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -1406,27 +1406,6 @@ impl EnvelopeProcessorService {
             );
 
             return true;
-        }
-
-        let buckets = bucket_partitions.values().flatten();
-
-        // Check namespace rate limits
-        // hmm obviously all the buckets are the same namespace right
-        // or wait, hmm, what, idk
-
-        // so i should like, check each namespace separately ?
-        // if its over the limit, i should drop it all or just those namespaces?
-        let mut counter = MetricNamespaceCounter::default();
-        for quota in quotas {
-            if let Some(namespace) = quota.namespace {
-                for bucket in bucket_partitions.values().flatten() {
-                    if let Some(bucket_ns) = bucket.namespace() {
-                        if namespace == bucket_ns {
-                            counter.add(&namespace);
-                        }
-                    }
-                }
-            }
         }
 
         // Checks the total org rate limits
