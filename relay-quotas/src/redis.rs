@@ -368,7 +368,7 @@ impl RedisRateLimiter {
             .prepare_invoke()
             .key(key.id.clone())
             .arg(quota.limit)
-            .arg(quota.window)
+            .arg(quota.expiry().as_secs() + GRACE)
             .invoke(
                 &mut client
                     .connection()
