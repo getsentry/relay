@@ -80,15 +80,15 @@ impl NormalizeVisitor {
         Ident::new("..")
     }
 
-    /// Check if a selected item can be erased into `..`. Currently we only collapse simple
-    /// columns (`col1` or `col1 AS foo`).
+    /// Check if a selected item can be erased into `..`.
+    /// We only collapse simple values (e.g. NULL) and columns (`col1` or `col1 AS foo`).
     fn is_collapsible(item: &SelectItem) -> bool {
         match item {
-            SelectItem::UnnamedExpr(expr) => {
-                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
-            }
-            SelectItem::ExprWithAlias { expr, .. } => {
-                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
+            SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                matches!(
+                    expr,
+                    Expr::Value(_) | Expr::Identifier(_) | Expr::CompoundIdentifier(_)
+                )
             }
             _ => false,
         }
@@ -429,6 +429,10 @@ impl DialectWithParameters {
 }
 
 impl Dialect for DialectWithParameters {
+    fn dialect(&self) -> std::any::TypeId {
+        self.0.dialect()
+    }
+
     fn is_identifier_start(&self, ch: char) -> bool {
         Self::PARAMETERS.contains(ch) || self.0.is_identifier_start(ch)
     }

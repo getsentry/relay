@@ -4,20 +4,26 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics Cardiniality Limiter"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.10.1"
+version = "23.12.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
+autobenches = false
 
 [features]
 default = []
 redis = ["relay-redis/impl"]
 
 [dependencies]
-itertools = { workspace = true }
+hashbrown = { workspace = true }
 relay-log = { path = "../relay-log" }
 relay-redis = { path = "../relay-redis" }
 relay-statsd = { path = "../relay-statsd" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "redis"
+harness = false

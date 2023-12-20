@@ -1,27 +1,174 @@
-use std::{collections::HashSet, time::SystemTime};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    time::SystemTime,
+};
 
-use itertools::Itertools;
 use relay_redis::{
-    redis::{self, ToRedisArgs},
+    redis::{self, FromRedisValue, Script},
     Connection, RedisPool,
 };
-use relay_statsd::metric;
+use relay_statsd::{metric, CounterMetric};
 
 use crate::{
     limiter::{CardinalityScope, Entry, EntryId, Limiter, Rejection},
-    statsd::CardinalityLimiterCounters,
+    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms},
     OrganizationId, Result,
 };
 
 /// Key prefix used for Redis keys.
 const KEY_PREFIX: &str = "relay:cardinality";
-/// Maximum amount of arguments for a Redis `SADD` call.
-const MAX_SADD_ARGS: usize = 1000;
+
+struct CardinalityScript(Script);
+
+/// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
+#[derive(Debug, Clone, Copy)]
+enum Status {
+    /// Item is rejected.
+    Rejected,
+    /// Item is accepted.
+    Accepted,
+}
+
+impl Status {
+    fn is_rejected(&self) -> bool {
+        matches!(self, Self::Rejected)
+    }
+}
+
+impl FromRedisValue for Status {
+    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+        let accepted = bool::from_redis_value(v)?;
+        Ok(if accepted {
+            Self::Accepted
+        } else {
+            Self::Rejected
+        })
+    }
+}
+
+#[derive(Debug)]
+struct CardinalityScriptResult {
+    cardinality: u64,
+    statuses: Vec<Status>,
+}
+
+impl FromRedisValue for CardinalityScriptResult {
+    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
+        let Some(seq) = v.as_sequence() else {
+            return Err(redis::RedisError::from((
+                redis::ErrorKind::TypeError,
+                "Expected a sequence from the cardinality script",
+            )));
+        };
+
+        let mut iter = seq.iter();
+
+        let cardinality = iter
+            .next()
+            .ok_or_else(|| {
+                redis::RedisError::from((
+                    redis::ErrorKind::TypeError,
+                    "Expected cardinality as the first result from the cardinality script",
+                ))
+            })
+            .and_then(FromRedisValue::from_redis_value)?;
+
+        let mut statuses = Vec::with_capacity(iter.len());
+        for value in iter {
+            statuses.push(Status::from_redis_value(value)?);
+        }
+
+        Ok(Self {
+            cardinality,
+            statuses,
+        })
+    }
+}
+
+impl CardinalityScript {
+    fn load() -> Self {
+        Self(Script::new(include_str!("cardinality.lua")))
+    }
+
+    fn invoke(
+        &self,
+        con: &mut Connection,
+        limit: usize,
+        expire: u64,
+        hashes: impl Iterator<Item = u32>,
+        keys: impl Iterator<Item = String>,
+    ) -> Result<CardinalityScriptResult> {
+        let mut invocation = self.0.prepare_invoke();
+
+        for key in keys {
+            invocation.key(key);
+        }
+
+        invocation.arg(limit);
+        invocation.arg(expire);
+
+        let mut num_hashes = 0;
+        for hash in hashes {
+            invocation.arg(hash);
+            num_hashes += 1;
+        }
+
+        let result: CardinalityScriptResult = invocation
+            .invoke(con)
+            .map_err(relay_redis::RedisError::Redis)?;
+
+        if num_hashes != result.statuses.len() {
+            return Err(relay_redis::RedisError::Redis(redis::RedisError::from((
+                redis::ErrorKind::ResponseError,
+                "Script returned an invalid number of elements",
+                format!(
+                    "Expected {num_hashes} results, got {}",
+                    result.statuses.len()
+                ),
+            )))
+            .into());
+        }
+
+        Ok(result)
+    }
+}
+
+struct CheckedLimits {
+    entries: Vec<RedisEntry>,
+    statuses: Vec<Status>,
+}
+
+impl CheckedLimits {
+    fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+            statuses: Vec::new(),
+        }
+    }
+}
+
+impl IntoIterator for CheckedLimits {
+    type Item = (RedisEntry, Status);
+    type IntoIter = std::iter::Zip<std::vec::IntoIter<RedisEntry>, std::vec::IntoIter<Status>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        debug_assert_eq!(
+            self.entries.len(),
+            self.statuses.len(),
+            "expected same amount of entries as statuses"
+        );
+        std::iter::zip(self.entries, self.statuses)
+    }
+}
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
     redis: RedisPool,
     window: SlidingWindow,
+    script: CardinalityScript,
+    cache: Cache,
     #[cfg(test)]
     time_offset: u64,
 }
@@ -33,6 +180,8 @@ impl RedisSetLimiter {
         Self {
             redis,
             window,
+            script: CardinalityScript::load(),
+            cache: Cache::default(),
             #[cfg(test)]
             time_offset: 0,
         }
@@ -43,74 +192,44 @@ impl RedisSetLimiter {
     /// Returns an iterator over all entries which have been accepted.
     fn check_limits(
         &self,
-        client: &mut RedisHelper,
+        con: &mut Connection,
         organization_id: OrganizationId,
         item_scope: String,
-        mut entries: Vec<RedisEntry>,
+        entries: Vec<RedisEntry>,
         timestamp: u64,
         limit: usize,
-    ) -> Result<impl Iterator<Item = Rejection>> {
+    ) -> Result<CheckedLimits> {
+        if entries.is_empty() {
+            return Ok(CheckedLimits::empty());
+        }
+
         metric!(
-            counter(CardinalityLimiterCounters::RedisRead) += 1,
+            histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
             scope = &item_scope,
         );
+
+        let keys = self
+            .window
+            .iter(timestamp)
+            .map(|time_bucket| self.to_redis_key(organization_id, &item_scope, time_bucket));
+
+        let hashes = entries.iter().map(|entry| entry.hash);
+
+        // The expiry is a off by `window.granularity_seconds`,
+        // but since this is only used for cleanup, this is not an issue.
+        let result = self
+            .script
+            .invoke(con, limit, self.window.window_seconds, hashes, keys)?;
+
         metric!(
-            counter(CardinalityLimiterCounters::RedisHashCheck) += entries.len() as i64,
+            histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
             scope = &item_scope,
         );
 
-        let active_window = client.read_set(&self.to_redis_key(
-            organization_id,
-            &item_scope,
-            self.window.active_time_bucket(timestamp),
-        ))?;
-        let mut new_hashes = HashSet::new();
-
-        let mut new_cardinality = active_window.len();
-        let mut rejected = 0;
-
-        for entry in &mut entries {
-            if active_window.contains(&entry.hash) {
-                entry.accept();
-            } else if new_cardinality < limit {
-                entry.accept();
-                new_hashes.insert(entry.hash);
-                new_cardinality += 1;
-            } else {
-                entry.reject();
-                rejected += 1;
-            }
-        }
-
-        if rejected > 0 {
-            relay_log::debug!(
-                organization_id = organization_id,
-                scope = &item_scope,
-                "rejected {rejected} metrics due to cardinality limit"
-            );
-            metric!(
-                counter(CardinalityLimiterCounters::Rejected) += rejected,
-                scope = &item_scope,
-            );
-        }
-
-        if !new_hashes.is_empty() {
-            let keys = self
-                .window
-                .iter(timestamp)
-                .map(|time_bucket| self.to_redis_key(organization_id, &item_scope, time_bucket));
-
-            // The expiry is a off by `window.granularity_seconds`,
-            // but since this is only used for cleanup, this is not an issue.
-            client.add_to_sets(keys, &new_hashes, self.window.window_seconds)?;
-
-            metric!(
-                counter(CardinalityLimiterCounters::RedisHashUpdate) += new_hashes.len() as i64,
-                scope = &item_scope,
-            );
-        }
-
-        Ok(entries.into_iter().filter_map(|entry| entry.rejection()))
+        Ok(CheckedLimits {
+            entries,
+            statuses: result.statuses,
+        })
     }
 
     fn to_redis_key(
@@ -123,15 +242,6 @@ impl RedisSetLimiter {
     }
 }
 
-/// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
-#[derive(Clone, Copy, Debug)]
-enum Status {
-    /// Item is rejected.
-    Rejected,
-    /// Item is accepted.
-    Accepted,
-}
-
 /// Entry used by the Redis limiter.
 #[derive(Clone, Copy, Debug)]
 struct RedisEntry {
@@ -139,33 +249,17 @@ struct RedisEntry {
     id: EntryId,
     /// The entry hash.
     hash: u32,
-    /// The current status.
-    status: Status,
 }
 
 impl RedisEntry {
     /// Creates a new Redis entry in the rejected status.
     fn new(id: EntryId, hash: u32) -> Self {
-        Self {
-            id,
-            hash,
-            status: Status::Rejected,
-        }
+        Self { id, hash }
     }
 
-    /// Marks the entry as accepted.
-    fn accept(&mut self) {
-        self.status = Status::Accepted;
-    }
-
-    /// Marks the entry as rejected.
-    fn reject(&mut self) {
-        self.status = Status::Rejected;
-    }
-
-    /// Turns the item into a rejection when the status is rejected.
-    fn rejection(self) -> Option<Rejection> {
-        matches!(self.status, Status::Rejected).then_some(Rejection { id: self.id })
+    /// Turns the item into a rejection.
+    fn rejection(self) -> Rejection {
+        Rejection { id: self.id }
     }
 }
 
@@ -180,18 +274,6 @@ impl Limiter for RedisSetLimiter {
         I: IntoIterator<Item = Entry<T>>,
         T: CardinalityScope,
     {
-        let entries = entries
-            .into_iter()
-            .map(|entry| {
-                let Entry { id, scope, hash } = entry;
-
-                let key = (organization_id, scope);
-                let entry = RedisEntry::new(id, hash);
-
-                (key, entry)
-            })
-            .into_group_map();
-
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
@@ -201,70 +283,96 @@ impl Limiter for RedisSetLimiter {
         #[cfg(test)]
         let timestamp = timestamp + self.time_offset;
 
-        let mut client = self.redis.client()?;
-        let mut client = RedisHelper(client.connection()?);
+        let cache_window = self.window.active_time_bucket(timestamp);
 
         let mut rejected = Vec::new();
-        for ((organization_id, item_scope), entries) in entries {
-            rejected.push(self.check_limits(
-                &mut client,
+        // There are currently 5 metric namespaces and we know the scope is currently only the
+        // metric namespace -> we can be smart about it and pre-allocate the hashmap.
+        let mut entries_by_scope = HashMap::with_capacity(5);
+        let mut cache_hits = HitCounter::default();
+        let mut acceptions_rejections = HitCounter::default();
+
+        let cache = self.cache.read(organization_id, cache_window, limit);
+        for Entry { id, scope, hash } in entries {
+            let item_scope = scope.to_string();
+            match cache.check(&item_scope, hash) {
+                CacheOutcome::Accepted => {
+                    // Accepted already, nothing to do.
+                    cache_hits.hit(&item_scope);
+                    acceptions_rejections.hit(&item_scope);
+                }
+                CacheOutcome::Rejected => {
+                    // Rejected, add it to the rejected list and move on.
+                    rejected.push(Rejection::new(id));
+                    cache_hits.hit(&item_scope);
+                    acceptions_rejections.miss(&item_scope);
+                }
+                CacheOutcome::Unknown => {
+                    cache_hits.miss(&item_scope);
+
+                    let key = (organization_id, item_scope);
+                    let entry = RedisEntry::new(id, hash);
+
+                    entries_by_scope
+                        .entry(key)
+                        .or_insert_with(Vec::new)
+                        .push(entry)
+                }
+            }
+        }
+        // Give up cache lock!
+        drop(cache);
+
+        cache_hits.report(
+            CardinalityLimiterCounters::RedisCacheHit,
+            CardinalityLimiterCounters::RedisCacheMiss,
+        );
+
+        let mut client = self.redis.client()?;
+        let mut connection = client.connection()?;
+
+        for ((organization_id, item_scope), entries) in entries_by_scope {
+            let results = self.check_limits(
+                &mut connection,
                 organization_id,
-                item_scope.to_string(),
+                item_scope.clone(),
                 entries,
                 timestamp,
                 limit,
-            )?);
-        }
+            )?;
 
-        Ok(Box::new(rejected.into_iter().flatten()))
-    }
-}
+            // This always acquires a write lock, but we only hit this
+            // if we previously didn't satisfy the request from the cache,
+            // -> there is a very high chance we actually need the lock.
+            let mut cache = self
+                .cache
+                .update(organization_id, &item_scope, cache_window);
 
-/// Internal Redis client wrapper to abstract the issuing of commands.
-struct RedisHelper<'a>(Connection<'a>);
-
-impl<'a> RedisHelper<'a> {
-    fn read_set(&mut self, name: &str) -> Result<HashSet<u32>> {
-        let result = redis::cmd("SMEMBERS")
-            .arg(name)
-            .query(&mut self.0)
-            .map_err(relay_redis::RedisError::Redis)?;
-
-        Ok(result)
-    }
-
-    fn add_to_sets<I: ToRedisArgs + std::fmt::Debug>(
-        &mut self,
-        names: impl IntoIterator<Item = String>,
-        values: impl IntoIterator<Item = I> + Copy,
-        expire: u64,
-    ) -> Result<()> {
-        let mut pipeline = redis::pipe();
-
-        for name in names {
-            for values in &values.into_iter().chunks(MAX_SADD_ARGS) {
-                let cmd = pipeline.cmd("SADD").arg(&name);
-
-                for arg in values {
-                    cmd.arg(arg);
+            for (entry, status) in results {
+                if status.is_rejected() {
+                    acceptions_rejections.miss(&item_scope);
+                    rejected.push(entry.rejection());
+                } else {
+                    acceptions_rejections.hit(&item_scope);
+                    cache.accept(entry.hash);
                 }
-
-                cmd.ignore();
             }
-
-            pipeline
-                .cmd("EXPIRE")
-                .arg(name)
-                .arg(expire)
-                // .arg("NX") - NX not supported for Redis < 7
-                .ignore();
         }
 
-        pipeline
-            .query(&mut self.0)
-            .map_err(relay_redis::RedisError::Redis)?;
+        if !rejected.is_empty() {
+            relay_log::debug!(
+                organization_id = organization_id,
+                "rejected {} metrics due to cardinality limit",
+                rejected.len(),
+            );
+        }
 
-        Ok(())
+        acceptions_rejections.report(
+            CardinalityLimiterCounters::Accepted,
+            CardinalityLimiterCounters::Rejected,
+        );
+
+        Ok(Box::new(rejected.into_iter()))
     }
 }
 
@@ -312,8 +420,258 @@ impl SlidingWindow {
     }
 }
 
+/// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
+/// this hash.
+#[derive(Debug)]
+enum CacheOutcome {
+    /// Hash accepted by cache.
+    Accepted,
+    /// Hash rejected by cache.
+    Rejected,
+    /// Cache has no information about the hash.
+    Unknown,
+}
+
+/// Internal cache remembering already accepted elements and current cardinality.
+///
+/// Only caches for the currently active granule of the sliding window.
+#[derive(Default)]
+struct Cache {
+    inner: RwLock<CacheInner>,
+}
+
+impl Cache {
+    /// Acquires a read lock from the cache and returns a read handle.
+    ///
+    /// All operations done on the handle share the same lock. To release the lock
+    /// the returned [`CacheRead`] must be dropped.
+    fn read(&self, organization_id: OrganizationId, window: u64, limit: usize) -> CacheRead<'_> {
+        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
+
+        // If the window does not match, we can already release the lock.
+        if window != inner.current_window {
+            return CacheRead::Empty;
+        }
+
+        CacheRead::Read {
+            inner,
+            organization_id,
+            limit,
+        }
+    }
+
+    /// Acquires a write lock from the cache and returns an update handle.
+    ///
+    /// All operations done on the handle share the same lock. To release the lock
+    /// the returned [`CacheUpdate`] must be dropped.
+    fn update<'a>(
+        &'a self,
+        organization_id: OrganizationId,
+        item_scope: &'a str,
+        window: u64,
+    ) -> CacheUpdate<'a> {
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
+
+        // If the window is older don't do anything and give up the lock early.
+        if window < inner.current_window {
+            return CacheUpdate::Empty;
+        }
+
+        // If the window is newer then the current window, reset the cache to the new window.
+        if window > inner.current_window {
+            inner.current_window = window;
+            inner.cache.clear();
+        }
+
+        CacheUpdate::Update {
+            inner,
+            key: CacheKeyRef {
+                organization_id,
+                item_scope,
+            },
+        }
+    }
+}
+
+/// Cache read handle.
+///
+/// Holds a cache read lock, the lock is released on drop.
+enum CacheRead<'a> {
+    Empty,
+    Read {
+        inner: RwLockReadGuard<'a, CacheInner>,
+        organization_id: OrganizationId,
+        limit: usize,
+    },
+}
+
+impl<'a> CacheRead<'a> {
+    fn check(&self, item_scope: &str, hash: u32) -> CacheOutcome {
+        match self {
+            CacheRead::Empty => CacheOutcome::Unknown,
+            CacheRead::Read {
+                inner,
+                organization_id,
+                limit,
+            } => inner
+                .cache
+                .get(&CacheKeyRef {
+                    organization_id: *organization_id,
+                    item_scope,
+                })
+                .map_or(CacheOutcome::Unknown, |s| s.check(hash, *limit)),
+        }
+    }
+}
+
+/// Cache update handle.
+///
+/// Holds a cache write lock, the lock is released on drop.
+enum CacheUpdate<'a> {
+    Empty,
+    Update {
+        inner: RwLockWriteGuard<'a, CacheInner>,
+        key: CacheKeyRef<'a>,
+    },
+}
+
+impl<'a> CacheUpdate<'a> {
+    /// Marks a hash as accepted in the cache, future checks of the item will immediately mark the
+    /// item as accepted.
+    pub fn accept(&mut self, hash: u32) {
+        if let Self::Update { inner, key } = self {
+            inner.cache.entry_ref(key).or_default().0.insert(hash);
+        }
+    }
+}
+
+/// Critical section of the [`Cache`].
+#[derive(Debug, Default)]
+struct CacheInner {
+    cache: hashbrown::HashMap<CacheKey, ScopedCache>,
+    current_window: u64,
+}
+
+/// Scope specific information of the cache.
+#[derive(Debug, Default)]
+struct ScopedCache(
+    // Uses hashbrown for a faster hasher `ahash`, benchmarks show about 10% speedup.
+    hashbrown::HashSet<u32>,
+);
+
+impl ScopedCache {
+    fn check(&self, hash: u32, limit: usize) -> CacheOutcome {
+        if self.0.contains(&hash) {
+            // Local cache copy contains the hash -> accept it straight away
+            CacheOutcome::Accepted
+        } else if self.0.len() >= limit {
+            // We have more or the same amount of items in the local cache as the cardinality
+            // limit -> this new item/hash is rejected.
+            CacheOutcome::Rejected
+        } else {
+            // Check with Redis.
+            CacheOutcome::Unknown
+        }
+    }
+}
+
+/// Key/scoping for the cardinality cache.
+#[derive(Debug, PartialEq, Eq)]
+struct CacheKey {
+    organization_id: OrganizationId,
+    item_scope: String,
+}
+
+impl Hash for CacheKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        CacheKeyRef {
+            organization_id: self.organization_id,
+            item_scope: &self.item_scope,
+        }
+        .hash(state)
+    }
+}
+
+impl hashbrown::Equivalent<CacheKeyRef<'_>> for CacheKey {
+    fn equivalent(&self, key: &CacheKeyRef<'_>) -> bool {
+        let CacheKeyRef {
+            organization_id,
+            item_scope,
+        } = key;
+
+        self.organization_id == *organization_id && &self.item_scope == item_scope
+    }
+}
+
+impl From<&CacheKeyRef<'_>> for CacheKey {
+    fn from(value: &CacheKeyRef<'_>) -> Self {
+        Self {
+            organization_id: value.organization_id,
+            item_scope: value.item_scope.to_owned(),
+        }
+    }
+}
+
+/// A borrowed [`CacheKey`].
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct CacheKeyRef<'a> {
+    organization_id: OrganizationId,
+    item_scope: &'a str,
+}
+
+impl hashbrown::Equivalent<CacheKey> for CacheKeyRef<'_> {
+    fn equivalent(&self, key: &CacheKey) -> bool {
+        let CacheKey {
+            organization_id,
+            item_scope,
+        } = key;
+
+        self.organization_id == *organization_id && self.item_scope == item_scope
+    }
+}
+
+/// Helper to aggregate cache hits by scope before reporting them to statsd.
+#[derive(Debug)]
+struct HitCounter(hashbrown::HashMap<String, (i64, i64)>); // uses hashbrown for `entry_ref`
+
+impl HitCounter {
+    /// Tracks a hit for a scope.
+    fn hit(&mut self, scope: &str) {
+        self.0.entry_ref(scope).or_default().0 += 1;
+    }
+
+    /// Tracks a miss for a scope.
+    fn miss(&mut self, scope: &str) {
+        self.0.entry_ref(scope).or_default().1 += 1;
+    }
+
+    /// Consumes all counters and reports to statsd.
+    fn report<H, M>(self, hit: H, miss: M)
+    where
+        H: CounterMetric,
+        M: CounterMetric,
+    {
+        for (scope, (hits, misses)) in self.0 {
+            if hits > 0 {
+                metric!(counter(hit) += hits, scope = &scope);
+            }
+            if misses > 0 {
+                metric!(counter(miss) += misses, scope = &scope);
+            }
+        }
+    }
+}
+
+impl Default for HitCounter {
+    fn default() -> Self {
+        // We know that currently the only scope being tracked is a `MetricNamespace`.
+        Self(hashbrown::HashMap::with_capacity(5))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::sync::atomic::AtomicU64;
 
     use relay_redis::RedisConfigOptions;
@@ -405,6 +763,28 @@ mod tests {
             .map(|e| e.id)
             .collect::<HashSet<_>>();
         assert_eq!(rejected3.len(), 0);
+    }
+
+    #[test]
+    fn test_limiter_small_within_limits() {
+        let limiter = build_limiter();
+        let org = new_org(&limiter);
+
+        let entries = (0..50)
+            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
+            .collect::<Vec<_>>();
+        let rejected = limiter
+            .check_cardinality_limits(org, entries, 10_000)
+            .unwrap();
+        assert_eq!(rejected.count(), 0);
+
+        let entries = (100..150)
+            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
+            .collect::<Vec<_>>();
+        let rejected = limiter
+            .check_cardinality_limits(org, entries, 10_000)
+            .unwrap();
+        assert_eq!(rejected.count(), 0);
     }
 
     #[test]
