@@ -362,6 +362,7 @@
 <a href="#362" id="362">362</a>
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -427,6 +428,7 @@
         (
             RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;http.client&quot;</span>)
                 | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, MOBILE_OPS)
+                | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;file.*&quot;</span>)
                 | (RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db*&quot;</span>) &amp; !is_disabled &amp; !is_mongo)
                 | resource_condition.clone(),
             resource_condition,
