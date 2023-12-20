@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+This release requires Python 3.9 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.8.
+
 ## 0.8.39
 
 - Add `_metrics_summary` as temporary key on `Event` for a DDM experiment. ([#2757](https://github.com/getsentry/relay/pull/2757))

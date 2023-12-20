@@ -3488,7 +3488,8 @@ dependencies = [
 name = "relay-cardinality"
 version = "23.12.0"
 dependencies = [
- "itertools",
+ "criterion",
+ "hashbrown 0.13.2",
  "relay-log",
  "relay-redis",
  "relay-statsd",
@@ -4826,8 +4827,7 @@ dependencies = [
 [[package]]
 name = "sqlparser"
 version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ae05a8250b968a3f7db93155a84d68b2e6cea1583949af5ca5b5170c76c075"
+source = "git+https://github.com/getsentry/sqlparser-rs.git?rev=0bb7ec6ce661ecfc468f647fd1003b7839d37fa6#0bb7ec6ce661ecfc468f647fd1003b7839d37fa6"
 dependencies = [
  "log",
  "sqlparser_derive",
@@ -4836,8 +4836,7 @@ dependencies = [
 [[package]]
 name = "sqlparser_derive"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55fe75cb4a364c7f7ae06c7dbbc8d84bddd85d6cdf9975963c3935bc1991761e"
+source = "git+https://github.com/getsentry/sqlparser-rs.git?rev=0bb7ec6ce661ecfc468f647fd1003b7839d37fa6#0bb7ec6ce661ecfc468f647fd1003b7839d37fa6"
 dependencies = [
  "proc-macro2",
  "quote",
