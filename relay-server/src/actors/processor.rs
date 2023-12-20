@@ -1052,6 +1052,7 @@ impl EnvelopeProcessorService {
                         event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
                     });
                 }
+
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
@@ -1068,11 +1069,6 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
             }
             ItemType::Security => {
                 event::extract(state, &self.inner.config)?;
@@ -1161,11 +1157,6 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
             }
             ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => {
                 relay_log::error!("Statsd/Metrics should not go here");
@@ -1175,22 +1166,12 @@ impl EnvelopeProcessorService {
                 if_processing!({
                     self.enforce_quotas(state)?;
                 });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
             }
             ItemType::CheckIn => {
                 if_processing!({
                     self.enforce_quotas(state)?;
                     self.process_check_ins(state);
                 });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
             }
             ItemType::Span | ItemType::OtelSpan => {
                 span::filter(state);
@@ -1198,11 +1179,6 @@ impl EnvelopeProcessorService {
                     self.enforce_quotas(state)?;
                     span::process(state, self.inner.config.clone());
                 });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
             }
             ItemType::UserReportV2 => {
                 event::extract(state, &self.inner.config)?;
