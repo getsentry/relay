@@ -63,6 +63,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         (
             RuleCondition::eq("span.op", "http.client")
                 | RuleCondition::glob("span.op", MOBILE_OPS)
+                | RuleCondition::glob("span.op", "file.*")
                 | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
                 | resource_condition.clone(),
             resource_condition,
