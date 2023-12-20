@@ -1941,7 +1941,66 @@
 <a href="#1941" id="1941">1941</a>
 <a href="#1942" id="1942">1942</a>
 <a href="#1943" id="1943">1943</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
+<a href="#1978" id="1978">1978</a>
+<a href="#1979" id="1979">1979</a>
+<a href="#1980" id="1980">1980</a>
+<a href="#1981" id="1981">1981</a>
+<a href="#1982" id="1982">1982</a>
+<a href="#1983" id="1983">1983</a>
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::sync::Arc;
@@ -2367,6 +2426,18 @@
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
 
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>ProcessBatchedMetrics {
+    <span class="doccomment">/// Metrics payload in JSON format.
+    </span><span class="kw">pub </span>payload: Bytes,
+
+    <span class="doccomment">/// The instant at which the request was received.
+    </span><span class="kw">pub </span>start_time: Instant,
+
+    <span class="doccomment">/// The instant at which the request was received.
+    </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+}
+
 <span class="doccomment">/// Parses a list of metric meta items and pushes them to the project cache for aggregation.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProcessMetricMeta {
@@ -2432,6 +2503,7 @@
 </span><span class="kw">pub enum </span>EnvelopeProcessor {
     ProcessEnvelope(Box&lt;ProcessEnvelope&gt;),
     ProcessMetrics(Box&lt;ProcessMetrics&gt;),
+    ProcessBatchedMetrics(Box&lt;ProcessBatchedMetrics&gt;),
     ProcessMetricMeta(Box&lt;ProcessMetricMeta&gt;),
     EncodeEnvelope(Box&lt;EncodeEnvelope&gt;),
     EncodeMetrics(Box&lt;EncodeMetrics&gt;),
@@ -2446,6 +2518,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             EnvelopeProcessor::ProcessEnvelope(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessEnvelope&quot;</span>,
             EnvelopeProcessor::ProcessMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessMetrics&quot;</span>,
+            EnvelopeProcessor::ProcessBatchedMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessBatchedMetrics&quot;</span>,
             EnvelopeProcessor::ProcessMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessMetricMeta&quot;</span>,
             EnvelopeProcessor::EncodeEnvelope(<span class="kw">_</span>) =&gt; <span class="string">&quot;EncodeEnvelope&quot;</span>,
             EnvelopeProcessor::EncodeMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;EncodeMetrics&quot;</span>,
@@ -2471,6 +2544,14 @@
 
     <span class="kw">fn </span>from_message(message: ProcessMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::ProcessMetrics(Box::new(message))
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;ProcessBatchedMetrics&gt; <span class="kw">for </span>EnvelopeProcessor {
+    <span class="kw">type </span>Response = NoResponse;
+
+    <span class="kw">fn </span>from_message(message: ProcessBatchedMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::ProcessBatchedMetrics(Box::new(message))
     }
 }
 
@@ -3124,6 +3205,40 @@
         }
     }
 
+    <span class="kw">fn </span>handle_process_batched_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: ProcessBatchedMetrics) {
+        <span class="kw">let </span>ProcessBatchedMetrics {
+            payload,
+            start_time,
+            sent_at,
+        } = message;
+
+        <span class="kw">let </span>received = relay_common::time::instant_to_date_time(start_time);
+        <span class="kw">let </span>clock_drift_processor =
+            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
+
+        <span class="kw">match </span>serde_json::from_slice::&lt;HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt;&gt;(<span class="kw-2">&amp;</span>payload) {
+            <span class="prelude-val">Ok</span>(batch_map) =&gt; {
+                <span class="kw">for </span>(public_key, <span class="kw-2">mut </span>buckets) <span class="kw">in </span>batch_map {
+                    <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
+                        clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
+                    }
+
+                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;merging metric buckets into project cache&quot;</span>);
+                    <span class="self">self</span>.inner
+                        .project_cache
+                        .send(MergeBuckets::new(public_key, buckets));
+                }
+            }
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="macro">relay_log::debug!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    <span class="string">&quot;failed to parse batched metrics&quot;</span>,
+                );
+                <span class="macro">metric!</span>(counter(RelayCounters::MetricBucketsParsingFailed) += <span class="number">1</span>);
+            }
+        };
+    }
+
     <span class="kw">fn </span>handle_process_metric_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, message: ProcessMetricMeta) {
         <span class="kw">let </span>ProcessMetricMeta { items, project_key } = message;
 
@@ -3551,6 +3666,9 @@
             <span class="kw">match </span>message {
                 EnvelopeProcessor::ProcessEnvelope(m) =&gt; <span class="self">self</span>.handle_process_envelope(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::ProcessMetrics(m) =&gt; <span class="self">self</span>.handle_process_metrics(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::ProcessBatchedMetrics(m) =&gt; {
+                    <span class="self">self</span>.handle_process_batched_metrics(<span class="kw-2">*</span>m)
+                }
                 EnvelopeProcessor::ProcessMetricMeta(m) =&gt; <span class="self">self</span>.handle_process_metric_meta(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::EncodeEnvelope(m) =&gt; <span class="self">self</span>.handle_encode_envelope(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::EncodeMetrics(m) =&gt; <span class="self">self</span>.handle_encode_metrics(<span class="kw-2">*</span>m),

@@ -105,6 +105,34 @@
 <a href="#105" id="105">105</a>
 <a href="#106" id="106">106</a>
 <a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::rejection::BytesRejection;
 <span class="kw">use </span>axum::extract::FromRequest;
 <span class="kw">use </span>axum::http::{Request, StatusCode};
@@ -117,12 +145,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::relays::GetRelay;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
-
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>SignedJson&lt;T&gt; {
-    <span class="kw">pub </span>inner: T,
-    <span class="kw">pub </span>relay: RelayInfo,
-}
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>SignatureError {
@@ -178,11 +200,16 @@
         .map_err(|<span class="kw">_</span>| SignatureError::MalformedHeader(name))
 }
 
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SignedBytes {
+    <span class="kw">pub </span>body: Bytes,
+    <span class="kw">pub </span>relay: RelayInfo,
+}
+
 <span class="attr">#[axum::async_trait]
-</span><span class="kw">impl</span>&lt;T, B&gt; FromRequest&lt;ServiceState, B&gt; <span class="kw">for </span>SignedJson&lt;T&gt;
+</span><span class="kw">impl</span>&lt;B&gt; FromRequest&lt;ServiceState, B&gt; <span class="kw">for </span>SignedBytes
 <span class="kw">where
-    </span>T: DeserializeOwned,
-    B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
     B::Data: Send,
     B::Error: Into&lt;axum::BoxError&gt;,
 {
@@ -208,7 +235,36 @@
             </span>.ok_or(SignatureError::UnknownRelay)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>body = Bytes::from_request(request, state).<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="kw">let </span>inner = relay.public_key.unpack(<span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>signature, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+        <span class="kw">if </span>!relay.public_key.verify(<span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>signature) {
+            <span class="prelude-val">Err</span>(SignatureError::BadSignature(UnpackError::BadSignature))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Ok</span>(SignedBytes { body, relay })
+        }
+    }
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SignedJson&lt;T&gt; {
+    <span class="kw">pub </span>inner: T,
+    <span class="kw">pub </span>relay: RelayInfo,
+}
+
+<span class="attr">#[axum::async_trait]
+</span><span class="kw">impl</span>&lt;T, B&gt; FromRequest&lt;ServiceState, B&gt; <span class="kw">for </span>SignedJson&lt;T&gt;
+<span class="kw">where
+    </span>T: DeserializeOwned,
+    B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    <span class="kw">type </span>Rejection = SignatureError;
+
+    <span class="kw">async fn </span>from_request(
+        request: Request&lt;B&gt;,
+        state: <span class="kw-2">&amp;</span>ServiceState,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
+        <span class="kw">let </span>SignedBytes { body, relay } = SignedBytes::from_request(request, state).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>inner = serde_json::from_slice(<span class="kw-2">&amp;</span>body)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(SignedJson { inner, relay })
     }
 }

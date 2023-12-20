@@ -99,12 +99,16 @@
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
 <a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
 //! `forward` endpoint that sends unknown requests to the upstream.
 
 </span><span class="kw">mod </span>attachments;
+<span class="kw">mod </span>batch_metrics;
+<span class="kw">mod </span>batch_outcomes;
 <span class="kw">mod </span>common;
 <span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
 </span><span class="kw">mod </span>dashboard;
@@ -117,7 +121,6 @@
 <span class="kw">mod </span>minidump;
 <span class="kw">mod </span>monitor;
 <span class="kw">mod </span>nel;
-<span class="kw">mod </span>outcomes;
 <span class="kw">mod </span>project_configs;
 <span class="kw">mod </span>public_keys;
 <span class="kw">mod </span>security_report;
@@ -162,7 +165,8 @@
     </span><span class="kw">let </span>web_routes = Router::new()
         .route(<span class="string">&quot;/api/0/relays/projectconfigs/&quot;</span>, post(project_configs::handle))
         .route(<span class="string">&quot;/api/0/relays/publickeys/&quot;</span>, post(public_keys::handle))
-        .route(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>, post(outcomes::handle))
+        .route(<span class="string">&quot;/api/0/relays/outcomes/&quot;</span>, post(batch_outcomes::handle))
+        .route(<span class="string">&quot;/api/0/relays/metrics/&quot;</span>, post(batch_metrics::handle))
         <span class="comment">// Network connectivity check for downstream Relays, same as the internal health check.
         </span>.route(<span class="string">&quot;/api/0/relays/live/&quot;</span>, get(health_check::handle_live))
         .route_layer(DefaultBodyLimit::max(<span class="kw">crate</span>::constants::MAX_JSON_SIZE));
