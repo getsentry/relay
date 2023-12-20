@@ -1928,6 +1928,19 @@
 <a href="#1928" id="1928">1928</a>
 <a href="#1929" id="1929">1929</a>
 <a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2425,6 +2438,22 @@
     EncodeMetricMeta(Box&lt;EncodeMetricMeta&gt;),
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>RateLimitBuckets(RateLimitBuckets),
+}
+
+<span class="kw">impl </span>EnvelopeProcessor {
+    <span class="doccomment">/// Returns the name of the message variant.
+    </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            EnvelopeProcessor::ProcessEnvelope(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessEnvelope&quot;</span>,
+            EnvelopeProcessor::ProcessMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessMetrics&quot;</span>,
+            EnvelopeProcessor::ProcessMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">&quot;ProcessMetricMeta&quot;</span>,
+            EnvelopeProcessor::EncodeEnvelope(<span class="kw">_</span>) =&gt; <span class="string">&quot;EncodeEnvelope&quot;</span>,
+            EnvelopeProcessor::EncodeMetrics(<span class="kw">_</span>) =&gt; <span class="string">&quot;EncodeMetrics&quot;</span>,
+            EnvelopeProcessor::EncodeMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">&quot;EncodeMetricMeta&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>EnvelopeProcessor::RateLimitBuckets(<span class="kw">_</span>) =&gt; <span class="string">&quot;RateLimitBuckets&quot;</span>,
+        }
+    }
 }
 
 <span class="kw">impl </span>relay_system::Interface <span class="kw">for </span>EnvelopeProcessor {}
@@ -3517,22 +3546,19 @@
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EnvelopeProcessor) {
-        <span class="kw">match </span>message {
-            EnvelopeProcessor::ProcessEnvelope(message) =&gt; <span class="self">self</span>.handle_process_envelope(<span class="kw-2">*</span>message),
-            EnvelopeProcessor::ProcessMetrics(message) =&gt; <span class="self">self</span>.handle_process_metrics(<span class="kw-2">*</span>message),
-            EnvelopeProcessor::ProcessMetricMeta(message) =&gt; {
-                <span class="self">self</span>.handle_process_metric_meta(<span class="kw-2">*</span>message)
+        <span class="kw">let </span>ty = message.variant();
+        <span class="macro">metric!</span>(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+            <span class="kw">match </span>message {
+                EnvelopeProcessor::ProcessEnvelope(m) =&gt; <span class="self">self</span>.handle_process_envelope(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::ProcessMetrics(m) =&gt; <span class="self">self</span>.handle_process_metrics(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::ProcessMetricMeta(m) =&gt; <span class="self">self</span>.handle_process_metric_meta(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::EncodeEnvelope(m) =&gt; <span class="self">self</span>.handle_encode_envelope(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::EncodeMetrics(m) =&gt; <span class="self">self</span>.handle_encode_metrics(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::EncodeMetricMeta(m) =&gt; <span class="self">self</span>.handle_encode_metric_meta(<span class="kw-2">*</span>m),
+                <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+                </span>EnvelopeProcessor::RateLimitBuckets(m) =&gt; <span class="self">self</span>.handle_rate_limit_buckets(m),
             }
-            EnvelopeProcessor::EncodeEnvelope(message) =&gt; <span class="self">self</span>.handle_encode_envelope(<span class="kw-2">*</span>message),
-            EnvelopeProcessor::EncodeMetrics(message) =&gt; <span class="self">self</span>.handle_encode_metrics(<span class="kw-2">*</span>message),
-            EnvelopeProcessor::EncodeMetricMeta(message) =&gt; {
-                <span class="self">self</span>.handle_encode_metric_meta(<span class="kw-2">*</span>message)
-            }
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>EnvelopeProcessor::RateLimitBuckets(message) =&gt; {
-                <span class="self">self</span>.handle_rate_limit_buckets(message);
-            }
-        }
+        });
     }
 }
 
