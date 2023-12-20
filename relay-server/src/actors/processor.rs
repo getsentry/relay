@@ -1408,7 +1408,6 @@ impl EnvelopeProcessorService {
             return true;
         }
 
-        // Checks the total org rate limits
         #[cfg(feature = "processing")]
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
             // Check with redis if the throughput limit has been exceeded, while also updating

@@ -432,21 +432,19 @@ impl RedisRateLimiter {
                 let key = quota.key();
 
                 if quota.scope == QuotaScope::Global {
-                    if item_scoping.category == DataCategory::MetricBucket {
-                        match self.is_globally_rate_limited(key, &quota, quantity) {
-                            Ok(false) => continue,
-                            Ok(true) => {
-                                rate_limits.add(RateLimit::from_quota(
-                                    &quota,
-                                    item_scoping.scoping,
-                                    self.retry_after((quota.expiry() - timestamp).as_secs()),
-                                ));
-                            }
-                            Err(e) => relay_log::error!(
-                                error = &e as &dyn std::error::Error,
-                                "failed to check global rate limit"
-                            ),
+                    match self.is_globally_rate_limited(key, &quota, quantity) {
+                        Ok(false) => continue,
+                        Ok(true) => {
+                            rate_limits.add(RateLimit::from_quota(
+                                &quota,
+                                item_scoping.scoping,
+                                self.retry_after((quota.expiry() - timestamp).as_secs()),
+                            ));
                         }
+                        Err(e) => relay_log::error!(
+                            error = &e as &dyn std::error::Error,
+                            "failed to check global rate limit"
+                        ),
                     }
                 } else {
                     let refund_key = get_refunded_quota_key(&key);
