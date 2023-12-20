@@ -1211,8 +1211,6 @@ impl EnvelopeProcessorService {
         } = message;
 
         let received = relay_common::time::instant_to_date_time(start_time);
-        let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
-
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 

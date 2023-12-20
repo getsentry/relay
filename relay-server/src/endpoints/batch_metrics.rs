@@ -12,8 +12,8 @@ struct SendMetricsResponse {}
 
 pub async fn handle(
     state: ServiceState,
-    body: SignedBytes,
     start_time: StartTime,
+    body: SignedBytes,
 ) -> impl IntoResponse {
     if !body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
         return StatusCode::FORBIDDEN.into_response();
