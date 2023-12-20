@@ -29,19 +29,13 @@ mod unreal;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{any, get, post, Router};
-use bytes::Bytes;
 use relay_config::Config;
 
 use crate::middlewares;
 use crate::service::ServiceState;
 
 #[rustfmt::skip]
-pub fn routes<B>(config: &Config) -> Router<ServiceState, B>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
+pub fn routes(config: &Config) -> Router<ServiceState> {
     #[cfg(feature = "dashboard")]
     let dashboard = Router::new().route("/dashboard/",get(dashboard::index_handle))
         .route("/dashboard/*file", get(dashboard::handle));

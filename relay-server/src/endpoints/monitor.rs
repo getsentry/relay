@@ -1,9 +1,8 @@
-use axum::extract::{DefaultBodyLimit, Path, Query};
-use axum::http::{Request, StatusCode};
+use axum::extract::{DefaultBodyLimit, Path, Query, Request};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter, MethodRouter};
 use axum::{Json, RequestExt};
-use bytes::Bytes;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use relay_monitors::{CheckIn, CheckInStatus};
@@ -28,18 +27,13 @@ struct MonitorQuery {
     duration: Option<f64>,
 }
 
-async fn handle<B>(
+async fn handle(
     state: ServiceState,
     content_type: RawContentType,
     meta: RequestMeta,
     Path(path): Path<MonitorPath>,
-    request: Request<B>,
-) -> axum::response::Result<impl IntoResponse>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
+    request: Request,
+) -> axum::response::Result<impl IntoResponse> {
     let check_in = if content_type.as_ref().starts_with("application/json") {
         let Json(mut check_in): Json<CheckIn> = request.extract().await?;
         check_in.monitor_slug = path.monitor_slug;
@@ -74,12 +68,7 @@ where
     Ok(StatusCode::ACCEPTED)
 }
 
-pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
-    on(MethodFilter::GET | MethodFilter::POST, handle)
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
+    on(MethodFilter::GET.or(MethodFilter::POST), handle)
         .route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }

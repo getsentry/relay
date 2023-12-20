@@ -1,5 +1,4 @@
-use axum::extract::MatchedPath;
-use axum::http::Request;
+use axum::extract::{MatchedPath, Request};
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::RequestExt;
@@ -10,10 +9,7 @@ use crate::statsd::{RelayCounters, RelayTimers};
 /// A middleware that logs web request timings as statsd metrics.
 ///
 /// Use this with [`axum::middleware::from_fn`].
-pub async fn metrics<B>(mut request: Request<B>, next: Next<B>) -> Response
-where
-    B: Send + 'static,
-{
+pub async fn metrics(mut request: Request, next: Next) -> Response {
     let start_time = StartTime::now();
     request.extensions_mut().insert(start_time);
 
