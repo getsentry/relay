@@ -223,7 +223,7 @@ impl GlobalCounters {
 
     /// Decrement the count, if it reaches below zero, return true, so that we may
     /// ask upstream for more quota.
-    fn dec(&self, key: &Key, slot: u64, qty: usize, limit: u64) -> DecOutcome {
+    fn decrement_contingency(&self, key: &Key, slot: u64, qty: usize, limit: u64) -> DecOutcome {
         // With atomics we can update the count with a shared reference.
         let Ok(map) = self.0.read() else {
             return DecOutcome::PoisonedLock;
@@ -320,7 +320,10 @@ impl RedisRateLimiter {
 
         let key = Key::new(key, window);
 
-        match self.counters.dec(&key, slot, quantity, limit) {
+        match self
+            .counters
+            .decrement_contingency(&key, slot, quantity, limit)
+        {
             DecOutcome::UpstreamExceeded => return Ok(true),
             DecOutcome::NoRateLimit => return Ok(false),
             DecOutcome::PoisonedLock => return Err(GlobalRateLimitError::PoisonedLock),
@@ -329,7 +332,10 @@ impl RedisRateLimiter {
             }
         };
 
-        match self.counters.dec(&key, slot, quantity, limit) {
+        match self
+            .counters
+            .decrement_contingency(&key, slot, quantity, limit)
+        {
             DecOutcome::NoRateLimit => Ok(false),
             DecOutcome::UpstreamExceeded => Ok(true),
             DecOutcome::PoisonedLock => Err(GlobalRateLimitError::PoisonedLock),
@@ -408,7 +414,7 @@ impl RedisRateLimiter {
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
-        let mut non_global_invocation = self.script.prepare_invoke();
+        let mut invocation = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
 
@@ -445,13 +451,13 @@ impl RedisRateLimiter {
                 } else {
                     let refund_key = get_refunded_quota_key(&key);
 
-                    non_global_invocation.key(key);
-                    non_global_invocation.key(refund_key);
+                    invocation.key(key);
+                    invocation.key(refund_key);
 
-                    non_global_invocation.arg(quota.limit());
-                    non_global_invocation.arg(quota.expiry().as_secs() + GRACE);
-                    non_global_invocation.arg(quantity);
-                    non_global_invocation.arg(over_accept_once);
+                    invocation.arg(quota.limit());
+                    invocation.arg(quota.expiry().as_secs() + GRACE);
+                    invocation.arg(quantity);
+                    invocation.arg(over_accept_once);
 
                     tracked_quotas.push(quota);
                 }
@@ -472,7 +478,7 @@ impl RedisRateLimiter {
         }
 
         let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
-        let rejections: Vec<bool> = non_global_invocation
+        let rejections: Vec<bool> = invocation
             .invoke(&mut client.connection().map_err(RateLimitingError::Redis)?)
             .map_err(RedisError::Redis)
             .map_err(RateLimitingError::Redis)?;

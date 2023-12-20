@@ -12,7 +12,7 @@
 
 
 -- The maximum contingency we will take. We will take less if we are too close to the limit.
-local max_take = 100
+local max_contingency = 100
 -- The key to the global quota.
 local key = KEYS[1]
 -- The max amount that we want to take within the given slot. We won't take a contingency if
@@ -32,11 +32,11 @@ if redis_count > limit then
     return 0, redis_count
 else
     local diff = limit - redis_count
-    local to_take = math.min(diff, max_take)
+    local contingency = math.min(diff, max_contingency)
 
-    redis.call('INCRBY', key, to_take)
+    redis.call('INCRBY', key, contingency)
     redis.call('EXPIREAT', key, expiry)
-    return  to_take, redis_count + to_take
+    return  contingency, redis_count + contingency
 end
 
 

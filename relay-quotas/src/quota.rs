@@ -134,7 +134,7 @@ pub type DataCategories = SmallVec<[DataCategory; 8]>;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
-    /// Global scope.
+    /// Global scope, matches everything.
     Global,
     /// The organization that this project belongs to.
     ///
