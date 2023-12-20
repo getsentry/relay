@@ -11,12 +11,6 @@ use crate::actors::relays::GetRelay;
 use crate::service::ServiceState;
 use crate::utils::ApiErrorResponse;
 
-#[derive(Debug)]
-pub struct SignedJson<T> {
-    pub inner: T,
-    pub relay: RelayInfo,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum SignatureError {
     #[error("invalid relay signature")]
@@ -71,10 +65,15 @@ fn get_header<'a, B>(
         .map_err(|_| SignatureError::MalformedHeader(name))
 }
 
+#[derive(Debug)]
+pub struct SignedBytes {
+    pub body: Bytes,
+    pub relay: RelayInfo,
+}
+
 #[axum::async_trait]
-impl<T, B> FromRequest<ServiceState, B> for SignedJson<T>
+impl<B> FromRequest<ServiceState, B> for SignedBytes
 where
-    T: DeserializeOwned,
     B: axum::body::HttpBody + Send + 'static,
     B::Data: Send,
     B::Error: Into<axum::BoxError>,
@@ -101,7 +100,36 @@ where
             .ok_or(SignatureError::UnknownRelay)?;
 
         let body = Bytes::from_request(request, state).await?;
-        let inner = relay.public_key.unpack(&body, &signature, None)?;
+        if !relay.public_key.verify(&body, &signature) {
+            Err(SignatureError::BadSignature(UnpackError::BadSignature))
+        } else {
+            Ok(SignedBytes { body, relay })
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SignedJson<T> {
+    pub inner: T,
+    pub relay: RelayInfo,
+}
+
+#[axum::async_trait]
+impl<T, B> FromRequest<ServiceState, B> for SignedJson<T>
+where
+    T: DeserializeOwned,
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<axum::BoxError>,
+{
+    type Rejection = SignatureError;
+
+    async fn from_request(
+        request: Request<B>,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
+        let SignedBytes { body, relay } = SignedBytes::from_request(request, state).await?;
+        let inner = serde_json::from_slice(&body)?;
         Ok(SignedJson { inner, relay })
     }
 }
