@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::sync::Arc;
@@ -424,6 +424,18 @@ pub struct ProcessMetrics {
     pub sent_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug)]
+pub struct ProcessBatchedMetrics {
+    /// Metrics payload in JSON format.
+    pub payload: Bytes,
+
+    /// The instant at which the request was received.
+    pub start_time: Instant,
+
+    /// The instant at which the request was received.
+    pub sent_at: Option<DateTime<Utc>>,
+}
+
 /// Parses a list of metric meta items and pushes them to the project cache for aggregation.
 #[derive(Debug)]
 pub struct ProcessMetricMeta {
@@ -489,12 +501,30 @@ pub struct RateLimitBuckets {
 pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessMetrics(Box<ProcessMetrics>),
+    ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
     ProcessMetricMeta(Box<ProcessMetricMeta>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     EncodeMetrics(Box<EncodeMetrics>),
     EncodeMetricMeta(Box<EncodeMetricMeta>),
     #[cfg(feature = "processing")]
     RateLimitBuckets(RateLimitBuckets),
+}
+
+impl EnvelopeProcessor {
+    /// Returns the name of the message variant.
+    pub fn variant(&self) -> &'static str {
+        match self {
+            EnvelopeProcessor::ProcessEnvelope(_) => "ProcessEnvelope",
+            EnvelopeProcessor::ProcessMetrics(_) => "ProcessMetrics",
+            EnvelopeProcessor::ProcessBatchedMetrics(_) => "ProcessBatchedMetrics",
+            EnvelopeProcessor::ProcessMetricMeta(_) => "ProcessMetricMeta",
+            EnvelopeProcessor::EncodeEnvelope(_) => "EncodeEnvelope",
+            EnvelopeProcessor::EncodeMetrics(_) => "EncodeMetrics",
+            EnvelopeProcessor::EncodeMetricMeta(_) => "EncodeMetricMeta",
+            #[cfg(feature = "processing")]
+            EnvelopeProcessor::RateLimitBuckets(_) => "RateLimitBuckets",
+        }
+    }
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -512,6 +542,14 @@ impl FromMessage<ProcessMetrics> for EnvelopeProcessor {
 
     fn from_message(message: ProcessMetrics, _: ()) -> Self {
         Self::ProcessMetrics(Box::new(message))
+    }
+}
+
+impl FromMessage<ProcessBatchedMetrics> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: ProcessBatchedMetrics, _: ()) -> Self {
+        Self::ProcessBatchedMetrics(Box::new(message))
     }
 }
 
@@ -1165,6 +1203,40 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_process_batched_metrics(&self, message: ProcessBatchedMetrics) {
+        let ProcessBatchedMetrics {
+            payload,
+            start_time,
+            sent_at,
+        } = message;
+
+        let received = relay_common::time::instant_to_date_time(start_time);
+        let clock_drift_processor =
+            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
+
+        match serde_json::from_slice::<HashMap<ProjectKey, Vec<Bucket>>>(&payload) {
+            Ok(batch_map) => {
+                for (public_key, mut buckets) in batch_map {
+                    for bucket in &mut buckets {
+                        clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                    }
+
+                    relay_log::trace!("merging metric buckets into project cache");
+                    self.inner
+                        .project_cache
+                        .send(MergeBuckets::new(public_key, buckets));
+                }
+            }
+            Err(error) => {
+                relay_log::debug!(
+                    error = &error as &dyn Error,
+                    "failed to parse batched metrics",
+                );
+                metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+            }
+        };
+    }
+
     fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
         let ProcessMetricMeta { items, project_key } = message;
 
@@ -1587,22 +1659,22 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_message(&self, message: EnvelopeProcessor) {
-        match message {
-            EnvelopeProcessor::ProcessEnvelope(message) => self.handle_process_envelope(*message),
-            EnvelopeProcessor::ProcessMetrics(message) => self.handle_process_metrics(*message),
-            EnvelopeProcessor::ProcessMetricMeta(message) => {
-                self.handle_process_metric_meta(*message)
+        let ty = message.variant();
+        metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
+            match message {
+                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
+                EnvelopeProcessor::ProcessMetrics(m) => self.handle_process_metrics(*m),
+                EnvelopeProcessor::ProcessBatchedMetrics(m) => {
+                    self.handle_process_batched_metrics(*m)
+                }
+                EnvelopeProcessor::ProcessMetricMeta(m) => self.handle_process_metric_meta(*m),
+                EnvelopeProcessor::EncodeEnvelope(m) => self.handle_encode_envelope(*m),
+                EnvelopeProcessor::EncodeMetrics(m) => self.handle_encode_metrics(*m),
+                EnvelopeProcessor::EncodeMetricMeta(m) => self.handle_encode_metric_meta(*m),
+                #[cfg(feature = "processing")]
+                EnvelopeProcessor::RateLimitBuckets(m) => self.handle_rate_limit_buckets(m),
             }
-            EnvelopeProcessor::EncodeEnvelope(message) => self.handle_encode_envelope(*message),
-            EnvelopeProcessor::EncodeMetrics(message) => self.handle_encode_metrics(*message),
-            EnvelopeProcessor::EncodeMetricMeta(message) => {
-                self.handle_encode_metric_meta(*message)
-            }
-            #[cfg(feature = "processing")]
-            EnvelopeProcessor::RateLimitBuckets(message) => {
-                self.handle_rate_limit_buckets(message);
-            }
-        }
+        });
     }
 }
 

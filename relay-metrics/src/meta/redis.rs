@@ -30,14 +30,15 @@ impl RedisMetricMetaStore {
         let mut client = self.redis.client()?;
         let mut connection = client.connection()?;
 
+        let mut redis_updates = 0;
+
+        let mut pipe = relay_redis::redis::pipe();
         for (mri, items) in meta.mapping {
             let key = self.build_redis_key(organization_id, project_id, *meta.timestamp, &mri);
 
             // Should be fine if we don't batch here, we expect a very small amount of locations
             // from the aggregator.
-            let mut location_cmd = relay_redis::redis::cmd("SADD");
-            location_cmd.arg(&key);
-
+            let location_cmd = pipe.cmd("SADD").arg(&key);
             for item in items {
                 match item {
                     Item::Location(location) => {
@@ -47,19 +48,18 @@ impl RedisMetricMetaStore {
                     Item::Unknown => {}
                 }
             }
+            location_cmd.ignore();
 
-            relay_statsd::metric!(counter(MetricCounters::MetaRedisUpdate) += 1);
+            redis_updates += 1;
             relay_log::trace!("storing metric meta for project {organization_id}:{project_id}");
-            location_cmd
-                .query(&mut connection)
-                .map_err(RedisError::Redis)?;
 
             // use original timestamp to not bump expiry
             let expire_at = meta.timestamp.as_secs() + self.expiry.as_secs();
-            relay_redis::redis::Cmd::expire_at(key, expire_at as usize)
-                .query(&mut connection)
-                .map_err(RedisError::Redis)?;
+            pipe.cmd("EXPIREAT").arg(key).arg(expire_at).ignore();
         }
+        pipe.query(&mut connection).map_err(RedisError::Redis)?;
+
+        relay_statsd::metric!(counter(MetricCounters::MetaRedisUpdate) += redis_updates);
 
         Ok(())
     }
@@ -91,7 +91,65 @@ fn mri_to_fnv1a32(mri: &MetricResourceIdentifier<'_>) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use relay_redis::RedisConfigOptions;
+
+    use crate::meta::{Location, StartOfDayUnixTimestamp};
+
     use super::*;
+
+    fn build_store() -> RedisMetricMetaStore {
+        let url = std::env::var("RELAY_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+
+        let redis = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
+
+        RedisMetricMetaStore::new(redis, Duration::from_secs(86400))
+    }
+
+    #[test]
+    fn test_store() {
+        let store = build_store();
+
+        let organization_id = 1000;
+        let project_id = ProjectId::new(2);
+        let mri = MetricResourceIdentifier::parse("c:foo").unwrap();
+
+        let timestamp = StartOfDayUnixTimestamp::new(UnixTimestamp::now()).unwrap();
+
+        let location = Location {
+            filename: Some("foobar".to_owned()),
+            abs_path: None,
+            module: None,
+            function: None,
+            lineno: Some(42),
+            pre_context: Vec::new(),
+            context_line: None,
+            post_context: Vec::new(),
+        };
+
+        store
+            .store(
+                organization_id,
+                project_id,
+                MetricMeta {
+                    timestamp,
+                    mapping: HashMap::from([(mri.clone(), vec![Item::Location(location.clone())])]),
+                },
+            )
+            .unwrap();
+
+        let mut client = store.redis.client().unwrap();
+        let mut connection = client.connection().unwrap();
+        let key = store.build_redis_key(organization_id, project_id, *timestamp, &mri);
+        let locations: Vec<String> = relay_redis::redis::cmd("SMEMBERS")
+            .arg(key)
+            .query(&mut connection)
+            .unwrap();
+
+        assert_eq!(locations, vec![serde_json::to_string(&location).unwrap()]);
+    }
 
     #[test]
     fn test_mri_hash() {
