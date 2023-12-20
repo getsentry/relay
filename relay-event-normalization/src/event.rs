@@ -2341,4 +2341,29 @@ mod tests {
 
         assert!(normalize_event(&mut event, &config).is_ok());
     }
+
+    #[test]
+    fn test_reject_stale_transactions_after_timestamp_normalization() {
+        let config = NormalizationConfig {
+            received_at: Some(Utc::now()),
+            max_secs_in_past: Some(2),
+            max_secs_in_future: Some(1),
+            ..Default::default()
+        };
+
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "transaction": "clockdrift is not enough to accept me :(",
+  "start_timestamp": -62135811111,
+  "timestamp": 1697711111
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert_eq!(
+            normalize_event(&mut event, &config)
+                .unwrap_err()
+                .to_string(),
+            "invalid transaction event: timestamp is too stale"
+        );
+    }
 }
