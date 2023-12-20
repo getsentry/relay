@@ -4,7 +4,7 @@
 
 **Bug fixes**:
 
-- Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2851](https://github.com/getsentry/relay/issues/2851))
+- Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
 
 **Internal**:
 
