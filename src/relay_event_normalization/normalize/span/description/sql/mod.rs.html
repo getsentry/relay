@@ -774,6 +774,43 @@
 <a href="#774" id="774">774</a>
 <a href="#775" id="775">775</a>
 <a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -814,6 +851,17 @@
         ((?-x)(?P&lt;hex&gt;(\b0x[0-9a-f]+\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P&lt;bool&gt;(\b(?:true|false)\b)))
+        &quot;#</span>,
+    )
+    .unwrap()
+});
+
+<span class="doccomment">/// For MySQL, also look for double quoted strings.
+</span><span class="kw">static </span>DOUBLE_QUOTED_STRING_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(
+        <span class="string">r#&quot;(?xi)
+        # Capture double-quoted strings, including the remaining substring if `\&#39;` is found.
+        ((?-x)(?P&lt;single_quoted_strs&gt;N?&quot;(?:\\&quot;|[^&quot;])*(?:&quot;|$)(::\w+(\[\]?)?)?))
         &quot;#</span>,
     )
     .unwrap()
@@ -909,21 +957,37 @@
 
     <span class="kw">let </span><span class="kw-2">mut </span>string = Cow::from(string.trim());
 
-    <span class="kw">for </span>(regex, replacement) <span class="kw">in </span>[
-        (<span class="kw-2">&amp;</span>COMMENTS, <span class="string">&quot;\n&quot;</span>),
-        (<span class="kw-2">&amp;</span>INLINE_COMMENTS, <span class="string">&quot;&quot;</span>),
-        (<span class="kw-2">&amp;</span>NORMALIZER_REGEX, <span class="string">&quot;$pre%s&quot;</span>),
-        (<span class="kw-2">&amp;</span>WHITESPACE, <span class="string">&quot; &quot;</span>),
-        (<span class="kw-2">&amp;</span>PARENS, <span class="string">&quot;$pre$post&quot;</span>),
-        (<span class="kw-2">&amp;</span>COLLAPSE_PLACEHOLDERS, <span class="string">&quot;$pre%s$post&quot;</span>),
-        (<span class="kw-2">&amp;</span>STRIP_QUOTES, <span class="string">&quot;$entity_name&quot;</span>),
-        (<span class="kw-2">&amp;</span>COLLAPSE_ENTITIES, <span class="string">&quot;$entity_name&quot;</span>),
-        (<span class="kw-2">&amp;</span>COLLAPSE_COLUMNS, <span class="string">&quot;$pre..$post&quot;</span>),
-    ] {
-        <span class="kw">let </span>replaced = regex.replace_all(<span class="kw-2">&amp;</span>string, replacement);
-        <span class="kw">if let </span>Cow::Owned(s) = replaced {
+    <span class="kw">if let </span>Cow::Owned(s) = COMMENTS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;\n&quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = INLINE_COMMENTS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;&quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = NORMALIZER_REGEX.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre%s&quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if </span>db_system == <span class="prelude-val">Some</span>(<span class="string">&quot;mysql&quot;</span>) {
+        <span class="kw">if let </span>Cow::Owned(s) = DOUBLE_QUOTED_STRING_REGEX.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;%s&quot;</span>) {
             string = Cow::Owned(s);
         }
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = WHITESPACE.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot; &quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = PARENS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre$post&quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_PLACEHOLDERS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre%s$post&quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = STRIP_QUOTES.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$entity_name&quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_ENTITIES.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$entity_name&quot;</span>) {
+        string = Cow::Owned(s);
+    }
+    <span class="kw">if let </span>Cow::Owned(s) = COLLAPSE_COLUMNS.replace_all(<span class="kw-2">&amp;</span>string, <span class="string">&quot;$pre..$post&quot;</span>) {
+        string = Cow::Owned(s);
     }
 
     <span class="kw">let </span>result = <span class="kw">match </span>string {
@@ -1542,6 +1606,16 @@
         fallback_hex,
         <span class="string">r#&quot;SELECT {ts &#39;2023-12-24 23:59&#39;}, 0x123456789AbCdEf&quot;#</span>,
         <span class="string">&quot;SELECT %s, %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test_with_dialect!</span>(
+        dont_fallback_to_regex,
+        <span class="string">&quot;mysql&quot;</span>,
+        <span class="comment">// sqlparser cannot parse REPLACE INTO. If we know that
+        // a query is MySQL, we should give up rather than try to scrub
+        // with regex
+        </span><span class="string">r#&quot;REPLACE INTO `foo` (`a`) VALUES (&quot;abcd1234&quot;)&quot;#</span>,
+        <span class="string">&quot;REPLACE INTO foo (a) VALUES (%s)&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
