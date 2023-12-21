@@ -29,7 +29,7 @@ use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespa
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, ItemScoping, Scoping};
+use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -1267,7 +1267,7 @@ impl EnvelopeProcessorService {
         let scoping = *bucket_limiter.scoping();
 
         if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
-            let item_scoping = ItemScoping {
+            let item_scoping = relay_quotas::ItemScoping {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
             };
@@ -1371,7 +1371,7 @@ impl EnvelopeProcessorService {
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         let quotas = &project_state.config.quotas;
-        let item_scoping = ItemScoping {
+        let item_scoping = relay_quotas::ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
         };
