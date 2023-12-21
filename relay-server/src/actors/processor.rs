@@ -929,10 +929,10 @@ impl EnvelopeProcessorService {
 
     /// Returns the _main_ item type from the envelope in the current state.
     ///
-    /// This functions mimics [`crate::event::extract`] function and returns the [`ItemType`] with
+    /// This functions mimics [`event::extract`] function and returns the [`ItemType`] with
     /// the same priority.
     ///
-    /// Note: This function [`crate::event::extract`] should be refactored and unified.
+    /// Note: This function [`event::extract`] should be refactored and unified.
     fn event_item_type(state: &ProcessEnvelopeState) -> Option<ItemType> {
         let items = state.envelope().items();
         if items.clone().any(|item| item.ty() == &ItemType::Event) {
