@@ -145,7 +145,7 @@ impl ExtractionMode {
 /// Return value of [`extract_transaction_count`], containing the extracted
 /// count of transactions and wether they have associated profiles.
 #[derive(Debug, Clone, Copy)]
-pub struct TransactionCount {
+struct TransactionCount {
     /// Number of transactions.
     pub count: usize,
     /// Whether the transactions have associated profiles.
