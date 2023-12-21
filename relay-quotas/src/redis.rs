@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
-use relay_redis::{RedisError, RedisPool};
+use relay_redis::{PooledClient, RedisError, RedisPool};
 use thiserror::Error;
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
@@ -156,17 +156,16 @@ pub struct RedisRateLimiter {
     counters: GlobalCounters,
 }
 
-/// Global counters used for ratelimiting.
+/// Counters used as a cache for global quotas.
 ///
 /// We might have different global counters for different conditions (e.g. different namespaces).
 /// We use an RwLock because the counter itself is an `AtomicUsize`. Atomics can be modified with
 /// a shared reference, meaning that we can have multiple threads updating the counter concurrently,
-/// as long as there's no writers. We only need to acquire the write when we modify the keys of the
-/// map.
+/// as long as there's no writers.
 #[derive(Clone, Default)]
 pub struct GlobalCounters(Arc<RwLock<BTreeMap<BudgetKey, Val>>>);
 
-/// Possible outcomes from attemping to decrement global counter budget.
+/// Possible outcomes from attemping to decrement a global counter budget.
 enum DecOutcome {
     UpstreamExceeded,
     NoRateLimit,
@@ -194,8 +193,8 @@ impl GlobalCounters {
     fn update_limit(
         &self,
         budget_key: &BudgetKey,
-        slot: u64,
-        new_contingency: usize,
+        current_slot: u64,
+        new_budget: usize,
         redis_value: u64,
     ) -> Result<(), GlobalRateLimitError> {
         let mut map = self
@@ -203,25 +202,27 @@ impl GlobalCounters {
             .write()
             .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
 
-        let old_contingency: usize = map
+        // If there's still some budget left in the same slot we will add it to the new budget we took.
+        // This can happen if for example the budget is 30, then we try to decrement by 50, so we
+        // ask for 100 more in budget but the 30 budget is still available so the local count is 130.
+        let old_budget: usize = map
             .get(budget_key)
-            .filter(|val| val.slot == slot)
+            .filter(|val| val.slot == current_slot)
             .map(|val| val.count.load(Ordering::Relaxed))
             .unwrap_or_default();
 
         map.insert(
             budget_key.to_owned(),
             Val {
-                count: AtomicUsize::new(new_contingency + old_contingency),
+                count: AtomicUsize::new(new_budget + old_budget),
                 last_seen_redis_value: AtomicU64::new(redis_value),
-                slot,
+                slot: current_slot,
             },
         );
         Ok(())
     }
 
-    /// Decrement the count, if it reaches below zero, return true, so that we may
-    /// ask upstream for more quota.
+    /// Attempts to decrement the budget by a certain amount.
     fn decrement_budget(&self, key: &BudgetKey, slot: u64, qty: usize, limit: u64) -> DecOutcome {
         // With atomics we can update the count with a shared reference.
         let Ok(map) = self.0.read() else {
@@ -229,9 +230,12 @@ impl GlobalCounters {
         };
 
         match map.get(key) {
+            // This implies that it's the first time this global counter is used.
             None => DecOutcome::KeyMissing,
             Some(val) => {
                 if val.slot != slot {
+                    // Expired slot implies the the time window has passed, and we need to
+                    // ask for a new budget for the new slot.
                     return DecOutcome::SlotExpired;
                 }
 
@@ -279,13 +283,16 @@ impl BudgetKey {
     }
 }
 
+/// Represents the local budget taken from a global quota.
+///
+/// It works by taking a certain amount of quota by pre-incrementing the redis counter before
+/// actually using it. Then we count down to zero before we ask for more. We store the value of the
+/// redis counter as it was when we previously took a budget, so that if we the count reach zero
+/// but we know the redis counter is still above the limit, we won't ask for more from redis.
+/// The counter works per slot, so when there's a new slot this value will be invalidated and we
+/// will check with redis again and create a new [`Val`] for the local counter.
 struct Val {
-    /// Like a contingency we took from redis
-    ///
-    /// We count down to zero then we ask for more from redis.
     count: AtomicUsize,
-    /// if this is higher than the quota we compare it with, we will avoid calling redis
-    /// unless there's a new slot, in which case we need to fetch new whatever
     last_seen_redis_value: AtomicU64,
     slot: u64,
 }
@@ -308,18 +315,17 @@ impl RedisRateLimiter {
     /// slot is expired, we have to sync with redis, after which we try again.
     fn is_globally_rate_limited(
         &self,
-        redis_key: String,
+        client: &mut PooledClient,
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, GlobalRateLimitError> {
         debug_assert!(quota.scope == QuotaScope::Global);
-
         let Some(limit) = quota.limit else {
             return Ok(true);
         };
 
         let slot = quota.slot();
-
+        let redis_key = quota.key();
         let budget_key = BudgetKey::new(quota);
 
         match self
@@ -330,7 +336,7 @@ impl RedisRateLimiter {
             DecOutcome::UpstreamExceeded => return Ok(true),
             DecOutcome::PoisonedLock => return Err(GlobalRateLimitError::PoisonedLock),
             DecOutcome::SlotExpired | DecOutcome::BudgetEmpty | DecOutcome::KeyMissing => {
-                self.redis_sync(redis_key, &budget_key, quota)?
+                self.redis_sync(client, redis_key, &budget_key, quota)?
             }
         };
 
@@ -347,32 +353,28 @@ impl RedisRateLimiter {
         }
     }
 
+    /// Ensures the local counter is up to date with the redis counter.
     fn redis_sync(
         &self,
+        client: &mut PooledClient,
         redis_key: String,
         budget_key: &BudgetKey,
         quota: &RedisQuota,
     ) -> Result<(), GlobalRateLimitError> {
         let slot = quota.slot();
 
-        let mut client = self
-            .pool
-            .client()
-            .map_err(RateLimitingError::Redis)
-            .unwrap();
-
-        let current_count = match self
+        let current_count = self
             .counters
             .0
             .read()
             .map_err(|_| GlobalRateLimitError::PoisonedLock)?
             .get(budget_key)
-        {
-            Some(v) if v.slot == slot => v.count.load(Ordering::Relaxed),
-            _ => 0, // if key is missing we'll insert one in the update_limit method later.
-        };
+            .filter(|v| v.slot == slot)
+            .map(|v| v.count.load(Ordering::Relaxed))
+            .unwrap_or_default();
 
-        if current_count != 0 {
+        // Note that this value is zero if the slot has expired.
+        if current_count > 0 {
             return Ok(());
         }
 
@@ -426,6 +428,7 @@ impl RedisRateLimiter {
         quantity: usize,
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
+        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let timestamp = UnixTimestamp::now();
         let mut invocation = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
@@ -441,9 +444,8 @@ impl RedisRateLimiter {
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
-                let key = quota.key();
                 if quota.scope == QuotaScope::Global {
-                    match self.is_globally_rate_limited(key, &quota, quantity) {
+                    match self.is_globally_rate_limited(&mut client, &quota, quantity) {
                         Ok(false) => continue,
                         Ok(true) => {
                             rate_limits.add(RateLimit::from_quota(
@@ -458,6 +460,7 @@ impl RedisRateLimiter {
                         ),
                     }
                 } else {
+                    let key = quota.key();
                     // Remaining quotas are expected to be trackable in Redis.
                     let refund_key = get_refunded_quota_key(&key);
 
@@ -487,7 +490,6 @@ impl RedisRateLimiter {
             return Ok(rate_limits);
         }
 
-        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let rejections: Vec<bool> = invocation
             .invoke(&mut client.connection().map_err(RateLimitingError::Redis)?)
             .map_err(RedisError::Redis)
