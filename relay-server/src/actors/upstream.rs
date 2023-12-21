@@ -314,6 +314,12 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
     fn route(&self) -> &'static str;
 
     /// Callback to apply configuration to the request.
+    ///
+    /// This hook is called at least once before `build`. It can be used to include additional
+    /// properties from Relay's config in the Request before it is sent or handled if during request
+    /// creation time the configuration is not available.
+    ///
+    /// This method is optional and defaults to a no-op.
     fn configure(&mut self, _config: &Config) {}
 
     /// Callback to build the outgoing web request.
