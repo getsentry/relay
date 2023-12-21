@@ -19,14 +19,16 @@ use relay_metrics::{
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
+use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::statsd::RelayCounters;
+use crate::utils::{self, ExtractionMode};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -86,6 +88,7 @@ pub struct StoreMetrics {
     pub buckets: Vec<Bucket>,
     pub scoping: Scoping,
     pub retention: u16,
+    pub mode: ExtractionMode,
 }
 
 /// Service interface for the [`StoreEnvelope`] message.
@@ -116,23 +119,27 @@ impl FromMessage<StoreMetrics> for Store {
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
     config: Arc<Config>,
+    outcome_aggregator: Addr<TrackOutcome>,
     producer: Producer,
 }
 
 impl StoreService {
-    pub fn create(config: Arc<Config>) -> anyhow::Result<Self> {
+    pub fn create(
+        config: Arc<Config>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
-        Ok(Self { config, producer })
+        Ok(Self {
+            config,
+            outcome_aggregator,
+            producer,
+        })
     }
 
     fn handle_message(&self, message: Store) {
         match message {
             Store::Envelope(message, sender) => sender.send(self.handle_store_envelope(message)),
-            Store::Metrics(message) => {
-                if let Err(e) = self.handle_store_metrics(message) {
-                    relay_log::error!("failed to store metrics: {e}");
-                }
-            }
+            Store::Metrics(message) => self.handle_store_metrics(message),
         }
     }
 
@@ -281,36 +288,50 @@ impl StoreService {
         Ok(())
     }
 
-    fn handle_store_metrics(&self, message: StoreMetrics) -> Result<(), StoreError> {
+    fn handle_store_metrics(&self, message: StoreMetrics) {
         let StoreMetrics {
             buckets,
             scoping,
             retention,
+            mode,
         } = message;
 
         let batch_size = self.config.metrics_max_batch_size_bytes();
+        let mut dropped = SourceQuantities::default();
+        let mut error = None;
 
         for bucket in buckets {
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
             // batches.
-            for bucket in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
-                self.send_metric_message(
-                    scoping.organization_id,
-                    MetricKafkaMessage {
-                        org_id: scoping.organization_id,
-                        project_id: scoping.project_id,
-                        name: bucket.name(),
-                        value: bucket.value(),
-                        timestamp: bucket.timestamp(),
-                        tags: bucket.tags(),
-                        retention_days: retention,
-                    },
-                )?;
+            for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
+                let message = MetricKafkaMessage {
+                    org_id: scoping.organization_id,
+                    project_id: scoping.project_id,
+                    name: view.name(),
+                    value: view.value(),
+                    timestamp: view.timestamp(),
+                    tags: view.tags(),
+                    retention_days: retention,
+                };
+
+                if let Err(e) = self.send_metric_message(scoping.organization_id, message) {
+                    error.get_or_insert(e);
+                    dropped += utils::extract_metric_quantities([view], mode);
+                }
             }
         }
 
-        Ok(())
+        if let Some(error) = error {
+            relay_log::error!("failed to produce metric buckets: {error}");
+
+            utils::reject_metrics(
+                &self.outcome_aggregator,
+                dropped,
+                scoping,
+                Outcome::Invalid(DiscardReason::Internal),
+            );
+        }
     }
 
     fn extract_kafka_messages_for_event(

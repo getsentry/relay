@@ -1360,14 +1360,10 @@ impl EnvelopeProcessorService {
         scoping: Scoping,
         buckets: &[Bucket],
         project_state: &ProjectState,
+        mode: ExtractionMode,
     ) -> bool {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return false;
-        };
-
-        let mode = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
         };
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
@@ -1441,7 +1437,12 @@ impl EnvelopeProcessorService {
             }
         }
 
-        if self.rate_limit_batches(scoping, &buckets, &project_state) {
+        let mode = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+            _ => ExtractionMode::Duration,
+        };
+
+        if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
             return;
         }
 
@@ -1454,6 +1455,7 @@ impl EnvelopeProcessorService {
             buckets,
             scoping,
             retention,
+            mode,
         });
     }
 
