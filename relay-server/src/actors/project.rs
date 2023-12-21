@@ -11,7 +11,7 @@ use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
     MetricResourceIdentifier,
 };
-use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
@@ -29,7 +29,7 @@ use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate}
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
 use crate::utils::{
-    EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
+    self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
 
 use super::processor::EncodeMetrics;
@@ -567,12 +567,11 @@ impl Project {
             return metrics;
         };
 
-        let usage = match state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
-            _ => false,
+        let mode = match state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+            _ => ExtractionMode::Duration,
         };
 
-        let mode = ExtractionMode::from_usage(usage);
         match MetricsLimiter::create(metrics, &state.config.quotas, scoping, mode) {
             Ok(mut limiter) => {
                 limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
@@ -642,11 +641,10 @@ impl Project {
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
 
-        let usage = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
-            _ => false,
+        let extraction_mode = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+            _ => ExtractionMode::Duration,
         };
-        let extraction_mode = ExtractionMode::from_usage(usage);
 
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
@@ -1110,39 +1108,54 @@ impl Project {
 
     pub fn flush_buckets(
         &mut self,
-        project_cache: Addr<ProjectCache>,
         envelope_processor: Addr<EnvelopeProcessor>,
+        outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
     ) {
-        let Some(project_state) = self.get_cached_state(project_cache, false) else {
-            relay_log::trace!(
-                "there is no project state: dropping {} buckets",
-                buckets.len()
-            );
+        let len = buckets.len();
+        let Some(project_state) = self.valid_state() else {
+            relay_log::trace!("there is no project state: dropping {len} buckets",);
             return;
         };
 
         let Some(scoping) = self.scoping() else {
-            relay_log::trace!("there is no scoping: dropping {} buckets", buckets.len());
+            relay_log::trace!("there is no scoping: dropping {len} buckets");
             return;
         };
 
-        let usage = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
-            _ => false,
+        let item_scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: &scoping,
         };
-        let extraction_mode = ExtractionMode::from_usage(usage);
 
-        let enable_cardinality_limiter = project_state.has_feature(Feature::CardinalityLimiter);
+        let limits = self
+            .rate_limits()
+            .check_with_quotas(project_state.get_quotas(), item_scoping);
+
+        if limits.is_limited() {
+            relay_log::info!("dropping {len} buckets due to rate limit");
+
+            let mode = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+                _ => ExtractionMode::Duration,
+            };
+
+            let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+            utils::reject_metrics(
+                &outcome_aggregator,
+                utils::extract_metric_quantities(&buckets, mode),
+                scoping,
+                Outcome::RateLimited(reason_code),
+            );
+
+            return;
+        }
 
         if !buckets.is_empty() {
             envelope_processor.send(EncodeMetrics {
                 buckets,
                 scoping,
-                extraction_mode,
                 project_state,
-                rate_limits: self.rate_limits.clone(),
-                enable_cardinality_limiter,
             });
         }
     }

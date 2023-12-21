@@ -113,6 +113,15 @@ impl<'a> fmt::Debug for BucketsView<'a> {
     }
 }
 
+impl<'a> IntoIterator for BucketsView<'a> {
+    type Item = BucketView<'a>;
+    type IntoIter = BucketsViewIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl<'a> IntoIterator for &'_ BucketsView<'a> {
     type Item = BucketView<'a>;
     type IntoIter = BucketsViewIter<'a>;
