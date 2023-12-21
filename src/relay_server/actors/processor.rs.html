@@ -1919,6 +1919,7 @@
 <a href="#1919" id="1919">1919</a>
 <a href="#1920" id="1920">1920</a>
 <a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3234,11 +3235,11 @@
     }
 
     <span class="kw">fn </span>encode_envelope_body(
-        body: Vec&lt;u8&gt;,
+        body: Bytes,
         http_encoding: HttpEncoding,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, std::io::Error&gt; {
-        <span class="kw">let </span>envelope_body = <span class="kw">match </span>http_encoding {
-            HttpEncoding::Identity =&gt; body,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, std::io::Error&gt; {
+        <span class="kw">let </span>envelope_body: Vec&lt;u8&gt; = <span class="kw">match </span>http_encoding {
+            HttpEncoding::Identity =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(body),
             HttpEncoding::Deflate =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>encoder = ZlibEncoder::new(Vec::new(), Compression::default());
                 encoder.write_all(body.as_ref())<span class="question-mark">?</span>;
@@ -3256,7 +3257,8 @@
                 encoder.into_inner()
             }
         };
-        <span class="prelude-val">Ok</span>(envelope_body)
+
+        <span class="prelude-val">Ok</span>(envelope_body.into())
     }
 
     <span class="kw">fn </span>handle_encode_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeEnvelope) {

@@ -359,12 +359,14 @@
 <a href="#359" id="359">359</a>
 <a href="#360" id="360">360</a>
 <a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
 
+<span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
@@ -385,7 +387,7 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ContentType, Envelope, EnvelopeError, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
-<span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, Request, RequestBuilder, Response};
+<span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, RequestBuilder, Response};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
@@ -417,7 +419,7 @@
 <span class="doccomment">/// An upstream request that submits an envelope via HTTP.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SendEnvelope {
-    <span class="kw">pub </span>envelope_body: Vec&lt;u8&gt;,
+    <span class="kw">pub </span>envelope_body: Bytes,
     <span class="kw">pub </span>envelope_meta: RequestMeta,
     <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
     <span class="kw">pub </span>scoping: Scoping,
@@ -440,8 +442,8 @@
         <span class="string">&quot;envelope&quot;
     </span>}
 
-    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Config, builder: RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;Request, HttpError&gt; {
-        <span class="kw">let </span>envelope_body = <span class="kw-2">&amp;</span><span class="self">self</span>.envelope_body;
+    <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: <span class="kw-2">&amp;mut </span>RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;(), HttpError&gt; {
+        <span class="kw">let </span>envelope_body = <span class="self">self</span>.envelope_body.clone();
         <span class="macro">metric!</span>(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() <span class="kw">as </span>u64);
 
         <span class="kw">let </span>meta = <span class="kw-2">&amp;</span><span class="self">self</span>.envelope_meta;
@@ -453,7 +455,9 @@
             .header(<span class="string">&quot;X-Forwarded-For&quot;</span>, meta.forwarded_for())
             .header(<span class="string">&quot;Content-Type&quot;</span>, envelope::CONTENT_TYPE)
             .header_opt(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, <span class="self">self</span>.partition_key.as_ref())
-            .body(envelope_body)
+            .body(envelope_body);
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>respond(
@@ -603,11 +607,9 @@
         // possible so that we avoid internal delays.
         </span>envelope.set_sent_at(Utc::now());
 
-        <span class="kw">let </span>envelope_body = envelope.to_vec()<span class="question-mark">?</span>;
-
         <span class="kw">let </span>(tx, rx) = oneshot::channel();
         <span class="kw">let </span>request = SendEnvelope {
-            envelope_body,
+            envelope_body: envelope.to_vec()<span class="question-mark">?</span>.into(),
             envelope_meta: envelope.meta().clone(),
             project_cache: <span class="self">self</span>.project_cache.clone(),
             scoping,
