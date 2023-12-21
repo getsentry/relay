@@ -1,4 +1,3 @@
-
 -- Global quota system.
 --
 -- Made to work with a local cache of quota limit. The caller will "take" a certain contingency
@@ -7,8 +6,6 @@
 -- We return both the size of the contingency and the size of the redis count.
 -- The reason we return the size of the redis count is to avoid asking for more contingency
 -- if the previously seen redis count is bigger than the limit.
-
-
 
 
 -- The maximum contingency we will take. We will take less if we are too close to the limit.

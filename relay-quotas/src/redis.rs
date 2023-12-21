@@ -3,7 +3,6 @@ use std::fmt;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
-use relay_base_schema::data_category::DataCategory;
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
@@ -165,16 +164,16 @@ pub struct RedisRateLimiter {
 /// as long as there's no writers. We only need to acquire the write when we modify the keys of the
 /// map.
 #[derive(Clone, Default)]
-pub struct GlobalCounters(Arc<RwLock<BTreeMap<Key, Val>>>);
+pub struct GlobalCounters(Arc<RwLock<BTreeMap<BudgetKey, Val>>>);
 
-/// Possible outcomes from attemping to decrement global counter contingency.
+/// Possible outcomes from attemping to decrement global counter budget.
 enum DecOutcome {
     UpstreamExceeded,
     NoRateLimit,
     KeyMissing,
     PoisonedLock,
     SlotExpired,
-    ContingencyEmpty,
+    BudgetEmpty,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -186,7 +185,7 @@ enum GlobalRateLimitError {
     #[error("slot expired")]
     SlotExpired,
     #[error("contingency empty")]
-    ContingencyEmpty,
+    BudgetEmpty,
     #[error("failed to communicate with redis")]
     Redis,
 }
@@ -194,7 +193,7 @@ enum GlobalRateLimitError {
 impl GlobalCounters {
     fn update_limit(
         &self,
-        key: Key,
+        budget_key: &BudgetKey,
         slot: u64,
         new_contingency: usize,
         redis_value: u64,
@@ -205,13 +204,13 @@ impl GlobalCounters {
             .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
 
         let old_contingency: usize = map
-            .get(&key)
+            .get(budget_key)
             .filter(|val| val.slot == slot)
             .map(|val| val.count.load(Ordering::Relaxed))
             .unwrap_or_default();
 
         map.insert(
-            key,
+            budget_key.to_owned(),
             Val {
                 count: AtomicUsize::new(new_contingency + old_contingency),
                 last_seen_redis_value: AtomicU64::new(redis_value),
@@ -223,7 +222,7 @@ impl GlobalCounters {
 
     /// Decrement the count, if it reaches below zero, return true, so that we may
     /// ask upstream for more quota.
-    fn decrement_contingency(&self, key: &Key, slot: u64, qty: usize, limit: u64) -> DecOutcome {
+    fn decrement_budget(&self, key: &BudgetKey, slot: u64, qty: usize, limit: u64) -> DecOutcome {
         // With atomics we can update the count with a shared reference.
         let Ok(map) = self.0.read() else {
             return DecOutcome::PoisonedLock;
@@ -246,7 +245,7 @@ impl GlobalCounters {
                     let current = val.count.load(Ordering::Relaxed);
 
                     if current < qty {
-                        return DecOutcome::ContingencyEmpty;
+                        return DecOutcome::BudgetEmpty;
                     }
 
                     // Ensures that we don't get any race conditions. 'weak' is faster in a loop.
@@ -267,15 +266,16 @@ impl GlobalCounters {
     }
 }
 
+/// Key for storing global quota-budgets locally.
+///
+/// Note: must not be used in redis. For that, use RedisQuota.key().
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
-struct Key {
-    id: String,
-    window_size: u64,
-}
+struct BudgetKey(String);
 
-impl Key {
-    fn new(id: String, window_size: u64) -> Self {
-        Self { id, window_size }
+impl BudgetKey {
+    fn new(quota: &RedisQuota) -> Self {
+        let s = format!("global_quota:{}:{}", quota.prefix, quota.window);
+        Self(s)
     }
 }
 
@@ -308,44 +308,51 @@ impl RedisRateLimiter {
     /// slot is expired, we have to sync with redis, after which we try again.
     fn is_globally_rate_limited(
         &self,
-        key: String,
+        redis_key: String,
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, GlobalRateLimitError> {
         debug_assert!(quota.scope == QuotaScope::Global);
 
-        let limit = quota.limit.unwrap_or_default();
-        let window = quota.window;
+        let Some(limit) = quota.limit else {
+            return Ok(true);
+        };
+
         let slot = quota.slot();
 
-        let key = Key::new(key, window);
+        let budget_key = BudgetKey::new(quota);
 
         match self
             .counters
-            .decrement_contingency(&key, slot, quantity, limit)
+            .decrement_budget(&budget_key, slot, quantity, limit)
         {
-            DecOutcome::UpstreamExceeded => return Ok(true),
             DecOutcome::NoRateLimit => return Ok(false),
+            DecOutcome::UpstreamExceeded => return Ok(true),
             DecOutcome::PoisonedLock => return Err(GlobalRateLimitError::PoisonedLock),
-            DecOutcome::SlotExpired | DecOutcome::ContingencyEmpty | DecOutcome::KeyMissing => {
-                self.redis_sync(key.clone(), quota)?
+            DecOutcome::SlotExpired | DecOutcome::BudgetEmpty | DecOutcome::KeyMissing => {
+                self.redis_sync(redis_key, &budget_key, quota)?
             }
         };
 
         match self
             .counters
-            .decrement_contingency(&key, slot, quantity, limit)
+            .decrement_budget(&budget_key, slot, quantity, limit)
         {
             DecOutcome::NoRateLimit => Ok(false),
             DecOutcome::UpstreamExceeded => Ok(true),
             DecOutcome::PoisonedLock => Err(GlobalRateLimitError::PoisonedLock),
             DecOutcome::KeyMissing => Err(GlobalRateLimitError::KeyMissing),
             DecOutcome::SlotExpired => Err(GlobalRateLimitError::SlotExpired),
-            DecOutcome::ContingencyEmpty => Err(GlobalRateLimitError::ContingencyEmpty),
+            DecOutcome::BudgetEmpty => Err(GlobalRateLimitError::BudgetEmpty),
         }
     }
 
-    fn redis_sync(&self, key: Key, quota: &RedisQuota) -> Result<(), GlobalRateLimitError> {
+    fn redis_sync(
+        &self,
+        redis_key: String,
+        budget_key: &BudgetKey,
+        quota: &RedisQuota,
+    ) -> Result<(), GlobalRateLimitError> {
         let slot = quota.slot();
 
         let mut client = self
@@ -354,7 +361,13 @@ impl RedisRateLimiter {
             .map_err(RateLimitingError::Redis)
             .unwrap();
 
-        let current_count = match self.counters.0.read().unwrap().get(&key) {
+        let current_count = match self
+            .counters
+            .0
+            .read()
+            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
+            .get(budget_key)
+        {
             Some(v) if v.slot == slot => v.count.load(Ordering::Relaxed),
             _ => 0, // if key is missing we'll insert one in the update_limit method later.
         };
@@ -363,10 +376,10 @@ impl RedisRateLimiter {
             return Ok(());
         }
 
-        let (contingency, redis_count): (u64, u64) = self
+        let (budget, redis_count): (u64, u64) = self
             .global_script
             .prepare_invoke()
-            .key(key.id.clone())
+            .key(redis_key.as_str())
             .arg(quota.limit)
             .arg(quota.expiry().as_secs() + GRACE)
             .invoke(
@@ -377,7 +390,7 @@ impl RedisRateLimiter {
             .map_err(|_| GlobalRateLimitError::Redis)?;
 
         self.counters
-            .update_limit(key, slot, contingency as usize, redis_count)
+            .update_limit(budget_key, slot, budget as usize, redis_count)
     }
 
     /// Sets the maximum rate limit in seconds.
@@ -428,9 +441,7 @@ impl RedisRateLimiter {
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
-                // Remaining quotas are expected to be trackable in Redis.
                 let key = quota.key();
-
                 if quota.scope == QuotaScope::Global {
                     match self.is_globally_rate_limited(key, &quota, quantity) {
                         Ok(false) => continue,
@@ -447,6 +458,7 @@ impl RedisRateLimiter {
                         ),
                     }
                 } else {
+                    // Remaining quotas are expected to be trackable in Redis.
                     let refund_key = get_refunded_quota_key(&key);
 
                     invocation.key(key);
