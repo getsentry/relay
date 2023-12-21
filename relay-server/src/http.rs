@@ -97,8 +97,8 @@ impl RequestBuilder {
         self.header_opt("content-encoding", encoding.name())
     }
 
-    pub fn body<B: Into<Bytes>>(&mut self, body: B) -> &mut Self {
-        self.body = Some(body.into());
+    pub fn body(&mut self, body: Bytes) -> &mut Self {
+        self.body = Some(body);
         self
     }
 
