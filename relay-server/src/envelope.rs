@@ -531,6 +531,8 @@ pub struct SourceQuantities {
     pub transactions: usize,
     /// Profile quantity.
     pub profiles: usize,
+    /// Total number of buckets.
+    pub buckets: usize,
 }
 
 impl AddAssign for SourceQuantities {
