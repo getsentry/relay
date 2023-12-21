@@ -142,7 +142,7 @@ impl ExtractionMode {
     }
 }
 
-/// Return value of [`extract_transaction_count`], containing the extracted
+/// Return value of [`count_metric_bucket`], containing the extracted
 /// count of transactions and wether they have associated profiles.
 #[derive(Debug, Clone, Copy)]
 struct TransactionCount {
