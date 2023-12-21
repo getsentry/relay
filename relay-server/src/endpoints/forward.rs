@@ -136,23 +136,21 @@ impl UpstreamRequest for ForwardRequest {
         "forward"
     }
 
-    fn build(
-        &mut self,
-        _: &Config,
-        mut builder: RequestBuilder,
-    ) -> Result<crate::http::Request, HttpError> {
+    fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
         for (key, value) in &self.headers {
             // Since the body is always decompressed by the server, we must not forward the
             // content-encoding header, as the upstream client will do its own content encoding.
             // Also, remove content-length because it's likely wrong.
             if !HOP_BY_HOP_HEADERS.contains(key) && !IGNORED_REQUEST_HEADERS.contains(key) {
-                builder = builder.header(key, value);
+                builder.header(key, value);
             }
         }
 
         builder
             .header("X-Forwarded-For", self.forwarded_for.as_ref())
-            .body(&self.data)
+            .body(self.data.clone());
+
+        Ok(())
     }
 
     fn respond(

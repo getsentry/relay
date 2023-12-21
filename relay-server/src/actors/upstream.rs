@@ -12,6 +12,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_config::{Config, Credentials, RelayMode};
@@ -306,21 +307,29 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
         true
     }
 
+    fn sign(&self) -> bool {
+        false
+    }
+
     /// Returns the name of the logical route.
     ///
     /// This is used for internal metrics and logging. Other than the path, this cannot contain
     /// dynamic elements and should be globally unique.
     fn route(&self) -> &'static str;
 
+    /// Callback to apply configuration to the request.
+    fn configure(&mut self, _config: &Config) {}
+
     /// Callback to build the outgoing web request.
     ///
-    /// This callback populates the initialized request with headers and a request body. To send an
-    /// empty request without additional headers, call [`RequestBuilder::finish`] directly.
+    /// This callback populates the initialized request with headers and a request body.
     ///
     /// Note that this function can be called repeatedly if [`retry`](UpstreamRequest::retry)
     /// returns `true`. This function should therefore not move out of the request struct, but can
     /// use it to memoize heavy computation.
-    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError>;
+    fn build(&mut self, _builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        Ok(())
+    }
 
     /// Callback to complete an HTTP request.
     ///
@@ -391,7 +400,7 @@ type QuerySender<T> = Sender<Result<<T as UpstreamQuery>::Response, UpstreamRequ
 #[derive(Debug)]
 struct UpstreamQueryRequest<T: UpstreamQuery> {
     query: T,
-    compiled: Option<(Vec<u8>, String)>,
+    body: Option<Bytes>,
     max_response_size: usize,
     sender: QuerySender<T>,
 }
@@ -404,7 +413,7 @@ where
     pub fn new(query: T, sender: QuerySender<T>) -> Self {
         Self {
             query,
-            compiled: None,
+            body: None,
             max_response_size: 0,
             sender,
         }
@@ -431,6 +440,10 @@ where
         true
     }
 
+    fn sign(&self) -> bool {
+        true
+    }
+
     fn method(&self) -> Method {
         self.query.method()
     }
@@ -443,25 +456,28 @@ where
         self.query.route()
     }
 
-    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
-        // Memoize the serialized body and signature for retries.
-        let credentials = config.credentials().ok_or(HttpError::NoCredentials)?;
-        let (body, signature) = self
-            .compiled
-            .get_or_insert_with(|| credentials.secret_key.pack(&self.query));
-
+    fn configure(&mut self, config: &Config) {
         // This config attribute is needed during `respond`, which does not have access to the
         // config. For this reason, we need to store it on the request struct.
         self.max_response_size = config.max_api_payload_size();
+    }
+
+    fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        // Memoize the serialized body for retries.
+        let body = match self.body {
+            Some(ref body) => body,
+            None => self.body.insert(serde_json::to_vec(&self.query)?.into()),
+        };
 
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() as u64
         );
 
         builder
-            .header("X-Sentry-Relay-Signature", signature.as_bytes())
             .header(header::CONTENT_TYPE, b"application/json")
-            .body(&body)
+            .body(body.clone());
+
+        Ok(())
     }
 
     fn respond(
@@ -629,10 +645,6 @@ impl UpstreamRequest for GetHealthCheck {
         "check_live"
     }
 
-    fn build(&mut self, _: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
-        builder.finish()
-    }
-
     fn respond(
         self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
@@ -744,16 +756,25 @@ impl SharedClient {
                 .http_host_header()
                 .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-            let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url))
-                .header("Host", host_header.as_bytes());
+            let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
+            builder.header("Host", host_header.as_bytes());
 
-            if request.set_relay_id() {
+            if request.set_relay_id() || request.sign() {
                 if let Some(credentials) = self.config.credentials() {
-                    builder = builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+                    builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
                 }
             }
 
-            match request.build(&self.config, builder) {
+            request.build(&mut builder)?;
+
+            if request.sign() {
+                let credentials = self.config.credentials().ok_or(HttpError::NoCredentials)?;
+                let body = builder.get_body().unwrap_or_default();
+                let signature = credentials.secret_key.sign(body);
+                builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+            }
+
+            match builder.finish() {
                 Ok(Request(client_request)) => Ok(client_request),
                 Err(e) => Err(e.into()),
             }
@@ -1325,6 +1346,7 @@ impl ConnectionMonitor {
 /// This handles incoming public messages, internal actions, and maintains the upstream queue.
 #[derive(Debug)]
 struct UpstreamBroker {
+    config: Arc<Config>,
     client: SharedClient,
     queue: UpstreamQueue,
     auth_state: AuthState,
@@ -1359,7 +1381,9 @@ impl UpstreamBroker {
     ///
     /// If authentication is permanently denied, the request will be failed immediately. In all
     /// other cases, the request is enqueued and will wait for submission.
-    async fn enqueue(&mut self, request: Box<dyn UpstreamRequest>) {
+    async fn enqueue(&mut self, mut request: Box<dyn UpstreamRequest>) {
+        request.configure(&self.config);
+
         if let AuthState::Denied = self.auth_state {
             // This respond is near-instant because it should just send the error into the request's
             // response channel. We do not expect that this blocks the broker.
@@ -1482,6 +1506,7 @@ impl Service for UpstreamRelayService {
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
             action_tx,
+            config,
         };
 
         tokio::spawn(async move {

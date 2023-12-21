@@ -10,6 +10,7 @@
 //! logic.
 use std::io;
 
+use bytes::Bytes;
 use relay_config::HttpEncoding;
 use reqwest::header::{HeaderMap, HeaderValue};
 pub use reqwest::StatusCode;
@@ -47,43 +48,65 @@ impl HttpError {
 pub struct Request(pub reqwest::Request);
 
 pub struct RequestBuilder {
-    builder: reqwest::RequestBuilder,
+    builder: Option<reqwest::RequestBuilder>,
+    body: Option<Bytes>,
 }
 
 impl RequestBuilder {
     pub fn reqwest(builder: reqwest::RequestBuilder) -> Self {
-        RequestBuilder { builder }
+        RequestBuilder {
+            builder: Some(builder),
+            body: None,
+        }
     }
 
     pub fn finish(self) -> Result<Request, HttpError> {
-        Ok(Request(self.builder.build()?))
+        let mut builder = self.builder.unwrap();
+        if let Some(body) = self.body {
+            builder = builder.body(body);
+        }
+        Ok(Request(builder.build()?))
+    }
+
+    fn build<F>(&mut self, mut f: F) -> &mut Self
+    where
+        F: FnMut(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    {
+        self.builder = Some(f(self.builder.take().unwrap()));
+        self
     }
 
     /// Add a new header, not replacing existing ones.
-    pub fn header(mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> Self {
-        self.builder = self.builder.header(key.as_ref(), value.as_ref());
-        self
+    pub fn header(&mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> &mut Self {
+        self.build(|builder| builder.header(key.as_ref(), value.as_ref()))
     }
 
     /// Add an optional header, not replacing existing ones.
     ///
     /// If the value is `Some`, the header is added. If the value is `None`, headers are not
     /// changed.
-    pub fn header_opt(mut self, key: impl AsRef<str>, value: Option<impl AsRef<[u8]>>) -> Self {
-        if let Some(value) = value {
-            self.builder = self.builder.header(key.as_ref(), value.as_ref());
+    pub fn header_opt(
+        &mut self,
+        key: impl AsRef<str>,
+        value: Option<impl AsRef<[u8]>>,
+    ) -> &mut Self {
+        match value {
+            Some(value) => self.build(|builder| builder.header(key.as_ref(), value.as_ref())),
+            None => self,
         }
-        self
     }
 
-    pub fn content_encoding(self, encoding: HttpEncoding) -> Self {
+    pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
         self.header_opt("content-encoding", encoding.name())
     }
 
-    pub fn body<B: AsRef<[u8]>>(mut self, body: B) -> Result<Request, HttpError> {
-        // TODO: This clones data. Change the signature to require `Bytes` to prevent cloning.
-        self.builder = self.builder.body(body.as_ref().to_vec());
-        self.finish()
+    pub fn body<B: Into<Bytes>>(&mut self, body: B) -> &mut Self {
+        self.body = Some(body.into());
+        self
+    }
+
+    pub fn get_body(&self) -> Option<&[u8]> {
+        self.body.as_deref()
     }
 }
 

@@ -1332,11 +1332,11 @@ impl EnvelopeProcessorService {
     }
 
     fn encode_envelope_body(
-        body: Vec<u8>,
+        body: Bytes,
         http_encoding: HttpEncoding,
-    ) -> Result<Vec<u8>, std::io::Error> {
-        let envelope_body = match http_encoding {
-            HttpEncoding::Identity => body,
+    ) -> Result<Bytes, std::io::Error> {
+        let envelope_body: Vec<u8> = match http_encoding {
+            HttpEncoding::Identity => return Ok(body),
             HttpEncoding::Deflate => {
                 let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
                 encoder.write_all(body.as_ref())?;
@@ -1354,7 +1354,8 @@ impl EnvelopeProcessorService {
                 encoder.into_inner()
             }
         };
-        Ok(envelope_body)
+
+        Ok(envelope_body.into())
     }
 
     fn handle_encode_envelope(&self, message: EncodeEnvelope) {
