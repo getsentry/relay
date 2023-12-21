@@ -108,7 +108,7 @@ pub enum UpstreamRequestError {
 
     /// Likely a bad HTTP status code or unparseable response.
     #[error("could not send request")]
-    Http(#[source] HttpError),
+    Http(#[from] HttpError),
 
     #[error("upstream requests rate limited")]
     RateLimited(UpstreamRateLimits),
@@ -189,20 +189,10 @@ impl UpstreamRequestError {
             UpstreamRequestError::Http(HttpError::Json(_)) => "invalid_json",
             UpstreamRequestError::Http(HttpError::Reqwest(_)) => "reqwest_error",
             UpstreamRequestError::Http(HttpError::Overflow) => "overflow",
-            UpstreamRequestError::Http(HttpError::NoCredentials) => "no_credentials",
             UpstreamRequestError::RateLimited(_) => "rate_limited",
             UpstreamRequestError::ResponseError(_, _) => "response_error",
             UpstreamRequestError::ChannelClosed => "channel_closed",
             UpstreamRequestError::AuthDenied => "auth_denied",
-        }
-    }
-}
-
-impl From<HttpError> for UpstreamRequestError {
-    fn from(error: HttpError) -> Self {
-        match error {
-            HttpError::NoCredentials => Self::NoCredentials,
-            other => Self::Http(other),
         }
     }
 }
@@ -768,7 +758,11 @@ impl SharedClient {
             request.build(&mut builder)?;
 
             if request.sign() {
-                let credentials = self.config.credentials().ok_or(HttpError::NoCredentials)?;
+                let credentials = self
+                    .config
+                    .credentials()
+                    .ok_or(UpstreamRequestError::NoCredentials)?;
+
                 let body = builder.get_body().unwrap_or_default();
                 let signature = credentials.secret_key.sign(body);
                 builder.header("X-Sentry-Relay-Signature", signature.as_bytes());

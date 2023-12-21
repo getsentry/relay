@@ -72,7 +72,6 @@ impl IntoResponse for ForwardError {
                 }
                 HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
                 HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
-                HttpError::NoCredentials => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {

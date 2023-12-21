@@ -20,8 +20,6 @@ use serde::de::DeserializeOwned;
 pub enum HttpError {
     #[error("payload too large")]
     Overflow,
-    #[error("attempted to send upstream request without credentials configured")]
-    NoCredentials,
     #[error("could not send request")]
     Reqwest(#[from] reqwest::Error),
     #[error("failed to stream payload")]
@@ -40,7 +38,6 @@ impl HttpError {
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
             HttpError::Overflow => false,
-            HttpError::NoCredentials => false,
         }
     }
 }
