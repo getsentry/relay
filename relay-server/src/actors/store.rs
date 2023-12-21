@@ -14,10 +14,12 @@ use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
-use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::{
+    Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
+};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
+use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
 use serde_json::value::RawValue;
@@ -78,9 +80,20 @@ pub struct StoreEnvelope {
     pub scoping: Scoping,
 }
 
+/// TODO
+#[derive(Clone, Debug)]
+pub struct StoreMetrics {
+    pub buckets: Vec<Bucket>,
+    pub scoping: Scoping,
+    pub retention: u16,
+}
+
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
-pub struct Store(StoreEnvelope, Sender<Result<(), StoreError>>);
+pub enum Store {
+    Envelope(StoreEnvelope, Sender<Result<(), StoreError>>),
+    Metrics(StoreMetrics),
+}
 
 impl Interface for Store {}
 
@@ -88,7 +101,15 @@ impl FromMessage<StoreEnvelope> for Store {
     type Response = AsyncResponse<Result<(), StoreError>>;
 
     fn from_message(message: StoreEnvelope, sender: Sender<Result<(), StoreError>>) -> Self {
-        Self(message, sender)
+        Self::Envelope(message, sender)
+    }
+}
+
+impl FromMessage<StoreMetrics> for Store {
+    type Response = NoResponse;
+
+    fn from_message(message: StoreMetrics, _: ()) -> Self {
+        Self::Metrics(message)
     }
 }
 
@@ -105,8 +126,14 @@ impl StoreService {
     }
 
     fn handle_message(&self, message: Store) {
-        let Store(message, sender) = message;
-        sender.send(self.handle_store_envelope(message));
+        match message {
+            Store::Envelope(message, sender) => sender.send(self.handle_store_envelope(message)),
+            Store::Metrics(message) => {
+                if let Err(e) = self.handle_store_metrics(message) {
+                    relay_log::error!("failed to store metrics: {e}");
+                }
+            }
+        }
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
@@ -248,6 +275,38 @@ impl StoreService {
                     counter(RelayCounters::ProcessingMessageProduced) += 1,
                     event_type = &event_item.ty().to_string()
                 );
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_store_metrics(&self, message: StoreMetrics) -> Result<(), StoreError> {
+        let StoreMetrics {
+            buckets,
+            scoping,
+            retention,
+        } = message;
+
+        let batch_size = self.config.metrics_max_batch_size_bytes();
+
+        for bucket in buckets {
+            // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
+            // each bucket separately, we only need to split buckets that exceed the size, but not
+            // batches.
+            for bucket in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
+                self.send_metric_message(
+                    scoping.organization_id,
+                    MetricKafkaMessage {
+                        org_id: scoping.organization_id,
+                        project_id: scoping.project_id,
+                        name: bucket.name(),
+                        value: bucket.value(),
+                        timestamp: bucket.timestamp(),
+                        tags: bucket.tags(),
+                        retention_days: retention,
+                    },
+                )?;
             }
         }
 
@@ -542,7 +601,7 @@ impl StoreService {
         organization_id: u64,
         message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
-        let mri = MetricResourceIdentifier::parse(&message.name);
+        let mri = MetricResourceIdentifier::parse(message.name);
         let (topic, namespace) = match mri.map(|mri| mri.namespace) {
             Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
             Ok(MetricNamespace::Unsupported) | Err(_) => {
@@ -583,10 +642,10 @@ impl StoreService {
                 MetricKafkaMessage {
                     org_id,
                     project_id,
-                    name: bucket.name,
-                    value: bucket.value,
+                    name: bucket.name.as_str(),
+                    value: (&bucket.value).into(),
                     timestamp: bucket.timestamp,
-                    tags: bucket.tags,
+                    tags: &bucket.tags,
                     retention_days: retention,
                 },
             )?;
@@ -1004,14 +1063,14 @@ struct SessionKafkaMessage {
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct MetricKafkaMessage {
+struct MetricKafkaMessage<'a> {
     org_id: u64,
     project_id: ProjectId,
-    name: String,
+    name: &'a str,
     #[serde(flatten)]
-    value: BucketValue,
+    value: BucketViewValue<'a>,
     timestamp: UnixTimestamp,
-    tags: BTreeMap<String, String>,
+    tags: &'a BTreeMap<String, String>,
     retention_days: u16,
 }
 
@@ -1090,7 +1149,7 @@ enum KafkaMessage<'a> {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
-        message: MetricKafkaMessage,
+        message: MetricKafkaMessage<'a>,
     },
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),

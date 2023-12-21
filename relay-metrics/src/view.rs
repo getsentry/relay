@@ -528,22 +528,14 @@ pub enum BucketViewValue<'a> {
     Gauge(GaugeValue),
 }
 
-impl<'a> From<&BucketViewValue<'a>> for BucketValue {
-    fn from(value: &BucketViewValue<'a>) -> Self {
+impl<'a> From<&'a BucketValue> for BucketViewValue<'a> {
+    fn from(value: &'a BucketValue) -> Self {
         match value {
-            BucketViewValue::Counter(c) => BucketValue::Counter(*c),
-            BucketViewValue::Distribution(d) => {
-                BucketValue::Distribution(d.iter().copied().collect())
-            }
-            BucketViewValue::Set(s) => BucketValue::Set(s.iter().copied().collect()),
-            BucketViewValue::Gauge(g) => BucketValue::Gauge(*g),
+            BucketValue::Counter(c) => BucketViewValue::Counter(*c),
+            BucketValue::Distribution(d) => BucketViewValue::Distribution(d),
+            BucketValue::Set(s) => BucketViewValue::Set(SetView::new(s, 0..s.len())),
+            BucketValue::Gauge(g) => BucketViewValue::Gauge(*g),
         }
-    }
-}
-
-impl<'a> From<BucketViewValue<'a>> for BucketValue {
-    fn from(value: BucketViewValue<'a>) -> Self {
-        BucketValue::from(&value)
     }
 }
 
