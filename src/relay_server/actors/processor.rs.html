@@ -1919,87 +1919,6 @@
 <a href="#1919" id="1919">1919</a>
 <a href="#1920" id="1920">1920</a>
 <a href="#1921" id="1921">1921</a>
-<a href="#1922" id="1922">1922</a>
-<a href="#1923" id="1923">1923</a>
-<a href="#1924" id="1924">1924</a>
-<a href="#1925" id="1925">1925</a>
-<a href="#1926" id="1926">1926</a>
-<a href="#1927" id="1927">1927</a>
-<a href="#1928" id="1928">1928</a>
-<a href="#1929" id="1929">1929</a>
-<a href="#1930" id="1930">1930</a>
-<a href="#1931" id="1931">1931</a>
-<a href="#1932" id="1932">1932</a>
-<a href="#1933" id="1933">1933</a>
-<a href="#1934" id="1934">1934</a>
-<a href="#1935" id="1935">1935</a>
-<a href="#1936" id="1936">1936</a>
-<a href="#1937" id="1937">1937</a>
-<a href="#1938" id="1938">1938</a>
-<a href="#1939" id="1939">1939</a>
-<a href="#1940" id="1940">1940</a>
-<a href="#1941" id="1941">1941</a>
-<a href="#1942" id="1942">1942</a>
-<a href="#1943" id="1943">1943</a>
-<a href="#1944" id="1944">1944</a>
-<a href="#1945" id="1945">1945</a>
-<a href="#1946" id="1946">1946</a>
-<a href="#1947" id="1947">1947</a>
-<a href="#1948" id="1948">1948</a>
-<a href="#1949" id="1949">1949</a>
-<a href="#1950" id="1950">1950</a>
-<a href="#1951" id="1951">1951</a>
-<a href="#1952" id="1952">1952</a>
-<a href="#1953" id="1953">1953</a>
-<a href="#1954" id="1954">1954</a>
-<a href="#1955" id="1955">1955</a>
-<a href="#1956" id="1956">1956</a>
-<a href="#1957" id="1957">1957</a>
-<a href="#1958" id="1958">1958</a>
-<a href="#1959" id="1959">1959</a>
-<a href="#1960" id="1960">1960</a>
-<a href="#1961" id="1961">1961</a>
-<a href="#1962" id="1962">1962</a>
-<a href="#1963" id="1963">1963</a>
-<a href="#1964" id="1964">1964</a>
-<a href="#1965" id="1965">1965</a>
-<a href="#1966" id="1966">1966</a>
-<a href="#1967" id="1967">1967</a>
-<a href="#1968" id="1968">1968</a>
-<a href="#1969" id="1969">1969</a>
-<a href="#1970" id="1970">1970</a>
-<a href="#1971" id="1971">1971</a>
-<a href="#1972" id="1972">1972</a>
-<a href="#1973" id="1973">1973</a>
-<a href="#1974" id="1974">1974</a>
-<a href="#1975" id="1975">1975</a>
-<a href="#1976" id="1976">1976</a>
-<a href="#1977" id="1977">1977</a>
-<a href="#1978" id="1978">1978</a>
-<a href="#1979" id="1979">1979</a>
-<a href="#1980" id="1980">1980</a>
-<a href="#1981" id="1981">1981</a>
-<a href="#1982" id="1982">1982</a>
-<a href="#1983" id="1983">1983</a>
-<a href="#1984" id="1984">1984</a>
-<a href="#1985" id="1985">1985</a>
-<a href="#1986" id="1986">1986</a>
-<a href="#1987" id="1987">1987</a>
-<a href="#1988" id="1988">1988</a>
-<a href="#1989" id="1989">1989</a>
-<a href="#1990" id="1990">1990</a>
-<a href="#1991" id="1991">1991</a>
-<a href="#1992" id="1992">1992</a>
-<a href="#1993" id="1993">1993</a>
-<a href="#1994" id="1994">1994</a>
-<a href="#1995" id="1995">1995</a>
-<a href="#1996" id="1996">1996</a>
-<a href="#1997" id="1997">1997</a>
-<a href="#1998" id="1998">1998</a>
-<a href="#1999" id="1999">1999</a>
-<a href="#2000" id="2000">2000</a>
-<a href="#2001" id="2001">2001</a>
-<a href="#2002" id="2002">2002</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2031,7 +1950,7 @@
 <span class="kw">use </span>relay_pii::PiiConfigError;
 <span class="kw">use </span>relay_profiling::ProfileId;
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
-<span class="kw">use </span>relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
+<span class="kw">use </span>relay_quotas::{DataCategory, ItemScoping, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -2054,15 +1973,13 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{AddMetricMeta, ProjectCache};
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{SendRequest, UpstreamRelay};
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, extract_transaction_count, ExtractionMode, ManagedEnvelope, SamplingResult,
-};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ExtractionMode, ManagedEnvelope, SamplingResult};
 
 <span class="kw">mod </span>attachment;
 <span class="kw">mod </span>dynamic_sampling;
@@ -2235,23 +2152,6 @@
             ));
         }
     }
-}
-
-<span class="kw">fn </span>source_quantities_from_buckets(
-    buckets: <span class="kw-2">&amp;</span>BucketsView,
-    extraction_mode: ExtractionMode,
-) -&gt; SourceQuantities {
-    buckets
-        .iter()
-        .filter_map(|bucket| extract_transaction_count(<span class="kw-2">&amp;</span>bucket, extraction_mode))
-        .fold(SourceQuantities::default(), |acc, c| {
-            <span class="kw">let </span>profile_count = <span class="kw">if </span>c.has_profile { c.count } <span class="kw">else </span>{ <span class="number">0 </span>};
-
-            SourceQuantities {
-                transactions: acc.transactions + c.count,
-                profiles: acc.profiles + profile_count,
-            }
-        })
 }
 
 <span class="doccomment">/// A state container for envelope processing.
@@ -3375,63 +3275,12 @@
         }
     }
 
-    <span class="doccomment">/// Records the outcomes of the dropped buckets.
-    </span><span class="kw">fn </span>drop_buckets_with_outcomes(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        reason_code: <span class="prelude-ty">Option</span>&lt;ReasonCode&gt;,
-        total_buckets: usize,
-        scoping: Scoping,
-        bucket_partitions: <span class="kw-2">&amp;</span>BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt;,
-        mode: ExtractionMode,
-    ) {
-        <span class="kw">let </span><span class="kw-2">mut </span>source_quantities = SourceQuantities::default();
-
-        <span class="kw">for </span>buckets <span class="kw">in </span>bucket_partitions.values() {
-            source_quantities += source_quantities_from_buckets(<span class="kw-2">&amp;</span>BucketsView::new(buckets), mode);
-        }
-
-        <span class="kw">let </span>timestamp = Utc::now();
-
-        <span class="kw">if </span>source_quantities.transactions &gt; <span class="number">0 </span>{
-            <span class="self">self</span>.inner.outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: Outcome::RateLimited(reason_code.clone()),
-                event_id: <span class="prelude-val">None</span>,
-                remote_addr: <span class="prelude-val">None</span>,
-                category: DataCategory::Transaction,
-                quantity: source_quantities.transactions <span class="kw">as </span>u32,
-            });
-        }
-        <span class="kw">if </span>source_quantities.profiles &gt; <span class="number">0 </span>{
-            <span class="self">self</span>.inner.outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: Outcome::RateLimited(reason_code.clone()),
-                event_id: <span class="prelude-val">None</span>,
-                remote_addr: <span class="prelude-val">None</span>,
-                category: DataCategory::Profile,
-                quantity: source_quantities.profiles <span class="kw">as </span>u32,
-            });
-        }
-
-        <span class="self">self</span>.inner.outcome_aggregator.send(TrackOutcome {
-            timestamp,
-            scoping,
-            outcome: Outcome::RateLimited(reason_code),
-            event_id: <span class="prelude-val">None</span>,
-            remote_addr: <span class="prelude-val">None</span>,
-            category: DataCategory::MetricBucket,
-            quantity: total_buckets <span class="kw">as </span>u32,
-        });
-    }
-
     <span class="doccomment">/// Returns `true` if the batches should be rate limited.
     </span><span class="kw">fn </span>rate_limit_batches(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         cached_rate_limits: RateLimits,
         scoping: Scoping,
-        bucket_partitions: <span class="kw-2">&amp;</span>BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt;,
+        partitions: <span class="kw-2">&amp;</span>BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt;,
         max_batch_size_bytes: usize,
         project_state: Arc&lt;ProjectState&gt;,
     ) -&gt; bool {
@@ -3450,7 +3299,7 @@
         };
 
         <span class="comment">// We couldn&#39;t use the bucket length directly because batching may change the amount of buckets.
-        </span><span class="kw">let </span>total_buckets: usize = bucket_partitions
+        </span><span class="kw">let </span>total_buckets: usize = partitions
             .values()
             .flat_map(|buckets| {
                 <span class="comment">// Cheap operation because there&#39;s no allocations.
@@ -3461,21 +3310,16 @@
             .sum();
 
         <span class="comment">// For limiting the amount of redis calls we make, in case we already passed the limit.
-        </span><span class="kw">if </span>cached_rate_limits
-            .check_with_quotas(quotas, item_scoping)
-            .is_limited()
-        {
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;dropping {total_buckets} buckets due to throughput ratelimit&quot;</span>);
-            <span class="kw">let </span>reason_code = cached_rate_limits
-                .longest()
-                .and_then(|limit| limit.reason_code.clone());
+        </span><span class="kw">let </span>limits = cached_rate_limits.check_with_quotas(quotas, item_scoping);
+        <span class="kw">if </span>limits.is_limited() {
+            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {total_buckets} buckets due to throughput ratelimit&quot;</span>);
 
-            <span class="self">self</span>.drop_buckets_with_outcomes(
-                reason_code,
-                total_buckets,
+            <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+            utils::reject_metrics(
+                <span class="self">self</span>.inner.outcome_aggregator.clone(),
+                utils::extract_metric_quantities(partitions.values().flatten(), mode),
                 scoping,
-                bucket_partitions,
-                mode,
+                Outcome::RateLimited(reason_code),
             );
 
             <span class="kw">return </span><span class="bool-val">true</span>;
@@ -3487,17 +3331,16 @@
             // the count so that other relays will be updated too.
             </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, total_buckets, <span class="bool-val">false</span>) {
                 <span class="prelude-val">Ok</span>(limits) <span class="kw">if </span>limits.is_limited() =&gt; {
-                    <span class="macro">relay_log::info!</span>(
+                    <span class="macro">relay_log::debug!</span>(
                         <span class="string">&quot;dropping {total_buckets} buckets due to throughput ratelimit&quot;
                     </span>);
 
                     <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                    <span class="self">self</span>.drop_buckets_with_outcomes(
-                        reason_code,
-                        total_buckets,
+                    utils::reject_metrics(
+                        <span class="self">self</span>.inner.outcome_aggregator.clone(),
+                        utils::extract_metric_quantities(partitions.values().flatten(), mode),
                         scoping,
-                        bucket_partitions,
-                        mode,
+                        Outcome::RateLimited(reason_code),
                     );
 
                     <span class="self">self</span>.inner
@@ -3554,7 +3397,7 @@
         <span class="kw">let </span>EncodeMetrics {
             buckets,
             scoping,
-            extraction_mode,
+            extraction_mode: mode,
             project_state,
             rate_limits: cached_rate_limits,
             enable_cardinality_limiter,
@@ -3589,7 +3432,11 @@
 
             <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(max_batch_size_bytes) {
                 <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
-                envelope.add_item(create_metrics_item(<span class="kw-2">&amp;</span>batch, extraction_mode));
+
+                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
+                item.set_source_quantities(utils::extract_metric_quantities(<span class="kw-2">&amp;</span>batch, mode));
+                item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
+                envelope.add_item(item);
 
                 <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(
                     envelope,
@@ -3715,15 +3562,6 @@
             }
         });
     }
-}
-
-<span class="kw">fn </span>create_metrics_item(buckets: <span class="kw-2">&amp;</span>BucketsView&lt;<span class="lifetime">&#39;_</span>&gt;, extraction_mode: ExtractionMode) -&gt; Item {
-    <span class="kw">let </span>source_quantities = source_quantities_from_buckets(buckets, extraction_mode);
-    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-    item.set_source_quantities(source_quantities);
-    item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
-
-    item
 }
 
 <span class="attr">#[cfg(test)]

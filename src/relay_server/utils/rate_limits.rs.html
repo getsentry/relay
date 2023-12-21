@@ -1287,6 +1287,8 @@
 <a href="#1287" id="1287">1287</a>
 <a href="#1288" id="1288">1288</a>
 <a href="#1289" id="1289">1289</a>
+<a href="#1290" id="1290">1290</a>
+<a href="#1291" id="1291">1291</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -2560,6 +2562,7 @@
         item.set_source_quantities(SourceQuantities {
             transactions: <span class="number">5</span>,
             profiles: <span class="number">2</span>,
+            buckets: <span class="number">5</span>,
         });
         envelope.add_item(item);
 
@@ -2567,6 +2570,7 @@
         item.set_source_quantities(SourceQuantities {
             transactions: <span class="number">2</span>,
             profiles: <span class="number">0</span>,
+            buckets: <span class="number">3</span>,
         });
         envelope.add_item(item);
 

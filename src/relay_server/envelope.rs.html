@@ -1868,6 +1868,8 @@
 <a href="#1868" id="1868">1868</a>
 <a href="#1869" id="1869">1869</a>
 <a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2401,6 +2403,8 @@
     </span><span class="kw">pub </span>transactions: usize,
     <span class="doccomment">/// Profile quantity.
     </span><span class="kw">pub </span>profiles: usize,
+    <span class="doccomment">/// Total number of buckets.
+    </span><span class="kw">pub </span>buckets: usize,
 }
 
 <span class="kw">impl </span>AddAssign <span class="kw">for </span>SourceQuantities {

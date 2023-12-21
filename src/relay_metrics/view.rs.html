@@ -1058,14 +1058,6 @@
 <a href="#1058" id="1058">1058</a>
 <a href="#1059" id="1059">1059</a>
 <a href="#1060" id="1060">1060</a>
-<a href="#1061" id="1061">1061</a>
-<a href="#1062" id="1062">1062</a>
-<a href="#1063" id="1063">1063</a>
-<a href="#1064" id="1064">1064</a>
-<a href="#1065" id="1065">1065</a>
-<a href="#1066" id="1066">1066</a>
-<a href="#1067" id="1067">1067</a>
-<a href="#1068" id="1068">1068</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
@@ -1164,12 +1156,12 @@
     </span>}
 
     <span class="doccomment">/// Iterator over all buckets in the view.
-    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = BucketView&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+    </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt; {
         BucketsViewIter::new(<span class="self">self</span>.inner, <span class="self">self</span>.start, <span class="self">self</span>.end)
     }
 
     <span class="doccomment">/// Iterator which slices the source view into segments with an approximate size of `size_in_bytes`.
-    </span><span class="kw">pub fn </span>by_size(<span class="kw-2">&amp;</span><span class="self">self</span>, size_in_bytes: usize) -&gt; <span class="kw">impl </span>Iterator&lt;Item = BucketsView&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+    </span><span class="kw">pub fn </span>by_size(<span class="kw-2">&amp;</span><span class="self">self</span>, size_in_bytes: usize) -&gt; BucketsViewBySizeIter&lt;<span class="lifetime">&#39;a</span>&gt; {
         BucketsViewBySizeIter::new(<span class="self">self</span>.inner, <span class="self">self</span>.start, <span class="self">self</span>.end, size_in_bytes)
     }
 }
@@ -1181,10 +1173,19 @@
     }
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>BucketsView&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">type </span>Item = BucketView&lt;<span class="lifetime">&#39;a</span>&gt;;
+    <span class="kw">type </span>IntoIter = BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt;;
+
+    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
+        <span class="self">self</span>.iter()
+    }
+}
+
 <span class="doccomment">/// Iterator yielding all items contained in a [`BucketsView`].
 ///
 /// First and/or last item may be partial buckets.
-</span><span class="kw">struct </span>BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>BucketsViewIter&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// Source slice of buckets.
     </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket],
     <span class="doccomment">/// Current index.
@@ -1252,8 +1253,8 @@
 
 <span class="doccomment">/// Iterator slicing a [`BucketsView`] into smaller views constrained by a given size in bytes.
 ///
-/// See [`estimate_size`] for how the size of a bucket is calculated.
-</span><span class="kw">struct </span>BucketsViewBySizeIter&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="comment">// See [`estimate_size`] for how the size of a bucket is calculated.
+</span><span class="kw">pub struct </span>BucketsViewBySizeIter&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// Source slice.
     </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Bucket],
     <span class="doccomment">/// Current position in the slice.
@@ -1505,26 +1506,9 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">&#39;_</span>&gt;&gt; <span class="kw">for </span>Bucket {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="comment">// short circuit, it&#39;s the entire bucket
-        </span><span class="kw">if </span>value.is_full_bucket() {
-            <span class="kw">return </span>value.inner.clone();
-        }
-
-        Bucket {
-            timestamp: value.inner.timestamp,
-            width: value.inner.width,
-            name: value.inner.name.clone(),
-            value: value.value().into(),
-            tags: value.inner.tags.clone(),
-        }
-    }
-}
-
-<span class="kw">impl </span>From&lt;BucketView&lt;<span class="lifetime">&#39;_</span>&gt;&gt; <span class="kw">for </span>Bucket {
-    <span class="kw">fn </span>from(value: BucketView&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="self">Self </span>{
-        Bucket::from(<span class="kw-2">&amp;</span>value)
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Bucket&gt; <span class="kw">for </span>BucketView&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Bucket) -&gt; <span class="self">Self </span>{
+        BucketView::new(value)
     }
 }
 
