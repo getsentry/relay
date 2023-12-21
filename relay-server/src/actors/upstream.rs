@@ -835,6 +835,7 @@ impl SharedClient {
         &self,
         request: &mut dyn UpstreamRequest,
     ) -> Result<Response, UpstreamRequestError> {
+        request.configure(&self.config);
         let client_request = self.build_request(request)?;
         let response = self.reqwest.execute(client_request).await?;
         self.transform_response(request, Response(response)).await
@@ -1340,7 +1341,6 @@ impl ConnectionMonitor {
 /// This handles incoming public messages, internal actions, and maintains the upstream queue.
 #[derive(Debug)]
 struct UpstreamBroker {
-    config: Arc<Config>,
     client: SharedClient,
     queue: UpstreamQueue,
     auth_state: AuthState,
@@ -1375,9 +1375,7 @@ impl UpstreamBroker {
     ///
     /// If authentication is permanently denied, the request will be failed immediately. In all
     /// other cases, the request is enqueued and will wait for submission.
-    async fn enqueue(&mut self, mut request: Box<dyn UpstreamRequest>) {
-        request.configure(&self.config);
-
+    async fn enqueue(&mut self, request: Box<dyn UpstreamRequest>) {
         if let AuthState::Denied = self.auth_state {
             // This respond is near-instant because it should just send the error into the request's
             // response channel. We do not expect that this blocks the broker.
@@ -1500,7 +1498,6 @@ impl Service for UpstreamRelayService {
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
             action_tx,
-            config,
         };
 
         tokio::spawn(async move {
