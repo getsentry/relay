@@ -324,7 +324,6 @@ impl Quota {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use smallvec::smallvec;
@@ -812,4 +811,3 @@ mod tests {
         }));
     }
 }
-*/

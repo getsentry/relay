@@ -292,8 +292,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -487,4 +485,3 @@ mod tests {
         );
     }
 }
-*/

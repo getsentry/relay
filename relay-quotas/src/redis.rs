@@ -515,8 +515,6 @@ impl RedisRateLimiter {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -537,7 +535,9 @@ mod tests {
         RedisRateLimiter {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
+            global_script: Arc::new(load_global_lua_script()),
             max_limit: None,
+            counters: GlobalCounters::default(),
         }
     }
 
@@ -1060,4 +1060,3 @@ mod tests {
         );
     }
 }
-*/

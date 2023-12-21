@@ -1,7 +1,7 @@
 -- Global quota system.
 --
 -- Made to work with a local cache of quota limit. The caller will "take" a certain budget
--- from the global counter, given that the limit have not been exceeded. This is to dramatically
+-- from the global redids counter, given that the limit have not been exceeded. This is to dramatically
 -- reduce the amount of redis calls while at the same time not overshooting the quota.
 -- We return both the size of the taken budget and the size of the redis count.
 -- The reason we return the size of the redis count is to avoid asking for more budget when
@@ -15,7 +15,7 @@
 local max_budget = 100
 -- The key to the global quota.
 local key = KEYS[1]
--- The max amount that we want to take within the given slot. We won't take a contingency if
+-- The max amount that we want to take within the given slot. We won't take a budget if
 -- the count is higher than the limit.
 local limit = tonumber(ARGV[1])
 -- When the redis key/val should be deleted. Should be current_time() + window + grace.
@@ -27,11 +27,11 @@ if redis_count > limit then
     return 0, redis_count
 else
     local diff = limit - redis_count
-    local contingency = math.min(diff, max_budget)
+    local budget = math.min(diff, max_budget)
 
-    redis.call('INCRBY', key, contingency)
+    redis.call('INCRBY', key, budget)
     redis.call('EXPIREAT', key, expiry)
-    return  contingency, redis_count + contingency
+    return  budget, redis_count + budget
 end
 
 
