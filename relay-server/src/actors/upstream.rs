@@ -297,6 +297,12 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
         true
     }
 
+    /// Add the `X-Sentry-Relay-Signature` header to the outgoing request.
+    ///
+    /// This requires configuration of the Relay's credentials. If the credentials are not
+    /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
+    ///
+    /// Defaults to `false`.
     fn sign(&self) -> bool {
         false
     }
