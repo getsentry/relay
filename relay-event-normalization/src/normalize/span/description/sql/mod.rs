@@ -619,6 +619,28 @@ mod tests {
         "DELETE FROM some_table WHERE id IN (%s)"
     );
 
+    scrub_sql_test!(escape_quote, r#"SELECT 'Wayne\'s World'"#, "SELECT %s");
+
+    scrub_sql_test!(
+        escape_double_quote,
+        r#"SELECT '{"json": "yes"}'"#,
+        "SELECT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        mysql_escape_quote,
+        "mysql",
+        r#"SELECT "Wayne's World""#,
+        "SELECT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        mysql_escape_double_quote,
+        "mysql",
+        r#"SELECT "{\"json\": \"yes\"}""#,
+        "SELECT %s"
+    );
+
     scrub_sql_test!(
         bytesa,
         r#"SELECT "t"."x", "t"."arr"::bytea, "t"."c" WHERE "t"."id" IN (%s, %s)"#,
@@ -732,6 +754,12 @@ mod tests {
         rename_table,
         r#"ALTER TABLE "foo"."tmp" RENAME TO "foo"."bar"#,
         "ALTER TABLE tmp RENAME TO bar"
+    );
+
+    scrub_sql_test!(
+        select_with_nulls,
+        r#"SELECT foo, NULL, "bar", baz, NULL, NULL, zap FROM my_table"#,
+        "SELECT .. FROM my_table"
     );
 
     scrub_sql_test!(

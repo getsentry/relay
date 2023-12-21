@@ -1,8 +1,13 @@
 # Changelog
 
+## Unreleased
+
 **Internal**:
 
 - Use a Lua script and in-memory cache for the cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
+- Extract metrics for file spans. ([#2874](https://github.com/getsentry/relay/pull/2874))
+- Add an internal endpoint that allows Relays to submit metrics from multiple projects in a single request. ([#2869](https://github.com/getsentry/relay/pull/2869))
+- Emit a `processor.message.duration` metric to assess the throughput of the internal CPU pool. ([#2877](https://github.com/getsentry/relay/pull/2877))
 
 ## 23.12.0
 
@@ -23,6 +28,7 @@
 
 - In on-demand metric extraction, use the normalized URL instead of raw URLs sent by SDKs. This bug prevented metrics for certain dashboard queries from being extracted. ([#2819](https://github.com/getsentry/relay/pull/2819))
 - Ignore whitespaces when parsing user reports. ([#2798](https://github.com/getsentry/relay/pull/2798))
+- Fix parsing bug for SQL queries. ([#2846](https://github.com/getsentry/relay/pull/2846))
 
 **Internal**:
 
