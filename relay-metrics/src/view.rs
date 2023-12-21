@@ -193,7 +193,7 @@ impl<'a> Iterator for BucketsViewIter<'a> {
 
 /// Iterator slicing a [`BucketsView`] into smaller views constrained by a given size in bytes.
 ///
-/// See [`estimate_size`] for how the size of a bucket is calculated.
+// See [`estimate_size`] for how the size of a bucket is calculated.
 pub struct BucketsViewBySizeIter<'a> {
     /// Source slice.
     inner: &'a [Bucket],
