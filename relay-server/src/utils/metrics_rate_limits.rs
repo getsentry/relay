@@ -107,15 +107,17 @@ pub fn reject_metrics(
     ];
 
     for (category, quantity) in categories {
-        addr.send(TrackOutcome {
-            timestamp,
-            scoping,
-            outcome: outcome.clone(),
-            event_id: None,
-            remote_addr: None,
-            category,
-            quantity,
-        });
+        if quantity > 0 {
+            addr.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: outcome.clone(),
+                event_id: None,
+                remote_addr: None,
+                category,
+                quantity,
+            });
+        }
     }
 }
 
