@@ -25,6 +25,12 @@
 <a href="#25" id="25">25</a>
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Module
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -33,18 +39,24 @@
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
 </span>)]
 
-</span><span class="kw">mod </span>error;
+#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+</span><span class="kw">mod </span>cache;
+<span class="kw">mod </span>error;
 <span class="kw">pub mod </span>limiter;
 <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
 </span><span class="kw">mod </span>redis;
 <span class="kw">mod </span>statsd;
+<span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+</span><span class="kw">mod </span>utils;
+<span class="kw">mod </span>window;
 
 <span class="kw">pub use </span><span class="self">self</span>::error::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::limiter::{
     CardinalityItem, CardinalityLimits, CardinalityScope, Config <span class="kw">as </span>CardinalityLimiterConfig,
 };
 <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-</span><span class="kw">pub use </span><span class="self">self</span>::redis::{RedisSetLimiter, SlidingWindow};
+</span><span class="kw">pub use </span><span class="self">self</span>::redis::RedisSetLimiter;
+<span class="kw">pub use </span><span class="self">self</span>::window::SlidingWindow;
 
 <span class="doccomment">/// Redis Set based cardinality limiter.
 </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
