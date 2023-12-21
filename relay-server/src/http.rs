@@ -65,11 +65,11 @@ impl RequestBuilder {
         Ok(Request(builder.build()?))
     }
 
-    fn build<F>(&mut self, mut f: F) -> &mut Self
+    fn build<F>(&mut self, f: F) -> &mut Self
     where
         F: FnMut(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
     {
-        self.builder = Some(f(self.builder.take().unwrap()));
+        self.builder = self.builder.take().map(f);
         self
     }
 
