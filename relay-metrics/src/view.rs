@@ -96,12 +96,12 @@ impl<'a> BucketsView<'a> {
     }
 
     /// Iterator over all buckets in the view.
-    pub fn iter(&self) -> impl Iterator<Item = BucketView<'a>> {
+    pub fn iter(&self) -> BucketsViewIter<'a> {
         BucketsViewIter::new(self.inner, self.start, self.end)
     }
 
     /// Iterator which slices the source view into segments with an approximate size of `size_in_bytes`.
-    pub fn by_size(&self, size_in_bytes: usize) -> impl Iterator<Item = BucketsView<'a>> {
+    pub fn by_size(&self, size_in_bytes: usize) -> BucketsViewBySizeIter<'a> {
         BucketsViewBySizeIter::new(self.inner, self.start, self.end, size_in_bytes)
     }
 }
@@ -113,10 +113,19 @@ impl<'a> fmt::Debug for BucketsView<'a> {
     }
 }
 
+impl<'a> IntoIterator for &'_ BucketsView<'a> {
+    type Item = BucketView<'a>;
+    type IntoIter = BucketsViewIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// Iterator yielding all items contained in a [`BucketsView`].
 ///
 /// First and/or last item may be partial buckets.
-struct BucketsViewIter<'a> {
+pub struct BucketsViewIter<'a> {
     /// Source slice of buckets.
     inner: &'a [Bucket],
     /// Current index.
@@ -184,8 +193,8 @@ impl<'a> Iterator for BucketsViewIter<'a> {
 
 /// Iterator slicing a [`BucketsView`] into smaller views constrained by a given size in bytes.
 ///
-/// See [`estimate_size`] for how the size of a bucket is calculated.
-struct BucketsViewBySizeIter<'a> {
+// See [`estimate_size`] for how the size of a bucket is calculated.
+pub struct BucketsViewBySizeIter<'a> {
     /// Source slice.
     inner: &'a [Bucket],
     /// Current position in the slice.
@@ -437,26 +446,9 @@ impl<'a> fmt::Debug for BucketView<'a> {
     }
 }
 
-impl From<&BucketView<'_>> for Bucket {
-    fn from(value: &BucketView<'_>) -> Self {
-        // short circuit, it's the entire bucket
-        if value.is_full_bucket() {
-            return value.inner.clone();
-        }
-
-        Bucket {
-            timestamp: value.inner.timestamp,
-            width: value.inner.width,
-            name: value.inner.name.clone(),
-            value: value.value().into(),
-            tags: value.inner.tags.clone(),
-        }
-    }
-}
-
-impl From<BucketView<'_>> for Bucket {
-    fn from(value: BucketView<'_>) -> Self {
-        Bucket::from(&value)
+impl<'a> From<&'a Bucket> for BucketView<'a> {
+    fn from(value: &'a Bucket) -> Self {
+        BucketView::new(value)
     }
 }
 

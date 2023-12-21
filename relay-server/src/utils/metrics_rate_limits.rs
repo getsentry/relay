@@ -8,6 +8,7 @@ use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::envelope::SourceQuantities;
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
@@ -36,7 +37,7 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
 
 const PROFILE_TAG: &str = "has_profile";
 
-/// Extracts the transaction count from a metric.
+/// Extracts quota information from a metric.
 ///
 /// If the metric was extracted from a or multiple transaction, it returns the amount
 /// of datapoints contained in the bucket.
@@ -44,10 +45,7 @@ const PROFILE_TAG: &str = "has_profile";
 /// Additionally tracks whether the transactions also contained profiling information.
 ///
 /// Returns `None` if the metric was not extracted from transactions.
-pub fn extract_transaction_count(
-    metric: &BucketView<'_>,
-    mode: ExtractionMode,
-) -> Option<TransactionCount> {
+fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> Option<TransactionCount> {
     let mri = match MetricResourceIdentifier::parse(metric.name()) {
         Ok(mri) => mri,
         Err(_) => {
@@ -73,6 +71,56 @@ pub fn extract_transaction_count(
     Some(TransactionCount { count, has_profile })
 }
 
+/// Extracts quota information from a list of metric buckets.
+pub fn extract_metric_quantities<'a, I, V>(buckets: I, mode: ExtractionMode) -> SourceQuantities
+where
+    I: IntoIterator<Item = V>,
+    BucketView<'a>: From<V>,
+{
+    let mut quantities = SourceQuantities::default();
+
+    for bucket in buckets {
+        quantities.buckets += 1;
+        if let Some(count) = count_metric_bucket(bucket.into(), mode) {
+            quantities.transactions += count.count;
+            if count.has_profile {
+                quantities.profiles += count.count;
+            }
+        }
+    }
+
+    quantities
+}
+
+pub fn reject_metrics(
+    addr: Addr<TrackOutcome>,
+    quantities: SourceQuantities,
+    scoping: Scoping,
+    outcome: Outcome,
+) {
+    let timestamp = Utc::now();
+
+    let categories = [
+        (DataCategory::Transaction, quantities.transactions as u32),
+        (DataCategory::Profile, quantities.profiles as u32),
+        (DataCategory::MetricBucket, quantities.buckets as u32),
+    ];
+
+    for (category, quantity) in categories {
+        if quantity > 0 {
+            addr.send(TrackOutcome {
+                timestamp,
+                scoping,
+                outcome: outcome.clone(),
+                event_id: None,
+                remote_addr: None,
+                category,
+                quantity,
+            });
+        }
+    }
+}
+
 /// Wether to extract transaction and profile count based on the usage or duration metric.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtractionMode {
@@ -96,10 +144,10 @@ impl ExtractionMode {
     }
 }
 
-/// Return value of [`extract_transaction_count`], containing the extracted
+/// Return value of [`count_metric_bucket`], containing the extracted
 /// count of transactions and wether they have associated profiles.
 #[derive(Debug, Clone, Copy)]
-pub struct TransactionCount {
+struct TransactionCount {
     /// Number of transactions.
     pub count: usize,
     /// Whether the transactions have associated profiles.
@@ -118,7 +166,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     ) -> Result<Self, Vec<Bucket>> {
         let counts: Vec<_> = buckets
             .iter()
-            .map(|metric| extract_transaction_count(&BucketView::new(metric), mode))
+            .map(|metric| count_metric_bucket(BucketView::new(metric), mode))
             .collect();
 
         // Accumulate the total transaction count and profile count
