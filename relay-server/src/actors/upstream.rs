@@ -12,6 +12,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use bytes::Bytes;
 use itertools::Itertools;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
 use relay_config::{Config, Credentials, RelayMode};
@@ -107,7 +108,7 @@ pub enum UpstreamRequestError {
 
     /// Likely a bad HTTP status code or unparseable response.
     #[error("could not send request")]
-    Http(#[source] HttpError),
+    Http(#[from] HttpError),
 
     #[error("upstream requests rate limited")]
     RateLimited(UpstreamRateLimits),
@@ -188,20 +189,10 @@ impl UpstreamRequestError {
             UpstreamRequestError::Http(HttpError::Json(_)) => "invalid_json",
             UpstreamRequestError::Http(HttpError::Reqwest(_)) => "reqwest_error",
             UpstreamRequestError::Http(HttpError::Overflow) => "overflow",
-            UpstreamRequestError::Http(HttpError::NoCredentials) => "no_credentials",
             UpstreamRequestError::RateLimited(_) => "rate_limited",
             UpstreamRequestError::ResponseError(_, _) => "response_error",
             UpstreamRequestError::ChannelClosed => "channel_closed",
             UpstreamRequestError::AuthDenied => "auth_denied",
-        }
-    }
-}
-
-impl From<HttpError> for UpstreamRequestError {
-    fn from(error: HttpError) -> Self {
-        match error {
-            HttpError::NoCredentials => Self::NoCredentials,
-            other => Self::Http(other),
         }
     }
 }
@@ -306,21 +297,41 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
         true
     }
 
+    /// Add the `X-Sentry-Relay-Signature` header to the outgoing request.
+    ///
+    /// This requires configuration of the Relay's credentials. If the credentials are not
+    /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
+    ///
+    /// Defaults to `false`.
+    fn sign(&self) -> bool {
+        false
+    }
+
     /// Returns the name of the logical route.
     ///
     /// This is used for internal metrics and logging. Other than the path, this cannot contain
     /// dynamic elements and should be globally unique.
     fn route(&self) -> &'static str;
 
+    /// Callback to apply configuration to the request.
+    ///
+    /// This hook is called at least once before `build`. It can be used to include additional
+    /// properties from Relay's config in the Request before it is sent or handled if during request
+    /// creation time the configuration is not available.
+    ///
+    /// This method is optional and defaults to a no-op.
+    fn configure(&mut self, _config: &Config) {}
+
     /// Callback to build the outgoing web request.
     ///
-    /// This callback populates the initialized request with headers and a request body. To send an
-    /// empty request without additional headers, call [`RequestBuilder::finish`] directly.
+    /// This callback populates the initialized request with headers and a request body.
     ///
     /// Note that this function can be called repeatedly if [`retry`](UpstreamRequest::retry)
     /// returns `true`. This function should therefore not move out of the request struct, but can
     /// use it to memoize heavy computation.
-    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError>;
+    fn build(&mut self, _builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        Ok(())
+    }
 
     /// Callback to complete an HTTP request.
     ///
@@ -391,7 +402,7 @@ type QuerySender<T> = Sender<Result<<T as UpstreamQuery>::Response, UpstreamRequ
 #[derive(Debug)]
 struct UpstreamQueryRequest<T: UpstreamQuery> {
     query: T,
-    compiled: Option<(Vec<u8>, String)>,
+    body: Option<Bytes>,
     max_response_size: usize,
     sender: QuerySender<T>,
 }
@@ -404,7 +415,7 @@ where
     pub fn new(query: T, sender: QuerySender<T>) -> Self {
         Self {
             query,
-            compiled: None,
+            body: None,
             max_response_size: 0,
             sender,
         }
@@ -431,6 +442,10 @@ where
         true
     }
 
+    fn sign(&self) -> bool {
+        true
+    }
+
     fn method(&self) -> Method {
         self.query.method()
     }
@@ -443,25 +458,28 @@ where
         self.query.route()
     }
 
-    fn build(&mut self, config: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
-        // Memoize the serialized body and signature for retries.
-        let credentials = config.credentials().ok_or(HttpError::NoCredentials)?;
-        let (body, signature) = self
-            .compiled
-            .get_or_insert_with(|| credentials.secret_key.pack(&self.query));
-
+    fn configure(&mut self, config: &Config) {
         // This config attribute is needed during `respond`, which does not have access to the
         // config. For this reason, we need to store it on the request struct.
         self.max_response_size = config.max_api_payload_size();
+    }
+
+    fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        // Memoize the serialized body for retries.
+        let body = match self.body {
+            Some(ref body) => body,
+            None => self.body.insert(serde_json::to_vec(&self.query)?.into()),
+        };
 
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() as u64
         );
 
         builder
-            .header("X-Sentry-Relay-Signature", signature.as_bytes())
             .header(header::CONTENT_TYPE, b"application/json")
-            .body(&body)
+            .body(body.clone());
+
+        Ok(())
     }
 
     fn respond(
@@ -629,10 +647,6 @@ impl UpstreamRequest for GetHealthCheck {
         "check_live"
     }
 
-    fn build(&mut self, _: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
-        builder.finish()
-    }
-
     fn respond(
         self: Box<Self>,
         result: Result<Response, UpstreamRequestError>,
@@ -744,16 +758,29 @@ impl SharedClient {
                 .http_host_header()
                 .unwrap_or_else(|| self.config.upstream_descriptor().host());
 
-            let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url))
-                .header("Host", host_header.as_bytes());
+            let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
+            builder.header("Host", host_header.as_bytes());
 
-            if request.set_relay_id() {
+            if request.set_relay_id() || request.sign() {
                 if let Some(credentials) = self.config.credentials() {
-                    builder = builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
+                    builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
                 }
             }
 
-            match request.build(&self.config, builder) {
+            request.build(&mut builder)?;
+
+            if request.sign() {
+                let credentials = self
+                    .config
+                    .credentials()
+                    .ok_or(UpstreamRequestError::NoCredentials)?;
+
+                let body = builder.get_body().unwrap_or_default();
+                let signature = credentials.secret_key.sign(body);
+                builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
+            }
+
+            match builder.finish() {
                 Ok(Request(client_request)) => Ok(client_request),
                 Err(e) => Err(e.into()),
             }
@@ -820,6 +847,7 @@ impl SharedClient {
         &self,
         request: &mut dyn UpstreamRequest,
     ) -> Result<Response, UpstreamRequestError> {
+        request.configure(&self.config);
         let client_request = self.build_request(request)?;
         let response = self.reqwest.execute(client_request).await?;
         self.transform_response(request, Response(response)).await
