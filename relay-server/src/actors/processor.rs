@@ -33,6 +33,7 @@ use relay_quotas::{DataCategory, ItemScoping, RateLimits, ReasonCode, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
+use reqwest::header;
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
@@ -51,7 +52,7 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::test_store::TestStore;
-use crate::actors::upstream::{SendRequest, UpstreamRelay};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -460,21 +461,21 @@ impl EncodeEnvelope {
     }
 }
 
-/// Encodes metrics into an envelope ready to be sent upstream.
+/// TODO(ja): Docs
 #[derive(Debug)]
-pub struct EncodeMetrics {
+pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
     /// Scoping for metric buckets.
     pub scoping: Scoping,
-    /// Transaction metrics extraction mode.
-    pub extraction_mode: ExtractionMode,
     /// Project state for extracting quotas.
     pub project_state: Arc<ProjectState>,
-    /// The ratelimits belonging to the project.
-    pub rate_limits: RateLimits,
-    /// Wether to check the contained metric buckets with the cardinality limiter.
-    pub enable_cardinality_limiter: bool,
+}
+
+/// Encodes metrics into an envelope ready to be sent upstream.
+#[derive(Debug)]
+pub struct EncodeMetrics {
+    pub buckets: HashMap<ProjectKey, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -1374,19 +1375,16 @@ impl EnvelopeProcessorService {
     }
 
     /// Records the outcomes of the dropped buckets.
+    #[cfg(feature = "processing")]
     fn drop_buckets_with_outcomes(
         &self,
         reason_code: Option<ReasonCode>,
         total_buckets: usize,
         scoping: Scoping,
-        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        buckets: &[Bucket],
         mode: ExtractionMode,
     ) {
-        let mut source_quantities = SourceQuantities::default();
-
-        for buckets in bucket_partitions.values() {
-            source_quantities += source_quantities_from_buckets(&BucketsView::new(buckets), mode);
-        }
+        let source_quantities = source_quantities_from_buckets(&BucketsView::new(buckets), mode);
 
         let timestamp = Utc::now();
 
@@ -1425,94 +1423,55 @@ impl EnvelopeProcessorService {
     }
 
     /// Returns `true` if the batches should be rate limited.
+    #[cfg(feature = "processing")]
     fn rate_limit_batches(
         &self,
-        cached_rate_limits: RateLimits,
         scoping: Scoping,
-        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
+        buckets: &[Bucket],
         max_batch_size_bytes: usize,
         project_state: Arc<ProjectState>,
+        mode: ExtractionMode,
     ) -> bool {
-        let mode = {
-            let usage = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
-                _ => false,
-            };
-            ExtractionMode::from_usage(usage)
-        };
-
         let quotas = &project_state.config.quotas;
         let item_scoping = ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
         };
 
-        // We couldn't use the bucket length directly because batching may change the amount of buckets.
-        let total_buckets: usize = bucket_partitions
-            .values()
-            .flat_map(|buckets| {
-                // Cheap operation because there's no allocations.
-                BucketsView::new(buckets)
-                    .by_size(max_batch_size_bytes)
-                    .map(|batch| batch.len())
-            })
+        // We couldn't use the bucket length directly because batching may change the amount of
+        // buckets. This is a cheap operation because there's no allocations.
+        let total_buckets = BucketsView::new(buckets)
+            .by_size(max_batch_size_bytes)
+            .map(|batch| batch.len())
             .sum();
 
-        // For limiting the amount of redis calls we make, in case we already passed the limit.
-        if cached_rate_limits
-            .check_with_quotas(quotas, item_scoping)
-            .is_limited()
-        {
-            relay_log::info!("dropping {total_buckets} buckets due to throughput ratelimit");
-            let reason_code = cached_rate_limits
-                .longest()
-                .and_then(|limit| limit.reason_code.clone());
-
-            self.drop_buckets_with_outcomes(
-                reason_code,
-                total_buckets,
-                scoping,
-                bucket_partitions,
-                mode,
-            );
-
-            return true;
-        }
-
-        #[cfg(feature = "processing")]
-        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
-            // Check with redis if the throughput limit has been exceeded, while also updating
-            // the count so that other relays will be updated too.
-            match rate_limiter.is_rate_limited(quotas, item_scoping, total_buckets, false) {
-                Ok(limits) if limits.is_limited() => {
-                    relay_log::info!(
-                        "dropping {total_buckets} buckets due to throughput ratelimit"
-                    );
-
-                    let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                    self.drop_buckets_with_outcomes(
-                        reason_code,
-                        total_buckets,
-                        scoping,
-                        bucket_partitions,
-                        mode,
-                    );
-
-                    self.inner
-                        .project_cache
-                        .send(UpdateRateLimits::new(scoping.project_key, limits));
-
-                    return true;
-                }
-                Ok(_) => {} // not ratelimited
-                Err(e) => {
-                    relay_log::error!(
-                        error = &e as &dyn std::error::Error,
-                        "failed to check redis rate limits"
-                    );
-                }
-            }
+        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+            return false;
         };
+
+        // Check with redis if the throughput limit has been exceeded, while also updating
+        // the count so that other relays will be updated too.
+        match rate_limiter.is_rate_limited(quotas, item_scoping, total_buckets, false) {
+            Ok(limits) if limits.is_limited() => {
+                relay_log::debug!("dropping {total_buckets} buckets due to throughput ratelimit");
+
+                let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                self.drop_buckets_with_outcomes(reason_code, total_buckets, scoping, buckets, mode);
+
+                self.inner
+                    .project_cache
+                    .send(UpdateRateLimits::new(scoping.project_key, limits));
+
+                return true;
+            }
+            Ok(_) => {} // not ratelimited
+            Err(e) => {
+                relay_log::error!(
+                    error = &e as &dyn std::error::Error,
+                    "failed to check redis rate limits"
+                );
+            }
+        }
 
         false
     }
@@ -1548,44 +1507,45 @@ impl EnvelopeProcessorService {
         Either::<_, relay_cardinality::limiter::Accepted<_>>::Left(buckets.into_iter())
     }
 
-    fn handle_encode_metrics(&self, message: EncodeMetrics) {
-        let EncodeMetrics {
-            buckets,
-            scoping,
-            extraction_mode,
-            project_state,
-            rate_limits: cached_rate_limits,
-            enable_cardinality_limiter,
-        } = message;
+    #[cfg(feature = "processing")]
+    fn handle_encode_metrics_processing(&self, message: EncodeMetrics) {
+        for (project_key, message) in message.buckets {
+            let ProjectMetrics {
+                buckets,
+                scoping,
+                project_state,
+            } = message;
 
-        let buckets = self.check_cardinality_limits(
-            enable_cardinality_limiter,
-            scoping.organization_id,
-            buckets,
-        );
+            let partitions = self.inner.config.metrics_partitions();
+            let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();
 
-        let partitions = self.inner.config.metrics_partitions();
-        let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();
+            let extraction_mode = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+                _ => ExtractionMode::Duration,
+            };
 
-        let upstream = self.inner.config.upstream_descriptor();
-        let dsn = PartialDsn::outbound(&scoping, upstream);
+            if self.rate_limit_batches(
+                scoping,
+                &buckets,
+                max_batch_size_bytes,
+                project_state,
+                extraction_mode,
+            ) {
+                return;
+            }
 
-        let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
+            let check_limits = project_state.has_feature(Feature::CardinalityLimiter);
+            let buckets: Vec<Bucket> = self
+                .check_cardinality_limits(check_limits, scoping.organization_id, buckets)
+                .collect();
 
-        if self.rate_limit_batches(
-            cached_rate_limits,
-            scoping,
-            &bucket_partitions,
-            max_batch_size_bytes,
-            project_state,
-        ) {
-            return;
-        }
+            let upstream = self.inner.config.upstream_descriptor();
+            let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        for (partition_key, buckets) in bucket_partitions {
             let mut num_batches = 0;
 
             for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
+                // TODO: Go directly to the store actor (kafka) without serialize roundtrip
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
                 envelope.add_item(create_metrics_item(&batch, extraction_mode));
 
@@ -1594,21 +1554,163 @@ impl EnvelopeProcessorService {
                     self.inner.outcome_aggregator.clone(),
                     self.inner.test_store.clone(),
                 );
-                envelope.set_partition_key(partition_key).scope(scoping);
-
-                relay_statsd::metric!(
-                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
-                );
+                envelope.scope(scoping);
 
                 self.inner
                     .envelope_manager
                     .send(SubmitEnvelope { envelope });
 
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                );
                 num_batches += 1;
             }
 
             relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
         }
+    }
+
+    // TODO(ja): Naming
+    fn handle_encode_metrics_pop(&self, message: EncodeMetrics) {
+        let mut partition_map: BTreeMap<Option<u64>, (usize, HashMap<ProjectKey, Vec<Bucket>>)>;
+
+        for (project_key, message) in message.buckets {
+            let ProjectMetrics {
+                buckets,
+                scoping,
+                project_state,
+            } = message;
+
+            let partitions = self.inner.config.metrics_partitions();
+            let max_batch_size_bytes = self.inner.config.metrics_max_batch_size_bytes();
+
+            let bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
+
+            let extraction_mode = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+                _ => ExtractionMode::Duration,
+            };
+
+            let upstream = self.inner.config.upstream_descriptor();
+            let dsn = PartialDsn::outbound(&scoping, upstream);
+            let global_flush = self.inner.config.http_batch_metrics();
+
+            for (partition_key, buckets) in bucket_partitions {
+                let mut num_batches = 0;
+
+                if global_flush {
+                    let (ref mut weight, ref mut b) =
+                        partition_map.entry(partition_key).or_default();
+
+                    todo!("add buckets to global flush until we reach the limit");
+
+                    let should_flush = todo!("check if we reached the weight limit");
+                    if should_flush {
+                        *weight = 0;
+                        self.send_global_metrics(partition_key, std::mem::take(b), extraction_mode);
+                    }
+                } else {
+                    for batch in BucketsView::new(&buckets).by_size(max_batch_size_bytes) {
+                        let mut envelope =
+                            Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+                        envelope.add_item(create_metrics_item(&batch, extraction_mode));
+
+                        let mut envelope = ManagedEnvelope::standalone(
+                            envelope,
+                            self.inner.outcome_aggregator.clone(),
+                            self.inner.test_store.clone(),
+                        );
+                        envelope.set_partition_key(partition_key).scope(scoping);
+
+                        relay_statsd::metric!(
+                            histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                        );
+
+                        self.inner
+                            .envelope_manager
+                            .send(SubmitEnvelope { envelope });
+
+                        num_batches += 1;
+                    }
+                }
+
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BatchesPerPartition) = num_batches
+                );
+            }
+
+            for (partition_key, (_weight, buckets)) in partition_map {
+                self.send_global_metrics(partition_key, buckets, extraction_mode);
+            }
+        }
+    }
+
+    fn send_global_metrics(
+        &self,
+        partition_key: Option<u64>,
+        buckets: HashMap<ProjectKey, Vec<Bucket>>,
+        mode: ExtractionMode,
+    ) {
+        #[derive(Debug)]
+        struct SendMetricsRequest {
+            payload: Vec<u8>,
+            quantities: SourceQuantities,
+            partition_key: Option<u64>,
+        }
+
+        impl UpstreamRequest for SendMetricsRequest {
+            fn intercept_status_errors(&self) -> bool {
+                true
+            }
+
+            fn set_relay_id(&self) -> bool {
+                true
+            }
+
+            fn method(&self) -> reqwest::Method {
+                reqwest::Method::POST
+            }
+
+            fn path(&self) -> std::borrow::Cow<'_, str> {
+                "/api/0/relays/metrics/".into()
+            }
+
+            fn route(&self) -> &'static str {
+                "batch_metrics"
+            }
+
+            fn build(
+                &mut self,
+                config: &Config,
+                builder: crate::http::RequestBuilder,
+            ) -> Result<crate::http::Request, crate::http::HttpError> {
+                todo!("signature from RelayConfig, needs to move into a wrapper in Upstream");
+
+                builder
+                    .header(header::CONTENT_TYPE, b"application/json")
+                    .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
+                    .body(&self.payload)
+            }
+
+            fn respond(
+                self: Box<Self>,
+                result: Result<
+                    crate::http::Response,
+                    crate::actors::upstream::UpstreamRequestError,
+                >,
+            ) -> std::pin::Pin<Box<dyn futures::prelude::Future<Output = ()> + Send + Sync>>
+            {
+                todo!("log outcomes here")
+            }
+        }
+
+        let request = SendMetricsRequest {
+            payload: serde_json::to_vec(&buckets).expect("TODO"),
+            quantities: source_quantities_from_buckets(todo!(), mode),
+            partition_key,
+        };
+
+        self.inner.upstream_relay.send(SendRequest(request));
     }
 
     fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {

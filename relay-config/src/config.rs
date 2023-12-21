@@ -757,6 +757,8 @@ struct Http {
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
     encoding: HttpEncoding,
+    /// TODO(ja): Document
+    batch_metrics: bool,
 }
 
 impl Default for Http {
@@ -771,6 +773,7 @@ impl Default for Http {
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
+            batch_metrics: false,
         }
     }
 }
@@ -1720,6 +1723,11 @@ impl Config {
     /// Content encoding of upstream requests.
     pub fn http_encoding(&self) -> HttpEncoding {
         self.values.http.encoding
+    }
+
+    /// TODO(ja): Doc
+    pub fn http_batch_metrics(&self) -> bool {
+        self.values.http.batch_metrics
     }
 
     /// Returns whether this Relay should emit outcomes.

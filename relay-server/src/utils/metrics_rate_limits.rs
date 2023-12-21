@@ -82,20 +82,6 @@ pub enum ExtractionMode {
     Duration,
 }
 
-impl ExtractionMode {
-    /// Utility function for creating an [`ExtractionMode`].
-    ///
-    /// Returns [`ExtractionMode::Usage`] when passed `true`,
-    /// [`ExtractionMode::Duration`] otherwise.
-    pub fn from_usage(usage: bool) -> Self {
-        if usage {
-            Self::Usage
-        } else {
-            Self::Duration
-        }
-    }
-}
-
 /// Return value of [`extract_transaction_count`], containing the extracted
 /// count of transactions and wether they have associated profiles.
 #[derive(Debug, Clone, Copy)]

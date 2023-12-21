@@ -11,7 +11,7 @@ use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
     MetricResourceIdentifier,
 };
-use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
@@ -23,16 +23,13 @@ use url::Url;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitBuckets;
-use crate::actors::processor::{EncodeMetricMeta, EnvelopeProcessor};
+use crate::actors::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
-
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
 use crate::utils::{
     EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
-
-use super::processor::EncodeMetrics;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -1108,43 +1105,61 @@ impl Project {
         })
     }
 
-    pub fn flush_buckets(
+    pub fn check_buckets(
         &mut self,
         project_cache: Addr<ProjectCache>,
-        envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
-    ) {
-        let Some(project_state) = self.get_cached_state(project_cache, false) else {
+    ) -> Option<ProjectMetrics> {
+        let Some(state) = self.get_cached_state(project_cache, false) else {
             relay_log::trace!(
                 "there is no project state: dropping {} buckets",
                 buckets.len()
             );
-            return;
+            return None;
         };
 
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: dropping {} buckets", buckets.len());
-            return;
+            return None;
         };
 
-        let usage = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
-            _ => false,
+        let item_scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: &scoping,
         };
-        let extraction_mode = ExtractionMode::from_usage(usage);
 
-        let enable_cardinality_limiter = project_state.has_feature(Feature::CardinalityLimiter);
+        let rate_limits = self
+            .rate_limits()
+            .check_with_quotas(state.get_quotas(), item_scoping);
 
-        if !buckets.is_empty() {
-            envelope_processor.send(EncodeMetrics {
-                buckets,
-                scoping,
-                extraction_mode,
-                project_state,
-                rate_limits: self.rate_limits.clone(),
-                enable_cardinality_limiter,
-            });
+        if rate_limits.is_limited() {
+            relay_log::info!(
+                "dropping {} buckets due to throughput ratelimit",
+                buckets.len()
+            );
+
+            let reason_code = rate_limits
+                .longest()
+                .and_then(|limit| limit.reason_code.clone());
+
+            // self.drop_buckets_with_outcomes(
+            //     reason_code,
+            //     total_buckets,
+            //     scoping,
+            //     bucket_partitions,
+            //     mode,
+            // );
+
+            todo!("drop with outcomes"); // see EnvelopeProcessor::drop_buckets_with_outcomes
+
+            return None;
         }
+
+        Some(ProjectMetrics {
+            buckets,
+            scoping,
+            project_state: state,
+        })
     }
 }
 
