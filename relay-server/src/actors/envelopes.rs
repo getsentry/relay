@@ -199,6 +199,7 @@ impl EnvelopeManagerService {
             project_cache,
             test_store,
             upstream_relay,
+            #[cfg(feature = "processing")]
             store_forwarder,
         }
     }

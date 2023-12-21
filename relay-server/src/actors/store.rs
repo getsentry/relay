@@ -82,7 +82,7 @@ pub struct StoreEnvelope {
     pub scoping: Scoping,
 }
 
-/// TODO
+/// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
 #[derive(Clone, Debug)]
 pub struct StoreMetrics {
     pub buckets: Vec<Bucket>,
