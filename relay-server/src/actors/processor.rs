@@ -927,6 +927,48 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Returns the _main_ item type from the envelope in the current state.
+    ///
+    /// This functions mimics [`crate::event::extract`] function and returns the [`ItemType`] with
+    /// the same priority.
+    ///
+    /// Note: This function [`crate::event::extract`] should be refactored and unified.
+    fn event_item_type(state: &ProcessEnvelopeState) -> Option<ItemType> {
+        let items = state.envelope().items();
+        if items.clone().any(|item| item.ty() == &ItemType::Event) {
+            return Some(ItemType::Event);
+        }
+        if items
+            .clone()
+            .any(|item| item.ty() == &ItemType::Transaction)
+        {
+            return Some(ItemType::Transaction);
+        }
+        if items.clone().any(|item| item.ty() == &ItemType::Security) {
+            return Some(ItemType::Security);
+        }
+        if items
+            .clone()
+            .any(|item| item.ty() == &ItemType::RawSecurity)
+        {
+            return Some(ItemType::RawSecurity);
+        }
+        if items
+            .clone()
+            .any(|item| item.ty() == &ItemType::UserReportV2)
+        {
+            return Some(ItemType::UserReportV2);
+        }
+        if items.clone().any(|item| item.ty() == &ItemType::FormData) {
+            return Some(ItemType::FormData);
+        }
+        if items.clone().any(|item| item.ty() == &ItemType::Attachment) {
+            return Some(ItemType::Attachment);
+        }
+
+        items.clone().next().map(|item| item.ty().clone())
+    }
+
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         macro_rules! if_processing {
             ($if_true:block) => {
@@ -937,7 +979,7 @@ impl EnvelopeProcessorService {
         }
 
         relay_log::trace!(
-            "Items in the incoming envelope: {:?}",
+            "items in the incoming envelope: {:?}",
             state
                 .envelope()
                 .items()
@@ -945,21 +987,9 @@ impl EnvelopeProcessorService {
                 .collect::<Vec<_>>()
         );
 
-        let Some(ty) = state
-            .event_type()
-            // get the item type from the event type if there is an event
-            .map(ItemType::from_event_type)
-            // othrwise get the first item from the items list and assume it's the only one defined
-            // which we are waiting for.
-            .or_else(|| {
-                state
-                    .envelope()
-                    .items()
-                    .next()
-                    .map(|item| item.ty().clone())
-            })
-        else {
-            relay_log::error!("There are not type and no items in the envelope");
+        // Find the type we want to process.
+        let Some(ty) = Self::event_item_type(state) else {
+            relay_log::error!("There are no event type and no items in the envelope");
             return Err(ProcessingError::NoEventPayload);
         };
 
@@ -967,6 +997,13 @@ impl EnvelopeProcessorService {
         match ty {
             // This can still contain attachements.
             ItemType::Event => {
+                // Events can also contain user reports.
+                report::process(
+                    state,
+                    &self.inner.config,
+                    self.inner.outcome_aggregator.clone(),
+                );
+
                 event::extract(state, &self.inner.config)?;
 
                 if_processing!({
@@ -993,11 +1030,9 @@ impl EnvelopeProcessorService {
                 attachment::scrub(state);
             }
             // Contains data which belongs together with transactions, e.g. profiles attachments.
-            ItemType::Transaction | ItemType::Profile => {
+            ItemType::Transaction => {
                 profile::filter(state);
-
                 event::extract(state, &self.inner.config)?;
-
                 profile::transfer_id(state);
 
                 if_processing!({
@@ -1034,6 +1069,10 @@ impl EnvelopeProcessorService {
 
                 attachment::scrub(state);
             }
+            ItemType::Profile => {
+                profile::filter(state);
+            }
+
             // Standalone attachments.
             ItemType::Attachment | ItemType::FormData => {
                 // Only some attachments types have create event set to true.
@@ -1070,24 +1109,7 @@ impl EnvelopeProcessorService {
                     self.enforce_quotas(state)?;
                 });
             }
-            ItemType::Security => {
-                event::extract(state, &self.inner.config)?;
-
-                event::finalize(state, &self.inner.config)?;
-                self.light_normalize_event(state)?;
-                event::filter(state)?;
-
-                if_processing!({
-                    event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    self.enforce_quotas(state)?;
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
-            }
-            ItemType::RawSecurity => {
+            ItemType::Security | ItemType::RawSecurity => {
                 event::extract(state, &self.inner.config)?;
 
                 event::finalize(state, &self.inner.config)?;

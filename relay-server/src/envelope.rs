@@ -1188,31 +1188,23 @@ impl Envelope {
         }))
     }
 
-    /// Splits the envelope into envelope per item type.
+    /// Splits the envelope into smaller processible envelopes.
     ///
-    /// Some of the items still kept together, since they must be processed as one unit.
+    /// The items which require events are always kept together in one envelope, the reest items
+    /// will be split into separate envelope with one item type each.
     pub fn into_processible_parts(mut self) -> SmallVec<[Box<Self>; 3]> {
         let headers = self.headers.clone();
         let mut items = std::mem::take(&mut self.items);
 
-        // Extract transaction related items if one of the item in the envelope is a `ItemType::Transaction`.
-        let mut transaction_items = vec![];
-        if items.iter().any(|item| item.ty() == &ItemType::Transaction) {
-            transaction_items = items
-                .drain_filter(|item| {
-                    item.ty() == &ItemType::Transaction
-                        || item.ty() == &ItemType::Attachment
-                        || item.ty() == &ItemType::Profile
-                })
-                .collect::<Vec<_>>();
-        }
+        // Extract all the items which require event into separate envelope.
+        let require_event_items = items
+            .drain_filter(|item| item.requires_event())
+            .collect::<Vec<_>>();
 
-        // Events and attachments should always go together.
-        let event_items = items
+        // Keep all the sessions together in one envelope.
+        let session_items = items
             .drain_filter(|item| {
-                item.ty() == &ItemType::Event
-                    || item.ty() == &ItemType::Attachment
-                    || item.ty() == &ItemType::FormData
+                item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions
             })
             .collect::<Vec<_>>();
 
@@ -1221,7 +1213,7 @@ impl Envelope {
             .into_iter()
             .map(|item| {
                 let mut headers = headers.clone();
-                // NEL item type should always be recieving a new event id.
+                // NEL item type should always receive a new event id.
                 if item.ty() == &ItemType::Nel {
                     headers.event_id = Some(EventId::new());
                 }
@@ -1232,19 +1224,17 @@ impl Envelope {
             })
             .collect();
 
-        // Attachments must keep the original event id.
-        if !transaction_items.is_empty() {
+        if !require_event_items.is_empty() {
             envelopes.push(Box::new(Self {
                 headers: headers.clone(),
-                items: transaction_items.into(),
+                items: require_event_items.into(),
             }))
         }
 
-        // Attachments must keep the original event id.
-        if !event_items.is_empty() {
+        if !session_items.is_empty() {
             envelopes.push(Box::new(Self {
                 headers: headers.clone(),
-                items: event_items.into(),
+                items: session_items.into(),
             }))
         }
 
