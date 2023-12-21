@@ -1228,7 +1228,9 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "c:spans/count_per_op@none" {
+            if metric.name == "c:spans/count_per_op@none"
+                || metric.name == "c:spans/count_per_segment@none"
+            {
                 continue;
             }
             if metric.name == "d:spans/exclusive_time_light@millisecond" {

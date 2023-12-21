@@ -331,6 +331,12 @@ pub enum RelayTimers {
     ReplayRecordingProcessing,
     /// Total time spent to send a request and receive the response from upstream.
     GlobalConfigRequestDuration,
+    /// Timing in milliseconds for processing a message in the internal CPU pool.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    ProcessMessageDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -366,6 +372,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
+            RelayTimers::ProcessMessageDuration => "processor.message.duration",
         }
     }
 }

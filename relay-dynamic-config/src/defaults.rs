@@ -63,6 +63,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         (
             RuleCondition::eq("span.op", "http.client")
                 | RuleCondition::glob("span.op", MOBILE_OPS)
+                | RuleCondition::glob("span.op", "file.*")
                 | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
                 | resource_condition.clone(),
             resource_condition,
@@ -336,6 +337,23 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 Tag::with_key("span.system")
                     .from_field("span.sentry_tags.system")
                     .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/count_per_segment@none".into(),
+            field: None,
+            condition: Some(mobile_condition.clone() & duration_condition.clone()),
+            tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(), // mobile only - already guarded by condition on metric
             ],
         },
     ]);
