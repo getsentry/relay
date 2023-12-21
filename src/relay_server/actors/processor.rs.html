@@ -1885,42 +1885,7 @@
 <a href="#1885" id="1885">1885</a>
 <a href="#1886" id="1886">1886</a>
 <a href="#1887" id="1887">1887</a>
-<a href="#1888" id="1888">1888</a>
-<a href="#1889" id="1889">1889</a>
-<a href="#1890" id="1890">1890</a>
-<a href="#1891" id="1891">1891</a>
-<a href="#1892" id="1892">1892</a>
-<a href="#1893" id="1893">1893</a>
-<a href="#1894" id="1894">1894</a>
-<a href="#1895" id="1895">1895</a>
-<a href="#1896" id="1896">1896</a>
-<a href="#1897" id="1897">1897</a>
-<a href="#1898" id="1898">1898</a>
-<a href="#1899" id="1899">1899</a>
-<a href="#1900" id="1900">1900</a>
-<a href="#1901" id="1901">1901</a>
-<a href="#1902" id="1902">1902</a>
-<a href="#1903" id="1903">1903</a>
-<a href="#1904" id="1904">1904</a>
-<a href="#1905" id="1905">1905</a>
-<a href="#1906" id="1906">1906</a>
-<a href="#1907" id="1907">1907</a>
-<a href="#1908" id="1908">1908</a>
-<a href="#1909" id="1909">1909</a>
-<a href="#1910" id="1910">1910</a>
-<a href="#1911" id="1911">1911</a>
-<a href="#1912" id="1912">1912</a>
-<a href="#1913" id="1913">1913</a>
-<a href="#1914" id="1914">1914</a>
-<a href="#1915" id="1915">1915</a>
-<a href="#1916" id="1916">1916</a>
-<a href="#1917" id="1917">1917</a>
-<a href="#1918" id="1918">1918</a>
-<a href="#1919" id="1919">1919</a>
-<a href="#1920" id="1920">1920</a>
-<a href="#1921" id="1921">1921</a>
-<a href="#1922" id="1922">1922</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::sync::Arc;
@@ -1951,7 +1916,7 @@
 <span class="kw">use </span>relay_pii::PiiConfigError;
 <span class="kw">use </span>relay_profiling::ProfileId;
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
-<span class="kw">use </span>relay_quotas::{DataCategory, ItemScoping, RateLimits, Scoping};
+<span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
 <span class="kw">use </span>relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -1965,6 +1930,7 @@
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
+    std::collections::BTreeMap,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -2370,14 +2336,8 @@
     </span><span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
     <span class="doccomment">/// Scoping for metric buckets.
     </span><span class="kw">pub </span>scoping: Scoping,
-    <span class="doccomment">/// Transaction metrics extraction mode.
-    </span><span class="kw">pub </span>extraction_mode: ExtractionMode,
     <span class="doccomment">/// Project state for extracting quotas.
     </span><span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
-    <span class="doccomment">/// The ratelimits belonging to the project.
-    </span><span class="kw">pub </span>rate_limits: RateLimits,
-    <span class="doccomment">/// Wether to check the contained metric buckets with the cardinality limiter.
-    </span><span class="kw">pub </span>enable_cardinality_limiter: bool,
 }
 
 <span class="doccomment">/// Encodes metric meta into an envelope and sends it upstream.
@@ -3194,7 +3154,7 @@
         <span class="kw">let </span>scoping = <span class="kw-2">*</span>bucket_limiter.scoping();
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() {
-            <span class="kw">let </span>item_scoping = ItemScoping {
+            <span class="kw">let </span>item_scoping = relay_quotas::ItemScoping {
                 category: DataCategory::Transaction,
                 scoping: <span class="kw-2">&amp;</span>scoping,
             };
@@ -3278,88 +3238,62 @@
     }
 
     <span class="doccomment">/// Returns `true` if the batches should be rate limited.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>rate_limit_batches(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        cached_rate_limits: RateLimits,
         scoping: Scoping,
         partitions: <span class="kw-2">&amp;</span>BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt;,
-        max_batch_size_bytes: usize,
+        batch_size: usize,
         project_state: Arc&lt;ProjectState&gt;,
+        mode: ExtractionMode,
     ) -&gt; bool {
-        <span class="kw">let </span>mode = {
-            <span class="kw">let </span>usage = <span class="kw">match </span>project_state.config.transaction_metrics {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
-                <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-            };
-            ExtractionMode::from_usage(usage)
+        <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="bool-val">false</span>;
         };
 
+        <span class="kw">let </span>batched_bucket_iter = partitions
+            .values()
+            .flat_map(|b| BucketsView::new(b).by_size(batch_size))
+            .flatten();
+        <span class="kw">let </span>quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
+
         <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>project_state.config.quotas;
-        <span class="kw">let </span>item_scoping = ItemScoping {
+        <span class="kw">let </span>item_scoping = relay_quotas::ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: <span class="kw-2">&amp;</span>scoping,
         };
 
-        <span class="comment">// We couldn&#39;t use the bucket length directly because batching may change the amount of buckets.
-        </span><span class="kw">let </span>total_buckets: usize = partitions
-            .values()
-            .flat_map(|buckets| {
-                <span class="comment">// Cheap operation because there&#39;s no allocations.
-                </span>BucketsView::new(buckets)
-                    .by_size(max_batch_size_bytes)
-                    .map(|batch| batch.len())
-            })
-            .sum();
+        <span class="comment">// Check with redis if the throughput limit has been exceeded, while also updating
+        // the count so that other relays will be updated too.
+        </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, <span class="bool-val">false</span>) {
+            <span class="prelude-val">Ok</span>(limits) <span class="kw">if </span>limits.is_limited() =&gt; {
+                <span class="macro">relay_log::debug!</span>(
+                    <span class="string">&quot;dropping {} buckets due to throughput ratelimit&quot;</span>,
+                    quantities.buckets
+                );
 
-        <span class="comment">// For limiting the amount of redis calls we make, in case we already passed the limit.
-        </span><span class="kw">let </span>limits = cached_rate_limits.check_with_quotas(quotas, item_scoping);
-        <span class="kw">if </span>limits.is_limited() {
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {total_buckets} buckets due to throughput ratelimit&quot;</span>);
+                <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+                utils::reject_metrics(
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.outcome_aggregator,
+                    quantities,
+                    scoping,
+                    Outcome::RateLimited(reason_code),
+                );
 
-            <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-            utils::reject_metrics(
-                <span class="self">self</span>.inner.outcome_aggregator.clone(),
-                utils::extract_metric_quantities(partitions.values().flatten(), mode),
-                scoping,
-                Outcome::RateLimited(reason_code),
-            );
+                <span class="self">self</span>.inner
+                    .project_cache
+                    .send(UpdateRateLimits::new(scoping.project_key, limits));
 
-            <span class="kw">return </span><span class="bool-val">true</span>;
-        }
-
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() {
-            <span class="comment">// Check with redis if the throughput limit has been exceeded, while also updating
-            // the count so that other relays will be updated too.
-            </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, total_buckets, <span class="bool-val">false</span>) {
-                <span class="prelude-val">Ok</span>(limits) <span class="kw">if </span>limits.is_limited() =&gt; {
-                    <span class="macro">relay_log::debug!</span>(
-                        <span class="string">&quot;dropping {total_buckets} buckets due to throughput ratelimit&quot;
-                    </span>);
-
-                    <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
-                    utils::reject_metrics(
-                        <span class="self">self</span>.inner.outcome_aggregator.clone(),
-                        utils::extract_metric_quantities(partitions.values().flatten(), mode),
-                        scoping,
-                        Outcome::RateLimited(reason_code),
-                    );
-
-                    <span class="self">self</span>.inner
-                        .project_cache
-                        .send(UpdateRateLimits::new(scoping.project_key, limits));
-
-                    <span class="kw">return </span><span class="bool-val">true</span>;
-                }
-                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {} <span class="comment">// not ratelimited
-                </span><span class="prelude-val">Err</span>(e) =&gt; {
-                    <span class="macro">relay_log::error!</span>(
-                        error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">&quot;failed to check redis rate limits&quot;
-                    </span>);
-                }
+                <span class="kw">return </span><span class="bool-val">true</span>;
             }
-        };
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {} <span class="comment">// not rate limited
+            </span><span class="prelude-val">Err</span>(e) =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                    <span class="string">&quot;failed to check redis rate limits&quot;
+                </span>);
+            }
+        }
 
         <span class="bool-val">false
     </span>}
@@ -3399,40 +3333,36 @@
         <span class="kw">let </span>EncodeMetrics {
             buckets,
             scoping,
-            extraction_mode: mode,
             project_state,
-            rate_limits: cached_rate_limits,
-            enable_cardinality_limiter,
         } = message;
 
         <span class="kw">let </span>buckets = <span class="self">self</span>.check_cardinality_limits(
-            enable_cardinality_limiter,
+            project_state.has_feature(Feature::CardinalityLimiter),
             scoping.organization_id,
             buckets,
         );
 
-        <span class="kw">let </span>partitions = <span class="self">self</span>.inner.config.metrics_partitions();
-        <span class="kw">let </span>max_batch_size_bytes = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
+        <span class="kw">let </span>partition_count = <span class="self">self</span>.inner.config.metrics_partitions();
+        <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
+        <span class="kw">let </span>partitions = partition_buckets(scoping.project_key, buckets, partition_count);
+
+        <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
+            <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
+        };
+
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if </span><span class="self">self</span>.rate_limit_batches(scoping, <span class="kw-2">&amp;</span>partitions, batch_size, project_state, mode) {
+            <span class="kw">return</span>;
+        }
 
         <span class="kw">let </span>upstream = <span class="self">self</span>.inner.config.upstream_descriptor();
         <span class="kw">let </span>dsn = PartialDsn::outbound(<span class="kw-2">&amp;</span>scoping, upstream);
 
-        <span class="kw">let </span>bucket_partitions = partition_buckets(scoping.project_key, buckets, partitions);
-
-        <span class="kw">if </span><span class="self">self</span>.rate_limit_batches(
-            cached_rate_limits,
-            scoping,
-            <span class="kw-2">&amp;</span>bucket_partitions,
-            max_batch_size_bytes,
-            project_state,
-        ) {
-            <span class="kw">return</span>;
-        }
-
-        <span class="kw">for </span>(partition_key, buckets) <span class="kw">in </span>bucket_partitions {
+        <span class="kw">for </span>(partition_key, buckets) <span class="kw">in </span>partitions {
             <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
 
-            <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(max_batch_size_bytes) {
+            <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(batch_size) {
                 <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
 
                 <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);

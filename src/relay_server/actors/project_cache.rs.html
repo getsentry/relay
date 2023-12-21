@@ -2132,10 +2132,10 @@
 
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
         <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
-        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
+        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
 
         <span class="self">self</span>.get_or_create_project(message.project_key)
-            .flush_buckets(project_cache, envelope_processor, message.buckets);
+            .flush_buckets(envelope_processor, outcome_aggregator, message.buckets);
     }
 
     <span class="kw">fn </span>handle_buffer_index(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateBufferIndex) {

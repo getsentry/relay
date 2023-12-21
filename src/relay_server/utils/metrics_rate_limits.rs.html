@@ -519,20 +519,6 @@
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -628,7 +614,7 @@
 }
 
 <span class="kw">pub fn </span>reject_metrics(
-    addr: Addr&lt;TrackOutcome&gt;,
+    addr: <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt;,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
@@ -657,26 +643,12 @@
 }
 
 <span class="doccomment">/// Wether to extract transaction and profile count based on the usage or duration metric.
-</span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 </span><span class="kw">pub enum </span>ExtractionMode {
     <span class="doccomment">/// Use the usage count metric.
     </span>Usage,
     <span class="doccomment">/// Use the duration distribution metric.
     </span>Duration,
-}
-
-<span class="kw">impl </span>ExtractionMode {
-    <span class="doccomment">/// Utility function for creating an [`ExtractionMode`].
-    ///
-    /// Returns [`ExtractionMode::Usage`] when passed `true`,
-    /// [`ExtractionMode::Duration`] otherwise.
-    </span><span class="kw">pub fn </span>from_usage(usage: bool) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>usage {
-            <span class="self">Self</span>::Usage
-        } <span class="kw">else </span>{
-            <span class="self">Self</span>::Duration
-        }
-    }
 }
 
 <span class="doccomment">/// Return value of [`count_metric_bucket`], containing the extracted

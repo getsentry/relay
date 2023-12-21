@@ -1412,6 +1412,19 @@
 <a href="#1412" id="1412">1412</a>
 <a href="#1413" id="1413">1413</a>
 <a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1425,7 +1438,7 @@
     aggregator, Aggregator, Bucket, MergeBuckets, MetaAggregator, MetricMeta, MetricNamespace,
     MetricResourceIdentifier,
 };
-<span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
+<span class="kw">use </span>relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::evaluation::ReservoirCounters;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, BroadcastChannel};
@@ -1443,7 +1456,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
+    <span class="self">self</span>, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
 
 <span class="kw">use </span><span class="kw">super</span>::processor::EncodeMetrics;
@@ -1981,12 +1994,11 @@
             <span class="kw">return </span>metrics;
         };
 
-        <span class="kw">let </span>usage = <span class="kw">match </span>state.config.transaction_metrics {
-            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
-            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        <span class="kw">let </span>mode = <span class="kw">match </span>state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
+            <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
         };
 
-        <span class="kw">let </span>mode = ExtractionMode::from_usage(usage);
         <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping, mode) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>limiter) =&gt; {
                 limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits), outcome_aggregator);
@@ -2056,11 +2068,10 @@
         <span class="comment">// Check rate limits if necessary:
         </span><span class="kw">let </span>quotas = project_state.config.quotas.clone();
 
-        <span class="kw">let </span>usage = <span class="kw">match </span>project_state.config.transaction_metrics {
-            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
-            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        <span class="kw">let </span>extraction_mode = <span class="kw">match </span>project_state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
+            <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
         };
-        <span class="kw">let </span>extraction_mode = ExtractionMode::from_usage(usage);
 
         <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
@@ -2524,39 +2535,54 @@
 
     <span class="kw">pub fn </span>flush_buckets(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        project_cache: Addr&lt;ProjectCache&gt;,
         envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         buckets: Vec&lt;Bucket&gt;,
     ) {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.get_cached_state(project_cache, <span class="bool-val">false</span>) <span class="kw">else </span>{
-            <span class="macro">relay_log::trace!</span>(
-                <span class="string">&quot;there is no project state: dropping {} buckets&quot;</span>,
-                buckets.len()
-            );
+        <span class="kw">let </span>len = buckets.len();
+        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.valid_state() <span class="kw">else </span>{
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no project state: dropping {len} buckets&quot;</span>,);
             <span class="kw">return</span>;
         };
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no scoping: dropping {} buckets&quot;</span>, buckets.len());
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no scoping: dropping {len} buckets&quot;</span>);
             <span class="kw">return</span>;
         };
 
-        <span class="kw">let </span>usage = <span class="kw">match </span>project_state.config.transaction_metrics {
-            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
-            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        <span class="kw">let </span>item_scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: <span class="kw-2">&amp;</span>scoping,
         };
-        <span class="kw">let </span>extraction_mode = ExtractionMode::from_usage(usage);
 
-        <span class="kw">let </span>enable_cardinality_limiter = project_state.has_feature(Feature::CardinalityLimiter);
+        <span class="kw">let </span>limits = <span class="self">self
+            </span>.rate_limits()
+            .check_with_quotas(project_state.get_quotas(), item_scoping);
+
+        <span class="kw">if </span>limits.is_limited() {
+            <span class="macro">relay_log::info!</span>(<span class="string">&quot;dropping {len} buckets due to rate limit&quot;</span>);
+
+            <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
+                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
+                <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
+            };
+
+            <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
+            utils::reject_metrics(
+                <span class="kw-2">&amp;</span>outcome_aggregator,
+                utils::extract_metric_quantities(<span class="kw-2">&amp;</span>buckets, mode),
+                scoping,
+                Outcome::RateLimited(reason_code),
+            );
+
+            <span class="kw">return</span>;
+        }
 
         <span class="kw">if </span>!buckets.is_empty() {
             envelope_processor.send(EncodeMetrics {
                 buckets,
                 scoping,
-                extraction_mode,
                 project_state,
-                rate_limits: <span class="self">self</span>.rate_limits.clone(),
-                enable_cardinality_limiter,
             });
         }
     }
