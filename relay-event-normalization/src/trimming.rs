@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use relay_event_schema::processor::{
-    self, BagSize, Chunk, MaxChars, ProcessValue, ProcessingAction, ProcessingResult,
-    ProcessingState, Processor, ValueType,
+    self, BagSize, Chunk, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState,
+    Processor, ValueType,
 };
 use relay_event_schema::protocol::{Frame, RawStacktrace};
 use relay_protocol::{Annotated, Array, Empty, Meta, Object, RemarkType, Value};
@@ -129,7 +129,7 @@ impl Processor for TrimmingProcessor {
         }
 
         if let Some(ref mut bag_size_state) = self.bag_size_state.last_mut() {
-            trim_string(value, meta, MaxChars::Hard(bag_size_state.size_remaining));
+            trim_string(value, meta, bag_size_state.size_remaining);
         }
 
         Ok(())
@@ -264,11 +264,8 @@ impl Processor for TrimmingProcessor {
 }
 
 /// Trims the string to the given maximum length and updates meta data.
-fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
-    let soft_limit = max_chars.limit();
-    let hard_limit = soft_limit + max_chars.allowance();
-
-    if bytecount::num_chars(value.as_bytes()) <= hard_limit {
+fn trim_string(value: &mut String, meta: &mut Meta, max_chars: usize) {
+    if bytecount::num_chars(value.as_bytes()) <= max_chars {
         return;
     }
 
@@ -280,26 +277,22 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
             let chunk_chars = chunk.count();
 
             // if the entire chunk fits, just put it in
-            if length + chunk_chars < soft_limit {
+            if length + chunk_chars < max_chars {
                 new_chunks.push(chunk);
                 length += chunk_chars;
                 continue;
             }
 
             match chunk {
-                // if there is enough space for this chunk and the 3 character
-                // ellipsis marker we can push the remaining chunk
-                Chunk::Redaction { .. } => {
-                    if length + chunk_chars + 3 < hard_limit {
-                        new_chunks.push(chunk);
-                    }
-                }
+                // If there was enough space for the chunk, it'd been added before.
+                // If there isn't enough space, the redaction is added below.
+                Chunk::Redaction { .. } => {}
 
                 // if this is a text chunk, we can put the remaining characters in.
                 Chunk::Text { text } => {
                     let mut remaining = String::new();
                     for c in text.chars() {
-                        if length + 3 < soft_limit {
+                        if length + 3 < max_chars {
                             remaining.push(c);
                         } else {
                             break;
@@ -388,7 +381,6 @@ fn slim_frame_data(frames: &mut Array<Frame>, frame_allowance: usize) {
 mod tests {
     use std::iter::repeat;
 
-    use relay_event_schema::processor::MaxChars;
     use relay_event_schema::protocol::{
         Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Frame, RawStacktrace,
         TagEntry, Tags, Values,
@@ -405,7 +397,7 @@ mod tests {
         let mut value =
             Annotated::new("This is my long string I want to have trimmed!".to_string());
         processor::apply(&mut value, |v, m| {
-            trim_string(v, m, MaxChars::Hard(20));
+            trim_string(v, m, 20);
             Ok(())
         })
         .unwrap();
@@ -438,7 +430,7 @@ mod tests {
 
         let mut expected = Annotated::new("x".repeat(300));
         processor::apply(&mut expected, |v, m| {
-            trim_string(v, m, MaxChars::Culprit);
+            trim_string(v, m, 200);
             Ok(())
         })
         .unwrap();

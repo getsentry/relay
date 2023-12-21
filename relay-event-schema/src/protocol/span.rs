@@ -29,7 +29,7 @@ pub struct Span {
     pub description: Annotated<String>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub op: Annotated<OperationType>,
 
     /// The Span id.
@@ -60,7 +60,7 @@ pub struct Span {
     pub tags: Annotated<Object<JsonLenientString>>,
 
     /// The origin of the span indicates what created the span (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    #[metastructure(max_chars = 128, allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
     /// ID of a profile that can be associated with the span.

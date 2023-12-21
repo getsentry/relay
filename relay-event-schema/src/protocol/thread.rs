@@ -205,11 +205,11 @@ pub struct Thread {
     /// The ID of the thread. Typically a number or numeric string.
     ///
     /// Needs to be unique among the threads. An exception can set the `thread_id` attribute to cross-reference this thread.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256)]
     pub id: Annotated<ThreadId>,
 
     /// Display name of this thread.
-    #[metastructure(max_chars = "summary")]
+    #[metastructure(max_chars = 1024)]
     pub name: Annotated<String>,
 
     /// Stack trace containing frames of this exception.

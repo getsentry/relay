@@ -36,17 +36,17 @@ pub struct Exception {
     ///
     /// At least one of `type` or `value` is required, otherwise the exception is discarded.
     // (note: requirement checked in checked in StoreNormalizeProcessor)
-    #[metastructure(field = "type", max_chars = "symbol")]
+    #[metastructure(field = "type", max_chars = 256)]
     pub ty: Annotated<String>,
 
     /// Human readable display value.
     ///
     /// At least one of `type` or `value` is required, otherwise the exception is discarded.
-    #[metastructure(max_chars = "message", pii = "true")]
+    #[metastructure(max_chars = 8192, pii = "true")]
     pub value: Annotated<JsonLenientString>,
 
     /// The optional module, or package which the exception type lives in.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256)]
     pub module: Annotated<String>,
 
     /// Stack trace containing frames of this exception.
@@ -61,7 +61,7 @@ pub struct Exception {
     pub raw_stacktrace: Annotated<RawStacktrace>,
 
     /// An optional value that refers to a [thread](#typedef-Thread).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub thread_id: Annotated<ThreadId>,
 
     /// Mechanism by which this exception was generated and handled.

@@ -92,7 +92,7 @@ pub struct TraceContext {
     pub parent_span_id: Annotated<SpanId>,
 
     /// Span type (see `OperationType` docs).
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub op: Annotated<OperationType>,
 
     /// Whether the trace failed or succeeded. Currently only used to indicate status of individual
@@ -110,7 +110,7 @@ pub struct TraceContext {
     pub client_sample_rate: Annotated<f64>,
 
     /// The origin of the trace indicates what created the trace (see [OriginType] docs).
-    #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
+    #[metastructure(max_chars = 128, allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
     /// Track whether the trace connected to this event has been sampled entirely.

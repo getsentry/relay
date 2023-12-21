@@ -115,7 +115,7 @@ pub struct EventProcessingError {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct GroupingConfig {
     /// The id of the grouping config.
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub id: Annotated<String>,
     /// The enhancements configuration.
     pub enhancements: Annotated<String>,
@@ -201,14 +201,14 @@ pub struct Event {
     /// Custom culprit of the event.
     ///
     /// This field is deprecated and shall not be set by client SDKs.
-    #[metastructure(max_chars = "culprit", pii = "maybe")]
+    #[metastructure(max_chars = 200, pii = "maybe")]
     pub culprit: Annotated<String>,
 
     /// Transaction name of the event.
     ///
     /// For example, in a web app, this might be the route name (`"/users/<username>/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    #[metastructure(max_chars = "culprit", trim_whitespace = "true")]
+    #[metastructure(max_chars = 200, trim_whitespace = "true")]
     pub transaction: Annotated<String>,
 
     /// Additional information about the name of the transaction.
@@ -225,7 +225,7 @@ pub struct Event {
 
     /// Logger that created the event.
     #[metastructure(
-        max_chars = "logger", // DB-imposed limit
+        max_chars = 64, // DB-imposed limit
         deny_chars = "\r\n",
     )]
     pub logger: Annotated<String>,
@@ -294,7 +294,7 @@ pub struct Event {
     /// Server or device name the event was generated on.
     ///
     /// This is supposed to be a hostname.
-    #[metastructure(pii = "true", max_chars = "symbol")]
+    #[metastructure(pii = "true", max_chars = 256)]
     pub server_name: Annotated<String>,
 
     /// The release version of the application.
@@ -302,7 +302,7 @@ pub struct Event {
     /// **Release versions must be unique across all projects in your organization.** This value
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
-        max_chars = "tag_value",  // release ends in tag
+        max_chars = 200,  // release ends in tag
         // release allowed chars are validated in the sentry-release-parser crate!
         required = "false",
         trim_whitespace = "true",
@@ -332,7 +332,7 @@ pub struct Event {
     /// { "environment": "production" }
     /// ```
     #[metastructure(
-        max_chars = "environment",
+        max_chars = 64,
         // environment allowed chars are validated in the sentry-release-parser crate!
         nonempty = "true",
         required = "false",
@@ -341,7 +341,7 @@ pub struct Event {
     pub environment: Annotated<String>,
 
     /// Deprecated in favor of tags.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256)]
     #[metastructure(omit_from_schema)] // deprecated
     pub site: Annotated<String>,
 
@@ -439,7 +439,7 @@ pub struct Event {
     pub grouping_config: Annotated<Object<Value>>,
 
     /// Legacy checksum used for grouping before fingerprint hashes.
-    #[metastructure(max_chars = "hash")]
+    #[metastructure(max_chars = 128)]
     #[metastructure(omit_from_schema)] // deprecated
     pub checksum: Annotated<String>,
 

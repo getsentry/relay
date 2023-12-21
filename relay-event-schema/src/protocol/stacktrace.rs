@@ -25,7 +25,7 @@ pub struct Frame {
     ///
     /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
     /// it for some platforms. The original function name will be stored in `raw_function`.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256)]
     #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
@@ -44,7 +44,7 @@ pub struct Frame {
     /// `function` and the value before trimming is stored in this field instead.  However also this
     /// field will be capped at 256 characters at the moment which often means that not the entire
     /// original value can be stored.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256)]
     #[metastructure(skip_serialization = "empty")]
     pub raw_function: Annotated<String>,
 
@@ -55,7 +55,7 @@ pub struct Frame {
     /// like Swift, C++ or Rust.
     // XXX(markus): How is this different from just storing the mangled function name in
     // `function`?
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256)]
     pub symbol: Annotated<String>,
 
     /// Name of the module the frame is contained in.
@@ -75,12 +75,12 @@ pub struct Frame {
     pub package: Annotated<String>,
 
     /// The source file name (basename only).
-    #[metastructure(max_chars = "path")]
+    #[metastructure(max_chars = 256)]
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub filename: Annotated<NativeImagePath>,
 
     /// Absolute path to the source file.
-    #[metastructure(max_chars = "path")]
+    #[metastructure(max_chars = 256)]
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub abs_path: Annotated<NativeImagePath>,
 
@@ -168,12 +168,12 @@ pub struct Frame {
     pub symbol_addr: Annotated<Addr>,
 
     /// (C/C++/Native) Used for native crashes to indicate how much we can "trust" the instruction_addr
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     #[metastructure(omit_from_schema)]
     pub trust: Annotated<String>,
 
     /// The language of the frame if it overrides the stacktrace language.
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     #[metastructure(omit_from_schema)]
     pub lang: Annotated<String>,
 
@@ -209,13 +209,13 @@ pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<V
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameData {
     /// A reference to the sourcemap used.
-    #[metastructure(max_chars = "path")]
+    #[metastructure(max_chars = 256)]
     sourcemap: Annotated<String>,
     /// The original function name before it was resolved.
-    #[metastructure(max_chars = "symbol")]
+    #[metastructure(max_chars = 256)]
     orig_function: Annotated<String>,
     /// The original minified filename.
-    #[metastructure(max_chars = "path")]
+    #[metastructure(max_chars = 256)]
     orig_filename: Annotated<String>,
     /// The original line number.
     orig_lineno: Annotated<u64>,
@@ -350,7 +350,7 @@ pub struct RawStacktrace {
     pub instruction_addr_adjustment: Annotated<InstructionAddrAdjustment>,
 
     /// The language of the stacktrace.
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub lang: Annotated<String>,
 
     /// Indicates that this stack trace is a snapshot triggered by an external signal.

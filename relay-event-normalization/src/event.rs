@@ -15,7 +15,7 @@ use relay_base_schema::metrics::{
 };
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
-    self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    self, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
@@ -436,12 +436,16 @@ fn normalize_release_dist(event: &mut Event) -> ProcessingResult {
     normalize_dist(&mut event.dist)
 }
 
+// TODO(iker): this value should be taken from the metastructure. Extracting it
+// to a constant to improve visibility.
+const DIST_MAX_LEN: usize = 64;
+
 fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
     processor::apply(distribution, |dist, meta| {
         let trimmed = dist.trim();
         if trimmed.is_empty() {
             return Err(ProcessingAction::DeleteValueHard);
-        } else if bytecount::num_chars(trimmed.as_bytes()) > MaxChars::Distribution.limit() {
+        } else if bytecount::num_chars(trimmed.as_bytes()) > DIST_MAX_LEN {
             meta.add_error(Error::new(ErrorKind::ValueTooLong));
             return Err(ProcessingAction::DeleteValueSoft);
         } else if trimmed != dist {
@@ -532,6 +536,11 @@ impl DedupCache {
     }
 }
 
+// TODO(iker): these values should be taken from the metastructure. Extracting
+// these to constants to improve visibility.
+const TAG_KEY_MAX_LEN: usize = 200;
+const TAG_VALUE_MAX_LEN: usize = 200;
+
 /// Removes internal tags and adds tags for well-known attributes.
 fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
@@ -565,7 +574,7 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
             if let Some(key) = tag.key() {
                 if key.is_empty() {
                     tag.0 = Annotated::from_error(Error::nonempty(), None);
-                } else if bytecount::num_chars(key.as_bytes()) > MaxChars::TagKey.limit() {
+                } else if bytecount::num_chars(key.as_bytes()) > TAG_KEY_MAX_LEN {
                     tag.0 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
                 }
             }
@@ -573,7 +582,7 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
             if let Some(value) = tag.value() {
                 if value.is_empty() {
                     tag.1 = Annotated::from_error(Error::nonempty(), None);
-                } else if bytecount::num_chars(value.as_bytes()) > MaxChars::TagValue.limit() {
+                } else if bytecount::num_chars(value.as_bytes()) > TAG_VALUE_MAX_LEN {
                     tag.1 = Annotated::from_error(Error::new(ErrorKind::ValueTooLong), None);
                 }
             }

@@ -79,7 +79,7 @@ pub struct Breadcrumb {
     ///
     ///   Such a breadcrumb's `data` property has the fields `url`, `method`, `status_code`
     ///   (integer) and `reason` (string).
-    #[metastructure(field = "type", legacy_alias = "ty", max_chars = "enumlike")]
+    #[metastructure(field = "type", legacy_alias = "ty", max_chars = 128)]
     pub ty: Annotated<String>,
 
     /// A dotted string indicating what the crumb is or from where it comes. _Optional._
@@ -87,7 +87,7 @@ pub struct Breadcrumb {
     /// Typically it is a module name or a descriptive string. For instance, _ui.click_ could be
     /// used to indicate that a click happened in the UI or _flask_ could be used to indicate that
     /// the event originated in the Flask framework.
-    #[metastructure(max_chars = "enumlike")]
+    #[metastructure(max_chars = 128)]
     pub category: Annotated<String>,
 
     /// Severity level of the breadcrumb. _Optional._
@@ -101,7 +101,7 @@ pub struct Breadcrumb {
     ///
     /// If a message is provided, it is rendered as text with all whitespace preserved. Very long
     /// text might be truncated in the UI.
-    #[metastructure(pii = "true", max_chars = "message")]
+    #[metastructure(pii = "true", max_chars = 8192)]
     pub message: Annotated<String>,
 
     /// Arbitrary data associated with this breadcrumb.

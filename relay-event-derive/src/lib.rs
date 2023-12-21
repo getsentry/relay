@@ -216,26 +216,6 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
     })
 }
 
-fn parse_max_chars(name: &str) -> TokenStream {
-    match name {
-        "logger" => quote!(crate::processor::MaxChars::Logger),
-        "hash" => quote!(crate::processor::MaxChars::Hash),
-        "enumlike" => quote!(crate::processor::MaxChars::EnumLike),
-        "summary" => quote!(crate::processor::MaxChars::Summary),
-        "message" => quote!(crate::processor::MaxChars::Message),
-        "symbol" => quote!(crate::processor::MaxChars::Symbol),
-        "path" => quote!(crate::processor::MaxChars::Path),
-        "short_path" => quote!(crate::processor::MaxChars::ShortPath),
-        "email" => quote!(crate::processor::MaxChars::Email),
-        "culprit" => quote!(crate::processor::MaxChars::Culprit),
-        "tag_key" => quote!(crate::processor::MaxChars::TagKey),
-        "tag_value" => quote!(crate::processor::MaxChars::TagValue),
-        "environment" => quote!(crate::processor::MaxChars::Environment),
-        "distribution" => quote!(crate::processor::MaxChars::Distribution),
-        _ => panic!("invalid max_chars variant '{name}'"),
-    }
-}
-
 fn parse_bag_size(name: &str) -> TokenStream {
     match name {
         "small" => quote!(crate::processor::BagSize::Small),
@@ -569,17 +549,16 @@ fn parse_field_attributes(
                                         rv.characters = Some(attr);
                                     }
                                     _ => {
-                                        panic!("Got non string literal for max_chars");
+                                        panic!("Got non string literal for {}", ident);
                                     }
                                 }
                             } else if ident == "max_chars" {
                                 match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        let attr = parse_max_chars(litstr.value().as_str());
-                                        rv.max_chars = Some(quote!(#attr));
+                                    Lit::Int(litint) => {
+                                        rv.max_chars = Some(quote!(#litint));
                                     }
                                     _ => {
-                                        panic!("Got non string literal for max_chars");
+                                        panic!("Got non usize literal for max_chars");
                                     }
                                 }
                             } else if ident == "bag_size" {

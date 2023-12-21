@@ -38,14 +38,14 @@ pub struct LogEntry {
     /// of `Sending 9999 requests`. The latter is much better at home in `formatted`.
     ///
     /// It must not exceed 8192 characters. Longer messages will be truncated.
-    #[metastructure(max_chars = "message")]
+    #[metastructure(max_chars = 8192)]
     pub message: Annotated<Message>,
 
     /// The formatted message. If `message` and `params` are given, Sentry
     /// will attempt to backfill `formatted` if empty.
     ///
     /// It must not exceed 8192 characters. Longer messages will be truncated.
-    #[metastructure(max_chars = "message", pii = "true")]
+    #[metastructure(max_chars = 8192, pii = "true")]
     pub formatted: Annotated<Message>,
 
     /// Parameters to be interpolated into the log message. This can be an array of positional
