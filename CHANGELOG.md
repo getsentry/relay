@@ -2,6 +2,10 @@
 
 ## 23.12.1
 
+**Bug fixes**:
+
+- Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
+
 **Internal**:
 
 - Use a Lua script and in-memory cache for the cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
