@@ -93,7 +93,7 @@ where
 }
 
 pub fn reject_metrics(
-    addr: Addr<TrackOutcome>,
+    addr: &Addr<TrackOutcome>,
     quantities: SourceQuantities,
     scoping: Scoping,
     outcome: Outcome,
@@ -122,26 +122,12 @@ pub fn reject_metrics(
 }
 
 /// Wether to extract transaction and profile count based on the usage or duration metric.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ExtractionMode {
     /// Use the usage count metric.
     Usage,
     /// Use the duration distribution metric.
     Duration,
-}
-
-impl ExtractionMode {
-    /// Utility function for creating an [`ExtractionMode`].
-    ///
-    /// Returns [`ExtractionMode::Usage`] when passed `true`,
-    /// [`ExtractionMode::Duration`] otherwise.
-    pub fn from_usage(usage: bool) -> Self {
-        if usage {
-            Self::Usage
-        } else {
-            Self::Duration
-        }
-    }
 }
 
 /// Return value of [`count_metric_bucket`], containing the extracted
