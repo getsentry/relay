@@ -441,7 +441,7 @@ impl EncodeEnvelope {
     }
 }
 
-/// TODO(ja): Docs
+/// Metric buckets with additional project and scoping information.
 #[derive(Debug)]
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
@@ -1437,17 +1437,17 @@ impl EnvelopeProcessorService {
 
             if project_state.has_feature(Feature::CardinalityLimiter) {
                 if let Some(ref limiter) = self.inner.cardinality_limiter {
-                    buckets =
-                        match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
-                            Ok(limits) => limits.into_accepted().collect(),
-                            Err((buckets, error)) => {
-                                relay_log::error!(
-                                    error = &error as &dyn std::error::Error,
-                                    "cardinality limiter failed"
-                                );
-                                buckets
-                            }
-                        };
+                    let org = scoping.organization_id;
+                    buckets = match limiter.check_cardinality_limits(org, buckets) {
+                        Ok(limits) => limits.into_accepted().collect(),
+                        Err((buckets, error)) => {
+                            relay_log::error!(
+                                error = &error as &dyn std::error::Error,
+                                "cardinality limiter failed"
+                            );
+                            buckets
+                        }
+                    };
                 }
             }
 
@@ -1492,7 +1492,7 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for (_project_key, message) in message.buckets {
+        for (project_key, message) in message.buckets {
             let ProjectMetrics {
                 buckets,
                 scoping,
@@ -1505,7 +1505,7 @@ impl EnvelopeProcessorService {
             };
 
             let dsn = PartialDsn::outbound(&scoping, upstream);
-            let partitions = partition_buckets(scoping.project_key, buckets, partition_count);
+            let partitions = partition_buckets(project_key, buckets, partition_count);
 
             for (partition_key, buckets) in partitions {
                 let mut num_batches = 0;

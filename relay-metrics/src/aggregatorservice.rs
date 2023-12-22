@@ -273,7 +273,6 @@ impl AggregatorService {
 
         relay_log::trace!("flushing {} projects to receiver", buckets.len());
 
-        // TODO(ja): Check if we want to log this somewhere else
         let mut total_bucket_count = 0u64;
         for buckets in buckets.values() {
             let bucket_count = buckets.len() as u64;
