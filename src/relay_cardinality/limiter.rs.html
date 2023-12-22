@@ -368,11 +368,37 @@
 <a href="#368" id="368">368</a>
 <a href="#369" id="369">369</a>
 <a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::fmt::{Debug, Display};
 <span class="kw">use </span>std::hash::Hash;
+<span class="kw">use </span>std::iter::FusedIterator;
 
 <span class="kw">use </span>relay_statsd::metric;
 
@@ -508,6 +534,7 @@
 }
 
 <span class="doccomment">/// Result of [`CardinalityLimiter::check_cardinality_limits`].
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>CardinalityLimits&lt;T&gt; {
     source: Vec&lt;T&gt;,
     rejections: BTreeSet&lt;usize&gt;,
@@ -529,10 +556,19 @@
 
 <span class="kw">impl</span>&lt;T&gt; Accepted&lt;T&gt; {
     <span class="kw">fn </span>new(source: Vec&lt;T&gt;, rejections: BTreeSet&lt;usize&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            source: source.into_iter(),
-            rejections: rejections.into_iter().peekable(),
-            next_index: <span class="number">0</span>,
+        <span class="kw">if </span>rejections.len() == source.len() {
+            <span class="comment">// Optimize the case where every item is rejected.
+            </span><span class="self">Self </span>{
+                source: Vec::new().into_iter(),
+                rejections: BTreeSet::new().into_iter().peekable(),
+                next_index: <span class="number">0</span>,
+            }
+        } <span class="kw">else </span>{
+            <span class="self">Self </span>{
+                source: source.into_iter(),
+                rejections: rejections.into_iter().peekable(),
+                next_index: <span class="number">0</span>,
+            }
         }
     }
 }
@@ -557,7 +593,21 @@
             }
         }
     }
+
+    <span class="kw">fn </span>collect&lt;B: FromIterator&lt;<span class="self">Self</span>::Item&gt;&gt;(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; B
+    <span class="kw">where
+        </span><span class="self">Self</span>: Sized,
+    {
+        <span class="comment">// Specialize here and use the optimized collect when there are no rejections.
+        </span><span class="kw">if </span><span class="self">self</span>.rejections.peek().is_none() {
+            <span class="self">self</span>.source.collect()
+        } <span class="kw">else </span>{
+            FromIterator::from_iter(<span class="self">self</span>)
+        }
+    }
 }
+
+<span class="kw">impl</span>&lt;T&gt; FusedIterator <span class="kw">for </span>Accepted&lt;T&gt; {}
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
