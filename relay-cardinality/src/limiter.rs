@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::iter::FusedIterator;
 
 use relay_statsd::metric;
 
@@ -210,6 +211,8 @@ impl<T> Iterator for Accepted<T> {
         }
     }
 }
+
+impl<T> FusedIterator for Accepted<T> {}
 
 #[cfg(test)]
 mod tests {
