@@ -119,7 +119,7 @@ pub struct TraceContext {
     pub sampled: Annotated<bool>,
 
     /// Arbitrary additional data on a trace.
-    #[metastructure(pii = "true")]
+    #[metastructure(pii = "true", skip_serialization = "empty", bag_size = "medium")]
     pub data: Annotated<Object<Value>>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -175,7 +175,9 @@ mod tests {
   "client_sample_rate": 0.5,
   "origin": "auto.http",
   "data": {
-    "route": "/path"
+    "route": {
+      "path": "/path"
+    }
   },
   "other": "value",
   "type": "trace"
@@ -191,9 +193,14 @@ mod tests {
             origin: Annotated::new("auto.http".to_owned()),
             data: Annotated::new({
                 let mut map = Object::new();
+                let mut inner_map = Object::new();
+                inner_map.insert(
+                    "path".to_string(),
+                    Annotated::new(Value::String("/path".to_string())),
+                );
                 map.insert(
                     "route".to_string(),
-                    Annotated::new(Value::String("/path".to_string())),
+                    Annotated::new(Value::Object(inner_map)),
                 );
                 map
             }),
