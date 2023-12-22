@@ -118,6 +118,10 @@ pub struct TraceContext {
     /// This flag only applies to events with [`Error`] type that have an associated dynamic sampling context.
     pub sampled: Annotated<bool>,
 
+    /// Arbitrary additional data on a trace.
+    #[metastructure(pii = "true")]
+    pub data: Annotated<Object<Value>>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -170,6 +174,9 @@ mod tests {
   "exclusive_time": 0.0,
   "client_sample_rate": 0.5,
   "origin": "auto.http",
+  "data": {
+    "route": "/path"
+  },
   "other": "value",
   "type": "trace"
 }"#;
@@ -182,6 +189,14 @@ mod tests {
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
             origin: Annotated::new("auto.http".to_owned()),
+            data: Annotated::new({
+                let mut map = Object::new();
+                map.insert(
+                    "route".to_string(),
+                    Annotated::new(Value::String("/path".to_string())),
+                );
+                map
+            }),
             other: {
                 let mut map = Object::new();
                 map.insert(

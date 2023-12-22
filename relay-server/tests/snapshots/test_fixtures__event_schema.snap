@@ -3579,6 +3579,15 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               ],
               "format": "double"
             },
+            "data": {
+              "description": " Arbitrary additional data on a trace.",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            },
             "exclusive_time": {
               "description": " The amount of time in milliseconds spent in this transaction span,\n excluding its immediate child spans.",
               "default": null,
