@@ -56,10 +56,6 @@ impl RedisSetLimiter {
         timestamp: u64,
         limit: usize,
     ) -> Result<CheckedLimits> {
-        if entries.is_empty() {
-            return Ok(CheckedLimits::empty());
-        }
-
         metric!(
             histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
             scope = &item_scope,
@@ -165,6 +161,10 @@ impl Limiter for RedisSetLimiter {
         let mut connection = client.connection()?;
 
         for ((organization_id, item_scope), entries) in entries_by_scope {
+            if entries.is_empty() {
+                continue;
+            }
+
             let results = metric!(
                 timer(CardinalityLimiterTimers::Redis),
                 scope = &item_scope,
@@ -354,15 +354,6 @@ impl CardinalityScript {
 struct CheckedLimits {
     entries: Vec<RedisEntry>,
     statuses: Vec<Status>,
-}
-
-impl CheckedLimits {
-    fn empty() -> Self {
-        Self {
-            entries: Vec::new(),
-            statuses: Vec::new(),
-        }
-    }
 }
 
 impl IntoIterator for CheckedLimits {
