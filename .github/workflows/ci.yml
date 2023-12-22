@@ -425,8 +425,6 @@ jobs:
         uses: ./.github/actions/setup-sentry
         with:
           workdir: sentry
-          cache-files-hash: ${{ hashFiles('sentry/requirements**.txt') }}
-          python-version: 3.9
           snuba: true
           kafka: true
           symbolicator: true
