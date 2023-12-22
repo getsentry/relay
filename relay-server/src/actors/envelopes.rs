@@ -212,7 +212,7 @@ impl EnvelopeManagerService {
         partition_key: Option<u64>,
     ) -> Result<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
-        {
+        if self.config.processing_enabled() {
             if let Some(store_forwarder) = self.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
                 let future = store_forwarder.send(StoreEnvelope {

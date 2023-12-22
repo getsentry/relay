@@ -1513,8 +1513,10 @@ impl EnvelopeProcessorService {
 
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         #[cfg(feature = "processing")]
-        if let Some(ref store_forwarder) = self.inner.store_forwarder {
-            return self.encode_metrics_processing(message, store_forwarder);
+        if self.inner.config.processing_enabled() {
+            if let Some(ref store_forwarder) = self.inner.store_forwarder {
+                return self.encode_metrics_processing(message, store_forwarder);
+            }
         }
 
         self.encode_metrics_envelope(message)
