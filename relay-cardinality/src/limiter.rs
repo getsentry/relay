@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use std::iter::FusedIterator;
 
 use relay_statsd::metric;
 
@@ -138,6 +139,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
 }
 
 /// Result of [`CardinalityLimiter::check_cardinality_limits`].
+#[derive(Debug)]
 pub struct CardinalityLimits<T> {
     source: Vec<T>,
     rejections: BTreeSet<usize>,
@@ -159,10 +161,19 @@ pub struct Accepted<T> {
 
 impl<T> Accepted<T> {
     fn new(source: Vec<T>, rejections: BTreeSet<usize>) -> Self {
-        Self {
-            source: source.into_iter(),
-            rejections: rejections.into_iter().peekable(),
-            next_index: 0,
+        if rejections.len() == source.len() {
+            // Optimize the case where every item is rejected.
+            Self {
+                source: Vec::new().into_iter(),
+                rejections: BTreeSet::new().into_iter().peekable(),
+                next_index: 0,
+            }
+        } else {
+            Self {
+                source: source.into_iter(),
+                rejections: rejections.into_iter().peekable(),
+                next_index: 0,
+            }
         }
     }
 }
@@ -187,7 +198,21 @@ impl<T> Iterator for Accepted<T> {
             }
         }
     }
+
+    fn collect<B: FromIterator<Self::Item>>(mut self) -> B
+    where
+        Self: Sized,
+    {
+        // Specialize here and use the optimized collect when there are no rejections.
+        if self.rejections.peek().is_none() {
+            self.source.collect()
+        } else {
+            FromIterator::from_iter(self)
+        }
+    }
 }
+
+impl<T> FusedIterator for Accepted<T> {}
 
 #[cfg(test)]
 mod tests {
