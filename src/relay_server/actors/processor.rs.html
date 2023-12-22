@@ -1885,6 +1885,42 @@
 <a href="#1885" id="1885">1885</a>
 <a href="#1886" id="1886">1886</a>
 <a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
+<a href="#1889" id="1889">1889</a>
+<a href="#1890" id="1890">1890</a>
+<a href="#1891" id="1891">1891</a>
+<a href="#1892" id="1892">1892</a>
+<a href="#1893" id="1893">1893</a>
+<a href="#1894" id="1894">1894</a>
+<a href="#1895" id="1895">1895</a>
+<a href="#1896" id="1896">1896</a>
+<a href="#1897" id="1897">1897</a>
+<a href="#1898" id="1898">1898</a>
+<a href="#1899" id="1899">1899</a>
+<a href="#1900" id="1900">1900</a>
+<a href="#1901" id="1901">1901</a>
+<a href="#1902" id="1902">1902</a>
+<a href="#1903" id="1903">1903</a>
+<a href="#1904" id="1904">1904</a>
+<a href="#1905" id="1905">1905</a>
+<a href="#1906" id="1906">1906</a>
+<a href="#1907" id="1907">1907</a>
+<a href="#1908" id="1908">1908</a>
+<a href="#1909" id="1909">1909</a>
+<a href="#1910" id="1910">1910</a>
+<a href="#1911" id="1911">1911</a>
+<a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -1897,7 +1933,6 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
 <span class="kw">use </span>flate2::Compression;
-<span class="kw">use </span>itertools::Either;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
@@ -1925,12 +1960,12 @@
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
+    <span class="kw">crate</span>::actors::store::Store,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
-    std::collections::BTreeMap,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -2483,6 +2518,8 @@
     </span>metric_meta_store: <span class="prelude-ty">Option</span>&lt;RedisMetricMetaStore&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
 }
 
 <span class="kw">impl </span>EnvelopeProcessorService {
@@ -2497,6 +2534,7 @@
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         test_store: Addr&lt;TestStore&gt;,
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>aggregator: Addr&lt;Aggregator&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>store_forwarder: <span class="prelude-ty">Option</span>&lt;Addr&lt;Store&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
             <span class="kw">match </span>GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -2542,6 +2580,8 @@
                     },
                 )
             }),
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>store_forwarder,
             config,
         };
 
@@ -2715,8 +2755,7 @@
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
 
-        <span class="comment">// TODO: Make span metrics extraction immutable
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
             <span class="kw">if </span>state.event_metrics_extracted {
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
@@ -3242,19 +3281,16 @@
     </span><span class="kw">fn </span>rate_limit_batches(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
-        partitions: <span class="kw-2">&amp;</span>BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt;,
-        batch_size: usize,
-        project_state: Arc&lt;ProjectState&gt;,
+        buckets: <span class="kw-2">&amp;</span>[Bucket],
+        project_state: <span class="kw-2">&amp;</span>ProjectState,
         mode: ExtractionMode,
     ) -&gt; bool {
         <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
             <span class="kw">return </span><span class="bool-val">false</span>;
         };
 
-        <span class="kw">let </span>batched_bucket_iter = partitions
-            .values()
-            .flat_map(|b| BucketsView::new(b).by_size(batch_size))
-            .flatten();
+        <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
+        <span class="kw">let </span>batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
         <span class="kw">let </span>quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>project_state.config.quotas;
@@ -3298,49 +3334,79 @@
         <span class="bool-val">false
     </span>}
 
-    <span class="kw">fn </span>check_cardinality_limits(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        enable_cardinality_limiter: bool,
-        _organization_id: u64,
-        buckets: Vec&lt;Bucket&gt;,
-    ) -&gt; <span class="kw">impl </span>Iterator&lt;Item = Bucket&gt; {
-        <span class="kw">if </span>!enable_cardinality_limiter {
-            <span class="comment">// Use left for original vector of buckets, right for cardinality limited/filtered buckets.
-            </span><span class="kw">return </span>Either::Left(buckets.into_iter());
+    <span class="doccomment">/// Processes metric buckets and sends them to kafka.
+    ///
+    /// This function runs the following steps:
+    ///  - cardinality limiting
+    ///  - rate limiting
+    ///  - submit to `StoreForwarder`
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>encode_metrics_processing(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics, store_forwarder: <span class="kw-2">&amp;</span>Addr&lt;Store&gt;) {
+        <span class="kw">use </span><span class="kw">crate</span>::actors::store::StoreMetrics;
+        <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
+
+        <span class="kw">let </span>EncodeMetrics {
+            <span class="kw-2">mut </span>buckets,
+            scoping,
+            project_state,
+        } = message;
+
+        <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>limiter) = <span class="self">self</span>.inner.cardinality_limiter {
+                buckets = <span class="kw">match </span>limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+                    <span class="prelude-val">Ok</span>(limits) =&gt; limits.into_accepted().collect(),
+                    <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                            <span class="string">&quot;cardinality limiter failed&quot;
+                        </span>);
+                        buckets
+                    }
+                };
+            }
         }
 
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>cardinality_limiter) = <span class="self">self</span>.inner.cardinality_limiter {
-            <span class="kw">let </span>limits = cardinality_limiter.check_cardinality_limits(_organization_id, buckets);
+        <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
+            <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
+        };
 
-            <span class="kw">return match </span>limits {
-                <span class="prelude-val">Ok</span>(limits) =&gt; Either::Right(limits.into_accepted()),
-                <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
-                    <span class="macro">relay_log::error!</span>(
-                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">&quot;cardinality limiter failed&quot;
-                    </span>);
-
-                    Either::Left(buckets.into_iter())
-                }
-            };
+        <span class="kw">if </span><span class="self">self</span>.rate_limit_batches(scoping, <span class="kw-2">&amp;</span>buckets, <span class="kw-2">&amp;</span>project_state, mode) {
+            <span class="kw">return</span>;
         }
 
-        Either::&lt;<span class="kw">_</span>, relay_cardinality::limiter::Accepted&lt;<span class="kw">_</span>&gt;&gt;::Left(buckets.into_iter())
+        <span class="kw">let </span>retention = project_state
+            .config
+            .event_retention
+            .unwrap_or(DEFAULT_EVENT_RETENTION);
+
+        <span class="comment">// The store forwarder takes care of bucket splitting internally, so we can submit the
+        // entire list of buckets. There is no batching needed here.
+        </span>store_forwarder.send(StoreMetrics {
+            buckets,
+            scoping,
+            retention,
+            mode,
+        });
     }
 
-    <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
+    <span class="doccomment">/// Serializes metric buckets to JSON and sends them to the upstream.
+    ///
+    /// This function runs the following steps:
+    ///  - partitioning
+    ///  - batching by configured size limit
+    ///  - serialize to JSON and pack in an envelope
+    ///  - submit the envelope to the envelope manager
+    ///
+    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
+    /// access to the central Redis instance. Cached rate limits are applied in the project cache
+    /// already.
+    </span><span class="kw">fn </span>encode_metrics_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
         <span class="kw">let </span>EncodeMetrics {
             buckets,
             scoping,
             project_state,
         } = message;
-
-        <span class="kw">let </span>buckets = <span class="self">self</span>.check_cardinality_limits(
-            project_state.has_feature(Feature::CardinalityLimiter),
-            scoping.organization_id,
-            buckets,
-        );
 
         <span class="kw">let </span>partition_count = <span class="self">self</span>.inner.config.metrics_partitions();
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
@@ -3350,11 +3416,6 @@
             <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
             <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
         };
-
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">if </span><span class="self">self</span>.rate_limit_batches(scoping, <span class="kw-2">&amp;</span>partitions, batch_size, project_state, mode) {
-            <span class="kw">return</span>;
-        }
 
         <span class="kw">let </span>upstream = <span class="self">self</span>.inner.config.upstream_descriptor();
         <span class="kw">let </span>dsn = PartialDsn::outbound(<span class="kw-2">&amp;</span>scoping, upstream);
@@ -3390,6 +3451,17 @@
 
             <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
         }
+    }
+
+    <span class="kw">fn </span>handle_encode_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>store_forwarder) = <span class="self">self</span>.inner.store_forwarder {
+                <span class="kw">return </span><span class="self">self</span>.encode_metrics_processing(message, store_forwarder);
+            }
+        }
+
+        <span class="self">self</span>.encode_metrics_envelope(message)
     }
 
     <span class="kw">fn </span>handle_encode_metric_meta(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetricMeta) {

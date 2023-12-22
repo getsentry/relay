@@ -322,6 +322,12 @@
 <a href="#322" id="322">322</a>
 <a href="#323" id="323">323</a>
 <a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -459,6 +465,14 @@
         )
         .start_in(<span class="kw-2">&amp;</span>runtimes.aggregator);
 
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">let </span>store = <span class="kw">match </span>runtimes.store {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>rt) =&gt; {
+                <span class="prelude-val">Some</span>(StoreService::create(config.clone(), outcome_aggregator.clone())<span class="question-mark">?</span>.start_in(rt))
+            }
+            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+        };
+
         <span class="kw">let </span>processor = EnvelopeProcessorService::new(
             config.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -470,6 +484,8 @@
             test_store.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>aggregator.clone(),
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>store.clone(),
         )
         .start();
 
@@ -480,13 +496,9 @@
             project_cache.clone(),
             test_store.clone(),
             upstream_relay.clone(),
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>store.clone(),
         );
-
-        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>rt) = runtimes.store {
-            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start_in(rt);
-            envelope_manager_service.set_store_forwarder(store);
-        }
 
         envelope_manager_service.spawn_handler(envelope_manager_rx);
 
