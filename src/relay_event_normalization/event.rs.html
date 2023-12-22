@@ -2322,6 +2322,62 @@
 <a href="#2322" id="2322">2322</a>
 <a href="#2323" id="2323">2323</a>
 <a href="#2324" id="2324">2324</a>
+<a href="#2325" id="2325">2325</a>
+<a href="#2326" id="2326">2326</a>
+<a href="#2327" id="2327">2327</a>
+<a href="#2328" id="2328">2328</a>
+<a href="#2329" id="2329">2329</a>
+<a href="#2330" id="2330">2330</a>
+<a href="#2331" id="2331">2331</a>
+<a href="#2332" id="2332">2332</a>
+<a href="#2333" id="2333">2333</a>
+<a href="#2334" id="2334">2334</a>
+<a href="#2335" id="2335">2335</a>
+<a href="#2336" id="2336">2336</a>
+<a href="#2337" id="2337">2337</a>
+<a href="#2338" id="2338">2338</a>
+<a href="#2339" id="2339">2339</a>
+<a href="#2340" id="2340">2340</a>
+<a href="#2341" id="2341">2341</a>
+<a href="#2342" id="2342">2342</a>
+<a href="#2343" id="2343">2343</a>
+<a href="#2344" id="2344">2344</a>
+<a href="#2345" id="2345">2345</a>
+<a href="#2346" id="2346">2346</a>
+<a href="#2347" id="2347">2347</a>
+<a href="#2348" id="2348">2348</a>
+<a href="#2349" id="2349">2349</a>
+<a href="#2350" id="2350">2350</a>
+<a href="#2351" id="2351">2351</a>
+<a href="#2352" id="2352">2352</a>
+<a href="#2353" id="2353">2353</a>
+<a href="#2354" id="2354">2354</a>
+<a href="#2355" id="2355">2355</a>
+<a href="#2356" id="2356">2356</a>
+<a href="#2357" id="2357">2357</a>
+<a href="#2358" id="2358">2358</a>
+<a href="#2359" id="2359">2359</a>
+<a href="#2360" id="2360">2360</a>
+<a href="#2361" id="2361">2361</a>
+<a href="#2362" id="2362">2362</a>
+<a href="#2363" id="2363">2363</a>
+<a href="#2364" id="2364">2364</a>
+<a href="#2365" id="2365">2365</a>
+<a href="#2366" id="2366">2366</a>
+<a href="#2367" id="2367">2367</a>
+<a href="#2368" id="2368">2368</a>
+<a href="#2369" id="2369">2369</a>
+<a href="#2370" id="2370">2370</a>
+<a href="#2371" id="2371">2371</a>
+<a href="#2372" id="2372">2372</a>
+<a href="#2373" id="2373">2373</a>
+<a href="#2374" id="2374">2374</a>
+<a href="#2375" id="2375">2375</a>
+<a href="#2376" id="2376">2376</a>
+<a href="#2377" id="2377">2377</a>
+<a href="#2378" id="2378">2378</a>
+<a href="#2379" id="2379">2379</a>
+<a href="#2380" id="2380">2380</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2526,7 +2582,14 @@
     <span class="comment">// Check for required and non-empty values
     </span>schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
-    TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+    normalize_timestamps(
+        event,
+        meta,
+        config.received_at,
+        config.max_secs_in_past,
+        config.max_secs_in_future,
+    )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction
+    </span>TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
     <span class="comment">// Process security reports first to ensure all props.
     </span>normalize_security_report(event, config.client_ip, <span class="kw-2">&amp;</span>config.user_agent);
@@ -2569,13 +2632,6 @@
     <span class="comment">// Default required attributes, even if they have errors
     </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta)<span class="question-mark">?</span>;
     normalize_release_dist(event)<span class="question-mark">?</span>; <span class="comment">// dist is a tag extracted along with other metrics from transactions
-    </span>normalize_timestamps(
-        event,
-        meta,
-        config.received_at,
-        config.max_secs_in_past,
-        config.max_secs_in_future,
-    )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction
     </span>normalize_event_tags(event)<span class="question-mark">?</span>; <span class="comment">// Tags are added to every metric
 
     // TODO: Consider moving to store normalization
@@ -4644,6 +4700,62 @@
           },
         }
         &quot;###</span>);
+    }
+
+    <span class="doccomment">/// Test that timestamp normalization updates a transaction&#39;s timestamps to
+    /// be acceptable, when both timestamps are similarly stale.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_accept_recent_transactions_with_stale_timestamps() {
+        <span class="kw">let </span>config = NormalizationConfig {
+            received_at: <span class="prelude-val">Some</span>(Utc::now()),
+            max_secs_in_past: <span class="prelude-val">Some</span>(<span class="number">2</span>),
+            max_secs_in_future: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+            ..Default::default()
+        };
+
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
+  &quot;transaction&quot;: &quot;I have a stale timestamp, but I&#39;m recent!&quot;,
+  &quot;start_timestamp&quot;: -2,
+  &quot;timestamp&quot;: -1
+}&quot;#</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+
+        <span class="macro">assert!</span>(normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config).is_ok());
+    }
+
+    <span class="doccomment">/// Test that transactions are rejected as invalid when timestamp normalization isn&#39;t enough.
+    ///
+    /// When the end timestamp is recent but the start timestamp is stale, timestamp normalization
+    /// will fix the timestamps based on the end timestamp. The start timestamp will be more recent,
+    /// but not recent enough for the transaction to be accepted. The transaction will be rejected.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_reject_stale_transactions_after_timestamp_normalization() {
+        <span class="kw">let </span>now = Utc::now();
+        <span class="kw">let </span>config = NormalizationConfig {
+            received_at: <span class="prelude-val">Some</span>(now),
+            max_secs_in_past: <span class="prelude-val">Some</span>(<span class="number">2</span>),
+            max_secs_in_future: <span class="prelude-val">Some</span>(<span class="number">1</span>),
+            ..Default::default()
+        };
+
+        <span class="kw">let </span>json = <span class="macro">format!</span>(
+            <span class="string">r#&quot;{{
+          &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
+          &quot;transaction&quot;: &quot;clockdrift is not enough to accept me :(&quot;,
+          &quot;start_timestamp&quot;: -62135811111,
+          &quot;timestamp&quot;: {}
+        }}&quot;#</span>,
+            now.timestamp()
+        );
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json.as_str()).unwrap();
+
+        <span class="macro">assert_eq!</span>(
+            normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>config)
+                .unwrap_err()
+                .to_string(),
+            <span class="string">&quot;invalid transaction event: timestamp is too stale&quot;
+        </span>);
     }
 }
 </code></pre></div></section></main></body></html>
