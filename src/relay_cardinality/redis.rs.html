@@ -540,6 +540,12 @@
 <a href="#540" id="540">540</a>
 <a href="#541" id="541">541</a>
 <a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::HashMap, time::SystemTime};
 
 <span class="kw">use </span>relay_redis::{
@@ -551,7 +557,7 @@
 <span class="kw">use crate</span>::{
     cache::{Cache, CacheOutcome},
     limiter::{CardinalityScope, Entry, EntryId, Limiter, Rejection},
-    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms},
+    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     utils::HitCounter,
     OrganizationId, <span class="prelude-ty">Result</span>, SlidingWindow,
 };
@@ -707,13 +713,19 @@
         <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection()<span class="question-mark">?</span>;
 
         <span class="kw">for </span>((organization_id, item_scope), entries) <span class="kw">in </span>entries_by_scope {
-            <span class="kw">let </span>results = <span class="self">self</span>.check_limits(
-                <span class="kw-2">&amp;mut </span>connection,
-                organization_id,
-                item_scope.clone(),
-                entries,
-                timestamp,
-                limit,
+            <span class="kw">let </span>results = <span class="macro">metric!</span>(
+                timer(CardinalityLimiterTimers::Redis),
+                scope = <span class="kw-2">&amp;</span>item_scope,
+                {
+                    <span class="self">self</span>.check_limits(
+                        <span class="kw-2">&amp;mut </span>connection,
+                        organization_id,
+                        item_scope.clone(),
+                        entries,
+                        timestamp,
+                        limit,
+                    )
+                }
             )<span class="question-mark">?</span>;
 
             <span class="comment">// This always acquires a write lock, but we only hit this
