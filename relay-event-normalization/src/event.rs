@@ -2322,6 +2322,8 @@ mod tests {
         "###);
     }
 
+    /// Test that timestamp normalization updates a transaction's timestamps to
+    /// be acceptable, when both timestamps are similarly stale.
     #[test]
     fn test_accept_recent_transactions_with_stale_timestamps() {
         let config = NormalizationConfig {
@@ -2333,7 +2335,7 @@ mod tests {
 
         let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
-  "transaction": "i have an stale timestamp, but im recent!",
+  "transaction": "I have a stale timestamp, but I'm recent!",
   "start_timestamp": -2,
   "timestamp": -1
 }"#;
@@ -2342,6 +2344,11 @@ mod tests {
         assert!(normalize_event(&mut event, &config).is_ok());
     }
 
+    /// Test that transactions are rejected as invalid when timestamp normalization isn't enough.
+    ///
+    /// When the end timestamp is recent but the start timestamp is stale, timestamp normalization
+    /// will fix the timestamps based on the end timestamp. The start timestamp will be more recent,
+    /// but not recent enough for the transaction to be accepted. The transaction will be rejected.
     #[test]
     fn test_reject_stale_transactions_after_timestamp_normalization() {
         let now = Utc::now();
