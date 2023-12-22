@@ -1436,7 +1436,7 @@ impl EnvelopeProcessorService {
                 if let Some(ref limiter) = self.inner.cardinality_limiter {
                     let org = scoping.organization_id;
                     buckets = match limiter.check_cardinality_limits(org, buckets) {
-                        Ok(limits) => limits.into_accepted().collect(),
+                        Ok(limits) => limits.into_accepted(),
                         Err((buckets, error)) => {
                             relay_log::error!(
                                 error = &error as &dyn std::error::Error,
