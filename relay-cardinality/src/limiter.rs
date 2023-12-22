@@ -138,6 +138,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
 }
 
 /// Result of [`CardinalityLimiter::check_cardinality_limits`].
+#[derive(Debug)]
 pub struct CardinalityLimits<T> {
     source: Vec<T>,
     rejections: BTreeSet<usize>,
@@ -185,6 +186,18 @@ impl<T> Iterator for Accepted<T> {
                     return next;
                 }
             }
+        }
+    }
+
+    fn collect<B: FromIterator<Self::Item>>(mut self) -> B
+    where
+        Self: Sized,
+    {
+        // Specialize here and use the optimized collect when there are no rejections.
+        if self.rejections.peek().is_none() {
+            self.source.collect()
+        } else {
+            FromIterator::from_iter(self)
         }
     }
 }
