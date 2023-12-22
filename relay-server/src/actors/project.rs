@@ -23,7 +23,7 @@ use url::Url;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitBuckets;
-use crate::actors::processor::{EncodeMetricMeta, EnvelopeProcessor};
+use crate::actors::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
@@ -31,8 +31,6 @@ use crate::statsd::RelayCounters;
 use crate::utils::{
     self, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
-
-use super::processor::EncodeMetrics;
 
 /// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -1106,21 +1104,20 @@ impl Project {
         })
     }
 
-    pub fn flush_buckets(
+    pub fn check_buckets(
         &mut self,
-        envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
-    ) {
+    ) -> Option<ProjectMetrics> {
         let len = buckets.len();
         let Some(project_state) = self.valid_state() else {
             relay_log::trace!("there is no project state: dropping {len} buckets",);
-            return;
+            return None;
         };
 
         let Some(scoping) = self.scoping() else {
             relay_log::trace!("there is no scoping: dropping {len} buckets");
-            return;
+            return None;
         };
 
         let item_scoping = ItemScoping {
@@ -1148,16 +1145,14 @@ impl Project {
                 Outcome::RateLimited(reason_code),
             );
 
-            return;
+            return None;
         }
 
-        if !buckets.is_empty() {
-            envelope_processor.send(EncodeMetrics {
-                buckets,
-                scoping,
-                project_state,
-            });
-        }
+        Some(ProjectMetrics {
+            buckets,
+            scoping,
+            project_state,
+        })
     }
 }
 

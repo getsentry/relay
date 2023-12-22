@@ -441,15 +441,21 @@ impl EncodeEnvelope {
     }
 }
 
-/// Encodes metrics into an envelope ready to be sent upstream.
+/// TODO(ja): Docs
 #[derive(Debug)]
-pub struct EncodeMetrics {
+pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
     /// Scoping for metric buckets.
     pub scoping: Scoping,
     /// Project state for extracting quotas.
     pub project_state: Arc<ProjectState>,
+}
+
+/// Encodes metrics into an envelope ready to be sent upstream.
+#[derive(Debug)]
+pub struct EncodeMetrics {
+    pub buckets: HashMap<ProjectKey, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -1422,49 +1428,52 @@ impl EnvelopeProcessorService {
         use crate::actors::store::StoreMetrics;
         use crate::constants::DEFAULT_EVENT_RETENTION;
 
-        let EncodeMetrics {
-            mut buckets,
-            scoping,
-            project_state,
-        } = message;
+        for message in message.buckets.into_values() {
+            let ProjectMetrics {
+                mut buckets,
+                scoping,
+                project_state,
+            } = message;
 
-        if project_state.has_feature(Feature::CardinalityLimiter) {
-            if let Some(ref limiter) = self.inner.cardinality_limiter {
-                buckets = match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
-                    Ok(limits) => limits.into_accepted().collect(),
-                    Err((buckets, error)) => {
-                        relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "cardinality limiter failed"
-                        );
-                        buckets
-                    }
-                };
+            if project_state.has_feature(Feature::CardinalityLimiter) {
+                if let Some(ref limiter) = self.inner.cardinality_limiter {
+                    buckets =
+                        match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+                            Ok(limits) => limits.into_accepted().collect(),
+                            Err((buckets, error)) => {
+                                relay_log::error!(
+                                    error = &error as &dyn std::error::Error,
+                                    "cardinality limiter failed"
+                                );
+                                buckets
+                            }
+                        };
+                }
             }
+
+            let mode = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+                _ => ExtractionMode::Duration,
+            };
+
+            if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
+                return;
+            }
+
+            let retention = project_state
+                .config
+                .event_retention
+                .unwrap_or(DEFAULT_EVENT_RETENTION);
+
+            // The store forwarder takes care of bucket splitting internally, so we can submit the
+            // entire list of buckets. There is no batching needed here.
+            store_forwarder.send(StoreMetrics {
+                buckets,
+                scoping,
+                retention,
+                mode,
+            });
         }
-
-        let mode = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
-        };
-
-        if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
-            return;
-        }
-
-        let retention = project_state
-            .config
-            .event_retention
-            .unwrap_or(DEFAULT_EVENT_RETENTION);
-
-        // The store forwarder takes care of bucket splitting internally, so we can submit the
-        // entire list of buckets. There is no batching needed here.
-        store_forwarder.send(StoreMetrics {
-            buckets,
-            scoping,
-            retention,
-            mode,
-        });
     }
 
     /// Serializes metric buckets to JSON and sends them to the upstream.
@@ -1479,54 +1488,59 @@ impl EnvelopeProcessorService {
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     fn encode_metrics_envelope(&self, message: EncodeMetrics) {
-        let EncodeMetrics {
-            buckets,
-            scoping,
-            project_state,
-        } = message;
-
         let partition_count = self.inner.config.metrics_partitions();
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
-        let partitions = partition_buckets(scoping.project_key, buckets, partition_count);
-
-        let mode = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
-        };
-
         let upstream = self.inner.config.upstream_descriptor();
-        let dsn = PartialDsn::outbound(&scoping, upstream);
 
-        for (partition_key, buckets) in partitions {
-            let mut num_batches = 0;
+        for (_project_key, message) in message.buckets {
+            let ProjectMetrics {
+                buckets,
+                scoping,
+                project_state,
+            } = message;
 
-            for batch in BucketsView::new(&buckets).by_size(batch_size) {
-                let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+            let mode = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+                _ => ExtractionMode::Duration,
+            };
 
-                let mut item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(utils::extract_metric_quantities(&batch, mode));
-                item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
-                envelope.add_item(item);
+            let dsn = PartialDsn::outbound(&scoping, upstream);
+            let partitions = partition_buckets(scoping.project_key, buckets, partition_count);
 
-                let mut envelope = ManagedEnvelope::standalone(
-                    envelope,
-                    self.inner.outcome_aggregator.clone(),
-                    self.inner.test_store.clone(),
-                );
-                envelope.set_partition_key(partition_key).scope(scoping);
+            for (partition_key, buckets) in partitions {
+                let mut num_batches = 0;
+
+                for batch in BucketsView::new(&buckets).by_size(batch_size) {
+                    let mut envelope =
+                        Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
+
+                    let mut item = Item::new(ItemType::MetricBuckets);
+                    item.set_source_quantities(utils::extract_metric_quantities(&batch, mode));
+                    item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
+                    envelope.add_item(item);
+
+                    let mut envelope = ManagedEnvelope::standalone(
+                        envelope,
+                        self.inner.outcome_aggregator.clone(),
+                        self.inner.test_store.clone(),
+                    );
+                    envelope.set_partition_key(partition_key).scope(scoping);
+
+                    relay_statsd::metric!(
+                        histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                    );
+
+                    self.inner
+                        .envelope_manager
+                        .send(SubmitEnvelope { envelope });
+
+                    num_batches += 1;
+                }
 
                 relay_statsd::metric!(
-                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
+                    histogram(RelayHistograms::BatchesPerPartition) = num_batches
                 );
-
-                self.inner
-                    .envelope_manager
-                    .send(SubmitEnvelope { envelope });
-
-                num_batches += 1;
             }
-
-            relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
         }
     }
 
