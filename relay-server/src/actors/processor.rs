@@ -213,7 +213,6 @@ impl From<ExtractMetricsError> for ProcessingError {
 type ExtractedEvent = (Annotated<Event>, usize);
 
 impl ExtractedMetrics {
-    // TODO(ja): Move
     fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
         let project_key = envelope.meta().public_key();
 
@@ -1529,6 +1528,7 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
     fn send_global_partition(&self, key: Option<u64>, partition: &mut Partition<'_>) {
         if partition.is_empty() {
             return;
@@ -1536,7 +1536,7 @@ impl EnvelopeProcessorService {
 
         let (payload, quantities) = partition.take_parts();
 
-        // TODO: Benchmark streaming encoding.
+        // TODO: Benchmark streamed encoding.
         let http_encoding = self.inner.config.http_encoding();
         let payload = match encode_payload(payload, http_encoding) {
             Ok(payload) => payload,
@@ -1558,6 +1558,20 @@ impl EnvelopeProcessorService {
         self.inner.upstream_relay.send(SendRequest(request));
     }
 
+    /// Serializes metric buckets to JSON and sends them to the upstream via the global endpoint.
+    ///
+    /// This function is similar to [`Self::encode_metrics_envelope`], but sends a global batched
+    /// payload directly instead of per-project Envelopes.
+    ///
+    /// This function runs the following steps:
+    ///  - partitioning
+    ///  - batching by configured size limit
+    ///  - serialize to JSON
+    ///  - submit the directly to the upstream
+    ///
+    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
+    /// access to the central Redis instance. Cached rate limits are applied in the project cache
+    /// already.
     fn encode_metrics_global(&self, message: EncodeMetrics) {
         let partition_count = self.inner.config.metrics_partitions();
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
@@ -1743,10 +1757,11 @@ fn encode_payload(body: Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std
     Ok(envelope_body.into())
 }
 
+/// Computes a stable partitioning key for sharded metric requests.
 fn partition_key(project_key: ProjectKey, bucket: &Bucket, partitions: Option<u64>) -> Option<u64> {
     use std::hash::{Hash, Hasher};
 
-    let partitions = partitions?;
+    let partitions = partitions?.max(1);
     let key = (project_key, bucket.timestamp, &bucket.name, &bucket.tags);
 
     let mut hasher = FnvHasher::default();
@@ -1754,6 +1769,12 @@ fn partition_key(project_key: ProjectKey, bucket: &Bucket, partitions: Option<u6
     Some(hasher.finish() % partitions)
 }
 
+/// A container for metric buckets from multiple projects.
+///
+/// This container is used to send metrics to the upstream in global batches as part of the
+/// [`EncodeMetrics`] message if the `http.global_metrics` option is enabled. The container monitors
+/// the size of all metrics and allows to split them into multiple batches. See
+/// [`insert`](Self::insert) for more information.
 #[derive(Debug)]
 struct Partition<'a> {
     max_size: usize,
@@ -1764,6 +1785,7 @@ struct Partition<'a> {
 }
 
 impl<'a> Partition<'a> {
+    /// Creates a new partition with the given maximum size in bytes.
     pub fn new(size: usize, mode: ExtractionMode) -> Self {
         Self {
             max_size: size,
@@ -1774,11 +1796,21 @@ impl<'a> Partition<'a> {
         }
     }
 
-    fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
+    /// Inserts a bucket into the partition, splitting it if necessary.
+    ///
+    /// This function attempts to add the bucket to this partition. If the bucket does not fit
+    /// entirely into the partition given its maximum size, the remaining part of the bucket is
+    /// returned from this function call.
+    ///
+    /// If this function returns `Some(_)`, the partition is full and should be submitted to the
+    /// upstream immediately. Use [`take_parts`](Self::take_parts) to retrieve the contents of the
+    /// partition. Afterwards, the caller is responsible to call this function again with the
+    /// remaining bucket until it is fully inserted.
+    pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
         let (current, next) = bucket.split(self.remaining, Some(self.max_size));
 
         if let Some(current) = current {
-            self.remaining -= current.estimated_size();
+            self.remaining = self.remaining.saturating_sub(current.estimated_size());
             let quantities = utils::extract_metric_quantities([current.clone()], self.mode);
             self.quantities.push((scoping, quantities));
             self.views
@@ -1790,10 +1822,14 @@ impl<'a> Partition<'a> {
         next
     }
 
+    /// Returns `true` if the partition does not hold any data.
     fn is_empty(&self) -> bool {
         self.views.is_empty()
     }
 
+    /// Returns the serialized buckets and the source quantities for this partition.
+    ///
+    /// This empties the partition, so that it can be reused.
     fn take_parts(&mut self) -> (Bytes, Vec<(Scoping, SourceQuantities)>) {
         let payload = serde_json::to_vec(&self.views).unwrap().into();
         let quantities = self.quantities.clone();
@@ -1806,12 +1842,20 @@ impl<'a> Partition<'a> {
     }
 }
 
+/// An upstream request that submits metric buckets via HTTP.
+///
+/// This request is not awaited. It automatically tracks outcomes if the request is not received.
 #[derive(Debug)]
 struct SendMetricsRequest {
+    /// If the partition key is set, the request is marked with `X-Sentry-Relay-Shard`.
     partition_key: Option<String>,
+    /// Serialized metric buckets with the stated HTTP encoding applied.
     payload: Bytes,
+    /// Encoding (compression) of the payload.
     http_encoding: HttpEncoding,
+    /// Information about the metric quantities in the payload for outcomes.
     quantities: Vec<(Scoping, SourceQuantities)>,
+    /// Address of the outcome aggregator to send outcomes to on error.
     outcome_aggregator: Addr<TrackOutcome>,
 }
 
