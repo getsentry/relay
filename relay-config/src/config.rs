@@ -757,6 +757,13 @@ struct Http {
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
     encoding: HttpEncoding,
+    /// Submit metrics globally through a shared endpoint.
+    ///
+    /// As opposed to regular envelopes which are sent to an endpoint inferred from the project's
+    /// DSN, this submits metrics to the global endpoint with Relay authentication.
+    ///
+    /// This option does not have any effect on processing mode.
+    global_metrics: bool,
 }
 
 impl Default for Http {
@@ -771,6 +778,7 @@ impl Default for Http {
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
+            global_metrics: false,
         }
     }
 }
@@ -1720,6 +1728,11 @@ impl Config {
     /// Content encoding of upstream requests.
     pub fn http_encoding(&self) -> HttpEncoding {
         self.values.http.encoding
+    }
+
+    /// Returns whether metrics should be sent globally through a shared endpoint.
+    pub fn http_global_metrics(&self) -> bool {
+        self.values.http.global_metrics
     }
 
     /// Returns whether this Relay should emit outcomes.
