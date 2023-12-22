@@ -3369,7 +3369,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>limiter) = <span class="self">self</span>.inner.cardinality_limiter {
                     <span class="kw">let </span>org = scoping.organization_id;
                     buckets = <span class="kw">match </span>limiter.check_cardinality_limits(org, buckets) {
-                        <span class="prelude-val">Ok</span>(limits) =&gt; limits.into_accepted().collect(),
+                        <span class="prelude-val">Ok</span>(limits) =&gt; limits.into_accepted(),
                         <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
                             <span class="macro">relay_log::error!</span>(
                                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
