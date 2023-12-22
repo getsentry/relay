@@ -3921,6 +3921,7 @@ dependencies = [
  "chrono",
  "data-encoding",
  "flate2",
+ "fnv",
  "futures",
  "hash32",
  "hashbrown 0.13.2",
