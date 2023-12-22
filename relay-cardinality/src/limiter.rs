@@ -160,10 +160,19 @@ pub struct Accepted<T> {
 
 impl<T> Accepted<T> {
     fn new(source: Vec<T>, rejections: BTreeSet<usize>) -> Self {
-        Self {
-            source: source.into_iter(),
-            rejections: rejections.into_iter().peekable(),
-            next_index: 0,
+        if rejections.len() == source.len() {
+            // Optimize the case where every item is rejected.
+            Self {
+                source: Vec::new().into_iter(),
+                rejections: BTreeSet::new().into_iter().peekable(),
+                next_index: 0,
+            }
+        } else {
+            Self {
+                source: source.into_iter(),
+                rejections: rejections.into_iter().peekable(),
+                next_index: 0,
+            }
         }
     }
 }
