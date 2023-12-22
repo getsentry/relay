@@ -1411,6 +1411,12 @@ impl EnvelopeProcessorService {
         false
     }
 
+    /// Processes metric buckets and sends them to kafka.
+    ///
+    /// This function runs the following steps:
+    ///  - cardinality limiting
+    ///  - rate limiting
+    ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
     fn encode_metrics_processing(&self, message: EncodeMetrics, store_forwarder: &Addr<Store>) {
         use crate::actors::store::StoreMetrics;
@@ -1451,6 +1457,8 @@ impl EnvelopeProcessorService {
             .event_retention
             .unwrap_or(DEFAULT_EVENT_RETENTION);
 
+        // The store forwarder takes care of bucket splitting internally, so we can submit the
+        // entire list of buckets. There is no batching needed here.
         store_forwarder.send(StoreMetrics {
             buckets,
             scoping,
@@ -1459,6 +1467,17 @@ impl EnvelopeProcessorService {
         });
     }
 
+    /// Serializes metric buckets to JSON and sends them to the upstream.
+    ///
+    /// This function runs the following steps:
+    ///  - partitioning
+    ///  - batching by configured size limit
+    ///  - serialize to JSON and pack in an envelope
+    ///  - submit the envelope to the envelope manager
+    ///
+    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
+    /// access to the central Redis instance. Cached rate limits are applied in the project cache
+    /// already.
     fn encode_metrics_envelope(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
