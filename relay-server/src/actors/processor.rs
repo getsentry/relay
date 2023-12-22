@@ -10,7 +10,6 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
-use itertools::Either;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
@@ -38,12 +37,12 @@ use tokio::sync::Semaphore;
 #[cfg(feature = "processing")]
 use {
     crate::actors::project_cache::UpdateRateLimits,
+    crate::actors::store::Store,
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
-    std::collections::BTreeMap,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -596,6 +595,8 @@ struct InnerProcessor {
     metric_meta_store: Option<RedisMetricMetaStore>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
+    #[cfg(feature = "processing")]
+    store_forwarder: Option<Addr<Store>>,
 }
 
 impl EnvelopeProcessorService {
@@ -610,6 +611,7 @@ impl EnvelopeProcessorService {
         upstream_relay: Addr<UpstreamRelay>,
         test_store: Addr<TestStore>,
         #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
+        #[cfg(feature = "processing")] store_forwarder: Option<Addr<Store>>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -655,6 +657,8 @@ impl EnvelopeProcessorService {
                     },
                 )
             }),
+            #[cfg(feature = "processing")]
+            store_forwarder,
             config,
         };
 
@@ -828,7 +832,6 @@ impl EnvelopeProcessorService {
             _ => None,
         };
 
-        // TODO: Make span metrics extraction immutable
         if let Some(event) = state.event.value() {
             if state.event_metrics_extracted {
                 return Ok(());
@@ -1355,19 +1358,16 @@ impl EnvelopeProcessorService {
     fn rate_limit_batches(
         &self,
         scoping: Scoping,
-        partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
-        batch_size: usize,
-        project_state: Arc<ProjectState>,
+        buckets: &[Bucket],
+        project_state: &ProjectState,
         mode: ExtractionMode,
     ) -> bool {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return false;
         };
 
-        let batched_bucket_iter = partitions
-            .values()
-            .flat_map(|b| BucketsView::new(b).by_size(batch_size))
-            .flatten();
+        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
+        let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         let quotas = &project_state.config.quotas;
@@ -1411,49 +1411,79 @@ impl EnvelopeProcessorService {
         false
     }
 
-    fn check_cardinality_limits(
-        &self,
-        enable_cardinality_limiter: bool,
-        _organization_id: u64,
-        buckets: Vec<Bucket>,
-    ) -> impl Iterator<Item = Bucket> {
-        if !enable_cardinality_limiter {
-            // Use left for original vector of buckets, right for cardinality limited/filtered buckets.
-            return Either::Left(buckets.into_iter());
+    /// Processes metric buckets and sends them to kafka.
+    ///
+    /// This function runs the following steps:
+    ///  - cardinality limiting
+    ///  - rate limiting
+    ///  - submit to `StoreForwarder`
+    #[cfg(feature = "processing")]
+    fn encode_metrics_processing(&self, message: EncodeMetrics, store_forwarder: &Addr<Store>) {
+        use crate::actors::store::StoreMetrics;
+        use crate::constants::DEFAULT_EVENT_RETENTION;
+
+        let EncodeMetrics {
+            mut buckets,
+            scoping,
+            project_state,
+        } = message;
+
+        if project_state.has_feature(Feature::CardinalityLimiter) {
+            if let Some(ref limiter) = self.inner.cardinality_limiter {
+                buckets = match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+                    Ok(limits) => limits.into_accepted().collect(),
+                    Err((buckets, error)) => {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "cardinality limiter failed"
+                        );
+                        buckets
+                    }
+                };
+            }
         }
 
-        #[cfg(feature = "processing")]
-        if let Some(ref cardinality_limiter) = self.inner.cardinality_limiter {
-            let limits = cardinality_limiter.check_cardinality_limits(_organization_id, buckets);
+        let mode = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+            _ => ExtractionMode::Duration,
+        };
 
-            return match limits {
-                Ok(limits) => Either::Right(limits.into_accepted()),
-                Err((buckets, error)) => {
-                    relay_log::error!(
-                        error = &error as &dyn std::error::Error,
-                        "cardinality limiter failed"
-                    );
-
-                    Either::Left(buckets.into_iter())
-                }
-            };
+        if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
+            return;
         }
 
-        Either::<_, relay_cardinality::limiter::Accepted<_>>::Left(buckets.into_iter())
+        let retention = project_state
+            .config
+            .event_retention
+            .unwrap_or(DEFAULT_EVENT_RETENTION);
+
+        // The store forwarder takes care of bucket splitting internally, so we can submit the
+        // entire list of buckets. There is no batching needed here.
+        store_forwarder.send(StoreMetrics {
+            buckets,
+            scoping,
+            retention,
+            mode,
+        });
     }
 
-    fn handle_encode_metrics(&self, message: EncodeMetrics) {
+    /// Serializes metric buckets to JSON and sends them to the upstream.
+    ///
+    /// This function runs the following steps:
+    ///  - partitioning
+    ///  - batching by configured size limit
+    ///  - serialize to JSON and pack in an envelope
+    ///  - submit the envelope to the envelope manager
+    ///
+    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
+    /// access to the central Redis instance. Cached rate limits are applied in the project cache
+    /// already.
+    fn encode_metrics_envelope(&self, message: EncodeMetrics) {
         let EncodeMetrics {
             buckets,
             scoping,
             project_state,
         } = message;
-
-        let buckets = self.check_cardinality_limits(
-            project_state.has_feature(Feature::CardinalityLimiter),
-            scoping.organization_id,
-            buckets,
-        );
 
         let partition_count = self.inner.config.metrics_partitions();
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
@@ -1463,11 +1493,6 @@ impl EnvelopeProcessorService {
             Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
             _ => ExtractionMode::Duration,
         };
-
-        #[cfg(feature = "processing")]
-        if self.rate_limit_batches(scoping, &partitions, batch_size, project_state, mode) {
-            return;
-        }
 
         let upstream = self.inner.config.upstream_descriptor();
         let dsn = PartialDsn::outbound(&scoping, upstream);
@@ -1503,6 +1528,17 @@ impl EnvelopeProcessorService {
 
             relay_statsd::metric!(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
         }
+    }
+
+    fn handle_encode_metrics(&self, message: EncodeMetrics) {
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled() {
+            if let Some(ref store_forwarder) = self.inner.store_forwarder {
+                return self.encode_metrics_processing(message, store_forwarder);
+            }
+        }
+
+        self.encode_metrics_envelope(message)
     }
 
     fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
