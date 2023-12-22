@@ -1921,6 +1921,16 @@
 <a href="#1921" id="1921">1921</a>
 <a href="#1922" id="1922">1922</a>
 <a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
+<a href="#1926" id="1926">1926</a>
+<a href="#1927" id="1927">1927</a>
+<a href="#1928" id="1928">1928</a>
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2364,15 +2374,19 @@
     }
 }
 
+<span class="doccomment">/// Metric buckets with additional project.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>ProjectMetrics {
+    <span class="doccomment">/// The metric buckets to encode.
+    </span><span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
+    <span class="doccomment">/// Project state for extracting quotas.
+    </span><span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
+}
+
 <span class="doccomment">/// Encodes metrics into an envelope ready to be sent upstream.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EncodeMetrics {
-    <span class="doccomment">/// The metric buckets to encode.
-    </span><span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
-    <span class="doccomment">/// Scoping for metric buckets.
-    </span><span class="kw">pub </span>scoping: Scoping,
-    <span class="doccomment">/// Project state for extracting quotas.
-    </span><span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
+    <span class="kw">pub </span>scopes: HashMap&lt;Scoping, ProjectMetrics&gt;,
 }
 
 <span class="doccomment">/// Encodes metric meta into an envelope and sends it upstream.
@@ -3304,7 +3318,7 @@
         </span><span class="kw">match </span>rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, <span class="bool-val">false</span>) {
             <span class="prelude-val">Ok</span>(limits) <span class="kw">if </span>limits.is_limited() =&gt; {
                 <span class="macro">relay_log::debug!</span>(
-                    <span class="string">&quot;dropping {} buckets due to throughput ratelimit&quot;</span>,
+                    <span class="string">&quot;dropping {} buckets due to throughput rate limit&quot;</span>,
                     quantities.buckets
                 );
 
@@ -3345,49 +3359,51 @@
         <span class="kw">use </span><span class="kw">crate</span>::actors::store::StoreMetrics;
         <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 
-        <span class="kw">let </span>EncodeMetrics {
-            <span class="kw-2">mut </span>buckets,
-            scoping,
-            project_state,
-        } = message;
+        <span class="kw">for </span>(scoping, message) <span class="kw">in </span>message.scopes {
+            <span class="kw">let </span>ProjectMetrics {
+                <span class="kw-2">mut </span>buckets,
+                project_state,
+            } = message;
 
-        <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>limiter) = <span class="self">self</span>.inner.cardinality_limiter {
-                buckets = <span class="kw">match </span>limiter.check_cardinality_limits(scoping.organization_id, buckets) {
-                    <span class="prelude-val">Ok</span>(limits) =&gt; limits.into_accepted().collect(),
-                    <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
-                        <span class="macro">relay_log::error!</span>(
-                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                            <span class="string">&quot;cardinality limiter failed&quot;
-                        </span>);
-                        buckets
-                    }
-                };
+            <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>limiter) = <span class="self">self</span>.inner.cardinality_limiter {
+                    <span class="kw">let </span>org = scoping.organization_id;
+                    buckets = <span class="kw">match </span>limiter.check_cardinality_limits(org, buckets) {
+                        <span class="prelude-val">Ok</span>(limits) =&gt; limits.into_accepted().collect(),
+                        <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
+                            <span class="macro">relay_log::error!</span>(
+                                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                                <span class="string">&quot;cardinality limiter failed&quot;
+                            </span>);
+                            buckets
+                        }
+                    };
+                }
             }
+
+            <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
+                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
+                <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
+            };
+
+            <span class="kw">if </span><span class="self">self</span>.rate_limit_batches(scoping, <span class="kw-2">&amp;</span>buckets, <span class="kw-2">&amp;</span>project_state, mode) {
+                <span class="kw">return</span>;
+            }
+
+            <span class="kw">let </span>retention = project_state
+                .config
+                .event_retention
+                .unwrap_or(DEFAULT_EVENT_RETENTION);
+
+            <span class="comment">// The store forwarder takes care of bucket splitting internally, so we can submit the
+            // entire list of buckets. There is no batching needed here.
+            </span>store_forwarder.send(StoreMetrics {
+                buckets,
+                scoping,
+                retention,
+                mode,
+            });
         }
-
-        <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
-            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
-            <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
-        };
-
-        <span class="kw">if </span><span class="self">self</span>.rate_limit_batches(scoping, <span class="kw-2">&amp;</span>buckets, <span class="kw-2">&amp;</span>project_state, mode) {
-            <span class="kw">return</span>;
-        }
-
-        <span class="kw">let </span>retention = project_state
-            .config
-            .event_retention
-            .unwrap_or(DEFAULT_EVENT_RETENTION);
-
-        <span class="comment">// The store forwarder takes care of bucket splitting internally, so we can submit the
-        // entire list of buckets. There is no batching needed here.
-        </span>store_forwarder.send(StoreMetrics {
-            buckets,
-            scoping,
-            retention,
-            mode,
-        });
     }
 
     <span class="doccomment">/// Serializes metric buckets to JSON and sends them to the upstream.
@@ -3402,54 +3418,58 @@
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     </span><span class="kw">fn </span>encode_metrics_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: EncodeMetrics) {
-        <span class="kw">let </span>EncodeMetrics {
-            buckets,
-            scoping,
-            project_state,
-        } = message;
-
         <span class="kw">let </span>partition_count = <span class="self">self</span>.inner.config.metrics_partitions();
         <span class="kw">let </span>batch_size = <span class="self">self</span>.inner.config.metrics_max_batch_size_bytes();
-        <span class="kw">let </span>partitions = partition_buckets(scoping.project_key, buckets, partition_count);
-
-        <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
-            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
-            <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
-        };
-
         <span class="kw">let </span>upstream = <span class="self">self</span>.inner.config.upstream_descriptor();
-        <span class="kw">let </span>dsn = PartialDsn::outbound(<span class="kw-2">&amp;</span>scoping, upstream);
 
-        <span class="kw">for </span>(partition_key, buckets) <span class="kw">in </span>partitions {
-            <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
+        <span class="kw">for </span>(scoping, message) <span class="kw">in </span>message.scopes {
+            <span class="kw">let </span>ProjectMetrics {
+                buckets,
+                project_state,
+            } = message;
 
-            <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(batch_size) {
-                <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
+            <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
+                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
+                <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
+            };
 
-                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-                item.set_source_quantities(utils::extract_metric_quantities(<span class="kw-2">&amp;</span>batch, mode));
-                item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
-                envelope.add_item(item);
+            <span class="kw">let </span>dsn = PartialDsn::outbound(<span class="kw-2">&amp;</span>scoping, upstream);
+            <span class="kw">let </span>partitions = partition_buckets(scoping.project_key, buckets, partition_count);
 
-                <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(
-                    envelope,
-                    <span class="self">self</span>.inner.outcome_aggregator.clone(),
-                    <span class="self">self</span>.inner.test_store.clone(),
-                );
-                envelope.set_partition_key(partition_key).scope(scoping);
+            <span class="kw">for </span>(partition_key, buckets) <span class="kw">in </span>partitions {
+                <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
+
+                <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>buckets).by_size(batch_size) {
+                    <span class="kw">let </span><span class="kw-2">mut </span>envelope =
+                        Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn.clone()));
+
+                    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
+                    item.set_source_quantities(utils::extract_metric_quantities(<span class="kw-2">&amp;</span>batch, mode));
+                    item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
+                    envelope.add_item(item);
+
+                    <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(
+                        envelope,
+                        <span class="self">self</span>.inner.outcome_aggregator.clone(),
+                        <span class="self">self</span>.inner.test_store.clone(),
+                    );
+                    envelope.set_partition_key(partition_key).scope(scoping);
+
+                    <span class="macro">relay_statsd::metric!</span>(
+                        histogram(RelayHistograms::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
+                    );
+
+                    <span class="self">self</span>.inner
+                        .envelope_manager
+                        .send(SubmitEnvelope { envelope });
+
+                    num_batches += <span class="number">1</span>;
+                }
 
                 <span class="macro">relay_statsd::metric!</span>(
-                    histogram(RelayHistograms::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
+                    histogram(RelayHistograms::BatchesPerPartition) = num_batches
                 );
-
-                <span class="self">self</span>.inner
-                    .envelope_manager
-                    .send(SubmitEnvelope { envelope });
-
-                num_batches += <span class="number">1</span>;
             }
-
-            <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::BatchesPerPartition) = num_batches);
         }
     }
 

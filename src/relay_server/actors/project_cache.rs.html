@@ -1246,7 +1246,14 @@
 <a href="#1246" id="1246">1246</a>
 <a href="#1247" id="1247">1247</a>
 <a href="#1248" id="1248">1248</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<a href="#1249" id="1249">1249</a>
+<a href="#1250" id="1250">1250</a>
+<a href="#1251" id="1251">1251</a>
+<a href="#1252" id="1252">1252</a>
+<a href="#1253" id="1253">1253</a>
+<a href="#1254" id="1254">1254</a>
+<a href="#1255" id="1255">1255</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -1264,7 +1271,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::EnvelopeManager;
 <span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{<span class="self">self</span>, GlobalConfigManager, Subscribe};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{Project, ProjectSender, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -2131,11 +2138,18 @@
     }
 
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
-        <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
-        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
+        <span class="kw">let </span><span class="kw-2">mut </span>output = HashMap::new();
+        <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>message.buckets {
+            <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
+            <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
+                output.insert(scoping, b);
+            }
+        }
 
-        <span class="self">self</span>.get_or_create_project(message.project_key)
-            .flush_buckets(envelope_processor, outcome_aggregator, message.buckets);
+        <span class="self">self</span>.services
+            .envelope_processor
+            .send(EncodeMetrics { scopes: output })
     }
 
     <span class="kw">fn </span>handle_buffer_index(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: UpdateBufferIndex) {

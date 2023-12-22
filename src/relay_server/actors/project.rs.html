@@ -1421,10 +1421,6 @@
 <a href="#1421" id="1421">1421</a>
 <a href="#1422" id="1422">1422</a>
 <a href="#1423" id="1423">1423</a>
-<a href="#1424" id="1424">1424</a>
-<a href="#1425" id="1425">1425</a>
-<a href="#1426" id="1426">1426</a>
-<a href="#1427" id="1427">1427</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1450,7 +1446,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitBuckets;
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EncodeMetricMeta, EnvelopeProcessor};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
@@ -1458,8 +1454,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, EnvelopeLimiter, ExtractionMode, ManagedEnvelope, MetricsLimiter, RetryBackoff,
 };
-
-<span class="kw">use </span><span class="kw">super</span>::processor::EncodeMetrics;
 
 <span class="doccomment">/// The expiry status of a project state. Return value of [`ProjectState::check_expiry`].
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -2533,21 +2527,20 @@
         })
     }
 
-    <span class="kw">pub fn </span>flush_buckets(
+    <span class="kw">pub fn </span>check_buckets(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         buckets: Vec&lt;Bucket&gt;,
-    ) {
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;(Scoping, ProjectMetrics)&gt; {
         <span class="kw">let </span>len = buckets.len();
         <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.valid_state() <span class="kw">else </span>{
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no project state: dropping {len} buckets&quot;</span>,);
-            <span class="kw">return</span>;
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         };
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no scoping: dropping {len} buckets&quot;</span>);
-            <span class="kw">return</span>;
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         };
 
         <span class="kw">let </span>item_scoping = ItemScoping {
@@ -2560,7 +2553,7 @@
             .check_with_quotas(project_state.get_quotas(), item_scoping);
 
         <span class="kw">if </span>limits.is_limited() {
-            <span class="macro">relay_log::info!</span>(<span class="string">&quot;dropping {len} buckets due to rate limit&quot;</span>);
+            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {len} buckets due to rate limit&quot;</span>);
 
             <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
                 <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
@@ -2575,16 +2568,15 @@
                 Outcome::RateLimited(reason_code),
             );
 
-            <span class="kw">return</span>;
+            <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">if </span>!buckets.is_empty() {
-            envelope_processor.send(EncodeMetrics {
-                buckets,
-                scoping,
-                project_state,
-            });
-        }
+        <span class="kw">let </span>project_metrics = ProjectMetrics {
+            buckets,
+            project_state,
+        };
+
+        <span class="prelude-val">Some</span>((scoping, project_metrics))
     }
 }
 

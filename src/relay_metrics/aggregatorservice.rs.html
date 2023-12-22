@@ -535,10 +535,8 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_system::{
@@ -746,10 +744,8 @@
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>FlushBuckets {
-    <span class="doccomment">/// The project key.
-    </span><span class="kw">pub </span>project_key: ProjectKey,
     <span class="doccomment">/// The buckets to be flushed.
-    </span><span class="kw">pub </span>buckets: Vec&lt;Bucket&gt;,
+    </span><span class="kw">pub </span>buckets: HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt;,
 }
 
 <span class="kw">enum </span>AggregatorState {
@@ -805,37 +801,34 @@
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     </span><span class="kw">fn </span>try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>flush_buckets = {
-            <span class="kw">let </span>force_flush = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, AggregatorState::ShuttingDown);
-            <span class="self">self</span>.aggregator.pop_flush_buckets(force_flush)
-        };
+        <span class="kw">let </span>force_flush = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, AggregatorState::ShuttingDown);
+        <span class="kw">let </span>buckets = <span class="self">self</span>.aggregator.pop_flush_buckets(force_flush);
 
-        <span class="kw">if </span>flush_buckets.is_empty() {
+        <span class="kw">if </span>buckets.is_empty() {
             <span class="kw">return</span>;
         }
 
-        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;flushing {} projects to receiver&quot;</span>, flush_buckets.len());
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;flushing {} projects to receiver&quot;</span>, buckets.len());
 
         <span class="kw">let </span><span class="kw-2">mut </span>total_bucket_count = <span class="number">0u64</span>;
-        <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>flush_buckets.into_iter() {
+        <span class="kw">for </span>buckets <span class="kw">in </span>buckets.values() {
             <span class="kw">let </span>bucket_count = buckets.len() <span class="kw">as </span>u64;
+            total_bucket_count += bucket_count;
+
             <span class="macro">relay_statsd::metric!</span>(
                 histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
                 aggregator = <span class="self">self</span>.aggregator.name(),
             );
-            total_bucket_count += bucket_count;
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>receiver) = <span class="self">self</span>.receiver {
-                receiver.send(FlushBuckets {
-                    project_key,
-                    buckets,
-                });
-            }
         }
+
         <span class="macro">relay_statsd::metric!</span>(
             histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
             aggregator = <span class="self">self</span>.aggregator.name(),
         );
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>receiver) = <span class="self">self</span>.receiver {
+            receiver.send(FlushBuckets { buckets })
+        }
     }
 
     <span class="kw">fn </span>handle_merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, msg: MergeBuckets) {
@@ -971,7 +964,8 @@
     }
 
     <span class="kw">impl </span>TestReceiver {
-        <span class="kw">fn </span>add_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, buckets: Vec&lt;Bucket&gt;) {
+        <span class="kw">fn </span>add_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, buckets: HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt;) {
+            <span class="kw">let </span>buckets = buckets.into_values().flatten();
             <span class="self">self</span>.data.write().unwrap().buckets.extend(buckets);
         }
 
