@@ -441,13 +441,11 @@ impl EncodeEnvelope {
     }
 }
 
-/// Metric buckets with additional project and scoping information.
+/// Metric buckets with additional project.
 #[derive(Debug)]
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
-    /// Scoping for metric buckets.
-    pub scoping: Scoping,
     /// Project state for extracting quotas.
     pub project_state: Arc<ProjectState>,
 }
@@ -455,7 +453,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub buckets: HashMap<ProjectKey, ProjectMetrics>,
+    pub scopes: HashMap<Scoping, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an envelope and sends it upstream.
@@ -1387,7 +1385,7 @@ impl EnvelopeProcessorService {
         match rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, false) {
             Ok(limits) if limits.is_limited() => {
                 relay_log::debug!(
-                    "dropping {} buckets due to throughput ratelimit",
+                    "dropping {} buckets due to throughput rate limit",
                     quantities.buckets
                 );
 
@@ -1428,10 +1426,9 @@ impl EnvelopeProcessorService {
         use crate::actors::store::StoreMetrics;
         use crate::constants::DEFAULT_EVENT_RETENTION;
 
-        for message in message.buckets.into_values() {
+        for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 mut buckets,
-                scoping,
                 project_state,
             } = message;
 
@@ -1492,10 +1489,9 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for (project_key, message) in message.buckets {
+        for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 buckets,
-                scoping,
                 project_state,
             } = message;
 
@@ -1505,7 +1501,7 @@ impl EnvelopeProcessorService {
             };
 
             let dsn = PartialDsn::outbound(&scoping, upstream);
-            let partitions = partition_buckets(project_key, buckets, partition_count);
+            let partitions = partition_buckets(scoping.project_key, buckets, partition_count);
 
             for (partition_key, buckets) in partitions {
                 let mut num_batches = 0;

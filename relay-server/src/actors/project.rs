@@ -1108,7 +1108,7 @@ impl Project {
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
-    ) -> Option<ProjectMetrics> {
+    ) -> Option<(Scoping, ProjectMetrics)> {
         let len = buckets.len();
         let Some(project_state) = self.valid_state() else {
             relay_log::trace!("there is no project state: dropping {len} buckets",);
@@ -1130,7 +1130,7 @@ impl Project {
             .check_with_quotas(project_state.get_quotas(), item_scoping);
 
         if limits.is_limited() {
-            relay_log::info!("dropping {len} buckets due to rate limit");
+            relay_log::debug!("dropping {len} buckets due to rate limit");
 
             let mode = match project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
@@ -1148,11 +1148,12 @@ impl Project {
             return None;
         }
 
-        Some(ProjectMetrics {
+        let project_metrics = ProjectMetrics {
             buckets,
-            scoping,
             project_state,
-        })
+        };
+
+        Some((scoping, project_metrics))
     }
 }
 

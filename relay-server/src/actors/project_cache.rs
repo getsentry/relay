@@ -887,14 +887,14 @@ impl ProjectCacheBroker {
         for (project_key, buckets) in message.buckets {
             let outcome_aggregator = self.services.outcome_aggregator.clone();
             let project = self.get_or_create_project(project_key);
-            if let Some(b) = project.check_buckets(outcome_aggregator, buckets) {
-                output.insert(project_key, b);
+            if let Some((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
+                output.insert(scoping, b);
             }
         }
 
         self.services
             .envelope_processor
-            .send(EncodeMetrics { buckets: output })
+            .send(EncodeMetrics { scopes: output })
     }
 
     fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {
