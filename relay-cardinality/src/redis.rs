@@ -9,7 +9,7 @@ use relay_statsd::metric;
 use crate::{
     cache::{Cache, CacheOutcome},
     limiter::{CardinalityScope, Entry, EntryId, Limiter, Rejection},
-    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms},
+    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     utils::HitCounter,
     OrganizationId, Result, SlidingWindow,
 };
@@ -165,13 +165,19 @@ impl Limiter for RedisSetLimiter {
         let mut connection = client.connection()?;
 
         for ((organization_id, item_scope), entries) in entries_by_scope {
-            let results = self.check_limits(
-                &mut connection,
-                organization_id,
-                item_scope.clone(),
-                entries,
-                timestamp,
-                limit,
+            let results = metric!(
+                timer(CardinalityLimiterTimers::Redis),
+                scope = &item_scope,
+                {
+                    self.check_limits(
+                        &mut connection,
+                        organization_id,
+                        item_scope.clone(),
+                        entries,
+                        timestamp,
+                        limit,
+                    )
+                }
             )?;
 
             // This always acquires a write lock, but we only hit this
