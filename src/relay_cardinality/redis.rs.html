@@ -537,15 +537,6 @@
 <a href="#537" id="537">537</a>
 <a href="#538" id="538">538</a>
 <a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::HashMap, time::SystemTime};
 
 <span class="kw">use </span>relay_redis::{
@@ -604,10 +595,6 @@
         timestamp: u64,
         limit: usize,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedLimits&gt; {
-        <span class="kw">if </span>entries.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(CheckedLimits::empty());
-        }
-
         <span class="macro">metric!</span>(
             histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() <span class="kw">as </span>u64,
             scope = <span class="kw-2">&amp;</span>item_scope,
@@ -713,6 +700,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection()<span class="question-mark">?</span>;
 
         <span class="kw">for </span>((organization_id, item_scope), entries) <span class="kw">in </span>entries_by_scope {
+            <span class="kw">if </span>entries.is_empty() {
+                <span class="kw">continue</span>;
+            }
+
             <span class="kw">let </span>results = <span class="macro">metric!</span>(
                 timer(CardinalityLimiterTimers::Redis),
                 scope = <span class="kw-2">&amp;</span>item_scope,
@@ -902,15 +893,6 @@
 <span class="kw">struct </span>CheckedLimits {
     entries: Vec&lt;RedisEntry&gt;,
     statuses: Vec&lt;Status&gt;,
-}
-
-<span class="kw">impl </span>CheckedLimits {
-    <span class="kw">fn </span>empty() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            entries: Vec::new(),
-            statuses: Vec::new(),
-        }
-    }
 }
 
 <span class="kw">impl </span>IntoIterator <span class="kw">for </span>CheckedLimits {
