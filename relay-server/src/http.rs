@@ -46,28 +46,22 @@ pub struct Request(pub reqwest::Request);
 
 pub struct RequestBuilder {
     builder: Option<reqwest::RequestBuilder>,
-    body: Option<Bytes>,
 }
 
 impl RequestBuilder {
     pub fn reqwest(builder: reqwest::RequestBuilder) -> Self {
         RequestBuilder {
             builder: Some(builder),
-            body: None,
         }
     }
 
     pub fn finish(self) -> Result<Request, HttpError> {
-        let mut builder = self.builder.unwrap();
-        if let Some(body) = self.body {
-            builder = builder.body(body);
-        }
-        Ok(Request(builder.build()?))
+        Ok(Request(self.builder.unwrap().build()?))
     }
 
     fn build<F>(&mut self, f: F) -> &mut Self
     where
-        F: FnMut(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+        F: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
     {
         self.builder = self.builder.take().map(f);
         self
@@ -98,12 +92,7 @@ impl RequestBuilder {
     }
 
     pub fn body(&mut self, body: Bytes) -> &mut Self {
-        self.body = Some(body);
-        self
-    }
-
-    pub fn get_body(&self) -> Option<&[u8]> {
-        self.body.as_deref()
+        self.build(|builder| builder.body(body))
     }
 }
 

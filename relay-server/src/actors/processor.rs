@@ -1319,7 +1319,7 @@ impl EnvelopeProcessorService {
 
     fn handle_encode_envelope(&self, message: EncodeEnvelope) {
         let mut request = message.request;
-        match encode_payload(request.envelope_body, request.http_encoding) {
+        match encode_payload(&request.envelope_body, request.http_encoding) {
             Err(e) => {
                 request
                     .response_sender
@@ -1534,11 +1534,9 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let (payload, quantities) = partition.take_parts();
-
-        // TODO: Benchmark streamed encoding.
+        let (unencoded, quantities) = partition.take_parts();
         let http_encoding = self.inner.config.http_encoding();
-        let payload = match encode_payload(payload, http_encoding) {
+        let encoded = match encode_payload(&unencoded, http_encoding) {
             Ok(payload) => payload,
             Err(error) => {
                 let error = &error as &dyn std::error::Error;
@@ -1549,10 +1547,11 @@ impl EnvelopeProcessorService {
 
         let request = SendMetricsRequest {
             partition_key: key.map(|k| k.to_string()),
-            payload,
+            unencoded,
+            encoded,
+            http_encoding,
             quantities,
             outcome_aggregator: self.inner.outcome_aggregator.clone(),
-            http_encoding,
         };
 
         self.inner.upstream_relay.send(SendRequest(request));
@@ -1733,9 +1732,9 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
-fn encode_payload(body: Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
+fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
     let envelope_body: Vec<u8> = match http_encoding {
-        HttpEncoding::Identity => return Ok(body),
+        HttpEncoding::Identity => return Ok(body.clone()),
         HttpEncoding::Deflate => {
             let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
             encoder.write_all(body.as_ref())?;
@@ -1849,8 +1848,10 @@ impl<'a> Partition<'a> {
 struct SendMetricsRequest {
     /// If the partition key is set, the request is marked with `X-Sentry-Relay-Shard`.
     partition_key: Option<String>,
+    /// Serialized metric buckets without encoding applied, used for signing.
+    unencoded: Bytes,
     /// Serialized metric buckets with the stated HTTP encoding applied.
-    payload: Bytes,
+    encoded: Bytes,
     /// Encoding (compression) of the payload.
     http_encoding: HttpEncoding,
     /// Information about the metric quantities in the payload for outcomes.
@@ -1864,8 +1865,8 @@ impl UpstreamRequest for SendMetricsRequest {
         true
     }
 
-    fn sign(&self) -> bool {
-        true
+    fn sign(&mut self) -> Option<Bytes> {
+        Some(self.unencoded.clone())
     }
 
     fn method(&self) -> reqwest::Method {
@@ -1885,7 +1886,7 @@ impl UpstreamRequest for SendMetricsRequest {
             .content_encoding(self.http_encoding)
             .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
             .header(header::CONTENT_TYPE, b"application/json")
-            .body(self.payload.clone());
+            .body(self.encoded.clone());
 
         Ok(())
     }
