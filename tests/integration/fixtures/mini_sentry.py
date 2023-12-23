@@ -1,8 +1,9 @@
+import datetime
 import gzip
+import json
 import os
 import re
 import uuid
-import datetime
 from copy import deepcopy
 from queue import Queue
 
@@ -37,6 +38,7 @@ class Sentry(SentryLike):
         self.project_configs = {}
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
+        self.captured_metrics = Queue()
         self.test_failures = []
         self.hits = {}
         self.known_relays = {}
@@ -385,6 +387,24 @@ def mini_sentry(request):  # noqa
 
         outcomes_batch = flask_request.json
         sentry.captured_outcomes.put(outcomes_batch)
+        return jsonify({})
+
+    @app.route("/api/0/relays/metrics/", methods=["POST"])
+    def global_metrics():
+        """
+        Mock endpoint for global batched metrics. SENTRY DOES NOT IMPLEMENT THIS ENDPOINT! This is
+        just used to verify Relay's batching behavior.
+        """
+        relay_id = flask_request.headers["x-sentry-relay-id"]
+        if relay_id not in authenticated_relays:
+            abort(403, "relay not registered")
+
+        encoding = flask_request.headers.get("Content-Encoding", "")
+        assert encoding == "gzip", "Relay should always compress store requests"
+        data = gzip.decompress(flask_request.data)
+
+        metrics_batch = json.loads(data)
+        sentry.captured_metrics.put(metrics_batch)
         return jsonify({})
 
     @app.errorhandler(500)

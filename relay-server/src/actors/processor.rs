@@ -1883,8 +1883,8 @@ impl UpstreamRequest for SendMetricsRequest {
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
         builder
             .content_encoding(self.http_encoding)
-            .header(header::CONTENT_TYPE, b"application/json")
             .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
+            .header(header::CONTENT_TYPE, b"application/json")
             .body(self.payload.clone());
 
         Ok(())
