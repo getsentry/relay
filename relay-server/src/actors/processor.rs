@@ -1200,9 +1200,14 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        match serde_json::from_slice::<HashMap<ProjectKey, Vec<Bucket>>>(&payload) {
-            Ok(batch_map) => {
-                for (public_key, mut buckets) in batch_map {
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            buckets: HashMap<ProjectKey, Vec<Bucket>>,
+        }
+
+        match serde_json::from_slice(&payload) {
+            Ok(Wrapper { buckets }) => {
+                for (public_key, mut buckets) in buckets {
                     for bucket in &mut buckets {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                     }
@@ -1830,7 +1835,13 @@ impl<'a> Partition<'a> {
     ///
     /// This empties the partition, so that it can be reused.
     fn take_parts(&mut self) -> (Bytes, Vec<(Scoping, SourceQuantities)>) {
-        let payload = serde_json::to_vec(&self.views).unwrap().into();
+        #[derive(serde::Serialize)]
+        struct Wrapper<'a> {
+            buckets: &'a HashMap<ProjectKey, Vec<BucketView<'a>>>,
+        }
+
+        let buckets = &self.views;
+        let payload = serde_json::to_vec(&Wrapper { buckets }).unwrap().into();
         let quantities = self.quantities.clone();
 
         self.views.clear();

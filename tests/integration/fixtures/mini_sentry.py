@@ -403,7 +403,7 @@ def mini_sentry(request):  # noqa
         assert encoding == "gzip", "Relay should always compress store requests"
         data = gzip.decompress(flask_request.data)
 
-        metrics_batch = json.loads(data)
+        metrics_batch = json.loads(data)["buckets"]
         sentry.captured_metrics.put(metrics_batch)
         return jsonify({})
 
