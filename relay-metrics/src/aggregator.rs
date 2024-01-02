@@ -859,7 +859,6 @@ impl fmt::Debug for Aggregator {
 
 #[cfg(test)]
 mod tests {
-
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -1177,27 +1176,29 @@ mod tests {
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
-        aggregator.pop_flush_buckets(false);
+        aggregator.pop_flush_buckets(true);
         assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
-    // #[test]
-    // fn test_get_bucket_timestamp_overflow() {
-    //     let config = AggregatorConfig {
-    //         bucket_interval: 10,
-    //         initial_delay: 0,
-    //         debounce_delay: 0,
-    //         ..Default::default()
-    //     };
+    #[test]
+    fn test_get_bucket_timestamp_overflow() {
+        let config = AggregatorConfig {
+            bucket_interval: 10,
+            initial_delay: 0,
+            debounce_delay: 0,
+            ..Default::default()
+        };
 
-    //     assert!(matches!(
-    //         config
-    //             .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
-    //             .unwrap_err()
-    //             .kind,
-    //         AggregateMetricsErrorKind::InvalidTimestamp(_)
-    //     ));
-    // }
+        let aggregator = Aggregator::new(config);
+
+        assert!(matches!(
+            aggregator
+                .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
+                .unwrap_err()
+                .kind,
+            AggregateMetricsErrorKind::InvalidTimestamp(_)
+        ));
+    }
 
     #[test]
     fn test_get_bucket_timestamp_zero() {
