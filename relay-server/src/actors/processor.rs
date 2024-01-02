@@ -957,7 +957,7 @@ impl EnvelopeProcessorService {
     /// the same priority.
     ///
     /// Note: This function [`event::extract`] should be refactored and unified.
-    fn event_item_type(state: &ProcessEnvelopeState) -> Option<ItemType> {
+    fn main_item_type(state: &ProcessEnvelopeState) -> Option<ItemType> {
         let items = state.envelope().items();
         if items.clone().any(|item| item.ty() == &ItemType::Event) {
             return Some(ItemType::Event);
@@ -1012,7 +1012,7 @@ impl EnvelopeProcessorService {
         );
 
         // Find the type we want to process.
-        let Some(ty) = Self::event_item_type(state) else {
+        let Some(ty) = Self::main_item_type(state) else {
             relay_log::error!("There are no event type and no items in the envelope");
             return Err(ProcessingError::NoEventPayload);
         };
