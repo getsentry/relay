@@ -1,6 +1,5 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use relay_config::EmitOutcomes;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::processor::ProcessBatchedMetrics;
@@ -15,7 +14,7 @@ pub async fn handle(
     start_time: StartTime,
     body: SignedBytes,
 ) -> impl IntoResponse {
-    if !body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
+    if !body.relay.internal {
         return StatusCode::FORBIDDEN.into_response();
     }
 
