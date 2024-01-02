@@ -46,12 +46,20 @@ impl CounterMetric for CardinalityLimiterCounters {
 pub enum CardinalityLimiterTimers {
     /// Timer for the entire process of checking cardinality limits.
     CardinalityLimiter,
+    /// Timer for the duration of the Redis call.
+    ///
+    /// This metric is tagged with:
+    ///  - `scope`: The scope of the check operation.
+    #[cfg(feature = "redis")]
+    Redis,
 }
 
 impl TimerMetric for CardinalityLimiterTimers {
     fn name(&self) -> &'static str {
         match self {
             CardinalityLimiterTimers::CardinalityLimiter => "cardinality.limiter.duration",
+            #[cfg(feature = "redis")]
+            CardinalityLimiterTimers::Redis => "cardinality.limiter.redis.duration",
         }
     }
 }

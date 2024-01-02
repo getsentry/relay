@@ -9,7 +9,7 @@ use relay_statsd::metric;
 use crate::{
     cache::{Cache, CacheOutcome},
     limiter::{CardinalityScope, Entry, EntryId, Limiter, Rejection},
-    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms},
+    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     utils::HitCounter,
     OrganizationId, Result, SlidingWindow,
 };
@@ -56,10 +56,6 @@ impl RedisSetLimiter {
         timestamp: u64,
         limit: usize,
     ) -> Result<CheckedLimits> {
-        if entries.is_empty() {
-            return Ok(CheckedLimits::empty());
-        }
-
         metric!(
             histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
             scope = &item_scope,
@@ -165,13 +161,23 @@ impl Limiter for RedisSetLimiter {
         let mut connection = client.connection()?;
 
         for ((organization_id, item_scope), entries) in entries_by_scope {
-            let results = self.check_limits(
-                &mut connection,
-                organization_id,
-                item_scope.clone(),
-                entries,
-                timestamp,
-                limit,
+            if entries.is_empty() {
+                continue;
+            }
+
+            let results = metric!(
+                timer(CardinalityLimiterTimers::Redis),
+                scope = &item_scope,
+                {
+                    self.check_limits(
+                        &mut connection,
+                        organization_id,
+                        item_scope.clone(),
+                        entries,
+                        timestamp,
+                        limit,
+                    )
+                }
             )?;
 
             // This always acquires a write lock, but we only hit this
@@ -348,15 +354,6 @@ impl CardinalityScript {
 struct CheckedLimits {
     entries: Vec<RedisEntry>,
     statuses: Vec<Status>,
-}
-
-impl CheckedLimits {
-    fn empty() -> Self {
-        Self {
-            entries: Vec::new(),
-            statuses: Vec::new(),
-        }
-    }
 }
 
 impl IntoIterator for CheckedLimits {

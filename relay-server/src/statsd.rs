@@ -158,6 +158,12 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -188,6 +194,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }

@@ -114,7 +114,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
         mini_sentry.add_full_project_config(project_key)
         # Set the broken config, so we won't be able to dequeue the envelopes.
         config = mini_sentry.project_configs[project_key]["config"]
-        config.setdefault("measurements", 1)
+        config["quotas"] = None
 
         relay_config = {
             "spool": {
