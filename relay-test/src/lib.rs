@@ -8,7 +8,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```ignore
 //! #[test]
 //! fn my_test() {
 //!     relay_test::setup();
