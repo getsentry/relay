@@ -182,6 +182,15 @@ impl fmt::Display for UnixTimestamp {
     }
 }
 
+/// Adds _whole_ seconds of the given duration to the timestamp.
+impl std::ops::Add<Duration> for UnixTimestamp {
+    type Output = Self;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        Self(self.0.saturating_add(rhs.as_secs()))
+    }
+}
+
 impl std::ops::Sub for UnixTimestamp {
     type Output = Duration;
 
