@@ -1059,6 +1059,34 @@
 <a href="#1059" id="1059">1059</a>
 <a href="#1060" id="1060">1060</a>
 <a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
@@ -1075,6 +1103,11 @@
 /// `2` means that all buckets smaller than half of `metrics_max_batch_size` will be moved in their entirety,
 /// and buckets larger will be split up.
 </span><span class="kw">const </span>BUCKET_SPLIT_FACTOR: usize = <span class="number">32</span>;
+
+<span class="doccomment">/// The base size of a serialized bucket in bytes.
+///
+/// This is the size of a bucket&#39;s fixed fields in JSON format, excluding the value and tags.
+</span><span class="kw">const </span>BUCKET_SIZE: usize = <span class="number">50</span>;
 
 <span class="doccomment">/// The average size of values when serialized.
 </span><span class="kw">const </span>AVG_VALUE_SIZE: usize = <span class="number">8</span>;
@@ -1337,14 +1370,10 @@
                 }
                 SplitDecision::MoveToNextBatch =&gt; <span class="kw">break</span>,
                 SplitDecision::Split(at) =&gt; {
-                    <span class="comment">// Only certain buckets can be split, if the bucket can&#39;t be split,
-                    // move it to the next batch.
-                    </span><span class="kw">if </span>bucket.can_split() {
-                        <span class="self">self</span>.current = Index {
-                            slice: <span class="self">self</span>.current.slice,
-                            bucket: <span class="self">self</span>.current.bucket + at,
-                        };
-                    }
+                    <span class="self">self</span>.current = Index {
+                        slice: <span class="self">self</span>.current.slice,
+                        bucket: <span class="self">self</span>.current.bucket + at,
+                    };
                     <span class="kw">break</span>;
                 }
             }
@@ -1393,6 +1422,7 @@
 /// ```
 ///
 /// A view can be split again into multiple smaller views.
+</span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>BucketView&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The source bucket.
     </span>inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Bucket,
@@ -1486,6 +1516,46 @@
 
         <span class="self">self</span>.range = range;
         <span class="prelude-val">Some</span>(<span class="self">self</span>)
+    }
+
+    <span class="doccomment">/// Estimates the number of bytes needed to serialize the bucket without value.
+    ///
+    /// Note that this does not match the exact size of the serialized payload. Instead, the size is
+    /// approximated through tags and a static overhead.
+    </span><span class="kw">fn </span>estimated_base_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        BUCKET_SIZE + <span class="self">self</span>.name().len() + aggregator::tags_cost(<span class="self">self</span>.tags())
+    }
+
+    <span class="doccomment">/// Estimates the number of bytes needed to serialize the bucket.
+    ///
+    /// Note that this does not match the exact size of the serialized payload. Instead, the size is
+    /// approximated through the number of contained values, assuming an average size of serialized
+    /// values.
+    </span><span class="kw">pub fn </span>estimated_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.estimated_base_size() + <span class="self">self</span>.len() * AVG_VALUE_SIZE
+    }
+
+    <span class="doccomment">/// Calculates a split for this bucket if its estimated serialization size exceeds a threshold.
+    ///
+    /// There are three possible return values:
+    ///  - `(Some, None)` if the bucket fits entirely into the size budget. There is no split.
+    ///  - `(None, Some)` if the size budget cannot even hold the bucket name and tags. There is no
+    ///    split, the entire bucket is moved.
+    ///  - `(Some, Some)` if the bucket fits partially. Remaining values are moved into a new bucket
+    ///    with all other information cloned.
+    ///
+    /// This is an approximate function. The bucket is not actually serialized, but rather its
+    /// footprint is estimated through the number of data points contained. See
+    /// [`estimated_size`](Self::estimated_size) for more information.
+    </span><span class="kw">pub fn </span>split(<span class="self">self</span>, size: usize, max_size: <span class="prelude-ty">Option</span>&lt;usize&gt;) -&gt; (<span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;, <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;) {
+        <span class="kw">match </span>split_at(<span class="kw-2">&amp;</span><span class="self">self</span>, size, max_size.unwrap_or(<span class="number">0</span>) / BUCKET_SPLIT_FACTOR) {
+            SplitDecision::BucketFits(<span class="kw">_</span>) =&gt; (<span class="prelude-val">Some</span>(<span class="self">self</span>), <span class="prelude-val">None</span>),
+            SplitDecision::MoveToNextBatch =&gt; (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="self">self</span>)),
+            SplitDecision::Split(at) =&gt; {
+                <span class="kw">let </span>Range { start, end } = <span class="self">self</span>.range.clone();
+                (<span class="self">self</span>.clone().select(start..at), <span class="self">self</span>.select(at..end))
+            }
+        }
     }
 
     <span class="doccomment">/// Whether the bucket can be split into multiple.
@@ -1685,14 +1755,18 @@
 /// `estimate_size` for more information.
 </span><span class="kw">fn </span>split_at(bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">&#39;_</span>&gt;, max_size: usize, min_split_size: usize) -&gt; SplitDecision {
     <span class="comment">// If there&#39;s enough space for the entire bucket, do not perform a split.
-    </span><span class="kw">let </span>bucket_size = estimate_size(bucket);
+    </span><span class="kw">let </span>bucket_size = bucket.estimated_size();
     <span class="kw">if </span>max_size &gt;= bucket_size {
         <span class="kw">return </span>SplitDecision::BucketFits(bucket_size);
     }
 
+    <span class="kw">if </span>!bucket.can_split() {
+        <span class="kw">return </span>SplitDecision::MoveToNextBatch;
+    }
+
     <span class="comment">// If the bucket key can&#39;t even fit into the remaining length, move the entire bucket into
     // the right-hand side.
-    </span><span class="kw">let </span>own_size = estimate_base_size(bucket);
+    </span><span class="kw">let </span>own_size = bucket.estimated_base_size();
     <span class="kw">if </span>max_size &lt; (own_size + AVG_VALUE_SIZE) {
         <span class="comment">// split_at must not be zero
         </span><span class="kw">return </span>SplitDecision::MoveToNextBatch;
@@ -1705,25 +1779,7 @@
     <span class="comment">// Perform a split with the remaining space after adding the key. We assume an average
     // length of 8 bytes per value and compute the number of items fitting into the left side.
     </span><span class="kw">let </span>split_at = (max_size - own_size) / AVG_VALUE_SIZE;
-
     SplitDecision::Split(split_at)
-}
-
-<span class="doccomment">/// Estimates the number of bytes needed to serialize the bucket without value.
-///
-/// Note that this does not match the exact size of the serialized payload. Instead, the size is
-/// approximated through tags and a static overhead.
-</span><span class="kw">fn </span>estimate_base_size(bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; usize {
-    <span class="number">50 </span>+ bucket.name().len() + aggregator::tags_cost(bucket.tags())
-}
-
-<span class="doccomment">/// Estimates the number of bytes needed to serialize the bucket.
-///
-/// Note that this does not match the exact size of the serialized payload. Instead, the size is
-/// approximated through the number of contained values, assuming an average size of serialized
-/// values.
-</span><span class="kw">fn </span>estimate_size(bucket: <span class="kw-2">&amp;</span>BucketView&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; usize {
-    estimate_base_size(bucket) + bucket.len() * AVG_VALUE_SIZE
 }
 
 <span class="attr">#[cfg(test)]
@@ -1980,7 +2036,7 @@ b3:42:75|s&quot;#</span>;
             .by_size(<span class="number">100</span>)
             .map(|bv| {
                 <span class="kw">let </span>len: usize = bv.iter().map(|b| b.len()).sum();
-                <span class="kw">let </span>size: usize = bv.iter().map(|b| estimate_size(<span class="kw-2">&amp;</span>b)).sum();
+                <span class="kw">let </span>size: usize = bv.iter().map(|b| b.estimated_size()).sum();
                 (len, size)
             })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
@@ -2006,7 +2062,7 @@ b3:42:75|s&quot;#</span>;
             .by_size(<span class="number">250</span>)
             .map(|bv| {
                 <span class="kw">let </span>len: usize = bv.iter().map(|b| b.len()).sum();
-                <span class="kw">let </span>size: usize = bv.iter().map(|b| estimate_size(<span class="kw-2">&amp;</span>b)).sum();
+                <span class="kw">let </span>size: usize = bv.iter().map(|b| b.estimated_size()).sum();
                 (len, size)
             })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
@@ -2032,7 +2088,7 @@ b3:42:75|s&quot;#</span>;
             .by_size(<span class="number">500</span>)
             .map(|bv| {
                 <span class="kw">let </span>len: usize = bv.iter().map(|b| b.len()).sum();
-                <span class="kw">let </span>size: usize = bv.iter().map(|b| estimate_size(<span class="kw-2">&amp;</span>b)).sum();
+                <span class="kw">let </span>size: usize = bv.iter().map(|b| b.estimated_size()).sum();
                 (len, size)
             })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();

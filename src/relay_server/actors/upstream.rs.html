@@ -1527,6 +1527,18 @@
 <a href="#1527" id="1527">1527</a>
 <a href="#1528" id="1528">1528</a>
 <a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -1828,12 +1840,16 @@
 
     <span class="doccomment">/// Add the `X-Sentry-Relay-Signature` header to the outgoing request.
     ///
+    /// When no signature should be added, this method should return `None`. Otherwise, this method
+    /// should return the payload to sign. For requests with content encoding, this must be the
+    /// **uncompressed** payload.
+    ///
     /// This requires configuration of the Relay&#39;s credentials. If the credentials are not
     /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
-    /// Defaults to `false`.
-    </span><span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="bool-val">false
+    /// Defaults to `None`.
+    </span><span class="kw">fn </span>sign(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Bytes&gt; {
+        <span class="prelude-val">None
     </span>}
 
     <span class="doccomment">/// Returns the name of the logical route.
@@ -1949,6 +1965,16 @@
             sender,
         }
     }
+
+    <span class="doccomment">/// Memoize the serialized body for retries and signing.
+    </span><span class="kw">fn </span>body(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, HttpError&gt; {
+        <span class="kw">let </span>body = <span class="kw">match </span><span class="self">self</span>.body {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>body) =&gt; body,
+            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.body.insert(serde_json::to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>.query)<span class="question-mark">?</span>.into()),
+        };
+
+        <span class="prelude-val">Ok</span>(body.clone())
+    }
 }
 
 <span class="kw">impl</span>&lt;T&gt; UpstreamRequest <span class="kw">for </span>UpstreamQueryRequest&lt;T&gt;
@@ -1971,9 +1997,12 @@
         <span class="bool-val">true
     </span>}
 
-    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="bool-val">true
-    </span>}
+    <span class="kw">fn </span>sign(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Bytes&gt; {
+        <span class="comment">// Computing the body is practically infallible since we&#39;re serializing standard structures
+        // into a string. Even if it fails, `sign` is called after `build` and the error will be
+        // reported there.
+        </span><span class="self">self</span>.body().ok()
+    }
 
     <span class="kw">fn </span>method(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Method {
         <span class="self">self</span>.query.method()
@@ -1994,11 +2023,7 @@
     }
 
     <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: <span class="kw-2">&amp;mut </span>RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;(), HttpError&gt; {
-        <span class="comment">// Memoize the serialized body for retries.
-        </span><span class="kw">let </span>body = <span class="kw">match </span><span class="self">self</span>.body {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>body) =&gt; body,
-            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.body.insert(serde_json::to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>.query)<span class="question-mark">?</span>.into()),
-        };
+        <span class="kw">let </span>body = <span class="self">self</span>.body()<span class="question-mark">?</span>;
 
         <span class="macro">relay_statsd::metric!</span>(
             histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() <span class="kw">as </span>u64
@@ -2290,7 +2315,7 @@
             <span class="kw">let </span><span class="kw-2">mut </span>builder = RequestBuilder::reqwest(<span class="self">self</span>.reqwest.request(request.method(), url));
             builder.header(<span class="string">&quot;Host&quot;</span>, host_header.as_bytes());
 
-            <span class="kw">if </span>request.set_relay_id() || request.sign() {
+            <span class="kw">if </span>request.set_relay_id() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(credentials) = <span class="self">self</span>.config.credentials() {
                     builder.header(<span class="string">&quot;X-Sentry-Relay-Id&quot;</span>, credentials.id.to_string());
                 }
@@ -2298,14 +2323,13 @@
 
             request.build(<span class="kw-2">&amp;mut </span>builder)<span class="question-mark">?</span>;
 
-            <span class="kw">if </span>request.sign() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(payload) = request.sign() {
                 <span class="kw">let </span>credentials = <span class="self">self
                     </span>.config
                     .credentials()
                     .ok_or(UpstreamRequestError::NoCredentials)<span class="question-mark">?</span>;
 
-                <span class="kw">let </span>body = builder.get_body().unwrap_or_default();
-                <span class="kw">let </span>signature = credentials.secret_key.sign(body);
+                <span class="kw">let </span>signature = credentials.secret_key.sign(<span class="kw-2">&amp;</span>payload);
                 builder.header(<span class="string">&quot;X-Sentry-Relay-Signature&quot;</span>, signature.as_bytes());
             }
 

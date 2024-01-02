@@ -170,14 +170,6 @@
 <a href="#170" id="170">170</a>
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -304,13 +296,6 @@
     ///    time period (`false`) or after the initial delay has expired (`true`).
     </span>BucketsDelay,
 
-    <span class="doccomment">///
-    /// Distribution of flush buckets over partition keys.
-    ///
-    /// The distribution of buckets should be even.
-    /// If it is not, this metric should expose it.
-    </span>PartitionKeys,
-
     <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.
     ///
     /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
@@ -323,7 +308,6 @@
             <span class="self">Self</span>::BucketsFlushed =&gt; <span class="string">&quot;metrics.buckets.flushed&quot;</span>,
             <span class="self">Self</span>::BucketsFlushedPerProject =&gt; <span class="string">&quot;metrics.buckets.flushed_per_project&quot;</span>,
             <span class="self">Self</span>::BucketsDelay =&gt; <span class="string">&quot;metrics.buckets.delay&quot;</span>,
-            <span class="self">Self</span>::PartitionKeys =&gt; <span class="string">&quot;metrics.buckets.partition_keys&quot;</span>,
             <span class="self">Self</span>::InvalidBucketTimestamp =&gt; <span class="string">&quot;metrics.buckets.invalid_timestamp&quot;</span>,
         }
     }

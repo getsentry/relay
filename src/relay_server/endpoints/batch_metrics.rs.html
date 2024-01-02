@@ -26,10 +26,8 @@
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::IntoResponse;
-<span class="kw">use </span>relay_config::EmitOutcomes;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessBatchedMetrics;
@@ -44,7 +42,7 @@
     start_time: StartTime,
     body: SignedBytes,
 ) -&gt; <span class="kw">impl </span>IntoResponse {
-    <span class="kw">if </span>!body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {
+    <span class="kw">if </span>!body.relay.internal {
         <span class="kw">return </span>StatusCode::FORBIDDEN.into_response();
     }
 
