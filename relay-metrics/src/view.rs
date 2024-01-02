@@ -15,6 +15,11 @@ use crate::BucketValue;
 /// and buckets larger will be split up.
 const BUCKET_SPLIT_FACTOR: usize = 32;
 
+/// The base size of a serialized bucket in bytes.
+///
+/// This is the size of a bucket's fixed fields in JSON format, excluding the value and tags.
+const BUCKET_SIZE: usize = 50;
+
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
 
@@ -276,14 +281,10 @@ impl<'a> Iterator for BucketsViewBySizeIter<'a> {
                 }
                 SplitDecision::MoveToNextBatch => break,
                 SplitDecision::Split(at) => {
-                    // Only certain buckets can be split, if the bucket can't be split,
-                    // move it to the next batch.
-                    if bucket.can_split() {
-                        self.current = Index {
-                            slice: self.current.slice,
-                            bucket: self.current.bucket + at,
-                        };
-                    }
+                    self.current = Index {
+                        slice: self.current.slice,
+                        bucket: self.current.bucket + at,
+                    };
                     break;
                 }
             }
@@ -332,6 +333,7 @@ impl<'a> Serialize for BucketsView<'a> {
 /// ```
 ///
 /// A view can be split again into multiple smaller views.
+#[derive(Clone)]
 pub struct BucketView<'a> {
     /// The source bucket.
     inner: &'a Bucket,
@@ -425,6 +427,46 @@ impl<'a> BucketView<'a> {
 
         self.range = range;
         Some(self)
+    }
+
+    /// Estimates the number of bytes needed to serialize the bucket without value.
+    ///
+    /// Note that this does not match the exact size of the serialized payload. Instead, the size is
+    /// approximated through tags and a static overhead.
+    fn estimated_base_size(&self) -> usize {
+        BUCKET_SIZE + self.name().len() + aggregator::tags_cost(self.tags())
+    }
+
+    /// Estimates the number of bytes needed to serialize the bucket.
+    ///
+    /// Note that this does not match the exact size of the serialized payload. Instead, the size is
+    /// approximated through the number of contained values, assuming an average size of serialized
+    /// values.
+    pub fn estimated_size(&self) -> usize {
+        self.estimated_base_size() + self.len() * AVG_VALUE_SIZE
+    }
+
+    /// Calculates a split for this bucket if its estimated serialization size exceeds a threshold.
+    ///
+    /// There are three possible return values:
+    ///  - `(Some, None)` if the bucket fits entirely into the size budget. There is no split.
+    ///  - `(None, Some)` if the size budget cannot even hold the bucket name and tags. There is no
+    ///    split, the entire bucket is moved.
+    ///  - `(Some, Some)` if the bucket fits partially. Remaining values are moved into a new bucket
+    ///    with all other information cloned.
+    ///
+    /// This is an approximate function. The bucket is not actually serialized, but rather its
+    /// footprint is estimated through the number of data points contained. See
+    /// [`estimated_size`](Self::estimated_size) for more information.
+    pub fn split(self, size: usize, max_size: Option<usize>) -> (Option<Self>, Option<Self>) {
+        match split_at(&self, size, max_size.unwrap_or(0) / BUCKET_SPLIT_FACTOR) {
+            SplitDecision::BucketFits(_) => (Some(self), None),
+            SplitDecision::MoveToNextBatch => (None, Some(self)),
+            SplitDecision::Split(at) => {
+                let Range { start, end } = self.range.clone();
+                (self.clone().select(start..at), self.select(at..end))
+            }
+        }
     }
 
     /// Whether the bucket can be split into multiple.
@@ -624,14 +666,18 @@ enum SplitDecision {
 /// `estimate_size` for more information.
 fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> SplitDecision {
     // If there's enough space for the entire bucket, do not perform a split.
-    let bucket_size = estimate_size(bucket);
+    let bucket_size = bucket.estimated_size();
     if max_size >= bucket_size {
         return SplitDecision::BucketFits(bucket_size);
     }
 
+    if !bucket.can_split() {
+        return SplitDecision::MoveToNextBatch;
+    }
+
     // If the bucket key can't even fit into the remaining length, move the entire bucket into
     // the right-hand side.
-    let own_size = estimate_base_size(bucket);
+    let own_size = bucket.estimated_base_size();
     if max_size < (own_size + AVG_VALUE_SIZE) {
         // split_at must not be zero
         return SplitDecision::MoveToNextBatch;
@@ -644,25 +690,7 @@ fn split_at(bucket: &BucketView<'_>, max_size: usize, min_split_size: usize) -> 
     // Perform a split with the remaining space after adding the key. We assume an average
     // length of 8 bytes per value and compute the number of items fitting into the left side.
     let split_at = (max_size - own_size) / AVG_VALUE_SIZE;
-
     SplitDecision::Split(split_at)
-}
-
-/// Estimates the number of bytes needed to serialize the bucket without value.
-///
-/// Note that this does not match the exact size of the serialized payload. Instead, the size is
-/// approximated through tags and a static overhead.
-fn estimate_base_size(bucket: &BucketView<'_>) -> usize {
-    50 + bucket.name().len() + aggregator::tags_cost(bucket.tags())
-}
-
-/// Estimates the number of bytes needed to serialize the bucket.
-///
-/// Note that this does not match the exact size of the serialized payload. Instead, the size is
-/// approximated through the number of contained values, assuming an average size of serialized
-/// values.
-fn estimate_size(bucket: &BucketView<'_>) -> usize {
-    estimate_base_size(bucket) + bucket.len() * AVG_VALUE_SIZE
 }
 
 #[cfg(test)]
@@ -919,7 +947,7 @@ b3:42:75|s"#;
             .by_size(100)
             .map(|bv| {
                 let len: usize = bv.iter().map(|b| b.len()).sum();
-                let size: usize = bv.iter().map(|b| estimate_size(&b)).sum();
+                let size: usize = bv.iter().map(|b| b.estimated_size()).sum();
                 (len, size)
             })
             .collect::<Vec<_>>();
@@ -945,7 +973,7 @@ b3:42:75|s"#;
             .by_size(250)
             .map(|bv| {
                 let len: usize = bv.iter().map(|b| b.len()).sum();
-                let size: usize = bv.iter().map(|b| estimate_size(&b)).sum();
+                let size: usize = bv.iter().map(|b| b.estimated_size()).sum();
                 (len, size)
             })
             .collect::<Vec<_>>();
@@ -971,7 +999,7 @@ b3:42:75|s"#;
             .by_size(500)
             .map(|bv| {
                 let len: usize = bv.iter().map(|b| b.len()).sum();
-                let size: usize = bv.iter().map(|b| estimate_size(&b)).sum();
+                let size: usize = bv.iter().map(|b| b.estimated_size()).sum();
                 (len, size)
             })
             .collect::<Vec<_>>();

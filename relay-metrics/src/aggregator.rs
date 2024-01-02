@@ -71,13 +71,9 @@ impl BucketKey {
     ///
     /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
-        BucketKeyRef {
-            project_key: self.project_key,
-            timestamp: self.timestamp,
-            metric_name: &self.metric_name,
-            tags: &self.tags,
-        }
-        .hash64()
+        let mut hasher = FnvHasher::default();
+        std::hash::Hash::hash(self, &mut hasher);
+        hasher.finish()
     }
 
     /// Estimates the number of bytes needed to encode the bucket key.
@@ -94,29 +90,6 @@ impl BucketKey {
             Ok(mri) => mri.namespace,
             Err(_) => MetricNamespace::Unsupported,
         }
-    }
-}
-
-/// Pendant to [`BucketKey`] for referenced data, not owned data.
-///
-/// This makes it possible to compute a hash for a [`Bucket`]
-/// without destructing the bucket into a [`BucketKey`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct BucketKeyRef<'a> {
-    project_key: ProjectKey,
-    timestamp: UnixTimestamp,
-    metric_name: &'a str,
-    tags: &'a BTreeMap<String, String>,
-}
-
-impl<'a> BucketKeyRef<'a> {
-    /// Creates a 64-bit hash of the bucket key using FnvHasher.
-    ///
-    /// This is used for partition key computation and statsd logging.
-    fn hash64(&self) -> u64 {
-        let mut hasher = FnvHasher::default();
-        std::hash::Hash::hash(self, &mut hasher);
-        hasher.finish()
     }
 }
 
@@ -886,36 +859,6 @@ impl fmt::Debug for Aggregator {
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
             .finish()
     }
-}
-
-/// Splits buckets into N logical partitions, determined by the bucket key.
-pub fn partition_buckets(
-    project_key: ProjectKey,
-    buckets: impl IntoIterator<Item = Bucket>,
-    flush_partitions: Option<u64>,
-) -> BTreeMap<Option<u64>, Vec<Bucket>> {
-    let flush_partitions = match flush_partitions {
-        None => return BTreeMap::from([(None, buckets.into_iter().collect())]),
-        Some(x) => x.max(1), // handle 0,
-    };
-    let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
-    for bucket in buckets {
-        let key = BucketKeyRef {
-            project_key,
-            timestamp: bucket.timestamp,
-            metric_name: &bucket.name,
-            tags: &bucket.tags,
-        };
-
-        let partition_key = key.hash64() % flush_partitions;
-        partitions
-            .entry(Some(partition_key))
-            .or_default()
-            .push(bucket);
-
-        relay_statsd::metric!(histogram(MetricHistograms::PartitionKeys) = partition_key);
-    }
-    partitions
 }
 
 #[cfg(test)]

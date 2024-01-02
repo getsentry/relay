@@ -299,12 +299,16 @@ pub trait UpstreamRequest: Send + Sync + fmt::Debug {
 
     /// Add the `X-Sentry-Relay-Signature` header to the outgoing request.
     ///
+    /// When no signature should be added, this method should return `None`. Otherwise, this method
+    /// should return the payload to sign. For requests with content encoding, this must be the
+    /// **uncompressed** payload.
+    ///
     /// This requires configuration of the Relay's credentials. If the credentials are not
     /// configured, the request will fail with [`UpstreamRequestError::NoCredentials`].
     ///
-    /// Defaults to `false`.
-    fn sign(&self) -> bool {
-        false
+    /// Defaults to `None`.
+    fn sign(&mut self) -> Option<Bytes> {
+        None
     }
 
     /// Returns the name of the logical route.
@@ -420,6 +424,16 @@ where
             sender,
         }
     }
+
+    /// Memoize the serialized body for retries and signing.
+    fn body(&mut self) -> Result<Bytes, HttpError> {
+        let body = match self.body {
+            Some(ref body) => body,
+            None => self.body.insert(serde_json::to_vec(&self.query)?.into()),
+        };
+
+        Ok(body.clone())
+    }
 }
 
 impl<T> UpstreamRequest for UpstreamQueryRequest<T>
@@ -442,8 +456,11 @@ where
         true
     }
 
-    fn sign(&self) -> bool {
-        true
+    fn sign(&mut self) -> Option<Bytes> {
+        // Computing the body is practically infallible since we're serializing standard structures
+        // into a string. Even if it fails, `sign` is called after `build` and the error will be
+        // reported there.
+        self.body().ok()
     }
 
     fn method(&self) -> Method {
@@ -465,11 +482,7 @@ where
     }
 
     fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
-        // Memoize the serialized body for retries.
-        let body = match self.body {
-            Some(ref body) => body,
-            None => self.body.insert(serde_json::to_vec(&self.query)?.into()),
-        };
+        let body = self.body()?;
 
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamQueryBodySize) = body.len() as u64
@@ -761,7 +774,7 @@ impl SharedClient {
             let mut builder = RequestBuilder::reqwest(self.reqwest.request(request.method(), url));
             builder.header("Host", host_header.as_bytes());
 
-            if request.set_relay_id() || request.sign() {
+            if request.set_relay_id() {
                 if let Some(credentials) = self.config.credentials() {
                     builder.header("X-Sentry-Relay-Id", credentials.id.to_string());
                 }
@@ -769,14 +782,13 @@ impl SharedClient {
 
             request.build(&mut builder)?;
 
-            if request.sign() {
+            if let Some(payload) = request.sign() {
                 let credentials = self
                     .config
                     .credentials()
                     .ok_or(UpstreamRequestError::NoCredentials)?;
 
-                let body = builder.get_body().unwrap_or_default();
-                let signature = credentials.secret_key.sign(body);
+                let signature = credentials.secret_key.sign(&payload);
                 builder.header("X-Sentry-Relay-Signature", signature.as_bytes());
             }
 

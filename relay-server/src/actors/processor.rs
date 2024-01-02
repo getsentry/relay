@@ -1,6 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
+use std::future::Future;
 use std::io::Write;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -10,6 +12,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
@@ -22,9 +25,8 @@ use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkReportError};
 use relay_filter::FilterStatKey;
-use relay_metrics::aggregator::partition_buckets;
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::{Bucket, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
+use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
@@ -32,6 +34,7 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
+use reqwest::header;
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
@@ -51,9 +54,10 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
 use crate::actors::test_store::TestStore;
-use crate::actors::upstream::{SendRequest, UpstreamRelay};
-use crate::envelope::{ContentType, Envelope, Item, ItemType};
+use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
+use crate::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::extractors::{PartialDsn, RequestMeta};
+use crate::http;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -209,7 +213,6 @@ impl From<ExtractMetricsError> for ProcessingError {
 type ExtractedEvent = (Annotated<Event>, usize);
 
 impl ExtractedMetrics {
-    // TODO(ja): Move
     fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
         let project_key = envelope.meta().public_key();
 
@@ -1197,9 +1200,14 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        match serde_json::from_slice::<HashMap<ProjectKey, Vec<Bucket>>>(&payload) {
-            Ok(batch_map) => {
-                for (public_key, mut buckets) in batch_map {
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            buckets: HashMap<ProjectKey, Vec<Bucket>>,
+        }
+
+        match serde_json::from_slice(&payload) {
+            Ok(Wrapper { buckets }) => {
+                for (public_key, mut buckets) in buckets {
                     for bucket in &mut buckets {
                         clock_drift_processor.process_timestamp(&mut bucket.timestamp);
                     }
@@ -1314,36 +1322,9 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn encode_envelope_body(
-        body: Bytes,
-        http_encoding: HttpEncoding,
-    ) -> Result<Bytes, std::io::Error> {
-        let envelope_body: Vec<u8> = match http_encoding {
-            HttpEncoding::Identity => return Ok(body),
-            HttpEncoding::Deflate => {
-                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-            HttpEncoding::Gzip => {
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-                encoder.write_all(body.as_ref())?;
-                encoder.finish()?
-            }
-            HttpEncoding::Br => {
-                // Use default buffer size (via 0), medium quality (5), and the default lgwin (22).
-                let mut encoder = BrotliEncoder::new(Vec::new(), 0, 5, 22);
-                encoder.write_all(body.as_ref())?;
-                encoder.into_inner()
-            }
-        };
-
-        Ok(envelope_body.into())
-    }
-
     fn handle_encode_envelope(&self, message: EncodeEnvelope) {
         let mut request = message.request;
-        match Self::encode_envelope_body(request.envelope_body, request.http_encoding) {
+        match encode_payload(&request.envelope_body, request.http_encoding) {
             Err(e) => {
                 request
                     .response_sender
@@ -1485,7 +1466,6 @@ impl EnvelopeProcessorService {
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
     fn encode_metrics_envelope(&self, message: EncodeMetrics) {
-        let partition_count = self.inner.config.metrics_partitions();
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
@@ -1495,17 +1475,30 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
+            let project_key = scoping.project_key;
+            let dsn = PartialDsn::outbound(&scoping, upstream);
             let mode = match project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
                 _ => ExtractionMode::Duration,
             };
 
-            let dsn = PartialDsn::outbound(&scoping, upstream);
-            let partitions = partition_buckets(scoping.project_key, buckets, partition_count);
+            let partitions = if let Some(count) = self.inner.config.metrics_partitions() {
+                let mut partitions: BTreeMap<Option<u64>, Vec<Bucket>> = BTreeMap::new();
+                for bucket in buckets {
+                    let partition_key = partition_key(project_key, &bucket, Some(count));
+                    partitions.entry(partition_key).or_default().push(bucket);
+                }
+                partitions
+            } else {
+                BTreeMap::from([(None, buckets)])
+            };
 
             for (partition_key, buckets) in partitions {
-                let mut num_batches = 0;
+                if let Some(key) = partition_key {
+                    relay_statsd::metric!(histogram(RelayHistograms::PartitionKeys) = key);
+                }
 
+                let mut num_batches = 0;
                 for batch in BucketsView::new(&buckets).by_size(batch_size) {
                     let mut envelope =
                         Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
@@ -1540,6 +1533,91 @@ impl EnvelopeProcessorService {
         }
     }
 
+    /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
+    fn send_global_partition(&self, key: Option<u64>, partition: &mut Partition<'_>) {
+        if partition.is_empty() {
+            return;
+        }
+
+        let (unencoded, quantities) = partition.take_parts();
+        let http_encoding = self.inner.config.http_encoding();
+        let encoded = match encode_payload(&unencoded, http_encoding) {
+            Ok(payload) => payload,
+            Err(error) => {
+                let error = &error as &dyn std::error::Error;
+                relay_log::error!(error, "failed to encode metrics payload");
+                return;
+            }
+        };
+
+        let request = SendMetricsRequest {
+            partition_key: key.map(|k| k.to_string()),
+            unencoded,
+            encoded,
+            http_encoding,
+            quantities,
+            outcome_aggregator: self.inner.outcome_aggregator.clone(),
+        };
+
+        self.inner.upstream_relay.send(SendRequest(request));
+    }
+
+    /// Serializes metric buckets to JSON and sends them to the upstream via the global endpoint.
+    ///
+    /// This function is similar to [`Self::encode_metrics_envelope`], but sends a global batched
+    /// payload directly instead of per-project Envelopes.
+    ///
+    /// This function runs the following steps:
+    ///  - partitioning
+    ///  - batching by configured size limit
+    ///  - serialize to JSON
+    ///  - submit the directly to the upstream
+    ///
+    /// Cardinality limiting and rate limiting run only in processing Relays as they both require
+    /// access to the central Redis instance. Cached rate limits are applied in the project cache
+    /// already.
+    fn encode_metrics_global(&self, message: EncodeMetrics) {
+        let partition_count = self.inner.config.metrics_partitions();
+        let batch_size = self.inner.config.metrics_max_batch_size_bytes();
+
+        let mut partitions = BTreeMap::new();
+
+        for (scoping, message) in &message.scopes {
+            let ProjectMetrics {
+                buckets,
+                project_state,
+            } = message;
+
+            let mode = match project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+                _ => ExtractionMode::Duration,
+            };
+
+            for bucket in buckets {
+                let partition_key = partition_key(scoping.project_key, bucket, partition_count);
+
+                let mut remaining = Some(BucketView::new(bucket));
+                while let Some(bucket) = remaining.take() {
+                    let partition = partitions
+                        .entry(partition_key)
+                        .or_insert_with(|| Partition::new(batch_size, mode));
+
+                    if let Some(next) = partition.insert(bucket, *scoping) {
+                        // A part of the bucket could not be inserted. Take the partition and submit
+                        // it immediately. Repeat until the final part was inserted. This should
+                        // always result in a request, otherwise we would enter an endless loop.
+                        self.send_global_partition(partition_key, partition);
+                        remaining = Some(next);
+                    }
+                }
+            }
+        }
+
+        for (partition_key, mut partition) in partitions {
+            self.send_global_partition(partition_key, &mut partition);
+        }
+    }
+
     fn handle_encode_metrics(&self, message: EncodeMetrics) {
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
@@ -1548,7 +1626,11 @@ impl EnvelopeProcessorService {
             }
         }
 
-        self.encode_metrics_envelope(message)
+        if self.inner.config.http_global_metrics() {
+            self.encode_metrics_global(message)
+        } else {
+            self.encode_metrics_envelope(message)
+        }
     }
 
     fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
@@ -1652,6 +1734,198 @@ impl Service for EnvelopeProcessorService {
                 }
             }
         });
+    }
+}
+
+fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
+    let envelope_body: Vec<u8> = match http_encoding {
+        HttpEncoding::Identity => return Ok(body.clone()),
+        HttpEncoding::Deflate => {
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(body.as_ref())?;
+            encoder.finish()?
+        }
+        HttpEncoding::Gzip => {
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(body.as_ref())?;
+            encoder.finish()?
+        }
+        HttpEncoding::Br => {
+            // Use default buffer size (via 0), medium quality (5), and the default lgwin (22).
+            let mut encoder = BrotliEncoder::new(Vec::new(), 0, 5, 22);
+            encoder.write_all(body.as_ref())?;
+            encoder.into_inner()
+        }
+    };
+
+    Ok(envelope_body.into())
+}
+
+/// Computes a stable partitioning key for sharded metric requests.
+fn partition_key(project_key: ProjectKey, bucket: &Bucket, partitions: Option<u64>) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+
+    let partitions = partitions?.max(1);
+    let key = (project_key, bucket.timestamp, &bucket.name, &bucket.tags);
+
+    let mut hasher = FnvHasher::default();
+    key.hash(&mut hasher);
+    Some(hasher.finish() % partitions)
+}
+
+/// A container for metric buckets from multiple projects.
+///
+/// This container is used to send metrics to the upstream in global batches as part of the
+/// [`EncodeMetrics`] message if the `http.global_metrics` option is enabled. The container monitors
+/// the size of all metrics and allows to split them into multiple batches. See
+/// [`insert`](Self::insert) for more information.
+#[derive(Debug)]
+struct Partition<'a> {
+    max_size: usize,
+    remaining: usize,
+    views: HashMap<ProjectKey, Vec<BucketView<'a>>>,
+    quantities: Vec<(Scoping, SourceQuantities)>,
+    mode: ExtractionMode,
+}
+
+impl<'a> Partition<'a> {
+    /// Creates a new partition with the given maximum size in bytes.
+    pub fn new(size: usize, mode: ExtractionMode) -> Self {
+        Self {
+            max_size: size,
+            remaining: size,
+            views: HashMap::new(),
+            quantities: Vec::new(),
+            mode,
+        }
+    }
+
+    /// Inserts a bucket into the partition, splitting it if necessary.
+    ///
+    /// This function attempts to add the bucket to this partition. If the bucket does not fit
+    /// entirely into the partition given its maximum size, the remaining part of the bucket is
+    /// returned from this function call.
+    ///
+    /// If this function returns `Some(_)`, the partition is full and should be submitted to the
+    /// upstream immediately. Use [`take_parts`](Self::take_parts) to retrieve the contents of the
+    /// partition. Afterwards, the caller is responsible to call this function again with the
+    /// remaining bucket until it is fully inserted.
+    pub fn insert(&mut self, bucket: BucketView<'a>, scoping: Scoping) -> Option<BucketView<'a>> {
+        let (current, next) = bucket.split(self.remaining, Some(self.max_size));
+
+        if let Some(current) = current {
+            self.remaining = self.remaining.saturating_sub(current.estimated_size());
+            let quantities = utils::extract_metric_quantities([current.clone()], self.mode);
+            self.quantities.push((scoping, quantities));
+            self.views
+                .entry(scoping.project_key)
+                .or_default()
+                .push(current);
+        }
+
+        next
+    }
+
+    /// Returns `true` if the partition does not hold any data.
+    fn is_empty(&self) -> bool {
+        self.views.is_empty()
+    }
+
+    /// Returns the serialized buckets and the source quantities for this partition.
+    ///
+    /// This empties the partition, so that it can be reused.
+    fn take_parts(&mut self) -> (Bytes, Vec<(Scoping, SourceQuantities)>) {
+        #[derive(serde::Serialize)]
+        struct Wrapper<'a> {
+            buckets: &'a HashMap<ProjectKey, Vec<BucketView<'a>>>,
+        }
+
+        let buckets = &self.views;
+        let payload = serde_json::to_vec(&Wrapper { buckets }).unwrap().into();
+        let quantities = self.quantities.clone();
+
+        self.views.clear();
+        self.quantities.clear();
+        self.remaining = self.max_size;
+
+        (payload, quantities)
+    }
+}
+
+/// An upstream request that submits metric buckets via HTTP.
+///
+/// This request is not awaited. It automatically tracks outcomes if the request is not received.
+#[derive(Debug)]
+struct SendMetricsRequest {
+    /// If the partition key is set, the request is marked with `X-Sentry-Relay-Shard`.
+    partition_key: Option<String>,
+    /// Serialized metric buckets without encoding applied, used for signing.
+    unencoded: Bytes,
+    /// Serialized metric buckets with the stated HTTP encoding applied.
+    encoded: Bytes,
+    /// Encoding (compression) of the payload.
+    http_encoding: HttpEncoding,
+    /// Information about the metric quantities in the payload for outcomes.
+    quantities: Vec<(Scoping, SourceQuantities)>,
+    /// Address of the outcome aggregator to send outcomes to on error.
+    outcome_aggregator: Addr<TrackOutcome>,
+}
+
+impl UpstreamRequest for SendMetricsRequest {
+    fn set_relay_id(&self) -> bool {
+        true
+    }
+
+    fn sign(&mut self) -> Option<Bytes> {
+        Some(self.unencoded.clone())
+    }
+
+    fn method(&self) -> reqwest::Method {
+        reqwest::Method::POST
+    }
+
+    fn path(&self) -> std::borrow::Cow<'_, str> {
+        "/api/0/relays/metrics/".into()
+    }
+
+    fn route(&self) -> &'static str {
+        "global_metrics"
+    }
+
+    fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
+        builder
+            .content_encoding(self.http_encoding)
+            .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
+            .header(header::CONTENT_TYPE, b"application/json")
+            .body(self.encoded.clone());
+
+        Ok(())
+    }
+
+    fn respond(
+        self: Box<Self>,
+        result: Result<http::Response, UpstreamRequestError>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async {
+            match result {
+                Ok(mut response) => {
+                    response.consume().await.ok();
+                }
+                // Request did not arrive, we are responsible for outcomes.
+                Err(error) if !error.is_received() => {
+                    for (scoping, quantities) in self.quantities {
+                        utils::reject_metrics(
+                            &self.outcome_aggregator,
+                            quantities,
+                            scoping,
+                            Outcome::Invalid(DiscardReason::Internal),
+                        );
+                    }
+                }
+                // Upstream is responsible to log outcomes.
+                Err(_received) => (),
+            }
+        })
     }
 }
 
