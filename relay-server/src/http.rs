@@ -56,6 +56,8 @@ impl RequestBuilder {
     }
 
     pub fn finish(self) -> Result<Request, HttpError> {
+        // The builder is not optional, instead the option is used inside `build` so that it can be
+        // moved temporarily. Therefore, the `unwrap` here is infallible.
         Ok(Request(self.builder.unwrap().build()?))
     }
 
