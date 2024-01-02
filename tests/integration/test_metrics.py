@@ -235,6 +235,60 @@ def test_global_metrics(mini_sentry, relay):
     ]
 
 
+def test_global_metrics_batching(mini_sentry, relay):
+    # See `test_metrics_max_batch_size`: 200 should lead to 2 batches
+    MAX_FLUSH_SIZE = 200
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "http": {"global_metrics": True},
+            "limits": {"max_concurrent_requests": 1},  # deterministic submission order
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_flush_bytes": MAX_FLUSH_SIZE,
+            },
+        },
+    )
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = (
+        f"transactions/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T{timestamp}"
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    batch1 = mini_sentry.captured_metrics.get(timeout=5)
+    batch2 = mini_sentry.captured_metrics.get(timeout=1)
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_metrics.get(timeout=1)
+
+    assert batch1[public_key] == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "d:transactions/foo@none",
+            "value": [float(i) for i in range(1, 16)],
+            "type": "d",
+        }
+    ]
+
+    assert batch2[public_key] == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "d:transactions/foo@none",
+            "value": [16.0, 17.0],
+            "type": "d",
+        }
+    ]
+
+
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing(options=TEST_CONFIG)
     metrics_consumer = metrics_consumer()
