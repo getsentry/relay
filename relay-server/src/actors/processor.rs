@@ -75,6 +75,17 @@ mod span;
 #[cfg(feature = "processing")]
 mod unreal;
 
+/// Creates the block only if used with `processing` feature.
+///
+/// Provided code block will be executed only if the provided config has `processing_enabled` set.
+macro_rules! if_processing {
+    ($config:expr, $if_true:block) => {
+        #[cfg(feature = "processing")] {
+            if $config.processing_enabled() $if_true
+        }
+    };
+}
+
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
@@ -993,15 +1004,251 @@ impl EnvelopeProcessorService {
         items.clone().next().map(|item| item.ty().clone())
     }
 
-    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        macro_rules! if_processing {
-            ($if_true:block) => {
-                #[cfg(feature = "processing")] {
-                    if self.inner.config.processing_enabled() $if_true
-                }
-            };
+    fn process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // Events can also contain user reports.
+        report::process(
+            state,
+            &self.inner.config,
+            self.inner.outcome_aggregator.clone(),
+        );
+
+        event::extract(state, &self.inner.config)?;
+
+        if_processing!(self.inner.config, {
+            attachment::create_placeholders(state);
+        });
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        dynamic_sampling::normalize(state);
+        event::filter(state)?;
+        dynamic_sampling::run(state, &self.inner.config);
+        dynamic_sampling::sample_envelope(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
         }
 
+        attachment::scrub(state);
+
+        Ok(())
+    }
+
+    fn process_transaction(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        profile::filter(state);
+        event::extract(state, &self.inner.config)?;
+        profile::transfer_id(state);
+
+        if_processing!(self.inner.config, {
+            attachment::create_placeholders(state);
+        });
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        dynamic_sampling::normalize(state);
+        event::filter(state)?;
+        dynamic_sampling::run(state, &self.inner.config);
+
+        // We avoid extracting metrics if we are not sampling the event while in non-processing
+        // relays, in order to synchronize rate limits on indexed and processed transactions.
+        if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+            self.extract_metrics(state)?;
+        }
+
+        dynamic_sampling::sample_envelope(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+            profile::process(state, &self.inner.config);
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+            if_processing!(self.inner.config, {
+                span::extract_from_event(state);
+            });
+        }
+
+        attachment::scrub(state);
+        Ok(())
+    }
+    fn process_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // Only some attachments types have create event set to true.
+        if state.creates_event() {
+            event::extract(state, &self.inner.config)?;
+
+            if_processing!(self.inner.config, {
+                attachment::create_placeholders(state);
+            });
+
+            event::finalize(state, &self.inner.config)?;
+            self.light_normalize_event(state)?;
+            event::filter(state)?;
+
+            if_processing!(self.inner.config, {
+                event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            });
+        }
+
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+        }
+
+        attachment::scrub(state);
+        Ok(())
+    }
+
+    fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        session::process(state, &self.inner.config);
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+        Ok(())
+    }
+
+    fn process_security(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        event::extract(state, &self.inner.config)?;
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        event::filter(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+        }
+        Ok(())
+    }
+
+    fn process_nel(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        event::extract(state, &self.inner.config)?;
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        event::filter(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+        }
+        Ok(())
+    }
+
+    fn process_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            unreal::expand(state, &self.inner.config)?;
+        });
+
+        event::extract(state, &self.inner.config)?;
+
+        if_processing!(self.inner.config, {
+            unreal::process(state)?;
+            attachment::create_placeholders(state);
+        });
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        event::filter(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+        }
+        Ok(())
+    }
+
+    fn process_user_reports(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        report::process(
+            state,
+            &self.inner.config,
+            self.inner.outcome_aggregator.clone(),
+        );
+
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+        Ok(())
+    }
+
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        replay::process(state, &self.inner.config)?;
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+        Ok(())
+    }
+
+    fn process_checkins(&self, _state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(_state)?;
+            self.process_check_ins(_state);
+        });
+        Ok(())
+    }
+
+    fn process_spans(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        span::filter(state);
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+            span::process(state, self.inner.config.clone());
+        });
+        Ok(())
+    }
+
+    fn process_user_reports_v2(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        event::extract(state, &self.inner.config)?;
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        event::filter(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+        }
+        Ok(())
+    }
+
+    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         relay_log::trace!(
             "items in the incoming envelope: {:?}",
             state
@@ -1020,229 +1267,24 @@ impl EnvelopeProcessorService {
         // Defined processing pipeilnes based on the event type and/or item type they contain.
         match ty {
             // This can still contain attachements.
-            ItemType::Event => {
-                // Events can also contain user reports.
-                report::process(
-                    state,
-                    &self.inner.config,
-                    self.inner.outcome_aggregator.clone(),
-                );
-
-                event::extract(state, &self.inner.config)?;
-
-                if_processing!({
-                    attachment::create_placeholders(state);
-                });
-
-                event::finalize(state, &self.inner.config)?;
-                self.light_normalize_event(state)?;
-                dynamic_sampling::normalize(state);
-                event::filter(state)?;
-                dynamic_sampling::run(state, &self.inner.config);
-                dynamic_sampling::sample_envelope(state)?;
-
-                if_processing!({
-                    event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    self.enforce_quotas(state)?;
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
-
-                attachment::scrub(state);
-            }
+            ItemType::Event => self.process_event(state)?,
             // Contains data which belongs together with transactions, e.g. profiles attachments.
-            ItemType::Transaction => {
-                profile::filter(state);
-                event::extract(state, &self.inner.config)?;
-                profile::transfer_id(state);
-
-                if_processing!({
-                    attachment::create_placeholders(state);
-                });
-
-                event::finalize(state, &self.inner.config)?;
-                self.light_normalize_event(state)?;
-                dynamic_sampling::normalize(state);
-                event::filter(state)?;
-                dynamic_sampling::run(state, &self.inner.config);
-
-                // We avoid extracting metrics if we are not sampling the event while in non-processing
-                // relays, in order to synchronize rate limits on indexed and processed transactions.
-                if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
-                    self.extract_metrics(state)?;
-                }
-
-                dynamic_sampling::sample_envelope(state)?;
-
-                if_processing!({
-                    event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    self.enforce_quotas(state)?;
-                    profile::process(state, &self.inner.config);
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                    if_processing!({
-                        span::extract_from_event(state);
-                    });
-                }
-
-                attachment::scrub(state);
-            }
-            ItemType::Profile => {
-                profile::filter(state);
-            }
-
+            ItemType::Transaction => self.process_transaction(state)?,
+            ItemType::Profile => profile::filter(state),
             // Standalone attachments.
-            ItemType::Attachment | ItemType::FormData => {
-                // Only some attachments types have create event set to true.
-                if state.creates_event() {
-                    event::extract(state, &self.inner.config)?;
-
-                    if_processing!({
-                        attachment::create_placeholders(state);
-                    });
-
-                    event::finalize(state, &self.inner.config)?;
-                    self.light_normalize_event(state)?;
-                    event::filter(state)?;
-
-                    if_processing!({
-                        event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    });
-                }
-
-                if_processing!({
-                    self.enforce_quotas(state)?;
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
-
-                attachment::scrub(state);
-            }
-            ItemType::Session | ItemType::Sessions => {
-                session::process(state, &self.inner.config);
-                if_processing!({
-                    self.enforce_quotas(state)?;
-                });
-            }
-            ItemType::Security | ItemType::RawSecurity => {
-                event::extract(state, &self.inner.config)?;
-
-                event::finalize(state, &self.inner.config)?;
-                self.light_normalize_event(state)?;
-                event::filter(state)?;
-
-                if_processing!({
-                    event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    self.enforce_quotas(state)?;
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
-            }
-            ItemType::Nel => {
-                event::extract(state, &self.inner.config)?;
-
-                event::finalize(state, &self.inner.config)?;
-                self.light_normalize_event(state)?;
-                event::filter(state)?;
-
-                if_processing!({
-                    event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    self.enforce_quotas(state)?;
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
-            }
-            ItemType::UnrealReport => {
-                if_processing!({
-                    unreal::expand(state, &self.inner.config)?;
-                });
-
-                event::extract(state, &self.inner.config)?;
-
-                if_processing!({
-                    unreal::process(state)?;
-                    attachment::create_placeholders(state);
-                });
-
-                event::finalize(state, &self.inner.config)?;
-                self.light_normalize_event(state)?;
-                event::filter(state)?;
-
-                if_processing!({
-                    event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    self.enforce_quotas(state)?;
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
-            }
-            ItemType::UserReport | ItemType::ClientReport => {
-                report::process(
-                    state,
-                    &self.inner.config,
-                    self.inner.outcome_aggregator.clone(),
-                );
-
-                if_processing!({
-                    self.enforce_quotas(state)?;
-                });
-            }
+            ItemType::Attachment | ItemType::FormData => self.process_attachments(state)?,
+            ItemType::Session | ItemType::Sessions => self.process_sessions(state)?,
+            ItemType::Security | ItemType::RawSecurity => self.process_security(state)?,
+            ItemType::Nel => self.process_nel(state)?,
+            ItemType::UnrealReport => self.process_unreal(state)?,
+            ItemType::UserReport | ItemType::ClientReport => self.process_user_reports(state)?,
             ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => {
                 relay_log::error!("Statsd/Metrics should not go here");
             }
-            ItemType::ReplayEvent | ItemType::ReplayRecording => {
-                replay::process(state, &self.inner.config)?;
-                if_processing!({
-                    self.enforce_quotas(state)?;
-                });
-            }
-            ItemType::CheckIn => {
-                if_processing!({
-                    self.enforce_quotas(state)?;
-                    self.process_check_ins(state);
-                });
-            }
-            ItemType::Span | ItemType::OtelSpan => {
-                span::filter(state);
-                if_processing!({
-                    self.enforce_quotas(state)?;
-                    span::process(state, self.inner.config.clone());
-                });
-            }
-            ItemType::UserReportV2 => {
-                event::extract(state, &self.inner.config)?;
-
-                event::finalize(state, &self.inner.config)?;
-                self.light_normalize_event(state)?;
-                event::filter(state)?;
-
-                if_processing!({
-                    event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-                    self.enforce_quotas(state)?;
-                });
-
-                if state.has_event() {
-                    event::scrub(state)?;
-                    event::serialize(state)?;
-                }
-            }
+            ItemType::ReplayEvent | ItemType::ReplayRecording => self.process_replays(state)?,
+            ItemType::CheckIn => self.process_checkins(state)?,
+            ItemType::Span | ItemType::OtelSpan => self.process_spans(state)?,
+            ItemType::UserReportV2 => self.process_user_reports_v2(state)?,
             ItemType::Unknown(t) => {
                 relay_log::trace!("Received Unknown({t}) item type.")
             }

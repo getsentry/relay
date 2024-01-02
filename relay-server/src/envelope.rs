@@ -1154,6 +1154,7 @@ impl Envelope {
     ///
     /// First predicate is the the additional condition on the count of found items by second
     /// predicate.
+    #[cfg(test)]
     fn split_off_items<C, F>(&mut self, cond: C, mut f: F) -> Option<SmallVec<[Item; 3]>>
     where
         C: Fn(usize) -> bool,
@@ -1178,6 +1179,7 @@ impl Envelope {
     /// with all items that return `true`. Items that return `false` remain in this envelope.
     ///
     /// The returned envelope assumes the same headers.
+    #[cfg(test)]
     pub fn split_by<F>(&mut self, f: F) -> Option<Box<Self>>
     where
         F: FnMut(&Item) -> bool,
