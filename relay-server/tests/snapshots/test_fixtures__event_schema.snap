@@ -1005,6 +1005,41 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         }
       ]
     },
+    "Data": {
+      "description": " The arbitrary data on the trace.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "previousRoute": {
+              "description": " The previous route in the application\n\n Set by React Native SDK.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Route"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "route": {
+              "description": " The current route in the application.\n\n Set by React Native SDK.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Route"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "DebugId": {
       "type": "string"
     },
@@ -3214,6 +3249,26 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         }
       ]
     },
+    "Route": {
+      "description": " The route in the application, set by React Native SDK.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "params": {
+              "description": " Parameters assigned to this route.",
+              "default": null,
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "RuntimeContext": {
       "description": " Runtime information.\n\n Runtime context describes a runtime in more detail. Typically, this context is present in\n `contexts` multiple times if multiple runtimes are involved (for instance, if you have a\n JavaScript application running on top of JVM).",
       "anyOf": [
@@ -3582,11 +3637,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             "data": {
               "description": " Arbitrary additional data on a trace.",
               "default": null,
-              "type": [
-                "object",
-                "null"
-              ],
-              "additionalProperties": true
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Data"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "exclusive_time": {
               "description": " The amount of time in milliseconds spent in this transaction span,\n excluding its immediate child spans.",
