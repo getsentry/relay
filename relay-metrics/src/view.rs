@@ -15,6 +15,11 @@ use crate::BucketValue;
 /// and buckets larger will be split up.
 const BUCKET_SPLIT_FACTOR: usize = 32;
 
+/// The base size of a serialized bucket in bytes.
+///
+/// This is the size of a bucket's fixed fields in JSON format, excluding the value and tags.
+const BUCKET_SIZE: usize = 50;
+
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
 
@@ -429,7 +434,7 @@ impl<'a> BucketView<'a> {
     /// Note that this does not match the exact size of the serialized payload. Instead, the size is
     /// approximated through tags and a static overhead.
     fn estimated_base_size(&self) -> usize {
-        50 + self.name().len() + aggregator::tags_cost(self.tags())
+        BUCKET_SIZE + self.name().len() + aggregator::tags_cost(self.tags())
     }
 
     /// Estimates the number of bytes needed to serialize the bucket.
