@@ -98,7 +98,7 @@
 //! at the beginning of test method. It enables test mode of the logger and customizes log levels
 //! for the current crate.
 //!
-//! ```ignore
+//! ```no_run
 //! #[test]
 //! fn test_something() {
 //!     relay_log::init_test!();
