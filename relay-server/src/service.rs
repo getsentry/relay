@@ -135,6 +135,14 @@ impl ServiceState {
         )
         .start_in(&runtimes.aggregator);
 
+        #[cfg(feature = "processing")]
+        let store = match runtimes.store {
+            Some(ref rt) => {
+                Some(StoreService::create(config.clone(), outcome_aggregator.clone())?.start_in(rt))
+            }
+            None => None,
+        };
+
         let processor = EnvelopeProcessorService::new(
             config.clone(),
             #[cfg(feature = "processing")]
@@ -146,6 +154,8 @@ impl ServiceState {
             test_store.clone(),
             #[cfg(feature = "processing")]
             aggregator.clone(),
+            #[cfg(feature = "processing")]
+            store.clone(),
         )
         .start();
 
@@ -156,13 +166,9 @@ impl ServiceState {
             project_cache.clone(),
             test_store.clone(),
             upstream_relay.clone(),
+            #[cfg(feature = "processing")]
+            store.clone(),
         );
-
-        #[cfg(feature = "processing")]
-        if let Some(ref rt) = runtimes.store {
-            let store = StoreService::create(config.clone())?.start_in(rt);
-            envelope_manager_service.set_store_forwarder(store);
-        }
 
         envelope_manager_service.spawn_handler(envelope_manager_rx);
 

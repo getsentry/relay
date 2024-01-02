@@ -191,6 +191,7 @@ impl EnvelopeManagerService {
         project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
         upstream_relay: Addr<UpstreamRelay>,
+        #[cfg(feature = "processing")] store_forwarder: Option<Addr<Store>>,
     ) -> Self {
         Self {
             config,
@@ -199,14 +200,8 @@ impl EnvelopeManagerService {
             test_store,
             upstream_relay,
             #[cfg(feature = "processing")]
-            store_forwarder: None,
+            store_forwarder,
         }
-    }
-
-    /// Configures a store forwarder to produce Envelopes to Kafka.
-    #[cfg(feature = "processing")]
-    pub fn set_store_forwarder(&mut self, addr: Addr<Store>) {
-        self.store_forwarder = Some(addr);
     }
 
     /// Sends an envelope to the upstream or Kafka.
@@ -217,7 +212,7 @@ impl EnvelopeManagerService {
         partition_key: Option<u64>,
     ) -> Result<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
-        {
+        if self.config.processing_enabled() {
             if let Some(store_forwarder) = self.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
                 let future = store_forwarder.send(StoreEnvelope {
