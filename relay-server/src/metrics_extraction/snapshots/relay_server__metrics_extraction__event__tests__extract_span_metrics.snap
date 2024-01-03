@@ -1636,4 +1636,55 @@ expression: metrics
             "span.op": "resource.css",
         },
     },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "app",
+            "span.description": "Cold Start",
+            "span.group": "2d675185edfeb30c",
+            "span.op": "app.start.cold",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "app",
+            "span.description": "Cold Start",
+            "span.group": "2d675185edfeb30c",
+            "span.op": "app.start.cold",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "app",
+            "span.op": "app.start.cold",
+        },
+    },
 ]
