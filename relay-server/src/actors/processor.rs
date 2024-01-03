@@ -30,7 +30,7 @@ use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, M
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
-use relay_quotas::{DataCategory, ReasonCode, Scoping};
+use relay_quotas::{DataCategory, Scoping};
 use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -790,6 +790,7 @@ impl EnvelopeProcessorService {
         // remove it from the processing state eventually.
         let mut envelope_limiter =
             EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
+                dbg!("yooyoyooyooyyoyooo");
                 rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
             });
 
@@ -1279,6 +1280,7 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
         let RateLimitBuckets { mut bucket_limiter } = message;
+        dbg!();
 
         let scoping = *bucket_limiter.scoping();
 
@@ -1287,6 +1289,7 @@ impl EnvelopeProcessorService {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
             };
+            dbg!();
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
@@ -1294,7 +1297,7 @@ impl EnvelopeProcessorService {
             let rate_limits = rate_limiter.is_rate_limited(
                 bucket_limiter.quotas(),
                 item_scoping,
-                bucket_limiter.transaction_count(),
+                dbg!(bucket_limiter.transaction_count()),
                 over_accept_once,
             );
 
@@ -1312,11 +1315,13 @@ impl EnvelopeProcessorService {
                 }
             }
         }
+        dbg!();
 
         let project_key = bucket_limiter.scoping().project_key;
         let buckets = bucket_limiter.into_metrics();
 
         if !buckets.is_empty() {
+            dbg!();
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -1337,57 +1342,6 @@ impl EnvelopeProcessorService {
                 self.inner.upstream_relay.send(SendRequest(request));
             }
         }
-    }
-
-    /// Records the outcomes of the dropped buckets.
-    fn drop_buckets_with_outcomes(
-        &self,
-        reason_code: Option<ReasonCode>,
-        total_buckets: usize,
-        scoping: Scoping,
-        bucket_partitions: &BTreeMap<Option<u64>, Vec<Bucket>>,
-        mode: ExtractionMode,
-    ) {
-        let mut source_quantities = SourceQuantities::default();
-
-        for buckets in bucket_partitions.values() {
-            source_quantities += source_quantities_from_buckets(&BucketsView::new(buckets), mode);
-        }
-
-        let timestamp = Utc::now();
-
-        if source_quantities.transactions > 0 {
-            self.inner.outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: Outcome::RateLimited(reason_code.clone()),
-                event_id: None,
-                remote_addr: None,
-                category: DataCategory::Transaction,
-                quantity: source_quantities.transactions as u32,
-            });
-        }
-        if source_quantities.profiles > 0 {
-            self.inner.outcome_aggregator.send(TrackOutcome {
-                timestamp,
-                scoping,
-                outcome: Outcome::RateLimited(reason_code.clone()),
-                event_id: None,
-                remote_addr: None,
-                category: DataCategory::Profile,
-                quantity: source_quantities.profiles as u32,
-            });
-        }
-
-        self.inner.outcome_aggregator.send(TrackOutcome {
-            timestamp,
-            scoping,
-            outcome: Outcome::RateLimited(reason_code),
-            event_id: None,
-            remote_addr: None,
-            category: DataCategory::MetricBucket,
-            quantity: total_buckets as u32,
-        });
     }
 
     /// Returns `true` if the batches should be rate limited.
@@ -1415,6 +1369,7 @@ impl EnvelopeProcessorService {
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
+        dbg!("bruuhhhuhhuuh");
         match rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, false) {
             Ok(limits) if limits.is_limited() => {
                 relay_log::debug!(

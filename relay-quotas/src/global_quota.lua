@@ -12,7 +12,7 @@
 
 
 -- The maximum budget we will take. We will take less if we are too close to the limit.
-local max_budget = 100
+local max_budget = 3
 -- The key to the global quota.
 local key = KEYS[1]
 -- The max amount that we want to take within the given slot. We won't take a budget if
@@ -23,15 +23,16 @@ local expiry = tonumber(ARGV[2])
 
 local redis_count = tonumber(redis.call('GET', key) or 0)
 
+
 if redis_count > limit then
-    return 0, redis_count
+    return {0, redis_count}
 else
     local diff = limit - redis_count
     local budget = math.min(diff, max_budget)
 
     redis.call('INCRBY', key, budget)
     redis.call('EXPIREAT', key, expiry)
-    return  budget, redis_count + budget
+    return {budget, redis_count + budget}
 end
 
 

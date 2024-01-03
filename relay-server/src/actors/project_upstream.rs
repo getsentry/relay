@@ -154,6 +154,7 @@ struct ChannelsBatch {
 }
 
 /// Collected Upstream responses, with associated project state channels.
+#[derive(Debug)]
 struct UpstreamResponse {
     channels_batch: ProjectStateChannels,
     response: Result<GetProjectStatesResponse, UpstreamRequestError>,

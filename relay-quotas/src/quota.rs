@@ -85,6 +85,7 @@ impl ItemScoping<'_> {
         // skip `Unknown` categories silently. If the list of categories only contains `Unknown`s,
         // we do **not** match, since apparently the quota is meant for some data this Relay does
         // not support yet.
+        dbg!(self.category, categories);
         categories.is_empty() || categories.iter().any(|cat| *cat == self.category)
     }
 }
@@ -320,7 +321,7 @@ impl Quota {
 
     /// Checks whether the quota's constraints match the current item.
     pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
-        self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
+        dbg!(self.matches_scope(scoping)) && dbg!(scoping.matches_categories(&self.categories))
     }
 }
 

@@ -206,23 +206,117 @@ import datetime
 def test_global_quotas(
     mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
 ):
-    relay = relay_with_processing()
+    relay = relay_with_processing(
+        {
+            "outcomes": {
+                "emit_outcomes": True,
+                "batch_size": 1,
+                "batch_interval": 1,
+                "aggregator": {
+                    "flush_interval": 1,
+                },
+            }
+        },
+    )
+
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
             "id": "test_global_rate_limiting",
             "scope": "global",
-            "categories": [],
+            "categories": ["metric_bucket"],
             "window": 3600,
             "limit": 3,
             "reasonCode": "global quota exceeded",
         }
     ]
     timestamp = int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    metrics_payload = f"transactions/bar:17|c|T{timestamp}"
+    #    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
-    time.sleep(10)
+    time.sleep(5)
+    assert False
+
+
+import time
+
+
+def test_foo(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+):
+    metrics_consumer = metrics_consumer()
+
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metric_bucket_limit = 9
+    buckets_sent = 12
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting",
+            "scope": "global",
+            "categories": ["metric_bucket", "transaction"],
+            "limit": metric_bucket_limit,
+            "window": 10,
+            "reasonCode": "throughput rate limiting",
+        }
+    ]
+
+    def generate_ticks():
+        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
+        tick = int(
+            datetime.datetime.utcnow().timestamp() // bucket_interval * bucket_interval
+        )
+        while True:
+            yield tick
+            tick += bucket_interval
+
+    tick = generate_ticks()
+
+    def make_bucket(name, type_, values):
+        return {
+            "org_id": 1,
+            "project_id": project_id,
+            "timestamp": next(tick),
+            "name": name,
+            "type": type_,
+            "value": values,
+            "width": bucket_interval,
+        }
+
+    def send_buckets(buckets):
+        relay.send_metrics_buckets(project_id, buckets)
+        time.sleep(0.2)
+
+    for _ in range(buckets_sent):
+        bucket = make_bucket("d:transactions/measurements.lcp@millisecond", "d", [1.0])
+        send_buckets(
+            [bucket],
+        )
+    produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
+
+    assert metric_bucket_limit < buckets_sent
+    assert len(produced_buckets) == metric_bucket_limit
+
+    time.sleep(5)
     assert False
 
 
