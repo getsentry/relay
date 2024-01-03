@@ -80,7 +80,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
     let mobile_condition = RuleCondition::eq("span.sentry_tags.mobile", "true");
-    let app_start_condition = RuleCondition::eq("span.op", "app.start.*")
+    let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     config.metrics.extend([
