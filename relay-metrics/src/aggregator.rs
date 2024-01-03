@@ -202,9 +202,9 @@ impl AggregatorConfig {
         let now = UnixTimestamp::now();
         let backdated = initial_flush <= now;
 
-        let delay = now.as_secs() as f64 - bucket_key.timestamp.as_secs() as f64;
+        let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
         relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsDelay) = delay,
+            histogram(MetricHistograms::BucketsDelay) = delay as f64,
             backdated = if backdated { "true" } else { "false" },
         );
 
@@ -875,7 +875,7 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            ..Default::default()
+            shift_key: ShiftKey::default(),
         }
     }
 
