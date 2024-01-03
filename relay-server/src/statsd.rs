@@ -158,6 +158,12 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -188,6 +194,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }
@@ -331,6 +338,12 @@ pub enum RelayTimers {
     ReplayRecordingProcessing,
     /// Total time spent to send a request and receive the response from upstream.
     GlobalConfigRequestDuration,
+    /// Timing in milliseconds for processing a message in the internal CPU pool.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    ProcessMessageDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -366,6 +379,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
+            RelayTimers::ProcessMessageDuration => "processor.message.duration",
         }
     }
 }

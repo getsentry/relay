@@ -118,8 +118,55 @@ pub struct TraceContext {
     /// This flag only applies to events with [`Error`] type that have an associated dynamic sampling context.
     pub sampled: Annotated<bool>,
 
+    /// Arbitrary additional data on a trace.
+    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    pub data: Annotated<Data>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
+    pub other: Object<Value>,
+}
+
+/// The arbitrary data on the trace.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Data {
+    /// The current route in the application.
+    ///
+    /// Set by React Native SDK.
+    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    pub route: Annotated<Route>,
+    /// The previous route in the application
+    ///
+    /// Set by React Native SDK.
+    #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
+    pub previous_route: Annotated<Route>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(
+        additional_properties,
+        retain = "true",
+        pii = "maybe",
+        skip_serialization = "empty"
+    )]
+    pub other: Object<Value>,
+}
+
+/// The route in the application, set by React Native SDK.
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct Route {
+    /// Parameters assigned to this route.
+    #[metastructure(pii = "true", skip_serialization = "empty", bag_size = "medium")]
+    params: Annotated<Object<Value>>,
+
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(
+        additional_properties,
+        retain = "true",
+        pii = "maybe",
+        skip_serialization = "empty"
+    )]
     pub other: Object<Value>,
 }
 
@@ -170,6 +217,14 @@ mod tests {
   "exclusive_time": 0.0,
   "client_sample_rate": 0.5,
   "origin": "auto.http",
+  "data": {
+    "route": {
+      "params": {
+        "tok": "test"
+      },
+      "path": "/path"
+    }
+  },
   "other": "value",
   "type": "trace"
 }"#;
@@ -182,6 +237,27 @@ mod tests {
             exclusive_time: Annotated::new(0.0),
             client_sample_rate: Annotated::new(0.5),
             origin: Annotated::new("auto.http".to_owned()),
+            data: Annotated::new(Data {
+                route: Annotated::new(Route {
+                    params: Annotated::new({
+                        let mut map = Object::new();
+                        map.insert(
+                            "tok".to_string(),
+                            Annotated::new(Value::String("test".into())),
+                        );
+                        map
+                    }),
+                    other: {
+                        let mut map = Object::new();
+                        map.insert(
+                            "path".to_string(),
+                            Annotated::new(Value::String("/path".into())),
+                        );
+                        map
+                    },
+                }),
+                ..Default::default()
+            }),
             other: {
                 let mut map = Object::new();
                 map.insert(

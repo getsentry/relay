@@ -1271,6 +1271,7 @@ mod tests {
         item.set_source_quantities(SourceQuantities {
             transactions: 5,
             profiles: 2,
+            buckets: 5,
         });
         envelope.add_item(item);
 
@@ -1278,6 +1279,7 @@ mod tests {
         item.set_source_quantities(SourceQuantities {
             transactions: 2,
             profiles: 0,
+            buckets: 3,
         });
         envelope.add_item(item);
 

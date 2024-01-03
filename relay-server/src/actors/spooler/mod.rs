@@ -653,7 +653,7 @@ impl BufferState {
         }
     }
 
-    /// Becomes a different state, depdending on the current state and the current conditions of
+    /// Becomes a different state, depending on the current state and the current conditions of
     /// underlying spool.
     async fn transition(self, config: &Arc<Config>) -> Self {
         match self {

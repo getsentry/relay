@@ -34,8 +34,21 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         # Capture ODBC escape sequence.
         ((?-x)(?P<odbc_escape_sequence>\{(?:ts?|d)\s+'.+'\})) |
         ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
+        # Hex constants
+        ((?-x)(?P<hex>(\b0x[0-9a-f]+\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P<bool>(\b(?:true|false)\b)))
+        "#,
+    )
+    .unwrap()
+});
+
+/// For MySQL, also look for double quoted strings.
+static DOUBLE_QUOTED_STRING_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # Capture double-quoted strings, including the remaining substring if `\'` is found.
+        ((?-x)(?P<single_quoted_strs>N?"(?:\\"|[^"])*(?:"|$)(::\w+(\[\]?)?)?))
         "#,
     )
     .unwrap()
@@ -131,21 +144,37 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
 
     let mut string = Cow::from(string.trim());
 
-    for (regex, replacement) in [
-        (&COMMENTS, "\n"),
-        (&INLINE_COMMENTS, ""),
-        (&NORMALIZER_REGEX, "$pre%s"),
-        (&WHITESPACE, " "),
-        (&PARENS, "$pre$post"),
-        (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
-        (&STRIP_QUOTES, "$entity_name"),
-        (&COLLAPSE_ENTITIES, "$entity_name"),
-        (&COLLAPSE_COLUMNS, "$pre..$post"),
-    ] {
-        let replaced = regex.replace_all(&string, replacement);
-        if let Cow::Owned(s) = replaced {
+    if let Cow::Owned(s) = COMMENTS.replace_all(&string, "\n") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = INLINE_COMMENTS.replace_all(&string, "") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = NORMALIZER_REGEX.replace_all(&string, "$pre%s") {
+        string = Cow::Owned(s);
+    }
+    if db_system == Some("mysql") {
+        if let Cow::Owned(s) = DOUBLE_QUOTED_STRING_REGEX.replace_all(&string, "%s") {
             string = Cow::Owned(s);
         }
+    }
+    if let Cow::Owned(s) = WHITESPACE.replace_all(&string, " ") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = PARENS.replace_all(&string, "$pre$post") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = COLLAPSE_PLACEHOLDERS.replace_all(&string, "$pre%s$post") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = STRIP_QUOTES.replace_all(&string, "$entity_name") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = COLLAPSE_ENTITIES.replace_all(&string, "$entity_name") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = COLLAPSE_COLUMNS.replace_all(&string, "$pre..$post") {
+        string = Cow::Owned(s);
     }
 
     let result = match string {
@@ -617,6 +646,28 @@ mod tests {
         "DELETE FROM some_table WHERE id IN (%s)"
     );
 
+    scrub_sql_test!(escape_quote, r#"SELECT 'Wayne\'s World'"#, "SELECT %s");
+
+    scrub_sql_test!(
+        escape_double_quote,
+        r#"SELECT '{"json": "yes"}'"#,
+        "SELECT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        mysql_escape_quote,
+        "mysql",
+        r#"SELECT "Wayne's World""#,
+        "SELECT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        mysql_escape_double_quote,
+        "mysql",
+        r#"SELECT "{\"json\": \"yes\"}""#,
+        "SELECT %s"
+    );
+
     scrub_sql_test!(
         bytesa,
         r#"SELECT "t"."x", "t"."arr"::bytea, "t"."c" WHERE "t"."id" IN (%s, %s)"#,
@@ -730,6 +781,28 @@ mod tests {
         rename_table,
         r#"ALTER TABLE "foo"."tmp" RENAME TO "foo"."bar"#,
         "ALTER TABLE tmp RENAME TO bar"
+    );
+
+    scrub_sql_test!(
+        select_with_nulls,
+        r#"SELECT foo, NULL, "bar", baz, NULL, NULL, zap FROM my_table"#,
+        "SELECT .. FROM my_table"
+    );
+
+    scrub_sql_test!(
+        fallback_hex,
+        r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#,
+        "SELECT %s, %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        dont_fallback_to_regex,
+        "mysql",
+        // sqlparser cannot parse REPLACE INTO. If we know that
+        // a query is MySQL, we should give up rather than try to scrub
+        // with regex
+        r#"REPLACE INTO `foo` (`a`) VALUES ("abcd1234")"#,
+        "REPLACE INTO foo (a) VALUES (%s)"
     );
 
     scrub_sql_test!(

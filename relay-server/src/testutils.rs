@@ -124,6 +124,8 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         test_store,
         #[cfg(feature = "processing")]
         _aggregator,
+        #[cfg(feature = "processing")]
+        None,
     )
 }
 

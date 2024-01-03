@@ -470,7 +470,7 @@ mod tests {
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
         Addr, Breadcrumb, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry,
-        NativeDebugImage, Request, Span, TagEntry, Tags,
+        NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
     use relay_protocol::{assert_annotated_snapshot, Annotated, FromValue, Object, Value};
 
@@ -1161,6 +1161,43 @@ mod tests {
             ReplaceBehavior::Groups(smallvec::smallvec![0]),
         );
         assert_eq!(chunks, res);
+    }
+
+    #[test]
+    fn test_trace_route_params_scrubbed() {
+        let mut trace_context: Annotated<TraceContext> = Annotated::from_json(
+            r#"
+            {
+                "type": "trace",
+                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                "span_id": "fa90fdead5f74052",
+                "data": {
+                    "previousRoute": {
+                        "params": {
+                            "password": "test"
+                        }
+                    }
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(
+            &mut trace_context,
+            &mut pii_processor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert_annotated_snapshot!(trace_context);
     }
 
     #[test]

@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## 23.12.1
+
+**Bug fixes**:
+
+- Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
+
+**Internal**:
+
+- Use a Lua script and in-memory cache for the cardinality limiting to reduce load on Redis. ([#2849](https://github.com/getsentry/relay/pull/2849))
+- Extract metrics for file spans. ([#2874](https://github.com/getsentry/relay/pull/2874))
+- Add an internal endpoint that allows Relays to submit metrics from multiple projects in a single request. ([#2869](https://github.com/getsentry/relay/pull/2869))
+- Introduce the configuration option `http.global_metrics`. When enabled, Relay submits metric buckets not through regular project-scoped Envelopes, but instead through the global endpoint. When this Relay serves a high number of projects, this can reduce the overall request volume. ([#2902](https://github.com/getsentry/relay/pull/2902))
+- Emit a `processor.message.duration` metric to assess the throughput of the internal CPU pool. ([#2877](https://github.com/getsentry/relay/pull/2877))
+
+## 23.12.0
 
 **Features**:
 
@@ -19,6 +33,7 @@
 
 - In on-demand metric extraction, use the normalized URL instead of raw URLs sent by SDKs. This bug prevented metrics for certain dashboard queries from being extracted. ([#2819](https://github.com/getsentry/relay/pull/2819))
 - Ignore whitespaces when parsing user reports. ([#2798](https://github.com/getsentry/relay/pull/2798))
+- Fix parsing bug for SQL queries. ([#2846](https://github.com/getsentry/relay/pull/2846))
 
 **Internal**:
 
@@ -29,7 +44,8 @@
 - Allow ingestion of metrics summary on spans. ([#2823](https://github.com/getsentry/relay/pull/2823))
 - Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
 - Org rate limit metrics per bucket. ([#2836](https://github.com/getsentry/relay/pull/2836))
-- Keep only domain and extension for image resource span grouping. ([#2826](https://github.com/getsentry/relay/pull/2826))
+- Emit image resource spans, grouped by domain and extension. ([#2826](https://github.com/getsentry/relay/pull/2826), [#2855](https://github.com/getsentry/relay/pull/2855))
+- Parse timestamps from strings in span OpenTelemetry schema. ([#2857](https://github.com/getsentry/relay/pull/2857))
 
 ## 23.11.2
 

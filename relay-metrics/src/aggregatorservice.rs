@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
@@ -206,10 +207,8 @@ pub struct BucketCountInquiry;
 ///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
-    /// The project key.
-    pub project_key: ProjectKey,
     /// The buckets to be flushed.
-    pub buckets: Vec<Bucket>,
+    pub buckets: HashMap<ProjectKey, Vec<Bucket>>,
 }
 
 enum AggregatorState {
@@ -265,37 +264,34 @@ impl AggregatorService {
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush(&mut self) {
-        let flush_buckets = {
-            let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-            self.aggregator.pop_flush_buckets(force_flush)
-        };
+        let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
+        let buckets = self.aggregator.pop_flush_buckets(force_flush);
 
-        if flush_buckets.is_empty() {
+        if buckets.is_empty() {
             return;
         }
 
-        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
+        relay_log::trace!("flushing {} projects to receiver", buckets.len());
 
         let mut total_bucket_count = 0u64;
-        for (project_key, buckets) in flush_buckets.into_iter() {
+        for buckets in buckets.values() {
             let bucket_count = buckets.len() as u64;
+            total_bucket_count += bucket_count;
+
             relay_statsd::metric!(
                 histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
                 aggregator = self.aggregator.name(),
             );
-            total_bucket_count += bucket_count;
-
-            if let Some(ref receiver) = self.receiver {
-                receiver.send(FlushBuckets {
-                    project_key,
-                    buckets,
-                });
-            }
         }
+
         relay_statsd::metric!(
             histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
             aggregator = self.aggregator.name(),
         );
+
+        if let Some(ref receiver) = self.receiver {
+            receiver.send(FlushBuckets { buckets })
+        }
     }
 
     fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
@@ -431,7 +427,8 @@ mod tests {
     }
 
     impl TestReceiver {
-        fn add_buckets(&self, buckets: Vec<Bucket>) {
+        fn add_buckets(&self, buckets: HashMap<ProjectKey, Vec<Bucket>>) {
+            let buckets = buckets.into_values().flatten();
             self.data.write().unwrap().buckets.extend(buckets);
         }
 
