@@ -61,20 +61,6 @@ pub fn chrono_to_positive_millis(duration: chrono::Duration) -> f64 {
     duration_to_millis(duration.to_std().unwrap_or_default())
 }
 
-/// The conversion result of [`UnixTimestamp::to_instant`].
-///
-/// If the time is outside of what can be represented in an [`Instant`], this is `Past` or
-/// `Future`.
-#[derive(Clone, Copy, Debug)]
-pub enum MonotonicResult {
-    /// A time before the earliest representable `Instant`.
-    Past,
-    /// A representable `Instant`.
-    Instant(Instant),
-    /// A time after the latest representable `Instant`.
-    Future,
-}
-
 /// A unix timestamp (full seconds elapsed since 1970-01-01 00:00 UTC).
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct UnixTimestamp(u64);
@@ -132,41 +118,6 @@ impl UnixTimestamp {
     pub fn as_datetime(self) -> Option<DateTime<Utc>> {
         NaiveDateTime::from_timestamp_opt(self.0 as i64, 0)
             .map(|n| DateTime::from_naive_utc_and_offset(n, Utc))
-    }
-
-    /// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.
-    ///
-    /// Returns [`MonotonicResult::Instant`] if the timestamp can be represented. Otherwise, returns
-    /// [`MonotonicResult::Past`] or [`MonotonicResult::Future`].
-    ///
-    /// Note that the system time is subject to skew, so subsequent calls to `to_instant` may return
-    /// different values.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use std::time::{Duration, Instant};
-    /// use relay_common::time::{MonotonicResult, UnixTimestamp};
-    ///
-    /// let timestamp = UnixTimestamp::now();
-    /// if let MonotonicResult::Instant(instant) = timestamp.to_instant() {
-    ///    assert!((Instant::now() - instant) < Duration::from_millis(1));
-    /// }
-    /// ```
-    pub fn to_instant(self) -> MonotonicResult {
-        let now = Self::now();
-
-        if self > now {
-            match Instant::now().checked_add(self - now) {
-                Some(instant) => MonotonicResult::Instant(instant),
-                None => MonotonicResult::Future,
-            }
-        } else {
-            match Instant::now().checked_sub(now - self) {
-                Some(instant) => MonotonicResult::Instant(instant),
-                None => MonotonicResult::Past,
-            }
-        }
     }
 }
 

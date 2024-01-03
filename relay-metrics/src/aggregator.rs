@@ -10,7 +10,7 @@ use std::{fmt, mem};
 
 use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
-use relay_common::time::{MonotonicResult, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
@@ -219,10 +219,13 @@ impl AggregatorConfig {
             initial_flush
         };
 
-        match (flush_timestamp + self.flush_time_shift(bucket_key)).to_instant() {
-            MonotonicResult::Instant(instant) => instant.into(),
-            _ => Instant::now(),
-        }
+        let instant = if flush_timestamp > now {
+            Instant::now().checked_add(flush_timestamp - now)
+        } else {
+            Instant::now().checked_sub(now - flush_timestamp)
+        };
+
+        instant.unwrap_or_else(Instant::now) + self.flush_time_shift(bucket_key)
     }
 
     /// The delay to debounce backdated flushes.

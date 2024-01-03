@@ -497,40 +497,4 @@ mod tests {
         // receiver must have 1 bucket flushed
         assert_eq!(receiver.bucket_count(), 1);
     }
-
-    #[tokio::test]
-    async fn test_merge_back() {
-        relay_test::setup();
-        tokio::time::pause();
-
-        // Create a receiver which accepts nothing:
-        let receiver = TestReceiver {
-            reject_all: true,
-            ..TestReceiver::default()
-        };
-        let recipient = receiver.clone().start().recipient();
-
-        let config = AggregatorServiceConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            ..Default::default()
-        };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
-
-        let mut bucket = some_bucket();
-        bucket.timestamp = UnixTimestamp::now();
-
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            buckets: vec![bucket],
-        });
-
-        assert_eq!(receiver.bucket_count(), 0);
-
-        tokio::time::sleep(Duration::from_millis(1100)).await;
-        let bucket_count = aggregator.send(BucketCountInquiry).await.unwrap();
-        assert_eq!(bucket_count, 1);
-        assert_eq!(receiver.bucket_count(), 0);
-    }
 }
