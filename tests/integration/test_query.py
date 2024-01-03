@@ -200,6 +200,32 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
         mini_sentry.test_failures.clear()
 
 
+import datetime
+
+
+def test_global_quotas(
+    mini_sentry, relay_with_processing, events_consumer, outcomes_consumer
+):
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": "test_global_rate_limiting",
+            "scope": "global",
+            "categories": [],
+            "window": 3600,
+            "limit": 3,
+            "reasonCode": "global quota exceeded",
+        }
+    ]
+    timestamp = int(datetime.datetime.now(tz=datetime.timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+    time.sleep(10)
+    assert False
+
+
 @pytest.mark.parametrize("disabled", (True, False))
 def test_processing_redis_query(
     mini_sentry, relay_with_processing, events_consumer, outcomes_consumer, disabled

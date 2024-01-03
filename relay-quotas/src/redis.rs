@@ -113,6 +113,7 @@ impl<'a> RedisQuota<'a> {
             scope => self.scoping.scope_id(scope),
         };
 
+        // 0 is arbitrary, we just need to ensure global quotas from different orgs have the same key.
         let org = if self.quota.scope == QuotaScope::Global {
             0
         } else {
@@ -273,6 +274,10 @@ impl GlobalCounters {
 /// Key for storing global quota-budgets locally.
 ///
 /// Note: must not be used in redis. For that, use RedisQuota.key().
+///
+/// It's important that this key doesn't contain the slot. If it did, the amount of keys
+/// would increase rapidly without a mechanism to prune it. Currently it will incrase each time
+/// a new global window is set, which should be a rare occurence.
 #[derive(Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct BudgetKey(String);
 
@@ -311,7 +316,7 @@ impl RedisRateLimiter {
 
     /// Returns `true` if the global quota should be ratelimited.
     ///
-    /// We first check the local limits if we have any contingency left. If we don't, or the
+    /// We first check the local limits if we have any budget left. If we don't, or the
     /// slot is expired, we have to sync with redis, after which we try again.
     fn is_globally_rate_limited(
         &self,
@@ -361,24 +366,7 @@ impl RedisRateLimiter {
         budget_key: &BudgetKey,
         quota: &RedisQuota,
     ) -> Result<(), GlobalRateLimitError> {
-        let slot = quota.slot();
-
-        let current_count = self
-            .counters
-            .0
-            .read()
-            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
-            .get(budget_key)
-            .filter(|v| v.slot == slot)
-            .map(|v| v.count.load(Ordering::Relaxed))
-            .unwrap_or_default();
-
-        // Note that this value is zero if the slot has expired.
-        if current_count > 0 {
-            return Ok(());
-        }
-
-        let (budget, redis_count): (u64, u64) = self
+        let (new_budget, current_redis_count): (u64, u64) = self
             .global_script
             .prepare_invoke()
             .key(redis_key.as_str())
@@ -391,8 +379,12 @@ impl RedisRateLimiter {
             )
             .map_err(|_| GlobalRateLimitError::Redis)?;
 
-        self.counters
-            .update_limit(budget_key, slot, budget as usize, redis_count)
+        self.counters.update_limit(
+            budget_key,
+            quota.slot(),
+            new_budget as usize,
+            current_redis_count,
+        )
     }
 
     /// Sets the maximum rate limit in seconds.
