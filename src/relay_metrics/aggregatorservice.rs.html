@@ -498,43 +498,6 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::time::Duration;
 
@@ -929,7 +892,6 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-
     <span class="kw">use </span>std::collections::BTreeMap;
     <span class="kw">use </span>std::sync::{Arc, RwLock};
 
@@ -1034,42 +996,6 @@
         </span>tokio::time::sleep(Duration::from_millis(<span class="number">2100</span>)).<span class="kw">await</span>;
         <span class="comment">// receiver must have 1 bucket flushed
         </span><span class="macro">assert_eq!</span>(receiver.bucket_count(), <span class="number">1</span>);
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_merge_back() {
-        relay_test::setup();
-        tokio::time::pause();
-
-        <span class="comment">// Create a receiver which accepts nothing:
-        </span><span class="kw">let </span>receiver = TestReceiver {
-            reject_all: <span class="bool-val">true</span>,
-            ..TestReceiver::default()
-        };
-        <span class="kw">let </span>recipient = receiver.clone().start().recipient();
-
-        <span class="kw">let </span>config = AggregatorServiceConfig {
-            bucket_interval: <span class="number">1</span>,
-            initial_delay: <span class="number">0</span>,
-            debounce_delay: <span class="number">0</span>,
-            ..Default::default()
-        };
-        <span class="kw">let </span>aggregator = AggregatorService::new(config, <span class="prelude-val">Some</span>(recipient)).start();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>bucket = some_bucket();
-        bucket.timestamp = UnixTimestamp::now();
-
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
-            buckets: <span class="macro">vec!</span>[bucket],
-        });
-
-        <span class="macro">assert_eq!</span>(receiver.bucket_count(), <span class="number">0</span>);
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">1100</span>)).<span class="kw">await</span>;
-        <span class="kw">let </span>bucket_count = aggregator.send(BucketCountInquiry).<span class="kw">await</span>.unwrap();
-        <span class="macro">assert_eq!</span>(bucket_count, <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(receiver.bucket_count(), <span class="number">0</span>);
     }
 }
 </code></pre></div></section></main></body></html>

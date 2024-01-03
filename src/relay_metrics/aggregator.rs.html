@@ -1428,10 +1428,6 @@
 <a href="#1428" id="1428">1428</a>
 <a href="#1429" id="1429">1429</a>
 <a href="#1430" id="1430">1430</a>
-<a href="#1431" id="1431">1431</a>
-<a href="#1432" id="1432">1432</a>
-<a href="#1433" id="1433">1433</a>
-<a href="#1434" id="1434">1434</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1444,7 +1440,7 @@
 
 <span class="kw">use </span>fnv::FnvHasher;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
-<span class="kw">use </span>relay_common::time::{MonotonicResult, UnixTimestamp};
+<span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>thiserror::Error;
 <span class="kw">use </span>tokio::time::Instant;
@@ -1551,6 +1547,9 @@
     ///
     /// Only for use in processing Relays.
     </span>Bucket,
+
+    <span class="doccomment">/// Do not apply shift. This should be set when `http.global_metrics` is used.
+    </span><span class="prelude-val">None</span>,
 }
 
 <span class="doccomment">/// Parameters used by the [`Aggregator`].
@@ -1628,31 +1627,35 @@
     /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
     /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
     </span><span class="kw">fn </span>get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket_key: <span class="kw-2">&amp;</span>BucketKey) -&gt; Instant {
-        <span class="kw">let </span>now = Instant::now();
-        <span class="kw">let </span><span class="kw-2">mut </span>flush = <span class="prelude-val">None</span>;
+        <span class="kw">let </span>initial_flush = bucket_key.timestamp + <span class="self">self</span>.bucket_interval() + <span class="self">self</span>.initial_delay();
 
-        <span class="kw">if let </span>MonotonicResult::Instant(instant) = bucket_key.timestamp.to_instant() {
-            <span class="kw">let </span>instant = Instant::from_std(instant);
-            <span class="kw">let </span>bucket_end = instant + <span class="self">self</span>.bucket_interval();
-            <span class="kw">let </span>initial_flush = bucket_end + <span class="self">self</span>.initial_delay();
-            <span class="comment">// If the initial flush is still pending, use that.
-            </span><span class="kw">if </span>initial_flush &gt; now {
-                flush = <span class="prelude-val">Some</span>(initial_flush + <span class="self">self</span>.flush_time_shift(bucket_key));
-            }
-        }
+        <span class="kw">let </span>now = UnixTimestamp::now();
+        <span class="kw">let </span>backdated = initial_flush &lt;= now;
 
-        <span class="kw">let </span>delay = UnixTimestamp::now().as_secs() <span class="kw">as </span>i64 - bucket_key.timestamp.as_secs() <span class="kw">as </span>i64;
+        <span class="kw">let </span>delay = now.as_secs() <span class="kw">as </span>i64 - bucket_key.timestamp.as_secs() <span class="kw">as </span>i64;
         <span class="macro">relay_statsd::metric!</span>(
             histogram(MetricHistograms::BucketsDelay) = delay <span class="kw">as </span>f64,
-            backdated = <span class="kw">if </span>flush.is_none() { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
+            backdated = <span class="kw">if </span>backdated { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
         );
 
-        <span class="comment">// If the initial flush time has passed or cannot be represented, debounce future flushes
-        // with the `debounce_delay` starting now.
-        </span><span class="kw">match </span>flush {
-            <span class="prelude-val">Some</span>(initial_flush) =&gt; initial_flush,
-            <span class="prelude-val">None </span>=&gt; now + <span class="self">self</span>.debounce_delay(),
-        }
+        <span class="kw">let </span>flush_timestamp = <span class="kw">if </span>backdated {
+            <span class="comment">// If the initial flush time has passed or cannot be represented, debounce future
+            // flushes with the `debounce_delay` starting now. However, align the current timestamp
+            // with the bucket interval for proper batching.
+            </span><span class="kw">let </span>floor = (now.as_secs() / <span class="self">self</span>.bucket_interval) * <span class="self">self</span>.bucket_interval;
+            UnixTimestamp::from_secs(floor) + <span class="self">self</span>.bucket_interval() + <span class="self">self</span>.debounce_delay()
+        } <span class="kw">else </span>{
+            <span class="comment">// If the initial flush is still pending, use that.
+            </span>initial_flush
+        };
+
+        <span class="kw">let </span>instant = <span class="kw">if </span>flush_timestamp &gt; now {
+            Instant::now().checked_add(flush_timestamp - now)
+        } <span class="kw">else </span>{
+            Instant::now().checked_sub(now - flush_timestamp)
+        };
+
+        instant.unwrap_or_else(Instant::now) + <span class="self">self</span>.flush_time_shift(bucket_key)
     }
 
     <span class="doccomment">/// The delay to debounce backdated flushes.
@@ -1681,9 +1684,10 @@
                 hasher.finish()
             }
             ShiftKey::Bucket =&gt; bucket.hash64(),
+            ShiftKey::None =&gt; <span class="kw">return </span>Duration::ZERO,
         };
-        <span class="kw">let </span>shift_millis = hash_value % (<span class="self">self</span>.bucket_interval * <span class="number">1000</span>);
 
+        <span class="kw">let </span>shift_millis = hash_value % (<span class="self">self</span>.bucket_interval * <span class="number">1000</span>);
         Duration::from_millis(shift_millis)
     }
 
@@ -1691,22 +1695,12 @@
     ///
     /// We select the output bucket which overlaps with the center of the incoming bucket.
     /// Fails if timestamp is too old or too far into the future.
-    </span><span class="kw">fn </span>get_bucket_timestamp(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        timestamp: UnixTimestamp,
-        bucket_width: u64,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;UnixTimestamp, AggregateMetricsError&gt; {
+    </span><span class="kw">fn </span>get_bucket_timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp, bucket_width: u64) -&gt; UnixTimestamp {
         <span class="comment">// Find middle of the input bucket to select a target
         </span><span class="kw">let </span>ts = timestamp.as_secs().saturating_add(bucket_width / <span class="number">2</span>);
         <span class="comment">// Align target_timestamp to output bucket width
         </span><span class="kw">let </span>ts = (ts / <span class="self">self</span>.bucket_interval) * <span class="self">self</span>.bucket_interval;
-        <span class="kw">let </span>output_timestamp = UnixTimestamp::from_secs(ts);
-
-        <span class="kw">if </span>!<span class="self">self</span>.timestamp_range().contains(<span class="kw-2">&amp;</span>output_timestamp) {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
-        }
-
-        <span class="prelude-val">Ok</span>(output_timestamp)
+        UnixTimestamp::from_secs(ts)
     }
 
     <span class="doccomment">/// Returns the valid range for metrics timestamps.
@@ -2130,26 +2124,27 @@
         key
     }
 
-    <span class="comment">// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
-    // Logs a statsd metric for invalid timestamps.
+    <span class="doccomment">/// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
+    ///
+    /// Logs a statsd metric for invalid timestamps.
     </span><span class="kw">fn </span>get_bucket_timestamp(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         timestamp: UnixTimestamp,
         bucket_width: u64,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;UnixTimestamp, AggregateMetricsError&gt; {
-        <span class="kw">let </span>res = <span class="self">self</span>.config.get_bucket_timestamp(timestamp, bucket_width);
-        <span class="kw">if let </span><span class="prelude-val">Err</span>(AggregateMetricsError {
-            kind: AggregateMetricsErrorKind::InvalidTimestamp(ts),
-        }) = res
-        {
-            <span class="kw">let </span>delta = (ts.as_secs() <span class="kw">as </span>i64) - (UnixTimestamp::now().as_secs() <span class="kw">as </span>i64);
+        <span class="kw">let </span>bucket_ts = <span class="self">self</span>.config.get_bucket_timestamp(timestamp, bucket_width);
+
+        <span class="kw">if </span>!<span class="self">self</span>.config.timestamp_range().contains(<span class="kw-2">&amp;</span>bucket_ts) {
+            <span class="kw">let </span>delta = (bucket_ts.as_secs() <span class="kw">as </span>i64) - (UnixTimestamp::now().as_secs() <span class="kw">as </span>i64);
             <span class="macro">relay_statsd::metric!</span>(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta <span class="kw">as </span>f64,
                 aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
             );
+
+            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
         }
 
-        res
+        <span class="prelude-val">Ok</span>(bucket_ts)
     }
 
     <span class="doccomment">/// Merge a preaggregated bucket into this aggregator.
@@ -2297,7 +2292,6 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -2314,7 +2308,7 @@
             max_tag_key_length: <span class="number">200</span>,
             max_tag_value_length: <span class="number">200</span>,
             max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
-            ..Default::default()
+            shift_key: ShiftKey::default(),
         }
     }
 
@@ -2615,7 +2609,7 @@
             <span class="macro">assert_eq!</span>(total_cost, current_cost + expected_added_cost);
         }
 
-        aggregator.pop_flush_buckets(<span class="bool-val">false</span>);
+        aggregator.pop_flush_buckets(<span class="bool-val">true</span>);
         <span class="macro">assert_eq!</span>(aggregator.cost_tracker.total_cost, <span class="number">0</span>);
     }
 
@@ -2628,8 +2622,10 @@
             ..Default::default()
         };
 
+        <span class="kw">let </span>aggregator = Aggregator::new(config);
+
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            config
+            aggregator
                 .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), <span class="number">2</span>)
                 .unwrap_err()
                 .kind,
@@ -2649,9 +2645,7 @@
         <span class="kw">let </span>now = UnixTimestamp::now().as_secs();
         <span class="kw">let </span>rounded_now = UnixTimestamp::from_secs(now / <span class="number">10 </span>* <span class="number">10</span>);
         <span class="macro">assert_eq!</span>(
-            config
-                .get_bucket_timestamp(UnixTimestamp::from_secs(now), <span class="number">0</span>)
-                .unwrap(),
+            config.get_bucket_timestamp(UnixTimestamp::from_secs(now), <span class="number">0</span>),
             rounded_now
         );
     }
@@ -2670,7 +2664,6 @@
         <span class="macro">assert_eq!</span>(
             config
                 .get_bucket_timestamp(UnixTimestamp::from_secs(now), <span class="number">20</span>)
-                .unwrap()
                 .as_secs(),
             rounded_now + <span class="number">10
         </span>);
@@ -2690,7 +2683,6 @@
         <span class="macro">assert_eq!</span>(
             config
                 .get_bucket_timestamp(UnixTimestamp::from_secs(now), <span class="number">23</span>)
-                .unwrap()
                 .as_secs(),
             rounded_now + <span class="number">10
         </span>);
