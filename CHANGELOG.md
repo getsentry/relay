@@ -1,5 +1,9 @@
 # Changelog
 
+**Internal**:
+
+- Add `duration` metric for mobile app start spans. ([#2906](https://github.com/getsentry/relay/pull/2906))
+
 ## 23.12.1
 
 **Bug fixes**:
