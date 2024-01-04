@@ -366,7 +366,7 @@ fn span_metrics_legacy() -> impl IntoIterator<Item = MetricSpec> {
 
 /// Metrics with tags applied as required.
 fn span_metrics_reduced() -> impl IntoIterator<Item = MetricSpec> {
-    let is_db = RuleCondition::eq("span.category", "db")
+    let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
             | RuleCondition::glob("span.description", MONGODB_QUERIES));
