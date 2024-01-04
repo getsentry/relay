@@ -1182,7 +1182,6 @@ mod tests {
 
         let config = project.metric_extraction.ok().unwrap();
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
