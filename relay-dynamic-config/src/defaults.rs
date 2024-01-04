@@ -17,8 +17,11 @@ const DISABLED_DATABASES: &[&str] = &[
     "db.orm",
 ];
 
-/// A list of span.op` patterns we want to enable for mobile.
+/// A list of `span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
+
+/// A list of span descriptions that indicate top-level app start spans.
+const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
 
 /// A list of patterns found in MongoDB queries
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
@@ -82,6 +85,8 @@ fn span_metrics_legacy() -> impl IntoIterator<Item = MetricSpec> {
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
     let mobile_condition = RuleCondition::eq("span.sentry_tags.mobile", "true");
+    let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
+        & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     [
         MetricSpec {
@@ -361,6 +366,40 @@ fn span_metrics_legacy() -> impl IntoIterator<Item = MetricSpec> {
                     .always(), // mobile only - already guarded by condition on metric
             ],
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/duration@millisecond".into(),
+            field: Some("span.duration".into()),
+            condition: Some(
+                duration_condition.clone() & mobile_condition.clone() & app_start_condition.clone(),
+            ),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
     ]
 }
 
@@ -401,6 +440,9 @@ fn span_metrics_reduced() -> impl IntoIterator<Item = MetricSpec> {
             "span.exclusive_time",
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
+
+    let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
+        & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     [
         MetricSpec {
@@ -642,7 +684,7 @@ fn span_metrics_reduced() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "c:spans/count_per_segment@none".into(),
             field: None,
-            condition: Some(is_mobile & duration_condition.clone()),
+            condition: Some(is_mobile.clone() & duration_condition.clone()),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
@@ -653,6 +695,40 @@ fn span_metrics_reduced() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
                     .always(), // mobile only - already guarded by condition on metric
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/duration@millisecond".into(),
+            field: Some("span.duration".into()),
+            condition: Some(
+                duration_condition.clone() & is_mobile.clone() & app_start_condition.clone(),
+            ),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
             ],
         },
     ]
