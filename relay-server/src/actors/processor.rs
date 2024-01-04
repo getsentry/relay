@@ -1127,6 +1127,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes the general errors, and the items which require or create the events.
     fn process_error(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
         report::process(
@@ -1168,6 +1169,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes only transactions and transaction-related items.
     fn process_transaction(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         profile::filter(state);
         event::extract(state, &self.inner.config)?;
@@ -1209,6 +1211,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes standalone attachments.
     fn process_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
@@ -1218,6 +1221,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes user sessions.
     fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         session::process(state, &self.inner.config);
         if_processing!(self.inner.config, {
@@ -1226,6 +1230,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes user and client reports.
     fn process_user_reports(
         &self,
         state: &mut ProcessEnvelopeState,
@@ -1243,6 +1248,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes replays.
     fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         replay::process(state, &self.inner.config)?;
         if_processing!(self.inner.config, {
@@ -1251,6 +1257,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes cron check-ins.
     fn process_checkins(&self, _state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
             self.enforce_quotas(_state)?;
@@ -1259,6 +1266,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Processes spans.
     fn process_spans(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         span::filter(state);
         if_processing!(self.inner.config, {
