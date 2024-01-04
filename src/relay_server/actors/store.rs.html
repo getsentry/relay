@@ -1400,6 +1400,11 @@
 <a href="#1400" id="1400">1400</a>
 <a href="#1401" id="1401">1401</a>
 <a href="#1402" id="1402">1402</a>
+<a href="#1403" id="1403">1403</a>
+<a href="#1404" id="1404">1404</a>
+<a href="#1405" id="1405">1405</a>
+<a href="#1406" id="1406">1406</a>
+<a href="#1407" id="1407">1407</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1417,7 +1422,7 @@
 };
 <span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 <span class="kw">use </span>relay_metrics::{
-    Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
+    Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
 };
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1703,10 +1708,13 @@
         <span class="kw">let </span><span class="kw-2">mut </span>error = <span class="prelude-val">None</span>;
 
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
-            <span class="comment">// Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
-            // each bucket separately, we only need to split buckets that exceed the size, but not
-            // batches.
-            </span><span class="kw">for </span>view <span class="kw">in </span>BucketsView::new(<span class="kw-2">&amp;</span>[bucket]).by_size(batch_size).flatten() {
+            <span class="kw">let </span><span class="kw-2">mut </span>remaining = <span class="prelude-val">Some</span>(BucketView::new(<span class="kw-2">&amp;</span>bucket));
+
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(current) = remaining.take() {
+                <span class="kw">let </span>(<span class="prelude-val">Some</span>(view), next) = current.split(batch_size, <span class="prelude-val">Some</span>(batch_size)) <span class="kw">else </span>{
+                    <span class="kw">break</span>;
+                };
+
                 <span class="kw">let </span>message = MetricKafkaMessage {
                     org_id: scoping.organization_id,
                     project_id: scoping.project_id,
@@ -1721,6 +1729,8 @@
                     error.get_or_insert(e);
                     dropped += utils::extract_metric_quantities([view], mode);
                 }
+
+                remaining = next;
             }
         }
 
