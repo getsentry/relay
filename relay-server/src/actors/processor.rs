@@ -2163,6 +2163,8 @@ impl UpstreamRequest for SendMetricsRequest {
     }
 
     fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
+        metric!(histogram(RelayHistograms::UpstreamMetricsBodySize) = self.encoded.len() as u64);
+
         builder
             .content_encoding(self.http_encoding)
             .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())

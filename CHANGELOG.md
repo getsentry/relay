@@ -12,6 +12,7 @@
 - Extract metrics for file spans. ([#2874](https://github.com/getsentry/relay/pull/2874))
 - Add an internal endpoint that allows Relays to submit metrics from multiple projects in a single request. ([#2869](https://github.com/getsentry/relay/pull/2869))
 - Introduce the configuration option `http.global_metrics`. When enabled, Relay submits metric buckets not through regular project-scoped Envelopes, but instead through the global endpoint. When this Relay serves a high number of projects, this can reduce the overall request volume. ([#2902](https://github.com/getsentry/relay/pull/2902))
+- Record the size of global metrics requests in statsd as `upstream.metrics.body_size`. ([#2908](https://github.com/getsentry/relay/pull/2908))
 - Emit a `processor.message.duration` metric to assess the throughput of the internal CPU pool. ([#2877](https://github.com/getsentry/relay/pull/2877))
 
 ## 23.12.0
