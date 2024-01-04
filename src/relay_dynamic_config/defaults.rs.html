@@ -363,6 +363,45 @@
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -382,8 +421,11 @@
     <span class="string">&quot;db.orm&quot;</span>,
 ];
 
-<span class="doccomment">/// A list of span.op` patterns we want to enable for mobile.
+<span class="doccomment">/// A list of `span.op` patterns we want to enable for mobile.
 </span><span class="kw">const </span>MOBILE_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;app.*&quot;</span>, <span class="string">&quot;ui.load*&quot;</span>];
+
+<span class="doccomment">/// A list of span descriptions that indicate top-level app start spans.
+</span><span class="kw">const </span>APP_START_ROOT_SPAN_DESCRIPTIONS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;Cold Start&quot;</span>, <span class="string">&quot;Warm Start&quot;</span>];
 
 <span class="doccomment">/// A list of patterns found in MongoDB queries
 </span><span class="kw">const </span>MONGODB_QUERIES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;*\&quot;$*&quot;</span>, <span class="string">&quot;{*&quot;</span>, <span class="string">&quot;*({*&quot;</span>, <span class="string">&quot;*[{*&quot;</span>];
@@ -442,6 +484,8 @@
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(<span class="number">0</span>.into()),
         );
     <span class="kw">let </span>mobile_condition = RuleCondition::eq(<span class="string">&quot;span.sentry_tags.mobile&quot;</span>, <span class="string">&quot;true&quot;</span>);
+    <span class="kw">let </span>app_start_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;app.start.*&quot;</span>)
+        &amp; RuleCondition::eq(<span class="string">&quot;span.description&quot;</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
     config.metrics.extend([
         MetricSpec {
@@ -719,6 +763,40 @@
                 Tag::with_key(<span class="string">&quot;release&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.release&quot;</span>)
                     .always(), <span class="comment">// mobile only - already guarded by condition on metric
+            </span>],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: <span class="string">&quot;d:spans/duration@millisecond&quot;</span>.into(),
+            field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.duration&quot;</span>.into()),
+            condition: <span class="prelude-val">Some</span>(
+                duration_condition.clone() &amp; mobile_condition.clone() &amp; app_start_condition.clone(),
+            ),
+            tags: <span class="macro">vec!</span>[
+                Tag::with_key(<span class="string">&quot;span.op&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.op&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">&quot;span.description&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.description&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">&quot;span.group&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.group&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">&quot;transaction&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.transaction&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">&quot;device.class&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.device.class&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">&quot;release&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.release&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">&quot;os.name&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.os.name&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
+                </span>Tag::with_key(<span class="string">&quot;environment&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.environment&quot;</span>)
+                    .always(), <span class="comment">// already guarded by condition on metric
             </span>],
         },
     ]);

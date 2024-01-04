@@ -337,6 +337,26 @@
 <a href="#337" id="337">337</a>
 <a href="#338" id="338">338</a>
 <a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -474,6 +494,11 @@
             <span class="string">&quot;trace_id&quot; </span>=&gt; <span class="self">self</span>.trace_id.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;status&quot; </span>=&gt; <span class="self">self</span>.status.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;origin&quot; </span>=&gt; <span class="self">self</span>.origin.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">&quot;duration&quot; </span>=&gt; {
+                <span class="kw">let </span>start_timestamp = <span class="kw-2">*</span><span class="self">self</span>.start_timestamp.value()<span class="question-mark">?</span>;
+                <span class="kw">let </span>timestamp = <span class="kw-2">*</span><span class="self">self</span>.timestamp.value()<span class="question-mark">?</span>;
+                relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
+            }
             path =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">&quot;tags.&quot;</span>) {
                     <span class="self">self</span>.tags.value()<span class="question-mark">?</span>.get(key)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>.into()
@@ -674,6 +699,21 @@
             other: {},
         }
         &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_span_duration() {
+        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(
+            <span class="string">r#&quot;{
+                &quot;start_timestamp&quot;: 1694732407.8367,
+                &quot;timestamp&quot;: 1694732408.3145
+            }&quot;#</span>,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.duration&quot;</span>), <span class="prelude-val">Some</span>(Val::F64(<span class="number">477.800131</span>)));
     }
 }
 </code></pre></div></section></main></body></html>
