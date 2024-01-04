@@ -1,5 +1,6 @@
 import json
 import math
+import random
 import queue
 import redis
 import socket
@@ -242,12 +243,11 @@ def test_global_quotas(
 import time
 
 
-def test_foo(
-    mini_sentry,
-    relay_with_processing,
-    metrics_consumer,
+def test_metlim(
+    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
     metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     bucket_interval = 1  # second
     relay = relay_with_processing(
@@ -263,61 +263,48 @@ def test_foo(
 
     metric_bucket_limit = 9
     buckets_sent = 12
+    assert metric_bucket_limit < buckets_sent
 
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
-    redis_client = redis.Redis(host="127.0.0.1", port=6379, db=0)
+
+    # Random to avoid re-use of old redis key-values from previous runs of this test.
+    window = random.randint(1000, 10_000)
 
     projectconfig["config"]["quotas"] = [
         {
             "id": f"test_rate_limiting",
             "scope": "global",
-            "categories": ["metric_bucket", "transaction"],
+            "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": 10,
-            "reasonCode": "throughput rate limiting",
+            "window": window,
+            "reasonCode": "global rate limit hit",
         }
     ]
 
-    def generate_ticks():
-        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(
-            datetime.datetime.utcnow().timestamp() // bucket_interval * bucket_interval
-        )
-        while True:
-            yield tick
-            tick += bucket_interval
-
-    tick = generate_ticks()
-
-    def make_bucket(name, type_, values):
-        return {
+    for _ in range(buckets_sent):
+        bucket = {
             "org_id": 1,
             "project_id": project_id,
-            "timestamp": next(tick),
-            "name": name,
-            "type": type_,
-            "value": values,
+            "timestamp": datetime.datetime.utcnow().timestamp(),
+            "name": "d:transactions/measurements.lcp@millisecond",
+            "type": "d",
+            "value": [1.0],
             "width": bucket_interval,
         }
 
-    def send_buckets(buckets):
-        relay.send_metrics_buckets(project_id, buckets)
+        relay.send_metrics_buckets(project_id, [bucket])
         time.sleep(0.2)
 
-    for _ in range(buckets_sent):
-        bucket = make_bucket("d:transactions/measurements.lcp@millisecond", "d", [1.0])
-        send_buckets(
-            [bucket],
-        )
     produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
+    outcomes = outcomes_consumer.get_outcomes()
 
-    assert metric_bucket_limit < buckets_sent
     assert len(produced_buckets) == metric_bucket_limit
+    assert len(outcomes) == buckets_sent - metric_bucket_limit
 
-    time.sleep(5)
-    assert False
+    for outcome in outcomes:
+        assert outcome["reason"] == "global rate limit hit"
 
 
 @pytest.mark.parametrize("disabled", (True, False))

@@ -344,6 +344,7 @@ impl RedisRateLimiter {
 
         let slot = quota.slot();
         let redis_key = quota.key();
+        dbg!(&redis_key);
         let budget_key = BudgetKey::new(quota);
 
         match dbg!(self
@@ -459,23 +460,20 @@ impl RedisRateLimiter {
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
-                dbg!();
                 if quota.scope == QuotaScope::Global {
-                    if quantity > 0 {
-                        match self.is_globally_rate_limited(&mut client, &quota, quantity) {
-                            Ok(false) => continue,
-                            Ok(true) => {
-                                rate_limits.add(RateLimit::from_quota(
-                                    &quota,
-                                    item_scoping.scoping,
-                                    self.retry_after((quota.expiry() - timestamp).as_secs()),
-                                ));
-                            }
-                            Err(e) => relay_log::error!(
-                                error = &e as &dyn std::error::Error,
-                                "failed to check global rate limit"
-                            ),
+                    match self.is_globally_rate_limited(&mut client, &quota, quantity) {
+                        Ok(false) => continue,
+                        Ok(true) => {
+                            rate_limits.add(RateLimit::from_quota(
+                                &quota,
+                                item_scoping.scoping,
+                                self.retry_after((quota.expiry() - timestamp).as_secs()),
+                            ));
                         }
+                        Err(e) => relay_log::error!(
+                            error = &e as &dyn std::error::Error,
+                            "failed to check global rate limit"
+                        ),
                     }
                 } else {
                     let key = quota.key();
