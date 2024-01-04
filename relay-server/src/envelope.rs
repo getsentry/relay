@@ -47,7 +47,7 @@ use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -824,7 +824,7 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
-            ItemType::Nel => false,
+            ItemType::Nel => true,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::UserReportV2 => true,
@@ -945,6 +945,11 @@ pub struct Envelope {
 }
 
 impl Envelope {
+    /// Creates an envelope from the provided parts.
+    pub fn from_parts(headers: EnvelopeHeaders, items: Items) -> Box<Self> {
+        Box::new(Self { items, headers })
+    }
+
     /// Creates an envelope from request information.
     pub fn from_request(event_id: Option<EventId>, meta: RequestMeta) -> Box<Self> {
         Box::new(Self {
@@ -1000,6 +1005,11 @@ impl Envelope {
         }
     }
 
+    /// Returns reference to the [`EnvelopeHeaders`].
+    pub fn headers(&self) -> &EnvelopeHeaders {
+        &self.headers
+    }
+
     /// Returns the number of items in this envelope.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
@@ -1043,6 +1053,11 @@ impl Envelope {
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
+    }
+
+    /// Sets the event id on the envelope.
+    pub fn set_event_id(&mut self, event_id: Option<EventId>) {
+        self.headers.event_id = event_id;
     }
 
     /// Sets the timestamp at which an envelope is sent to the upstream.
@@ -1110,7 +1125,7 @@ impl Envelope {
         self.items.iter_mut()
     }
 
-    /// Returns the an option with a reference to the first item that matches
+    /// Returns an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
     where
@@ -1119,7 +1134,7 @@ impl Envelope {
         self.items().find(|item| pred(item))
     }
 
-    /// Returns the an option with a mutable reference to the first item that matches
+    /// Returns an option with a mutable reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
     where
@@ -1152,7 +1167,7 @@ impl Envelope {
 
     /// Splits off the items from the envelope using provided predicates.
     ///
-    /// First predicate is the the additional condition on the count of found items by second
+    /// First predicate is the additional condition on the count of found items by second
     /// predicate.
     #[cfg(test)]
     fn split_off_items<C, F>(&mut self, cond: C, mut f: F) -> Option<SmallVec<[Item; 3]>>
@@ -1190,59 +1205,6 @@ impl Envelope {
             headers: self.headers.clone(),
             items: split_items,
         }))
-    }
-
-    /// Splits the envelope into smaller processible envelopes.
-    ///
-    /// The items which require events are always kept together in one envelope, the reest items
-    /// will be split into separate envelope with one item type each.
-    pub fn into_processible_parts(mut self) -> SmallVec<[Box<Self>; 3]> {
-        let headers = self.headers.clone();
-        let mut items = std::mem::take(&mut self.items);
-
-        // Extract all the items which require event into separate envelope.
-        let require_event_items = items
-            .drain_filter(|item| item.requires_event())
-            .collect::<Vec<_>>();
-
-        // Keep all the sessions together in one envelope.
-        let session_items = items
-            .drain_filter(|item| {
-                item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions
-            })
-            .collect::<Vec<_>>();
-
-        // Get the rest of the envelopes, one per item.
-        let mut envelopes: SmallVec<[Box<Self>; 3]> = items
-            .into_iter()
-            .map(|item| {
-                let mut headers = headers.clone();
-                // NEL item type should always receive a new event id.
-                if item.ty() == &ItemType::Nel {
-                    headers.event_id = Some(EventId::new());
-                }
-                Box::new(Self {
-                    headers,
-                    items: smallvec![item],
-                })
-            })
-            .collect();
-
-        if !require_event_items.is_empty() {
-            envelopes.push(Box::new(Self {
-                headers: headers.clone(),
-                items: require_event_items.into(),
-            }))
-        }
-
-        if !session_items.is_empty() {
-            envelopes.push(Box::new(Self {
-                headers: headers.clone(),
-                items: session_items.into(),
-            }))
-        }
-
-        envelopes
     }
 
     /// Retains only the items specified by the predicate.

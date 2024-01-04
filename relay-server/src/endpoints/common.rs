@@ -8,7 +8,7 @@ use relay_statsd::metric;
 use serde::Deserialize;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{ProcessMetricMeta, ProcessMetrics};
+use crate::actors::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
 use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
@@ -287,8 +287,8 @@ fn queue_envelope(
     }
 
     // Split off the envelopes by item type.
-    let envelopes = managed_envelope.take_envelope().into_processible_parts();
-    for envelope in envelopes {
+    let envelopes = ProcessingGroup::split_envelope(&mut managed_envelope.take_envelope());
+    for (_, envelope) in envelopes {
         let envelope = buffer_guard
             .enter(
                 envelope,

@@ -23,7 +23,9 @@ use relay_event_normalization::{
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkReportError};
+use relay_event_schema::protocol::{
+    Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
+};
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
@@ -35,6 +37,7 @@ use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEva
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
+use smallvec::{smallvec, SmallVec};
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
@@ -88,6 +91,177 @@ macro_rules! if_processing {
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
+
+/// Describes the groups of the processable items.
+#[derive(Clone, Copy, Debug)]
+pub enum ProcessingGroup {
+    /// All the transaction related items.
+    ///
+    /// Includes transactions, related attachments, profiles.
+    Transaction,
+    /// All the items which require (have or create) events.
+    ///
+    /// This includes: errors, NEL, security reports, user and clients reports, some of the
+    /// attachments.
+    Error,
+    /// Session events.
+    Session,
+    /// Attachments which can be sent alone without any event attached to it in the current
+    /// envelope.
+    StandaloneAttachment,
+    UserReport,
+    Replay,
+    /// Crons.
+    CheckIn,
+    Span,
+    /// Fallback.
+    ///
+    /// Kept for forward compatibility.
+    Unknown,
+}
+
+impl ProcessingGroup {
+    /// Returns the group associated with the provided [`Envelope`].
+    ///
+    /// Based on the items, which the provided envelope contains, make the decision, which
+    /// group should be assigned.
+    ///
+    /// The decision made in the following order:
+    /// - if any of the items is a transaction - return group `Transaction`
+    /// - if the envelope contains only attachment items, and those attachments do not create
+    /// the event - we are dealing with `StandaloneAttachment`
+    /// - if there are ReplayEvent or ReplayRecording items - `Replay` group is assigned
+    /// - if any of the items require event - this is the `Error` group
+    /// - the rest of the items have dedicates groups: Session, UserReport, CheckIn,
+    /// Span
+    /// - the `Unknown` group is for forward-compatibility and assigned to the items which do
+    /// not fit into any of the groups mentioned above.
+    pub fn from_envelope(envelope: &Envelope) -> Self {
+        if envelope
+            .items()
+            .any(|item| item.ty() == &ItemType::Transaction)
+        {
+            return Self::Transaction;
+        }
+
+        if envelope
+            .items()
+            .any(|item| item.ty() == &ItemType::Attachment || item.ty() == &ItemType::FormData)
+            && !envelope.items().any(Item::creates_event)
+        {
+            return Self::StandaloneAttachment;
+        }
+
+        if envelope.items().any(|item| {
+            item.ty() == &ItemType::ReplayEvent || item.ty() == &ItemType::ReplayRecording
+        }) {
+            return Self::Replay;
+        }
+
+        if envelope.items().any(Item::requires_event) {
+            return Self::Error;
+        }
+
+        if envelope
+            .items()
+            .any(|item| item.ty() == &ItemType::UserReport || item.ty() == &ItemType::ClientReport)
+        {
+            return Self::UserReport;
+        }
+
+        if envelope.items().any(|item| item.ty() == &ItemType::CheckIn) {
+            return Self::CheckIn;
+        }
+
+        if envelope
+            .items()
+            .any(|item| item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions)
+        {
+            return Self::Session;
+        }
+
+        if envelope
+            .items()
+            .any(|item| item.ty() == &ItemType::Span || item.ty() == &ItemType::OtelSpan)
+        {
+            return Self::Span;
+        }
+
+        Self::Unknown
+    }
+
+    /// Splits provided envelope into list of tuples of groups with associated envelopes.
+    pub fn split_envelope(envelope: &mut Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
+        let mut envelope = envelope.take_items();
+        let headers = envelope.headers().clone();
+
+        // Extract all the items which require event into separate envelope.
+        let require_event_items = envelope.take_items_by(|item| item.requires_event());
+
+        // Keep all the sessions together in one envelope.
+        let session_items = envelope.take_items_by(|item| {
+            item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions
+        });
+
+        let span_items = envelope
+            .take_items_by(|item| item.ty() == &ItemType::Span || item.ty() == &ItemType::OtelSpan);
+
+        let nel_envelopes = envelope
+            .take_items_by(|item| item.ty() == &ItemType::Nel)
+            .into_iter()
+            .map(|item| {
+                let headers = headers.clone();
+                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+                let mut envelope = Envelope::from_parts(headers, items);
+                envelope.set_event_id(Some(EventId::new()));
+                (ProcessingGroup::Error, envelope)
+            });
+
+        // Get the rest of the envelopes, one per item.
+        let mut envelopes: SmallVec<[(Self, Box<Envelope>); 3]> = envelope
+            .items_mut()
+            .map(|item| {
+                let headers = headers.clone();
+                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+                let envelope = Envelope::from_parts(headers, items);
+                (Self::from_envelope(&envelope), envelope)
+            })
+            .collect();
+
+        if !require_event_items.is_empty() {
+            let group = if require_event_items
+                .iter()
+                .any(|item| item.ty() == &ItemType::Transaction)
+            {
+                ProcessingGroup::Transaction
+            } else {
+                ProcessingGroup::Error
+            };
+            envelopes.push((
+                group,
+                Envelope::from_parts(headers.clone(), require_event_items),
+            ))
+        }
+
+        if !span_items.is_empty() {
+            envelopes.push((
+                ProcessingGroup::Span,
+                Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        if !session_items.is_empty() {
+            envelopes.push((
+                ProcessingGroup::Session,
+                Envelope::from_parts(headers.clone(), session_items),
+            ))
+        }
+
+        envelopes.extend(nel_envelopes);
+
+        envelopes
+    }
+}
 
 /// An error returned when handling [`ProcessEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -319,15 +493,6 @@ impl<'a> ProcessEnvelopeState<'a> {
     /// Returns a mutable reference to the contained [`Envelope`].
     fn envelope_mut(&mut self) -> &mut Envelope {
         self.managed_envelope.envelope_mut()
-    }
-
-    /// Returns whether any item in the envelope creates an event in any relay.
-    ///
-    /// This is used to branch into the processing pipeline. If this function returns false, only
-    /// rate limits are executed. If this function returns true, an event is created either in the
-    /// current relay or in an upstream processing relay.
-    fn creates_event(&self) -> bool {
-        self.envelope().items().any(Item::creates_event)
     }
 
     /// Returns true if there is an event in the processing state.
@@ -962,49 +1127,7 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Returns the _main_ item type from the envelope in the current state.
-    ///
-    /// This functions mimics [`event::extract`] function and returns the [`ItemType`] with
-    /// the same priority.
-    ///
-    /// Note: This function [`event::extract`] should be refactored and unified.
-    fn main_item_type(state: &ProcessEnvelopeState) -> Option<ItemType> {
-        let items = state.envelope().items();
-        if items.clone().any(|item| item.ty() == &ItemType::Event) {
-            return Some(ItemType::Event);
-        }
-        if items
-            .clone()
-            .any(|item| item.ty() == &ItemType::Transaction)
-        {
-            return Some(ItemType::Transaction);
-        }
-        if items.clone().any(|item| item.ty() == &ItemType::Security) {
-            return Some(ItemType::Security);
-        }
-        if items
-            .clone()
-            .any(|item| item.ty() == &ItemType::RawSecurity)
-        {
-            return Some(ItemType::RawSecurity);
-        }
-        if items
-            .clone()
-            .any(|item| item.ty() == &ItemType::UserReportV2)
-        {
-            return Some(ItemType::UserReportV2);
-        }
-        if items.clone().any(|item| item.ty() == &ItemType::FormData) {
-            return Some(ItemType::FormData);
-        }
-        if items.clone().any(|item| item.ty() == &ItemType::Attachment) {
-            return Some(ItemType::Attachment);
-        }
-
-        items.clone().next().map(|item| item.ty().clone())
-    }
-
-    fn process_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_error(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
         report::process(
             state,
@@ -1012,9 +1135,14 @@ impl EnvelopeProcessorService {
             self.inner.outcome_aggregator.clone(),
         );
 
+        if_processing!(self.inner.config, {
+            unreal::expand(state, &self.inner.config)?;
+        });
+
         event::extract(state, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
+            unreal::process(state)?;
             attachment::create_placeholders(state);
         });
 
@@ -1080,32 +1208,11 @@ impl EnvelopeProcessorService {
         attachment::scrub(state);
         Ok(())
     }
+
     fn process_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        // Only some attachments types have create event set to true.
-        if state.creates_event() {
-            event::extract(state, &self.inner.config)?;
-
-            if_processing!(self.inner.config, {
-                attachment::create_placeholders(state);
-            });
-
-            event::finalize(state, &self.inner.config)?;
-            self.light_normalize_event(state)?;
-            event::filter(state)?;
-
-            if_processing!(self.inner.config, {
-                event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-            });
-        }
-
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
-
-        if state.has_event() {
-            event::scrub(state)?;
-            event::serialize(state)?;
-        }
 
         attachment::scrub(state);
         Ok(())
@@ -1119,85 +1226,20 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn process_security(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        event::extract(state, &self.inner.config)?;
-
-        event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
-        event::filter(state)?;
-
-        if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-            self.enforce_quotas(state)?;
-        });
-
-        if state.has_event() {
-            event::scrub(state)?;
-            event::serialize(state)?;
-        }
-        Ok(())
-    }
-
-    fn process_nel(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        event::extract(state, &self.inner.config)?;
-
-        event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
-        event::filter(state)?;
-
-        if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-            self.enforce_quotas(state)?;
-        });
-
-        if state.has_event() {
-            event::scrub(state)?;
-            event::serialize(state)?;
-        }
-        Ok(())
-    }
-
-    fn process_unreal(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        if_processing!(self.inner.config, {
-            unreal::expand(state, &self.inner.config)?;
-        });
-
-        event::extract(state, &self.inner.config)?;
-
-        if_processing!(self.inner.config, {
-            unreal::process(state)?;
-            attachment::create_placeholders(state);
-        });
-
-        event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
-        event::filter(state)?;
-
-        if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-            self.enforce_quotas(state)?;
-        });
-
-        if state.has_event() {
-            event::scrub(state)?;
-            event::serialize(state)?;
-        }
-        Ok(())
-    }
-
     fn process_user_reports(
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+
         report::process(
             state,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
         );
 
-        if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
-        });
         Ok(())
     }
 
@@ -1226,67 +1268,29 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn process_user_reports_v2(
-        &self,
-        state: &mut ProcessEnvelopeState,
-    ) -> Result<(), ProcessingError> {
-        event::extract(state, &self.inner.config)?;
-
-        event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
-        event::filter(state)?;
-
-        if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-            self.enforce_quotas(state)?;
-        });
-
-        if state.has_event() {
-            event::scrub(state)?;
-            event::serialize(state)?;
-        }
-        Ok(())
-    }
-
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        relay_log::trace!(
-            "items in the incoming envelope: {:?}",
-            state
-                .envelope()
-                .items()
-                .map(|item| item.ty())
-                .collect::<Vec<_>>()
-        );
+        let group = ProcessingGroup::from_envelope(state.envelope());
 
-        // Find the type we want to process.
-        let Some(ty) = Self::main_item_type(state) else {
-            relay_log::error!("There are no event type and no items in the envelope");
-            return Err(ProcessingError::NoEventPayload);
-        };
+        relay_log::trace!("Processing {group:?} group");
 
-        // Defined processing pipeilnes based on the event type and/or item type they contain.
-        match ty {
-            // This can still contain attachements.
-            ItemType::Event => self.process_event(state)?,
-            // Contains data which belongs together with transactions, e.g. profiles attachments.
-            ItemType::Transaction => self.process_transaction(state)?,
-            ItemType::Profile => profile::filter(state),
-            // Standalone attachments.
-            ItemType::Attachment | ItemType::FormData => self.process_attachments(state)?,
-            ItemType::Session | ItemType::Sessions => self.process_sessions(state)?,
-            ItemType::Security | ItemType::RawSecurity => self.process_security(state)?,
-            ItemType::Nel => self.process_nel(state)?,
-            ItemType::UnrealReport => self.process_unreal(state)?,
-            ItemType::UserReport | ItemType::ClientReport => self.process_user_reports(state)?,
-            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => {
-                relay_log::error!("Statsd/Metrics should not go here");
-            }
-            ItemType::ReplayEvent | ItemType::ReplayRecording => self.process_replays(state)?,
-            ItemType::CheckIn => self.process_checkins(state)?,
-            ItemType::Span | ItemType::OtelSpan => self.process_spans(state)?,
-            ItemType::UserReportV2 => self.process_user_reports_v2(state)?,
-            ItemType::Unknown(t) => {
-                relay_log::trace!("Received Unknown({t}) item type.")
+        match group {
+            ProcessingGroup::Error => self.process_error(state)?,
+            ProcessingGroup::Transaction => self.process_transaction(state)?,
+            ProcessingGroup::Session => self.process_sessions(state)?,
+            ProcessingGroup::StandaloneAttachment => self.process_attachments(state)?,
+            ProcessingGroup::UserReport => self.process_user_reports(state)?,
+            ProcessingGroup::Replay => self.process_replays(state)?,
+            ProcessingGroup::CheckIn => self.process_checkins(state)?,
+            ProcessingGroup::Span => self.process_spans(state)?,
+            ProcessingGroup::Unknown => {
+                relay_log::error!(
+                    tags.project = %state.project_id,
+                    "Could not identify the processing group based on the envelope's items."
+                );
+                relay_log::trace!(
+                    "Unknown items types: {:?}",
+                    state.envelope().items().map(Item::ty).collect::<Vec<_>>()
+                );
             }
         }
 

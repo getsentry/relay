@@ -94,12 +94,17 @@ def test_unknown_item(mini_sentry, relay):
     attachment = Item(payload=PayloadRef(bytes=b"something"), type="attachment")
     attachment.headers["attachment_type"] = "attachment_unknown"
     envelope.add_item(attachment)
-    relay.send_envelope(PROJECT_ID, envelope)
-
-    envelopes = [  # non-event items are split into separate envelopes, so fetch 2x here
-        mini_sentry.captured_events.get(timeout=1),
-        mini_sentry.captured_events.get(timeout=1),
-    ]
+    # For uknown types Relay will report the error.
+    try:
+        relay.send_envelope(PROJECT_ID, envelope)
+        envelopes = (
+            [  # non-event items are split into separate envelopes, so fetch 2x here
+                mini_sentry.captured_events.get(timeout=1),
+                mini_sentry.captured_events.get(timeout=1),
+            ]
+        )
+    finally:
+        mini_sentry.test_failures.clear()
 
     types = {
         (item.type, item.headers.get("attachment_type"))
