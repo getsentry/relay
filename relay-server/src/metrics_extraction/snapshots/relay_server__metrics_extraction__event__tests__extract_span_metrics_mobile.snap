@@ -82,6 +82,48 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             other: {},
         },
+        Span {
+            timestamp: Timestamp(
+                2020-08-21T02:18:23Z,
+            ),
+            start_timestamp: Timestamp(
+                2020-08-21T02:18:20Z,
+            ),
+            exclusive_time: 3000.0,
+            description: "Cold Start",
+            op: "app.start.cold",
+            span_id: SpanId(
+                "bd429c44b67a3eb2",
+            ),
+            parent_span_id: ~,
+            trace_id: TraceId(
+                "ff62a8b040f340bda5d830223def1d81",
+            ),
+            segment_id: ~,
+            is_segment: ~,
+            status: ~,
+            tags: ~,
+            origin: ~,
+            profile_id: ~,
+            data: ~,
+            sentry_tags: {
+                "category": "app",
+                "description": "Cold Start",
+                "device.class": "1",
+                "group": "2d675185edfeb30c",
+                "mobile": "true",
+                "op": "app.start.cold",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "ttid": "ttid",
+            },
+            received: ~,
+            measurements: ~,
+            _metrics_summary: ~,
+            other: {},
+        },
     ],
     [
         Bucket {
@@ -199,6 +241,91 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             tags: {
                 "release": "1.2.3",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "app",
+                "span.description": "Cold Start",
+                "span.group": "2d675185edfeb30c",
+                "span.op": "app.start.cold",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+                "ttid": "ttid",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/exclusive_time_light@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.category": "app",
+                "span.description": "Cold Start",
+                "span.group": "2d675185edfeb30c",
+                "span.op": "app.start.cold",
+                "transaction.method": "GET",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/count_per_op@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {
+                "span.category": "app",
+                "span.op": "app.start.cold",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/count_per_segment@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {
+                "release": "1.2.3",
+                "transaction": "gEt /api/:version/users/",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "d:spans/duration@millisecond",
+            value: Distribution(
+                [
+                    3000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "os.name": "iOS",
+                "release": "1.2.3",
+                "span.description": "Cold Start",
+                "span.group": "2d675185edfeb30c",
+                "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
             },
         },
