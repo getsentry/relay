@@ -118,7 +118,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
 
         relay_config = {
             "spool": {
-                "envelopes": {"path": dbfile, "max_memory_size": 1, "max_disk_size": 1}
+                "envelopes": {"path": dbfile, "max_memory_size": 0, "max_disk_size": 0}
             },
         }
 
@@ -132,7 +132,6 @@ def test_readiness_disk_spool(mini_sentry, relay):
         # Wrapping this into the try block, to make sure we ignore those errors and just check the health at the end.
         try:
             # These events will consume all the disk sapce and we will report not ready.
-            relay.send_event(project_key)
             relay.send_event(project_key)
         finally:
             # Authentication failures would fail the test

@@ -94,7 +94,7 @@ def test_unknown_item(mini_sentry, relay):
     attachment = Item(payload=PayloadRef(bytes=b"something"), type="attachment")
     attachment.headers["attachment_type"] = "attachment_unknown"
     envelope.add_item(attachment)
-    # For uknown types Relay will report the error.
+    # For unknown types Relay will report the error.
     try:
         relay.send_envelope(PROJECT_ID, envelope)
         envelopes = (
