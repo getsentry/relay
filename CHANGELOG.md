@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 **Bug Fixes**:
 
 - Resolve a division by zero in performance score computation that leads to dropped metrics for transactions. ([#2911](https://github.com/getsentry/relay/pull/2911))
