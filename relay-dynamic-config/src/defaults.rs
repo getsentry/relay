@@ -376,8 +376,9 @@ fn span_metrics_reduced() -> impl IntoIterator<Item = MetricSpec> {
 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
-    // transaction.op:ui.load transaction:MainActivity span.op:[file.read,file.write,ui.load,http.client,db,db.sql.room,db.sql.query,db.sql.transaction] has:span.description release:io.sentry.symbolcollector.android@1.13.0+1
-    let is_screen = RuleCondition::eq("span.sentry_tags.transaction.op", "ui.load") // TODO: check syntax
+    // This filter is based on
+    // https://github.com/getsentry/sentry/blob/e01885215ff1a5b4e0da3046b4d929398a946360/static/app/views/starfish/views/screens/screenLoadSpans/spanOpSelector.tsx#L31-L34
+    let is_screen = RuleCondition::eq("span.sentry_tags.transaction.op", "ui.load")
         & RuleCondition::eq(
             "span.op",
             vec![
