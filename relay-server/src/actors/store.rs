@@ -15,7 +15,7 @@ use relay_event_schema::protocol::{
 };
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, MetricNamespace, MetricResourceIdentifier,
+    Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -301,13 +301,10 @@ impl StoreService {
         let mut error = None;
 
         for bucket in buckets {
-            let mut remaining = Some(BucketView::new(&bucket));
-
-            while let Some(current) = remaining.take() {
-                let (Some(view), next) = current.split(batch_size, Some(batch_size)) else {
-                    break;
-                };
-
+            // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
+            // each bucket separately, we only need to split buckets that exceed the size, but not
+            // batches.
+            for view in BucketsView::new(&[bucket]).by_size(batch_size).flatten() {
                 let message = MetricKafkaMessage {
                     org_id: scoping.organization_id,
                     project_id: scoping.project_id,
@@ -322,8 +319,6 @@ impl StoreService {
                     error.get_or_insert(e);
                     dropped += utils::extract_metric_quantities([view], mode);
                 }
-
-                remaining = next;
             }
         }
 
