@@ -5,6 +5,7 @@
 **Bug fixes**:
 
 - Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
+- Resolve a division by zero in performance score computation that leads to dropped metrics for transactions. ([#2911](https://github.com/getsentry/relay/pull/2911))
 
 **Internal**:
 
