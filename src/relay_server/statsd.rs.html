@@ -696,6 +696,10 @@
 <a href="#696" id="696">696</a>
 <a href="#697" id="697">697</a>
 <a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -857,6 +861,9 @@
     /// Relay over HTTP in bytes.
     </span>UpstreamEnvelopeBodySize,
 
+    <span class="doccomment">/// Size of batched global metrics requests sent by Relay over HTTP in bytes.
+    </span>UpstreamMetricsBodySize,
+
     <span class="doccomment">/// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
@@ -892,6 +899,7 @@
             RelayHistograms::UpstreamRetries =&gt; <span class="string">&quot;upstream.retries&quot;</span>,
             RelayHistograms::UpstreamQueryBodySize =&gt; <span class="string">&quot;upstream.query.body_size&quot;</span>,
             RelayHistograms::UpstreamEnvelopeBodySize =&gt; <span class="string">&quot;upstream.envelope.body_size&quot;</span>,
+            RelayHistograms::UpstreamMetricsBodySize =&gt; <span class="string">&quot;upstream.metrics.body_size&quot;</span>,
             RelayHistograms::PartitionKeys =&gt; <span class="string">&quot;metrics.buckets.partition_keys&quot;</span>,
         }
     }

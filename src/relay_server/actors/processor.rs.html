@@ -2205,6 +2205,8 @@
 <a href="#2205" id="2205">2205</a>
 <a href="#2206" id="2206">2206</a>
 <a href="#2207" id="2207">2207</a>
+<a href="#2208" id="2208">2208</a>
+<a href="#2209" id="2209">2209</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::future::Future;
@@ -4100,6 +4102,8 @@
     </span>}
 
     <span class="kw">fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, builder: <span class="kw-2">&amp;mut </span>http::RequestBuilder) -&gt; <span class="prelude-ty">Result</span>&lt;(), http::HttpError&gt; {
+        <span class="macro">metric!</span>(histogram(RelayHistograms::UpstreamMetricsBodySize) = <span class="self">self</span>.encoded.len() <span class="kw">as </span>u64);
+
         builder
             .content_encoding(<span class="self">self</span>.http_encoding)
             .header_opt(<span class="string">&quot;X-Sentry-Relay-Shard&quot;</span>, <span class="self">self</span>.partition_key.as_ref())
