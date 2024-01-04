@@ -1128,7 +1128,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes the general errors, and the items which require or create the events.
-    fn process_error(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_errors(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
         report::process(
             state,
@@ -1170,7 +1170,10 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes only transactions and transaction-related items.
-    fn process_transaction(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_transactions(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
         profile::filter(state);
         event::extract(state, &self.inner.config)?;
         profile::transfer_id(state);
@@ -1282,8 +1285,8 @@ impl EnvelopeProcessorService {
         relay_log::trace!("Processing {group:?} group");
 
         match group {
-            ProcessingGroup::Error => self.process_error(state)?,
-            ProcessingGroup::Transaction => self.process_transaction(state)?,
+            ProcessingGroup::Error => self.process_errors(state)?,
+            ProcessingGroup::Transaction => self.process_transactions(state)?,
             ProcessingGroup::Session => self.process_sessions(state)?,
             ProcessingGroup::StandaloneAttachment => self.process_attachments(state)?,
             ProcessingGroup::UserReport => self.process_user_reports(state)?,
