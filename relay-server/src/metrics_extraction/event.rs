@@ -1064,6 +1064,7 @@ mod tests {
             },
             "spans": [
                 {
+                    "op": "app.start.cold",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
