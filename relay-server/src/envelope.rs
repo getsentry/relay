@@ -1056,8 +1056,8 @@ impl Envelope {
     }
 
     /// Sets the event id on the envelope.
-    pub fn set_event_id(&mut self, event_id: Option<EventId>) {
-        self.headers.event_id = event_id;
+    pub fn set_event_id(&mut self, event_id: EventId) {
+        self.headers.event_id = Some(event_id);
     }
 
     /// Sets the timestamp at which an envelope is sent to the upstream.

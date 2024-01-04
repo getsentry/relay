@@ -213,7 +213,7 @@ impl ProcessingGroup {
                 let headers = headers.clone();
                 let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
                 let mut envelope = Envelope::from_parts(headers, items);
-                envelope.set_event_id(Some(EventId::new()));
+                envelope.set_event_id(EventId::new());
                 (ProcessingGroup::Error, envelope)
             });
 
