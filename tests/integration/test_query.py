@@ -261,8 +261,8 @@ def test_metlim(
         }
     )
 
-    metric_bucket_limit = 9
     buckets_sent = 12
+    metric_bucket_limit = 9
     assert metric_bucket_limit < buckets_sent
 
     project_id = 42
