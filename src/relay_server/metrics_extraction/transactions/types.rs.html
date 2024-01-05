@@ -268,6 +268,10 @@
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
@@ -412,12 +416,16 @@
 
 <span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 </span><span class="kw">pub struct </span>LightTransactionTags {
+    <span class="kw">pub </span>transaction_op: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>transaction: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="kw">impl </span>From&lt;LightTransactionTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
     <span class="kw">fn </span>from(tags: LightTransactionTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_op) = tags.transaction_op {
+            map.insert(CommonTag::TransactionOp.to_string(), transaction_op);
+        }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = tags.transaction {
             map.insert(CommonTag::Transaction.to_string(), transaction);
         }
