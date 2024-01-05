@@ -504,6 +504,15 @@ impl<'a> ProcessEnvelopeState<'a> {
         self.managed_envelope.envelope_mut()
     }
 
+    /// Returns whether any item in the envelope creates an event in any relay.
+    ///
+    /// This is used to branch into the processing pipeline. If this function returns false, only
+    /// rate limits are executed. If this function returns true, an event is created either in the
+    /// current relay or in an upstream processing relay.
+    fn creates_event(&self) -> bool {
+        self.envelope().items().any(Item::creates_event)
+    }
+
     /// Returns true if there is an event in the processing state.
     ///
     /// The event was previously removed from the Envelope. This returns false if there was an
@@ -1288,6 +1297,78 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    /// Previous / Old implementation of the `process_state` function, which is used for all
+    /// unknown [`ProcessingGroup`] variant.
+    ///
+    /// Note: this will be removed once we are confident in the new implementation and make sure
+    /// that all the groups properly covered.
+    fn process_state_pre(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        session::process(state, &self.inner.config);
+        report::process(
+            state,
+            &self.inner.config,
+            self.inner.outcome_aggregator.clone(),
+        );
+        replay::process(state, &self.inner.config)?;
+        profile::filter(state);
+        span::filter(state);
+
+        if state.creates_event() {
+            // Some envelopes only create events in processing relays; for example, unreal events.
+            // This makes it possible to get in this code block while not really having an event in
+            // the envelope.
+
+            if_processing!(self.inner.config, {
+                unreal::expand(state, &self.inner.config)?;
+            });
+
+            event::extract(state, &self.inner.config)?;
+            profile::transfer_id(state);
+
+            if_processing!(self.inner.config, {
+                unreal::process(state)?;
+                attachment::create_placeholders(state);
+            });
+
+            event::finalize(state, &self.inner.config)?;
+            self.light_normalize_event(state)?;
+            dynamic_sampling::normalize(state);
+            event::filter(state)?;
+            dynamic_sampling::run(state, &self.inner.config);
+
+            // We avoid extracting metrics if we are not sampling the event while in non-processing
+            // relays, in order to synchronize rate limits on indexed and processed transactions.
+            if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+                self.extract_metrics(state)?;
+            }
+
+            dynamic_sampling::sample_envelope(state)?;
+
+            if_processing!(self.inner.config, {
+                event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            });
+        }
+
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+            profile::process(state, &self.inner.config);
+            self.process_check_ins(state);
+            span::process(state, self.inner.config.clone());
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+            if_processing!(self.inner.config, {
+                span::extract_from_event(state);
+            });
+        }
+
+        attachment::scrub(state);
+
+        Ok(())
+    }
+
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
@@ -1307,6 +1388,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Replay => self.process_replays(state)?,
             ProcessingGroup::CheckIn => self.process_checkins(state)?,
             ProcessingGroup::Span => self.process_spans(state)?,
+            // Fallback to the old process_state implementation for time being.
             ProcessingGroup::Unknown => {
                 relay_log::error!(
                     tags.project = %state.project_id,
@@ -1316,6 +1398,9 @@ impl EnvelopeProcessorService {
                     "Unknown items types: {:?}",
                     state.envelope().items().map(Item::ty).collect::<Vec<_>>()
                 );
+
+                // Call the old implementation of the `process_state` function.
+                self.process_state_pre(state)?;
             }
         }
 
