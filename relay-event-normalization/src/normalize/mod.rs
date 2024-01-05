@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -13,9 +14,10 @@ use relay_event_schema::protocol::{
     Frame, IpAddr, Level, NelContext, ReplayContext, Request, Stacktrace, TraceContext, User,
     VALID_PLATFORMS,
 };
+use relay_metrics::MetricResourceIdentifier;
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
-    Value,
+    Val, Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -116,6 +118,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
     fn normalize_spans(&self, event: &mut Event) {
         if event.ty.value() == Some(&EventType::Transaction) {
             normalize_app_start_spans(event);
+            normalize_all_metrics_summaries(event);
             span::attributes::normalize_spans(event, &self.config.span_attributes);
         }
     }
@@ -200,6 +203,53 @@ fn normalize_app_start_spans(event: &mut Event) {
                     } else if op == "app_start_warm" {
                         span.op.set_value(Some("app.start.warm".to_string()));
                         break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Replaces all incoming metric identifiers in the metric summary with the correct MRI.
+///
+/// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
+/// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
+/// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
+fn normalize_metrics_summary_mris(value: &Value) -> Option<Value> {
+    if let Value::Object(metrics) = value {
+        let mut new_metrics = BTreeMap::new();
+        for (metric_identifier, summary_values) in metrics.iter() {
+            if let Ok(parsed_mri) = MetricResourceIdentifier::parse(metric_identifier) {
+                new_metrics.insert(parsed_mri.to_string(), summary_values.clone());
+            }
+        }
+
+        return Some(Value::Object(new_metrics));
+    }
+
+    return None;
+}
+
+/// Normalizes all the metrics summaries across the event payload.
+fn normalize_all_metrics_summaries(event: &mut Event) {
+    if let Some(metrics_summary) = event._metrics_summary.value() {
+        if let Some(normalized_metrics_summary) = normalize_metrics_summary_mris(metrics_summary) {
+            event
+                ._metrics_summary
+                .set_value(Some(normalized_metrics_summary));
+        }
+    }
+
+    if let Some(spans) = event.spans.value_mut() {
+        for span in spans.iter_mut() {
+            if let Some(inner_span) = span.value_mut() {
+                if let Some(metrics_summary) = inner_span._metrics_summary.value() {
+                    if let Some(normalized_metrics_summary) =
+                        normalize_metrics_summary_mris(metrics_summary)
+                    {
+                        inner_span
+                            ._metrics_summary
+                            .set_value(Some(normalized_metrics_summary));
                     }
                 }
             }
@@ -2355,6 +2405,145 @@ mod tests {
                 other: {},
             },
         ]
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_metrics_summary_metric_identifiers() {
+        let mut metrics_summary = BTreeMap::new();
+        metrics_summary.insert(
+            "d:page_duration@millisecond".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+        metrics_summary.insert(
+            "c:page_click@none".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+        metrics_summary.insert(
+            "s:user@none".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+        metrics_summary.insert(
+            "g:page_load@second".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+
+        let mut event = Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("my_span".to_owned()),
+                _metrics_summary: Annotated::new(Value::Object(metrics_summary.clone())),
+                ..Default::default()
+            })]),
+            _metrics_summary: Annotated::new(Value::Object(metrics_summary)),
+            ..Default::default()
+        };
+        normalize_all_metrics_summaries(&mut event);
+        assert_debug_snapshot!(event, @r###"
+        Event {
+            id: ~,
+            level: ~,
+            version: ~,
+            ty: ~,
+            fingerprint: ~,
+            culprit: ~,
+            transaction: ~,
+            transaction_info: ~,
+            time_spent: ~,
+            logentry: ~,
+            logger: ~,
+            modules: ~,
+            platform: ~,
+            timestamp: ~,
+            start_timestamp: ~,
+            received: ~,
+            server_name: ~,
+            release: ~,
+            dist: ~,
+            environment: ~,
+            site: ~,
+            user: ~,
+            request: ~,
+            contexts: ~,
+            breadcrumbs: ~,
+            exceptions: ~,
+            stacktrace: ~,
+            template: ~,
+            threads: ~,
+            tags: ~,
+            extra: ~,
+            debug_meta: ~,
+            client_sdk: ~,
+            ingest_path: ~,
+            errors: ~,
+            key_id: ~,
+            project: ~,
+            grouping_config: ~,
+            checksum: ~,
+            csp: ~,
+            hpkp: ~,
+            expectct: ~,
+            expectstaple: ~,
+            spans: [
+                Span {
+                    timestamp: ~,
+                    start_timestamp: ~,
+                    exclusive_time: ~,
+                    description: ~,
+                    op: "my_span",
+                    span_id: ~,
+                    parent_span_id: ~,
+                    trace_id: ~,
+                    segment_id: ~,
+                    is_segment: ~,
+                    status: ~,
+                    tags: ~,
+                    origin: ~,
+                    profile_id: ~,
+                    data: ~,
+                    sentry_tags: ~,
+                    received: ~,
+                    measurements: ~,
+                    _metrics_summary: Object(
+                        {
+                            "c:custom/page_click@none": Array(
+                                [],
+                            ),
+                            "d:custom/page_duration@millisecond": Array(
+                                [],
+                            ),
+                            "g:custom/page_load@second": Array(
+                                [],
+                            ),
+                            "s:custom/user@none": Array(
+                                [],
+                            ),
+                        },
+                    ),
+                    other: {},
+                },
+            ],
+            measurements: ~,
+            breakdowns: ~,
+            scraping_attempts: ~,
+            _metrics: ~,
+            _metrics_summary: Object(
+                {
+                    "c:custom/page_click@none": Array(
+                        [],
+                    ),
+                    "d:custom/page_duration@millisecond": Array(
+                        [],
+                    ),
+                    "g:custom/page_load@second": Array(
+                        [],
+                    ),
+                    "s:custom/user@none": Array(
+                        [],
+                    ),
+                },
+            ),
+            other: {},
+        }
         "###);
     }
 
