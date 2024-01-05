@@ -1593,9 +1593,7 @@ def test_profile_outcomes_rate_limited(
     assert outcomes == expected_outcomes, outcomes
 
 
-def test_global_throughput_limit(
-    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
-):
+def test_foo(mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer):
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
@@ -1624,7 +1622,7 @@ def test_global_throughput_limit(
 
     projectconfig["config"]["quotas"] = [
         {
-            "id": f"test_rate_limiting",
+            "id": "test_rate_limiting",
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
