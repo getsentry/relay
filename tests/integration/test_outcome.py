@@ -1596,8 +1596,8 @@ def test_profile_outcomes_rate_limited(
 def test_global_throughput_limit(
     mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
-    metrics_consumer = metrics_consumer(5)
-    outcomes_consumer = outcomes_consumer(5)
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     bucket_interval = 1  # second
     relay = relay_with_processing(
@@ -1645,8 +1645,9 @@ def test_global_throughput_limit(
         }
 
         relay.send_metrics_buckets(project_id, [bucket])
-        time.sleep(0.2)
+        time.sleep(0.5)
 
+    time.sleep(5)
     produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
     outcomes = outcomes_consumer.get_outcomes()
 
