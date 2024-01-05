@@ -7,12 +7,12 @@
 -- The reason we return the size of the redis count is to avoid asking for more budget when
 -- the previously seen redis count is still bigger than the limit.
 --
--- The redis key are unique to their timeslot, which is why we let them expire in order to not
+-- The redis keys are unique to their timeslot, which is why we let them expire in order to not
 -- fill up redis with dead keys.
 --
 -- The amount of budget we take from the counter depends on 3 things.
---  1: The configured default budget. This will apply if following conditions not met.
---  2: The amount of items being evaluated. If we evaluate a batch of items with
+--  1: The configured default budget.
+--  2: The amount of items being evaluated. If we evaluate a batch of items of a
 --      higher quantity than the default budget, we increase the budget in order to not ratelimit
 --      based on item quantity, as that's not the responsibility of this script.
 --  3: Closeness to the given limit. The budget is capped so that it can not increase beyond the

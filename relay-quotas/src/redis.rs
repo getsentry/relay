@@ -174,7 +174,7 @@ pub struct GlobalCounters(Arc<RwLock<hashbrown::HashMap<BudgetKey, BudgetState>>
 impl GlobalCounters {
     fn update_limit(
         &self,
-        budget_key: &BudgetKey,
+        budget_key: BudgetKey,
         current_slot: u64,
         new_budget: usize,
         redis_value: u64,
@@ -188,13 +188,13 @@ impl GlobalCounters {
         // This can happen if for example the budget is 30, then we try to decrement by 50, so we
         // ask for 100 more in budget but the 30 budget is still available so the local count is 130.
         let old_budget: usize = map
-            .get(budget_key)
+            .get(&budget_key)
             .filter(|val| val.slot == current_slot)
             .map(|val| val.count.load(Ordering::SeqCst))
             .unwrap_or_default();
 
         map.insert(
-            budget_key.to_owned(),
+            budget_key,
             BudgetState {
                 count: AtomicUsize::new(new_budget + old_budget),
                 last_seen_redis_value: AtomicU64::new(redis_value),
@@ -420,7 +420,7 @@ impl RedisRateLimiter {
             .map_err(|_| GlobalRateLimitError::Redis)?;
 
         self.counters.update_limit(
-            &BudgetKey::new(quota),
+            BudgetKey::new(quota),
             quota.slot(),
             new_budget as usize,
             current_redis_count,
