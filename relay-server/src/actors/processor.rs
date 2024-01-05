@@ -150,7 +150,7 @@ impl ProcessingGroup {
             return Self::Transaction;
         }
 
-        // We can have standalone attachment - the ones which do not create events.
+        // We can have standalone attachments - the ones which do not create events.
         if envelope
             .items()
             .any(|item| item.ty() == &ItemType::Attachment || item.ty() == &ItemType::FormData)
@@ -204,17 +204,7 @@ impl ProcessingGroup {
     pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
 
-        // Extract all the items which require event into separate envelope.
-        let require_event_items = envelope.take_items_by(|item| item.requires_event());
-
-        // Keep all the sessions together in one envelope.
-        let session_items = envelope.take_items_by(|item| {
-            item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions
-        });
-
-        let span_items = envelope
-            .take_items_by(|item| item.ty() == &ItemType::Span || item.ty() == &ItemType::OtelSpan);
-
+        // Each NEL item *must* have a dedicated envelope.
         let nel_envelopes = envelope
             .take_items_by(|item| item.ty() == &ItemType::Nel)
             .into_iter()
@@ -225,6 +215,31 @@ impl ProcessingGroup {
                 envelope.set_event_id(EventId::new());
                 (ProcessingGroup::Error, envelope)
             });
+
+        // Extract all standalone attachments.
+        // Note: only if there is no items in the envelope which can create events.
+        let standalone_attachment_items = if !envelope.items().any(Item::creates_event) {
+            envelope.take_items_by(|item| {
+                item.ty() == &ItemType::Attachment || item.ty() == &ItemType::FormData
+            })
+        } else {
+            smallvec![]
+        };
+
+        let replay_items = envelope.take_items_by(|item| {
+            item.ty() == &ItemType::ReplayEvent || item.ty() == &ItemType::ReplayRecording
+        });
+
+        // Keep all the sessions together in one envelope.
+        let session_items = envelope.take_items_by(|item| {
+            item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions
+        });
+
+        let span_items = envelope
+            .take_items_by(|item| item.ty() == &ItemType::Span || item.ty() == &ItemType::OtelSpan);
+
+        // Extract all the items which require event into separate envelope.
+        let require_event_items = envelope.take_items_by(Item::requires_event);
 
         // Get the rest of the envelopes, one per item.
         let mut envelopes: SmallVec<[(Self, Box<Envelope>); 3]> = envelope
@@ -237,10 +252,12 @@ impl ProcessingGroup {
             })
             .collect();
 
+        // Extend the rest of the envelopes.
+
         if !require_event_items.is_empty() {
             let group = if require_event_items
                 .iter()
-                .any(|item| item.ty() == &ItemType::Transaction)
+                .any(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Profile)
             {
                 ProcessingGroup::Transaction
             } else {
@@ -249,6 +266,20 @@ impl ProcessingGroup {
             envelopes.push((
                 group,
                 Envelope::from_parts(headers.clone(), require_event_items),
+            ))
+        }
+
+        if !standalone_attachment_items.is_empty() {
+            envelopes.push((
+                ProcessingGroup::StandaloneAttachment,
+                Envelope::from_parts(headers.clone(), standalone_attachment_items),
+            ))
+        }
+
+        if !replay_items.is_empty() {
+            envelopes.push((
+                ProcessingGroup::Replay,
+                Envelope::from_parts(headers.clone(), replay_items),
             ))
         }
 
