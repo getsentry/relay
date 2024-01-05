@@ -52,6 +52,7 @@ use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
 use crate::actors::outcome::TrackOutcome;
+use crate::actors::processor::ProcessingGroup;
 use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
@@ -437,11 +438,12 @@ impl OnDisk {
 
         envelope.set_start_time(start_time_instant);
 
-        let managed_envelope = self.buffer_guard.enter(
+        let mut managed_envelope = self.buffer_guard.enter(
             envelope,
             services.outcome_aggregator.clone(),
             services.test_store.clone(),
         )?;
+        managed_envelope.set_group(ProcessingGroup::from_envelope(managed_envelope.envelope()));
         Ok(managed_envelope)
     }
 

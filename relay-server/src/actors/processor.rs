@@ -137,13 +137,20 @@ impl ProcessingGroup {
     /// - the `Unknown` group is for forward-compatibility and assigned to the items which do
     /// not fit into any of the groups mentioned above.
     pub fn from_envelope(envelope: &Envelope) -> Self {
+        // In the envelope can be either Transaction or Error, but never both together, this
+        // condition if met assigns the `Transaction` group otherwise we assume it's ether errors
+        // or any other item types.
+        //
+        // Profile currently always belongs to the transaction. If it sent without transaction it
+        // will be silently dropped.
         if envelope
             .items()
-            .any(|item| item.ty() == &ItemType::Transaction)
+            .any(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Profile)
         {
             return Self::Transaction;
         }
 
+        // We can have standalone attachment - the ones which do not create events.
         if envelope
             .items()
             .any(|item| item.ty() == &ItemType::Attachment || item.ty() == &ItemType::FormData)
@@ -158,6 +165,8 @@ impl ProcessingGroup {
             return Self::Replay;
         }
 
+        // If there are any items in this envelope, which require event, but it's not a
+        // transaction, then it's must be general error.
         if envelope.items().any(Item::requires_event) {
             return Self::Error;
         }
@@ -173,6 +182,7 @@ impl ProcessingGroup {
             return Self::CheckIn;
         }
 
+        // Sessions are always grouped together, and require little processing.
         if envelope
             .items()
             .any(|item| item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions)
@@ -191,8 +201,7 @@ impl ProcessingGroup {
     }
 
     /// Splits provided envelope into list of tuples of groups with associated envelopes.
-    pub fn split_envelope(envelope: &mut Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
-        let mut envelope = envelope.take_items();
+    pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
 
         // Extract all the items which require event into separate envelope.
@@ -1280,7 +1289,12 @@ impl EnvelopeProcessorService {
     }
 
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let group = ProcessingGroup::from_envelope(state.envelope());
+        // Get the group from the managed envelope context, and if it's not set, try to guess it
+        // from the contents of the envelope.
+        let group = state
+            .managed_envelope
+            .group()
+            .unwrap_or_else(|| ProcessingGroup::from_envelope(state.envelope()));
 
         relay_log::trace!("Processing {group:?} group");
 

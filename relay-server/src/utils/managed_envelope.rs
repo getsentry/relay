@@ -8,6 +8,7 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::actors::processor::ProcessingGroup;
 use crate::actors::test_store::{Capture, TestStore};
 use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;
@@ -61,6 +62,7 @@ struct EnvelopeContext {
     slot: Option<SemaphorePermit>,
     partition_key: Option<u64>,
     done: bool,
+    group: Option<ProcessingGroup>,
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -105,6 +107,7 @@ impl ManagedEnvelope {
                 slot,
                 partition_key: None,
                 done: false,
+                group: None,
             },
             outcome_aggregator,
             test_store,
@@ -152,6 +155,15 @@ impl ManagedEnvelope {
     /// Returns a reference to the contained [`Envelope`].
     pub fn envelope(&self) -> &Envelope {
         self.envelope.as_ref()
+    }
+
+    /// Returns the optional group where this envelope belongs to.
+    pub fn group(&self) -> Option<ProcessingGroup> {
+        self.context.group
+    }
+
+    pub fn set_group(&mut self, group: ProcessingGroup) {
+        self.context.group = Some(group)
     }
 
     /// Returns a mutable reference to the contained [`Envelope`].

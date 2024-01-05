@@ -287,15 +287,16 @@ fn queue_envelope(
     }
 
     // Split off the envelopes by item type.
-    let envelopes = ProcessingGroup::split_envelope(&mut managed_envelope.take_envelope());
-    for (_, envelope) in envelopes {
-        let envelope = buffer_guard
+    let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
+    for (group, envelope) in envelopes {
+        let mut envelope = buffer_guard
             .enter(
                 envelope,
                 state.outcome_aggregator().clone(),
                 state.test_store().clone(),
             )
             .map_err(BadStoreRequest::QueueFailed)?;
+        envelope.set_group(group);
         state.project_cache().send(ValidateEnvelope::new(envelope));
     }
 
