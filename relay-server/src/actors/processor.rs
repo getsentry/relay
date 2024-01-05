@@ -790,7 +790,6 @@ impl EnvelopeProcessorService {
         // remove it from the processing state eventually.
         let mut envelope_limiter =
             EnvelopeLimiter::new(Some(&project_state.config), |item_scope, quantity| {
-                dbg!("yooyoyooyooyyoyooo");
                 rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
             });
 
@@ -953,7 +952,6 @@ impl EnvelopeProcessorService {
     }
 
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        dbg!("processiing state!");
         macro_rules! if_processing {
             ($if_true:block) => {
                 #[cfg(feature = "processing")] {
@@ -1280,7 +1278,6 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
         let RateLimitBuckets { mut bucket_limiter } = message;
-        dbg!();
 
         let scoping = *bucket_limiter.scoping();
 
@@ -1289,7 +1286,6 @@ impl EnvelopeProcessorService {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
             };
-            dbg!();
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
             // calls with quantity=0 to be rate limited.
@@ -1297,7 +1293,7 @@ impl EnvelopeProcessorService {
             let rate_limits = rate_limiter.is_rate_limited(
                 bucket_limiter.quotas(),
                 item_scoping,
-                dbg!(bucket_limiter.transaction_count()),
+                bucket_limiter.transaction_count(),
                 over_accept_once,
             );
 
@@ -1315,13 +1311,11 @@ impl EnvelopeProcessorService {
                 }
             }
         }
-        dbg!();
 
         let project_key = bucket_limiter.scoping().project_key;
         let buckets = bucket_limiter.into_metrics();
 
         if !buckets.is_empty() {
-            dbg!();
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
@@ -1369,7 +1363,6 @@ impl EnvelopeProcessorService {
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
-        dbg!("bruuhhhuhhuuh");
         match rate_limiter.is_rate_limited(quotas, item_scoping, quantities.buckets, false) {
             Ok(limits) if limits.is_limited() => {
                 relay_log::debug!(

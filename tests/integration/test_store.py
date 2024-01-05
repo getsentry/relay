@@ -1,5 +1,4 @@
 import json
-import redis
 import os
 import queue
 import socket

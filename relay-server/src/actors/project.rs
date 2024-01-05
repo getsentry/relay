@@ -615,7 +615,6 @@ impl Project {
         #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) {
-        dbg!();
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
                 "there is no scoping due to missing project id: dropping {} buckets",
@@ -629,7 +628,6 @@ impl Project {
             relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
             return;
         }
-        dbg!();
 
         // Re-run feature flag checks since the project might not have been loaded when the buckets
         // were initially ingested, or feature flags have changed in the meanwhile.
@@ -637,7 +635,6 @@ impl Project {
         if buckets.is_empty() {
             return;
         }
-        dbg!();
 
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
@@ -671,7 +668,6 @@ impl Project {
             return;
         };
 
-        dbg!("merging bucketssssss");
         aggregator.send(MergeBuckets::new(self.project_key, buckets));
     }
 
