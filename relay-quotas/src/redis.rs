@@ -479,7 +479,6 @@ impl RedisRateLimiter {
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
                     match self.is_globally_rate_limited(&mut client, &quota, quantity) {
-                        Ok(false) => continue,
                         Ok(true) => {
                             rate_limits.add(RateLimit::from_quota(
                                 &quota,
@@ -487,6 +486,7 @@ impl RedisRateLimiter {
                                 self.retry_after((quota.expiry() - timestamp).as_secs()),
                             ));
                         }
+                        Ok(false) => continue,
                         Err(e) => relay_log::error!(
                             error = &e as &dyn std::error::Error,
                             "failed to check global rate limit"
