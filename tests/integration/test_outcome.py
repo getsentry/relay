@@ -1596,8 +1596,8 @@ def test_profile_outcomes_rate_limited(
 def test_global_throughput_limit(
     mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
-    metrics_consumer = metrics_consumer()
-    outcomes_consumer = outcomes_consumer()
+    metrics_consumer = metrics_consumer(5)
+    outcomes_consumer = outcomes_consumer(5)
 
     bucket_interval = 1  # second
     relay = relay_with_processing(
