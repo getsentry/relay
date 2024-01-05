@@ -813,11 +813,6 @@ fn spool_envelopes_max_connections() -> u32 {
     20
 }
 
-/// Defaualt period for garbage collection in the spooler.
-fn spool_envelopes_check_interval() -> u64 {
-    60
-}
-
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -841,11 +836,6 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
-
-    /// The interval for the internal check to run and issue specific to the spooler metrics and
-    /// errors.
-    #[serde(default = "spool_envelopes_check_interval")]
-    check_interval: u64,
 }
 
 impl Default for EnvelopeSpool {
@@ -856,7 +846,6 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            check_interval: spool_envelopes_check_interval(),
         }
     }
 }
@@ -1940,11 +1929,6 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
-    }
-
-    /// The interval to run the check.
-    pub fn spool_envelopes_check_interval(&self) -> Duration {
-        Duration::from_secs(self.values.spool.envelopes.check_interval)
     }
 
     /// Returns the maximum size of an event payload in bytes.
