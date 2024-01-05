@@ -165,6 +165,7 @@ impl From<OtelSpan> for EventSpan {
             Annotated::empty()
         };
 
+        let mut op = None;
         let mut http_status_code = None;
         let mut grpc_status_code = None;
         for attribute in attributes.into_iter() {
@@ -173,7 +174,9 @@ impl From<OtelSpan> for EventSpan {
             } else {
                 attribute.key
             };
-            if key.contains("exclusive_time_ns") {
+            if key == "sentry.op" {
+                op = attribute.value.to_string();
+            } else if key.contains("exclusive_time_ns") {
                 let value = match attribute.value {
                     AnyValue::Int(v) => v as f64,
                     AnyValue::Double(v) => v,
@@ -181,41 +184,43 @@ impl From<OtelSpan> for EventSpan {
                     _ => 0f64,
                 };
                 exclusive_time_ms = value / 1e6f64;
-                continue;
-            }
-            if key == "http.status_code" {
+            } else if key == "http.status_code" {
                 http_status_code = attribute.value.to_i64();
             } else if key == "rpc.grpc.status_code" {
                 grpc_status_code = attribute.value.to_i64();
-            }
-            match attribute.value {
-                AnyValue::Array(_) => {}
-                AnyValue::Bool(v) => {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-                AnyValue::Bytes(v) => {
-                    if let Ok(v) = String::from_utf8(v) {
+            } else {
+                match attribute.value {
+                    AnyValue::Array(_) => {}
+                    AnyValue::Bool(v) => {
                         data.insert(key, Annotated::new(v.into()));
                     }
-                }
-                AnyValue::Double(v) => {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-                AnyValue::Int(v) => {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-                AnyValue::Kvlist(_) => {}
-                AnyValue::String(v) => {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-            };
+                    AnyValue::Bytes(v) => {
+                        if let Ok(v) = String::from_utf8(v) {
+                            data.insert(key, Annotated::new(v.into()));
+                        }
+                    }
+                    AnyValue::Double(v) => {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                    AnyValue::Int(v) => {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                    AnyValue::Kvlist(_) => {}
+                    AnyValue::String(v) => {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                };
+            }
         }
         if exclusive_time_ms == 0f64 {
             exclusive_time_ms =
                 (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
         }
 
+        let is_segment = parent_span_id.is_empty().into();
+
         EventSpan {
+            op: op.into(),
             data: data.into(),
             description: name.into(),
             exclusive_time: exclusive_time_ms.into(),
@@ -230,6 +235,7 @@ impl From<OtelSpan> for EventSpan {
             )),
             timestamp: Timestamp(end_timestamp).into(),
             trace_id: TraceId(trace_id).into(),
+            is_segment,
             ..Default::default()
         }
     }
