@@ -13,7 +13,6 @@ pub static OTEL_TO_SENTRY_TAGS: Lazy<BTreeMap<&str, &str>> = Lazy::new(|| {
         ),
         ("http.request.method", "request.method"),
         ("sentry.environment", "environment"),
-        ("sentry.op", "op"),
         ("sentry.origin", "origin"),
         ("sentry.release", "release"),
         ("sentry.sample_rate", "sample_rate"),
