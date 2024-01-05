@@ -549,6 +549,12 @@
 <a href="#549" id="549">549</a>
 <a href="#550" id="550">550</a>
 <a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
@@ -716,6 +722,7 @@
             Annotated::empty()
         };
 
+        <span class="kw">let </span><span class="kw-2">mut </span>op = <span class="prelude-val">None</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>http_status_code = <span class="prelude-val">None</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>grpc_status_code = <span class="prelude-val">None</span>;
         <span class="kw">for </span>attribute <span class="kw">in </span>attributes.into_iter() {
@@ -724,7 +731,9 @@
             } <span class="kw">else </span>{
                 attribute.key
             };
-            <span class="kw">if </span>key.contains(<span class="string">&quot;exclusive_time_ns&quot;</span>) {
+            <span class="kw">if </span>key == <span class="string">&quot;sentry.op&quot; </span>{
+                op = attribute.value.to_string();
+            } <span class="kw">else if </span>key.contains(<span class="string">&quot;exclusive_time_ns&quot;</span>) {
                 <span class="kw">let </span>value = <span class="kw">match </span>attribute.value {
                     AnyValue::Int(v) =&gt; v <span class="kw">as </span>f64,
                     AnyValue::Double(v) =&gt; v,
@@ -732,41 +741,43 @@
                     <span class="kw">_ </span>=&gt; <span class="number">0f64</span>,
                 };
                 exclusive_time_ms = value / <span class="number">1e6f64</span>;
-                <span class="kw">continue</span>;
-            }
-            <span class="kw">if </span>key == <span class="string">&quot;http.status_code&quot; </span>{
+            } <span class="kw">else if </span>key == <span class="string">&quot;http.status_code&quot; </span>{
                 http_status_code = attribute.value.to_i64();
             } <span class="kw">else if </span>key == <span class="string">&quot;rpc.grpc.status_code&quot; </span>{
                 grpc_status_code = attribute.value.to_i64();
-            }
-            <span class="kw">match </span>attribute.value {
-                AnyValue::Array(<span class="kw">_</span>) =&gt; {}
-                AnyValue::Bool(v) =&gt; {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-                AnyValue::Bytes(v) =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(v) = String::from_utf8(v) {
+            } <span class="kw">else </span>{
+                <span class="kw">match </span>attribute.value {
+                    AnyValue::Array(<span class="kw">_</span>) =&gt; {}
+                    AnyValue::Bool(v) =&gt; {
                         data.insert(key, Annotated::new(v.into()));
                     }
-                }
-                AnyValue::Double(v) =&gt; {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-                AnyValue::Int(v) =&gt; {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-                AnyValue::Kvlist(<span class="kw">_</span>) =&gt; {}
-                AnyValue::String(v) =&gt; {
-                    data.insert(key, Annotated::new(v.into()));
-                }
-            };
+                    AnyValue::Bytes(v) =&gt; {
+                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(v) = String::from_utf8(v) {
+                            data.insert(key, Annotated::new(v.into()));
+                        }
+                    }
+                    AnyValue::Double(v) =&gt; {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                    AnyValue::Int(v) =&gt; {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                    AnyValue::Kvlist(<span class="kw">_</span>) =&gt; {}
+                    AnyValue::String(v) =&gt; {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                };
+            }
         }
         <span class="kw">if </span>exclusive_time_ms == <span class="number">0f64 </span>{
             exclusive_time_ms =
                 (from.end_time_unix_nano - from.start_time_unix_nano) <span class="kw">as </span>f64 / <span class="number">1e6f64</span>;
         }
 
+        <span class="kw">let </span>is_segment = parent_span_id.is_empty().into();
+
         EventSpan {
+            op: op.into(),
             data: data.into(),
             description: name.into(),
             exclusive_time: exclusive_time_ms.into(),
@@ -781,6 +792,7 @@
             )),
             timestamp: Timestamp(end_timestamp).into(),
             trace_id: TraceId(trace_id).into(),
+            is_segment,
             ..Default::default()
         }
     }
