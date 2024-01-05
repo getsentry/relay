@@ -129,9 +129,10 @@ fn track_transaction_name_stats(event: &Event) {
 }
 
 /// These are the tags that are added to extracted low cardinality metrics.
-fn extract_light_transaction_tags(event: &Event) -> LightTransactionTags {
+fn extract_light_transaction_tags(tags: &CommonTags) -> LightTransactionTags {
     LightTransactionTags {
-        transaction: get_transaction_name(event),
+        transaction_op: tags.0.get(&CommonTag::TransactionOp).cloned(),
+        transaction: tags.0.get(&CommonTag::Transaction).cloned(),
     }
 }
 
@@ -272,7 +273,7 @@ impl TransactionExtractor<'_> {
 
         track_transaction_name_stats(event);
         let tags = extract_universal_tags(event, self.config);
-        let light_tags = extract_light_transaction_tags(event);
+        let light_tags = extract_light_transaction_tags(&tags);
 
         // Measurements
         let measurement_names: BTreeSet<_> = event
@@ -803,6 +804,7 @@ mod tests {
                 ),
                 tags: {
                     "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                 },
             },
             Bucket {

@@ -11,7 +11,12 @@ import queue
 from .test_envelope import generate_transaction_item
 
 TEST_CONFIG = {
-    "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0}
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+        "debounce_delay": 0,
+        "shift_key": "none",
+    }
 }
 
 
@@ -138,6 +143,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
             "flush_partitions": metrics_partitions,
+            "shift_key": "none",
         },
     }
     relay = relay(mini_sentry, options=relay_config)
