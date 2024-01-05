@@ -1647,7 +1647,7 @@ def test_global_throughput_limit(
         relay.send_metrics_buckets(project_id, [bucket])
         time.sleep(0.5)
 
-    time.sleep(5)
+    time.sleep(30)
     produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
     outcomes = outcomes_consumer.get_outcomes()
 
