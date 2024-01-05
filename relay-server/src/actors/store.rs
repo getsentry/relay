@@ -11,12 +11,13 @@ use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{
-    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+    self, EventId, JsonLenientString, SessionAggregates, SessionStatus, SessionUpdate, Span,
 };
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
 };
+use relay_protocol::Annotated;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
@@ -828,8 +829,7 @@ impl StoreService {
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let payload = item.payload();
-        let span = match serde_json::from_slice(&payload) {
+        let annotated_span = match Annotated::<Span>::from_json_bytes(&item.payload()) {
             Ok(span) => span,
             Err(error) => {
                 relay_log::error!(
@@ -839,13 +839,112 @@ impl StoreService {
                 return Ok(());
             }
         };
+
+        let Some(span) = annotated_span.value() else {
+            return Ok(());
+        };
+
+        let Some(start_timestamp) = span.start_timestamp.clone().into_value() else {
+            return Ok(());
+        };
+
+        let _metrics_summary = match span._metrics_summary.to_json() {
+            Ok(_metrics_summary) => match RawValue::from_string(_metrics_summary) {
+                Ok(value) => value,
+                Err(_) => Default::default(),
+            },
+            Err(_) => Default::default(),
+        };
+        let description = span.description.clone().into_value().unwrap_or_default();
+        let exclusive_time_ms = span.exclusive_time.clone().into_value().unwrap_or_default();
+        let is_segment = span.is_segment.clone().into_value().unwrap_or_default();
+        let measurements = match span.measurements.to_json() {
+            Ok(measurements) => match RawValue::from_string(measurements) {
+                Ok(value) => value,
+                Err(_) => Default::default(),
+            },
+            Err(_) => Default::default(),
+        };
+        let parent_span_id = span
+            .parent_span_id
+            .clone()
+            .into_value()
+            .unwrap_or_default()
+            .as_ref()
+            .into();
+        let profile_id = span.profile_id.clone().into_value();
+        let segment_id = span
+            .segment_id
+            .clone()
+            .into_value()
+            .unwrap_or_default()
+            .as_ref()
+            .into();
+        let span_id = span
+            .span_id
+            .clone()
+            .into_value()
+            .unwrap_or_default()
+            .as_ref()
+            .into();
+        let trace_id = span
+            .trace_id
+            .clone()
+            .into_value()
+            .unwrap_or_default()
+            .as_ref()
+            .into();
+        let start_timestamp_ms = start_timestamp.into_inner().timestamp_millis() as u64;
+
+        let duration_ms = if let Some(end_timestamp) = span.timestamp.clone().into_value() {
+            (end_timestamp - start_timestamp).num_milliseconds() as u32
+        } else {
+            0
+        };
+
+        let annotated_tags = span.tags.clone().into_value().unwrap_or_default();
+        let mut tags: BTreeMap<String, String> = BTreeMap::new();
+
+        for (key, annotated_value) in annotated_tags {
+            let value = annotated_value
+                .into_value()
+                .unwrap_or(JsonLenientString("".into()));
+            if !value.is_empty() {
+                tags.insert(key, value.to_string());
+            }
+        }
+
+        let annotated_sentry_tags = span.sentry_tags.clone().into_value().unwrap_or_default();
+        let mut sentry_tags: BTreeMap<String, String> = BTreeMap::new();
+
+        for (key, annotated_value) in annotated_sentry_tags {
+            if let Some(value) = annotated_value.into_value() {
+                if !value.is_empty() {
+                    sentry_tags.insert(key, value);
+                }
+            }
+        }
+
         let message = SpanKafkaMessage {
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            _metrics_summary: &_metrics_summary,
+            description,
+            duration_ms,
             event_id,
-            organization_id,
+            exclusive_time_ms,
+            group_raw: 0,
+            is_segment,
+            measurements: &measurements,
+            parent_span_id,
+            profile_id,
             project_id,
             retention_days,
-            span,
+            segment_id,
+            sentry_tags,
+            span_id,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_timestamp_ms,
+            tags,
+            trace_id,
         };
         self.produce(
             KafkaTopic::Spans,
@@ -1138,22 +1237,31 @@ struct CheckInKafkaMessage {
 
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage<'a> {
-    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
-    start_time: u64,
+    _metrics_summary: &'a RawValue,
+    description: String,
+    duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
-    /// The numeric ID of the organization.
-    organization_id: u64,
+    exclusive_time_ms: f64,
+    group_raw: u64,
+    is_segment: bool,
+    measurements: &'a RawValue,
+    parent_span_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_id: Option<EventId>,
     /// The numeric ID of the project.
     project_id: ProjectId,
+    received: u64,
     /// Number of days until these data should be deleted.
     retention_days: u16,
-    /// Fields from the original span payload.
-    /// See [`relay-event-schema::protocol::span::Span`] for schema.
-    ///
-    /// By using a [`RawValue`] here, we can embed the span's JSON without additional parsing.
-    span: &'a RawValue,
+    segment_id: String,
+    sentry_tags: BTreeMap<String, String>,
+    span_id: String,
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    start_timestamp_ms: u64,
+    tags: BTreeMap<String, String>,
+    trace_id: String,
 }
 
 /// An enum over all possible ingest messages.
