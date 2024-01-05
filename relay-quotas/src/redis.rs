@@ -313,7 +313,7 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
 /// redis counter as it was when we previously took a budget, so that if we the count reach zero
 /// but we know the redis counter is still above the limit, we won't ask for more from redis.
 /// The counter works per slot, so when there's a new slot this value will be invalidated and we
-/// will check with redis again and create a new [`Val`] for the local counter.
+/// will check with redis again and create a new [`BudgetState`] for the local counter.
 struct BudgetState {
     count: AtomicUsize,
     last_seen_redis_value: AtomicU64,
