@@ -21,6 +21,7 @@
 - Extract metrics for file spans. ([#2874](https://github.com/getsentry/relay/pull/2874))
 - Add an internal endpoint that allows Relays to submit metrics from multiple projects in a single request. ([#2869](https://github.com/getsentry/relay/pull/2869))
 - Emit a `processor.message.duration` metric to assess the throughput of the internal CPU pool. ([#2877](https://github.com/getsentry/relay/pull/2877))
+- Add `transaction.op` to the duration light metric. ([#2881](https://github.com/getsentry/relay/pull/2881))
 
 ## 23.12.0
 
