@@ -1463,6 +1463,12 @@ def test_span_ingestion(
                         "endTimeUnixNano": int(end.timestamp() * 1e9),
                         "attributes": [
                             {
+                                "key": "sentry.op",
+                                "value": {
+                                    "stringValue": "db.query",
+                                },
+                            },
+                            {
                                 "key": "sentry.exclusive_time_ns",
                                 "value": {
                                     "intValue": int(duration.total_seconds() * 1e9),
@@ -1573,10 +1579,10 @@ def test_span_ingestion(
                 "description": "my 1st OTel span",
                 "exclusive_time": 500.0,
                 "is_segment": True,
-                "op": "default",
+                "op": "db.query",
                 "parent_span_id": "",
                 "segment_id": "e342abb1214ca181",
-                "sentry_tags": {"op": "default"},
+                "sentry_tags": {"category": "db", "op": "db.query"},
                 "span_id": "e342abb1214ca181",
                 "start_timestamp": start.timestamp(),
                 "status": "ok",
@@ -1618,6 +1624,16 @@ def test_span_ingestion(
 
     assert metrics == [
         {
+            "name": "c:spans/count_per_op@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "db.query"},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
             "org_id": 1,
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
@@ -1632,7 +1648,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
             "type": "c",
-            "value": 2.0,
+            "value": 1.0,
             "timestamp": expected_timestamp,
             "tags": {"span.op": "default"},
             "retention_days": 90,
@@ -1654,6 +1670,16 @@ def test_span_ingestion(
             "retention_days": 90,
         },
         {
+            "name": "d:spans/exclusive_time@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "db.query"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
+        },
+        {
             "org_id": 1,
             "project_id": 42,
             "name": "d:spans/exclusive_time_light@millisecond",
@@ -1668,6 +1694,19 @@ def test_span_ingestion(
                 "span.op": "resource.script",
             },
             "retention_days": 90,
+        },
+        {
+            "name": "d:spans/exclusive_time_light@millisecond",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {
+                "span.category": "db",
+                "span.op": "db.query",
+            },
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
         },
     ]
 
