@@ -1633,11 +1633,11 @@ def test_global_throughput_limit(
         }
     ]
 
-    for _ in range(buckets_sent):
+    for i in range(buckets_sent):
         bucket = {
             "org_id": 1,
             "project_id": project_id,
-            "timestamp": datetime.utcnow().timestamp(),
+            "timestamp": datetime.utcnow().timestamp() + i,
             "name": "d:transactions/measurements.lcp@millisecond",
             "type": "d",
             "value": [1.0],
@@ -1645,9 +1645,7 @@ def test_global_throughput_limit(
         }
 
         relay.send_metrics_buckets(project_id, [bucket])
-        time.sleep(1)
 
-    time.sleep(30)
     produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
     outcomes = outcomes_consumer.get_outcomes()
 
