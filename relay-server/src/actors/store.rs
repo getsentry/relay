@@ -931,7 +931,7 @@ impl StoreService {
             duration_ms,
             event_id,
             exclusive_time_ms,
-            group_raw: 0,
+            group_raw: "0".into(),
             is_segment,
             measurements: &measurements,
             parent_span_id,
@@ -1244,7 +1244,7 @@ struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
     exclusive_time_ms: f64,
-    group_raw: u64,
+    group_raw: String,
     is_segment: bool,
     measurements: &'a RawValue,
     parent_span_id: String,
