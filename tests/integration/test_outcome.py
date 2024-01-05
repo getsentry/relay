@@ -1650,6 +1650,9 @@ def test_global_throughput_limit(
     produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
     outcomes = outcomes_consumer.get_outcomes()
 
+    print(produced_buckets)
+    print(outcomes)
+
     assert len(produced_buckets) == metric_bucket_limit
     assert len(outcomes) == buckets_sent - metric_bucket_limit
 
