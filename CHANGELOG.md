@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add a global throughput rate limiter for metric buckets. ([#2854](https://github.com/getsentry/relay/pull/2854))
+
 ## 23.12.1
 
 **Bug fixes**:
