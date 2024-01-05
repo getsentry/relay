@@ -137,34 +137,6 @@ impl std::ops::Deref for RedisQuota<'_> {
     }
 }
 
-/// A service that executes quotas and checks for rate limits in a shared cache.
-///
-/// Quotas handle tracking a project's usage and respond whether or not a project has been
-/// configured to throttle incoming data if they go beyond the specified quota.
-///
-/// Quotas can specify a window to be tracked in, such as per minute or per hour. Additionally,
-/// quotas allow to specify the data categories they apply to, for example error events or
-/// attachments. For more information on quota parameters, see `QuotaConfig`.
-///
-/// Requires the `redis` feature.
-#[derive(Clone)]
-pub struct RedisRateLimiter {
-    pool: RedisPool,
-    script: Arc<Script>,
-    global_script: Arc<Script>,
-    max_limit: Option<u64>,
-    counters: GlobalCounters,
-}
-
-/// Counters used as a cache for global quotas.
-///
-/// We might have different global counters for different conditions (e.g. different namespaces).
-/// We use an RwLock because the counter itself is an `AtomicUsize`. Atomics can be modified with
-/// a shared reference, meaning that we can have multiple threads updating the counter concurrently,
-/// as long as there's no writers.
-#[derive(Clone, Default)]
-pub struct GlobalCounters(Arc<RwLock<hashbrown::HashMap<BudgetKey, Val>>>);
-
 /// Possible outcomes from attemping to decrement a global counter budget.
 #[derive(Debug)]
 enum DecOutcome {
@@ -190,6 +162,15 @@ enum GlobalRateLimitError {
     Redis,
 }
 
+/// Counters used as a cache for global quotas.
+///
+/// We might have different global counters for different conditions (e.g. different namespaces).
+/// We use an RwLock because the counter itself is an `AtomicUsize`. Atomics can be modified with
+/// a shared reference, meaning that we can have multiple threads updating the counter concurrently,
+/// as long as there's no writers.
+#[derive(Clone, Default)]
+pub struct GlobalCounters(Arc<RwLock<hashbrown::HashMap<BudgetKey, BudgetState>>>);
+
 impl GlobalCounters {
     fn update_limit(
         &self,
@@ -214,7 +195,7 @@ impl GlobalCounters {
 
         map.insert(
             budget_key.to_owned(),
-            Val {
+            BudgetState {
                 count: AtomicUsize::new(new_budget + old_budget),
                 last_seen_redis_value: AtomicU64::new(redis_value),
                 slot: current_slot,
@@ -231,7 +212,6 @@ impl GlobalCounters {
         decrement_qty: usize,
         limit: u64,
     ) -> DecOutcome {
-        // With atomics we can update the count with a shared reference.
         let Ok(map) = self.0.read() else {
             return DecOutcome::PoisonedLock;
         };
@@ -334,10 +314,29 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
 /// but we know the redis counter is still above the limit, we won't ask for more from redis.
 /// The counter works per slot, so when there's a new slot this value will be invalidated and we
 /// will check with redis again and create a new [`Val`] for the local counter.
-struct Val {
+struct BudgetState {
     count: AtomicUsize,
     last_seen_redis_value: AtomicU64,
     slot: u64,
+}
+
+/// A service that executes quotas and checks for rate limits in a shared cache.
+///
+/// Quotas handle tracking a project's usage and respond whether or not a project has been
+/// configured to throttle incoming data if they go beyond the specified quota.
+///
+/// Quotas can specify a window to be tracked in, such as per minute or per hour. Additionally,
+/// quotas allow to specify the data categories they apply to, for example error events or
+/// attachments. For more information on quota parameters, see `QuotaConfig`.
+///
+/// Requires the `redis` feature.
+#[derive(Clone)]
+pub struct RedisRateLimiter {
+    pool: RedisPool,
+    script: Arc<Script>,
+    global_script: Arc<Script>,
+    max_limit: Option<u64>,
+    counters: GlobalCounters,
 }
 
 impl RedisRateLimiter {

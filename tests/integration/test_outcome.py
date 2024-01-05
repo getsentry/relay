@@ -1593,7 +1593,7 @@ def test_profile_outcomes_rate_limited(
     assert outcomes == expected_outcomes, outcomes
 
 
-def test_global_foo(
+def test_global_throughput_limit(
     mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
     metrics_consumer = metrics_consumer()

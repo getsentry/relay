@@ -1,6 +1,5 @@
 import json
 import math
-import random
 import queue
 import redis
 import socket
