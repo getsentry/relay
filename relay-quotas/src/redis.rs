@@ -139,17 +139,6 @@ impl std::ops::Deref for RedisQuota<'_> {
     }
 }
 
-/// Possible outcomes from attemping to decrement a global counter budget.
-#[derive(Debug)]
-enum DecOutcome {
-    UpstreamExceeded,
-    NoRateLimit,
-    KeyMissing,
-    PoisonedLock,
-    SlotExpired,
-    BudgetEmpty,
-}
-
 #[derive(Debug, thiserror::Error)]
 enum GlobalRateLimitError {
     #[error("quota key missing")]
@@ -166,7 +155,6 @@ enum GlobalRateLimitError {
 
 /// Counters used as a cache for global quotas.
 ///
-/// We might have different global counters for different conditions (e.g. different namespaces).
 /// We use an RwLock because the counter itself is an `AtomicUsize`. Atomics can be modified with
 /// a shared reference, meaning that we can have multiple threads updating the counter concurrently,
 /// as long as there's no writers.
@@ -174,6 +162,7 @@ enum GlobalRateLimitError {
 struct GlobalCounters(Arc<RwLock<hashbrown::HashMap<BudgetKey, BudgetState>>>);
 
 impl GlobalCounters {
+    /// Updates the local counter after having synced with redis.
     fn update_limit(
         &self,
         budget_key: BudgetKeyRef,
@@ -181,79 +170,81 @@ impl GlobalCounters {
         new_budget: usize,
         redis_value: usize,
     ) -> Result<(), GlobalRateLimitError> {
-        let Ok(shared_map) = self.0.read() else {
-            return Err(GlobalRateLimitError::PoisonedLock);
+        match self
+            .0
+            .read()
+            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
+            .get(&budget_key)
+        {
+            // If the key/val exist, we can update the values with just a read lock. This allows
+            // the counter to operate concurrently in different threads.
+            Some(val) => {
+                let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
+                    val.budget.load(Ordering::SeqCst)
+                } else {
+                    0
+                };
+
+                val.budget.store(new_budget + old_budget, Ordering::SeqCst);
+                val.slot.store(current_slot, Ordering::SeqCst);
+                val.last_seen_redis_value
+                    .store(redis_value, Ordering::SeqCst);
+            }
+            // If no key/val exist, we have to momentarily block the counter in other threads.
+            None => {
+                self.0
+                    .write()
+                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?
+                    .insert(
+                        budget_key.to_owned(),
+                        BudgetState::new(new_budget, redis_value, current_slot),
+                    );
+            }
         };
-
-        if let Some(val) = shared_map.get(&budget_key) {
-            let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
-                val.count.load(Ordering::SeqCst)
-            } else {
-                0
-            };
-
-            val.count.store(new_budget + old_budget, Ordering::SeqCst);
-            val.slot.store(current_slot, Ordering::SeqCst);
-            val.last_seen_redis_value
-                .store(redis_value, Ordering::SeqCst);
-
-            return Ok(());
-        }
-
-        let Ok(mut exclusive_map) = self.0.write() else {
-            return Err(GlobalRateLimitError::PoisonedLock);
-        };
-
-        exclusive_map.insert(
-            budget_key.to_owned(),
-            BudgetState {
-                count: AtomicUsize::new(new_budget),
-                last_seen_redis_value: AtomicUsize::new(redis_value),
-                slot: AtomicUsize::new(current_slot),
-            },
-        );
 
         Ok(())
     }
 
     /// Attempts to decrement the budget by a certain amount.
+    ///
+    /// Returns `true` if items should be ratelimited.
     fn decrement_budget(
         &self,
-        key: BudgetKeyRef,
-        current_slot: usize,
+        quota: &RedisQuota,
         decrement_qty: usize,
-        limit: usize,
-    ) -> DecOutcome {
-        let Ok(map) = self.0.read() else {
-            return DecOutcome::PoisonedLock;
+    ) -> Result<bool, GlobalRateLimitError> {
+        let key = BudgetKeyRef::new(quota);
+        let current_slot = quota.slot() as usize;
+        let Some(limit) = quota.limit.map(|limit| limit as usize) else {
+            return Ok(false);
         };
 
-        let Some(val) = map.get(&key) else {
-            // None value should only happen the first time a global quota with a given window
-            // is evaluated.
-            return DecOutcome::KeyMissing;
-        };
+        let map = self
+            .0
+            .read()
+            .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
+        let val = map.get(&key).ok_or(GlobalRateLimitError::KeyMissing)?;
 
         if current_slot != val.slot.load(Ordering::SeqCst) {
             // Expired slot implies the the time window has passed, and we need to
             // ask for a new budget for the new slot.
-            return DecOutcome::SlotExpired;
+            return Err(GlobalRateLimitError::SlotExpired);
         }
 
         let redis_count = val.last_seen_redis_value.load(Ordering::SeqCst);
-        let mut current_budget = val.count.load(Ordering::SeqCst);
+        let mut current_budget = val.budget.load(Ordering::SeqCst);
 
         // Since the redis count was pre-incremented by the amount of budget we took, the actual
         // total count have to subtract the current budget.
         let total_count = redis_count.saturating_sub(current_budget);
 
         if total_count >= limit {
-            return DecOutcome::UpstreamExceeded;
+            return Ok(true);
         }
 
         loop {
             if current_budget < decrement_qty {
-                return DecOutcome::BudgetEmpty;
+                return Err(GlobalRateLimitError::BudgetEmpty);
             }
 
             // When setting the new value, we must ensure that it hasn't already been
@@ -261,7 +252,7 @@ impl GlobalCounters {
             //
             // https://doc.rust-lang.org/std/sync/atomic/struct.AtomicU64.html#method.compare_exchange_weak
             if val
-                .count
+                .budget
                 .compare_exchange_weak(
                     current_budget,
                     current_budget - decrement_qty,
@@ -270,10 +261,10 @@ impl GlobalCounters {
                 )
                 .is_ok()
             {
-                return DecOutcome::NoRateLimit;
+                return Ok(false);
             }
 
-            current_budget = val.count.load(Ordering::SeqCst);
+            current_budget = val.budget.load(Ordering::SeqCst);
         }
     }
 }
@@ -288,6 +279,8 @@ struct BudgetKey {
 }
 
 /// Used to look up a hashmap of [`BudgetKey`]-keys without a string allocation.
+///
+/// This works due to the 'Equivalent' trait in the hashbrown crate.
 #[derive(Clone, Copy, Hash)]
 struct BudgetKeyRef<'a> {
     prefix: &'a str,
@@ -325,9 +318,19 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
 /// The counter works per slot, so when there's a new slot this value will be invalidated and we
 /// will check with redis again and create a new [`BudgetState`] for the local counter.
 struct BudgetState {
-    count: AtomicUsize,
+    budget: AtomicUsize,
     last_seen_redis_value: AtomicUsize,
     slot: AtomicUsize,
+}
+
+impl BudgetState {
+    fn new(budget: usize, redis_value: usize, slot: usize) -> Self {
+        Self {
+            budget: AtomicUsize::new(budget),
+            last_seen_redis_value: AtomicUsize::new(redis_value),
+            slot: AtomicUsize::new(slot),
+        }
+    }
 }
 
 /// A service that executes quotas and checks for rate limits in a shared cache.
@@ -373,45 +376,25 @@ impl RedisRateLimiter {
     ) -> Result<bool, GlobalRateLimitError> {
         debug_assert!(quota.scope == QuotaScope::Global);
 
-        let Some(limit) = quota.limit else {
-            return Ok(false);
-        };
-
-        let slot = quota.slot() as usize;
-        let budget_key = BudgetKeyRef::new(quota);
-
-        match self
-            .counters
-            .decrement_budget(budget_key, slot, quantity, limit as usize)
-        {
-            DecOutcome::NoRateLimit => return Ok(false),
-            DecOutcome::UpstreamExceeded => return Ok(true),
-            DecOutcome::PoisonedLock => return Err(GlobalRateLimitError::PoisonedLock),
-            DecOutcome::SlotExpired | DecOutcome::BudgetEmpty | DecOutcome::KeyMissing => {
-                self.redis_sync(client, budget_key, quota, quantity)?
+        match self.counters.decrement_budget(quota, quantity) {
+            ok @ Ok(_) => return ok,
+            err @ Err(GlobalRateLimitError::Redis | GlobalRateLimitError::PoisonedLock) => {
+                return err
             }
+            Err(
+                GlobalRateLimitError::BudgetEmpty
+                | GlobalRateLimitError::KeyMissing
+                | GlobalRateLimitError::SlotExpired,
+            ) => self.redis_sync(client, quota, quantity)?,
         };
 
-        match self
-            .counters
-            .decrement_budget(budget_key, slot, quantity, limit as usize)
-        {
-            DecOutcome::NoRateLimit => Ok(false),
-            DecOutcome::UpstreamExceeded => Ok(true),
-            DecOutcome::PoisonedLock => Err(GlobalRateLimitError::PoisonedLock),
-            // Should be impossible, as we insert theh budget_key in redis_sync.
-            DecOutcome::KeyMissing => Err(GlobalRateLimitError::KeyMissing),
-            // There's a small chance this might happen if the slot expired between the two calls.
-            DecOutcome::SlotExpired => Err(GlobalRateLimitError::SlotExpired),
-            DecOutcome::BudgetEmpty => Err(GlobalRateLimitError::BudgetEmpty),
-        }
+        self.counters.decrement_budget(quota, quantity)
     }
 
     /// Ensures the local counter is up to date with the redis counter.
     fn redis_sync(
         &self,
         client: &mut PooledClient,
-        budget_key: BudgetKeyRef,
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<(), GlobalRateLimitError> {
@@ -419,6 +402,7 @@ impl RedisRateLimiter {
         // requested budget if the default is less than the metric bucket quantity.
         let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
         let redis_key = quota.key();
+        let budget_key = BudgetKeyRef::new(quota);
 
         let (new_budget, current_redis_count): (usize, usize) = self
             .global_script
