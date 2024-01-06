@@ -307,32 +307,36 @@ impl GlobalCounters {
         new_budget: usize,
         redis_value: usize,
     ) -> Result<(), GlobalRateLimitError> {
-        if let Some(val) = self
+        let shared_map = self
             .counters
             .read()
-            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
-            .get(&budget_key)
-        {
-            let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
-                val.budget.load(Ordering::SeqCst)
-            } else {
-                0
-            };
+            .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
 
-            val.budget.store(new_budget + old_budget, Ordering::SeqCst);
-            val.slot.store(current_slot, Ordering::SeqCst);
-            val.last_seen_redis_value
-                .store(redis_value, Ordering::SeqCst);
-            return Ok(());
-        };
+        match shared_map.get(&budget_key) {
+            Some(val) => {
+                let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
+                    val.budget.load(Ordering::SeqCst)
+                } else {
+                    0
+                };
 
-        self.counters
-            .write()
-            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
-            .insert(
-                budget_key.to_owned(),
-                BudgetState::new(new_budget, redis_value, current_slot),
-            );
+                val.budget.store(new_budget + old_budget, Ordering::SeqCst);
+                val.slot.store(current_slot, Ordering::SeqCst);
+                val.last_seen_redis_value
+                    .store(redis_value, Ordering::SeqCst);
+            }
+            None => {
+                drop(shared_map); // Necessary to avoid deadlock.
+
+                self.counters
+                    .write()
+                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?
+                    .insert(
+                        budget_key.to_owned(),
+                        BudgetState::new(new_budget, redis_value, current_slot),
+                    );
+            }
+        }
 
         Ok(())
     }
