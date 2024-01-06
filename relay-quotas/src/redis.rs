@@ -307,37 +307,32 @@ impl GlobalCounters {
         new_budget: usize,
         redis_value: usize,
     ) -> Result<(), GlobalRateLimitError> {
-        match self
+        if let Some(val) = self
             .counters
             .read()
             .map_err(|_| GlobalRateLimitError::PoisonedLock)?
             .get(&budget_key)
         {
-            // If the key/val exist, we can update the values with just a read lock. This allows
-            // the counter to operate concurrently in different threads.
-            Some(val) => {
-                let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
-                    val.budget.load(Ordering::SeqCst)
-                } else {
-                    0
-                };
+            let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
+                val.budget.load(Ordering::SeqCst)
+            } else {
+                0
+            };
 
-                val.budget.store(new_budget + old_budget, Ordering::SeqCst);
-                val.slot.store(current_slot, Ordering::SeqCst);
-                val.last_seen_redis_value
-                    .store(redis_value, Ordering::SeqCst);
-            }
-            // If no key/val exist, we have to momentarily block the counter in other threads.
-            None => {
-                self.counters
-                    .write()
-                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?
-                    .insert(
-                        budget_key.to_owned(),
-                        BudgetState::new(new_budget, redis_value, current_slot),
-                    );
-            }
+            val.budget.store(new_budget + old_budget, Ordering::SeqCst);
+            val.slot.store(current_slot, Ordering::SeqCst);
+            val.last_seen_redis_value
+                .store(redis_value, Ordering::SeqCst);
+            return Ok(());
         };
+
+        self.counters
+            .write()
+            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
+            .insert(
+                budget_key.to_owned(),
+                BudgetState::new(new_budget, redis_value, current_slot),
+            );
 
         Ok(())
     }
