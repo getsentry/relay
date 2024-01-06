@@ -158,51 +158,47 @@ enum GlobalRateLimitError {
 /// We use an RwLock because the counter itself is an `AtomicUsize`. Atomics can be modified with
 /// a shared reference, meaning that we can have multiple threads updating the counter concurrently,
 /// as long as there's no writers.
-#[derive(Clone, Default)]
-struct GlobalCounters(Arc<RwLock<hashbrown::HashMap<BudgetKey, BudgetState>>>);
+#[derive(Clone)]
+struct GlobalCounters {
+    script: Arc<Script>,
+    counters: Arc<RwLock<hashbrown::HashMap<BudgetKey, BudgetState>>>,
+}
+
+impl Default for GlobalCounters {
+    fn default() -> Self {
+        Self {
+            script: Arc::new(load_global_lua_script()),
+            counters: Default::default(),
+        }
+    }
+}
 
 impl GlobalCounters {
-    /// Updates the local counter after having synced with redis.
-    fn update_limit(
+    /// Returns `true` if the global quota should be ratelimited.
+    ///
+    /// We first check the local limits if we have any budget left. If we don't, or the
+    /// slot is expired, we have to sync with redis, after which we try again.
+    fn evaluate_quota(
         &self,
-        budget_key: BudgetKeyRef,
-        current_slot: usize,
-        new_budget: usize,
-        redis_value: usize,
-    ) -> Result<(), GlobalRateLimitError> {
-        match self
-            .0
-            .read()
-            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
-            .get(&budget_key)
-        {
-            // If the key/val exist, we can update the values with just a read lock. This allows
-            // the counter to operate concurrently in different threads.
-            Some(val) => {
-                let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
-                    val.budget.load(Ordering::SeqCst)
-                } else {
-                    0
-                };
+        client: &mut PooledClient,
+        quota: &RedisQuota,
+        quantity: usize,
+    ) -> Result<bool, GlobalRateLimitError> {
+        debug_assert!(quota.scope == QuotaScope::Global);
 
-                val.budget.store(new_budget + old_budget, Ordering::SeqCst);
-                val.slot.store(current_slot, Ordering::SeqCst);
-                val.last_seen_redis_value
-                    .store(redis_value, Ordering::SeqCst);
+        match self.decrement_budget(quota, quantity) {
+            ok @ Ok(_) => return ok,
+            err @ Err(GlobalRateLimitError::Redis | GlobalRateLimitError::PoisonedLock) => {
+                return err
             }
-            // If no key/val exist, we have to momentarily block the counter in other threads.
-            None => {
-                self.0
-                    .write()
-                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?
-                    .insert(
-                        budget_key.to_owned(),
-                        BudgetState::new(new_budget, redis_value, current_slot),
-                    );
-            }
+            Err(
+                GlobalRateLimitError::BudgetEmpty
+                | GlobalRateLimitError::KeyMissing
+                | GlobalRateLimitError::SlotExpired,
+            ) => self.redis_sync(client, quota, quantity)?,
         };
 
-        Ok(())
+        self.decrement_budget(quota, quantity)
     }
 
     /// Attempts to decrement the budget by a certain amount.
@@ -220,7 +216,7 @@ impl GlobalCounters {
         };
 
         let map = self
-            .0
+            .counters
             .read()
             .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
         let val = map.get(&key).ok_or(GlobalRateLimitError::KeyMissing)?;
@@ -266,6 +262,84 @@ impl GlobalCounters {
 
             current_budget = val.budget.load(Ordering::SeqCst);
         }
+    }
+
+    /// Ensures the local counter is up to date with the redis counter.
+    fn redis_sync(
+        &self,
+        client: &mut PooledClient,
+        quota: &RedisQuota,
+        quantity: usize,
+    ) -> Result<(), GlobalRateLimitError> {
+        // We don't want to reject a metrics batch just because it's too large, so we increase the
+        // requested budget if the default is less than the metric bucket quantity.
+        let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
+        let redis_key = quota.key();
+        let budget_key = BudgetKeyRef::new(quota);
+
+        let (new_budget, current_redis_count): (usize, usize) = self
+            .script
+            .prepare_invoke()
+            .key(redis_key.as_str())
+            .arg(quota.limit)
+            .arg(quota.expiry().as_secs() + GRACE)
+            .arg(requested_budget)
+            .invoke(
+                &mut client
+                    .connection()
+                    .map_err(|_| GlobalRateLimitError::Redis)?,
+            )
+            .map_err(|_| GlobalRateLimitError::Redis)?;
+
+        self.update_limit(
+            budget_key,
+            quota.slot() as usize,
+            new_budget,
+            current_redis_count,
+        )
+    }
+
+    /// Updates the local counter after having synced with redis.
+    fn update_limit(
+        &self,
+        budget_key: BudgetKeyRef,
+        current_slot: usize,
+        new_budget: usize,
+        redis_value: usize,
+    ) -> Result<(), GlobalRateLimitError> {
+        match self
+            .counters
+            .read()
+            .map_err(|_| GlobalRateLimitError::PoisonedLock)?
+            .get(&budget_key)
+        {
+            // If the key/val exist, we can update the values with just a read lock. This allows
+            // the counter to operate concurrently in different threads.
+            Some(val) => {
+                let old_budget = if val.slot.load(Ordering::SeqCst) == current_slot {
+                    val.budget.load(Ordering::SeqCst)
+                } else {
+                    0
+                };
+
+                val.budget.store(new_budget + old_budget, Ordering::SeqCst);
+                val.slot.store(current_slot, Ordering::SeqCst);
+                val.last_seen_redis_value
+                    .store(redis_value, Ordering::SeqCst);
+            }
+            // If no key/val exist, we have to momentarily block the counter in other threads.
+            None => {
+                self.counters
+                    .write()
+                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?
+                    .insert(
+                        budget_key.to_owned(),
+                        BudgetState::new(new_budget, redis_value, current_slot),
+                    );
+            }
+        };
+
+        Ok(())
     }
 }
 
@@ -347,7 +421,6 @@ impl BudgetState {
 pub struct RedisRateLimiter {
     pool: RedisPool,
     script: Arc<Script>,
-    global_script: Arc<Script>,
     max_limit: Option<u64>,
     counters: GlobalCounters,
 }
@@ -358,72 +431,9 @@ impl RedisRateLimiter {
         RedisRateLimiter {
             pool,
             script: Arc::new(load_lua_script()),
-            global_script: Arc::new(load_global_lua_script()),
             max_limit: None,
             counters: GlobalCounters::default(),
         }
-    }
-
-    /// Returns `true` if the global quota should be ratelimited.
-    ///
-    /// We first check the local limits if we have any budget left. If we don't, or the
-    /// slot is expired, we have to sync with redis, after which we try again.
-    fn is_globally_rate_limited(
-        &self,
-        client: &mut PooledClient,
-        quota: &RedisQuota,
-        quantity: usize,
-    ) -> Result<bool, GlobalRateLimitError> {
-        debug_assert!(quota.scope == QuotaScope::Global);
-
-        match self.counters.decrement_budget(quota, quantity) {
-            ok @ Ok(_) => return ok,
-            err @ Err(GlobalRateLimitError::Redis | GlobalRateLimitError::PoisonedLock) => {
-                return err
-            }
-            Err(
-                GlobalRateLimitError::BudgetEmpty
-                | GlobalRateLimitError::KeyMissing
-                | GlobalRateLimitError::SlotExpired,
-            ) => self.redis_sync(client, quota, quantity)?,
-        };
-
-        self.counters.decrement_budget(quota, quantity)
-    }
-
-    /// Ensures the local counter is up to date with the redis counter.
-    fn redis_sync(
-        &self,
-        client: &mut PooledClient,
-        quota: &RedisQuota,
-        quantity: usize,
-    ) -> Result<(), GlobalRateLimitError> {
-        // We don't want to reject a metrics batch just because it's too large, so we increase the
-        // requested budget if the default is less than the metric bucket quantity.
-        let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
-        let redis_key = quota.key();
-        let budget_key = BudgetKeyRef::new(quota);
-
-        let (new_budget, current_redis_count): (usize, usize) = self
-            .global_script
-            .prepare_invoke()
-            .key(redis_key.as_str())
-            .arg(quota.limit)
-            .arg(quota.expiry().as_secs() + GRACE)
-            .arg(requested_budget)
-            .invoke(
-                &mut client
-                    .connection()
-                    .map_err(|_| GlobalRateLimitError::Redis)?,
-            )
-            .map_err(|_| GlobalRateLimitError::Redis)?;
-
-        self.counters.update_limit(
-            budget_key,
-            quota.slot() as usize,
-            new_budget,
-            current_redis_count,
-        )
     }
 
     /// Sets the maximum rate limit in seconds.
@@ -476,7 +486,7 @@ impl RedisRateLimiter {
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
-                    match self.is_globally_rate_limited(&mut client, &quota, quantity) {
+                    match self.counters.evaluate_quota(&mut client, &quota, quantity) {
                         Ok(true) => {
                             rate_limits.add(RateLimit::from_quota(
                                 &quota,
@@ -566,7 +576,6 @@ mod tests {
         RedisRateLimiter {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
-            global_script: Arc::new(load_global_lua_script()),
             max_limit: None,
             counters: GlobalCounters::default(),
         }
