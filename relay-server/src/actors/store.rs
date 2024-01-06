@@ -11,7 +11,7 @@ use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{
-    self, EventId, JsonLenientString, SessionAggregates, SessionStatus, SessionUpdate, Span,
+    self, EventId, JsonLenientString, SessionAggregates, SessionStatus, SessionUpdate, Span, SpanId,
 };
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
@@ -43,6 +43,16 @@ pub enum StoreError {
     SendFailed(#[from] ClientError),
     #[error("failed to store event because event id was missing")]
     NoEventId,
+    #[error("failed to store span: trace_id missing")]
+    NoTraceId,
+    #[error("failed to store span: span_id missing")]
+    NoSpanId,
+    #[error("failed to store span: start_timestamp missing")]
+    NoStartTimestamp,
+    #[error("failed to store span: end_timestamp missing")]
+    NoEndTimestamp,
+    #[error("failed to store span: exclusive_time missing")]
+    NoExclusiveTime,
 }
 
 fn make_distinct_id(s: &str) -> Uuid {
@@ -843,9 +853,8 @@ impl StoreService {
         let Some(span) = annotated_span.value() else {
             return Ok(());
         };
-
         let Some(start_timestamp) = span.start_timestamp.clone().into_value() else {
-            return Ok(());
+            return Err(StoreError::NoStartTimestamp);
         };
 
         let _metrics_summary = match span._metrics_summary.to_json() {
@@ -856,7 +865,11 @@ impl StoreService {
             Err(_) => Default::default(),
         };
         let description = span.description.clone().into_value().unwrap_or_default();
-        let exclusive_time_ms = span.exclusive_time.clone().into_value().unwrap_or_default();
+        let exclusive_time_ms = span
+            .exclusive_time
+            .clone()
+            .into_value()
+            .ok_or(StoreError::NoExclusiveTime)?;
         let is_segment = span.is_segment.clone().into_value().unwrap_or_default();
         let measurements = match span.measurements.to_json() {
             Ok(measurements) => match RawValue::from_string(measurements) {
@@ -869,7 +882,7 @@ impl StoreService {
             .parent_span_id
             .clone()
             .into_value()
-            .unwrap_or_default()
+            .unwrap_or(SpanId("0".into()))
             .as_ref()
             .into();
         let profile_id = span.profile_id.clone().into_value();
@@ -877,30 +890,31 @@ impl StoreService {
             .segment_id
             .clone()
             .into_value()
-            .unwrap_or_default()
+            .unwrap_or(SpanId("0".into()))
             .as_ref()
             .into();
         let span_id = span
             .span_id
             .clone()
             .into_value()
-            .unwrap_or_default()
+            .ok_or(StoreError::NoSpanId)?
             .as_ref()
             .into();
         let trace_id = span
             .trace_id
             .clone()
             .into_value()
-            .unwrap_or_default()
+            .ok_or(StoreError::NoTraceId)?
             .as_ref()
             .into();
         let start_timestamp_ms = start_timestamp.into_inner().timestamp_millis() as u64;
 
-        let duration_ms = if let Some(end_timestamp) = span.timestamp.clone().into_value() {
-            (end_timestamp - start_timestamp).num_milliseconds() as u32
-        } else {
-            0
-        };
+        let end_timestamp = span
+            .timestamp
+            .clone()
+            .into_value()
+            .ok_or(StoreError::NoEndTimestamp)?;
+        let duration_ms = (end_timestamp - start_timestamp).num_milliseconds() as u32;
 
         let annotated_tags = span.tags.clone().into_value().unwrap_or_default();
         let mut tags: BTreeMap<String, String> = BTreeMap::new();
