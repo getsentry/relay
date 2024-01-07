@@ -199,8 +199,8 @@ impl fmt::Debug for GlobalCounters {
 impl GlobalCounters {
     /// Returns `true` if the global quota should be ratelimited.
     ///
-    /// We first check the local limits if we have any budget left. If we don't, or the
-    /// slot is expired, we have to sync with redis, after which we try again.
+    /// Certain errors can be fixed with syncing to redis, so in those cases
+    /// we try again to decrement the budget after the sync.
     fn evaluate_quota(
         &self,
         client: &mut PooledClient,
@@ -209,16 +209,13 @@ impl GlobalCounters {
     ) -> Result<bool, GlobalRateLimitError> {
         debug_assert!(quota.scope == QuotaScope::Global);
 
+        use GlobalRateLimitError::*;
         match self.decrement_budget(quota, quantity) {
             ok @ Ok(_) => return ok,
-            err @ Err(GlobalRateLimitError::Redis | GlobalRateLimitError::PoisonedLock) => {
-                return err
+            err @ Err(Redis | PoisonedLock) => return err,
+            Err(BudgetEmpty { .. } | KeyMissing | SlotExpired) => {
+                self.redis_sync(client, quota, quantity)?;
             }
-            Err(
-                GlobalRateLimitError::BudgetEmpty { .. }
-                | GlobalRateLimitError::KeyMissing
-                | GlobalRateLimitError::SlotExpired,
-            ) => self.redis_sync(client, quota, quantity)?,
         };
 
         self.decrement_budget(quota, quantity)
@@ -273,8 +270,6 @@ impl GlobalCounters {
 
             // When setting the new value, we must ensure that it hasn't already been
             // decremented in another thread.
-            //
-            // https://doc.rust-lang.org/std/sync/atomic/struct.AtomicU64.html#method.compare_exchange_weak
             if val
                 .budget
                 .compare_exchange_weak(

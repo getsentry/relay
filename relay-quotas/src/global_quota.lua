@@ -23,18 +23,17 @@ local requested_budget = tonumber(ARGV[3])
 
 local redis_count = tonumber(redis.call('GET', key) or 0)
 
+if redis_count == 0 then
+    redis.call('EXPIREAT', key, expiry)
+end
+
 if redis_count >= limit then
     return {0, redis_count}
 else
     -- Ensures the budget is not more than the quantity needed to hit the limit.
     local headroom = limit - redis_count
     local budget = math.min(headroom, requested_budget)
-
     redis.call('INCRBY', key, budget)
-
-    if redis_count == 0 then
-        redis.call('EXPIREAT', key, expiry)
-    end
 
     return {budget, redis_count + budget}
 end
