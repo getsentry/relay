@@ -330,7 +330,7 @@ impl GlobalCounters {
     ///
     // We want to avoid taking exclusive access to the RWLock whenever possible, in order to not
     // block ratelimiting in other threads. That's why we only insert the new values if the key is
-    // missing, otherwise we update the values with just a shared reference.
+    // missing, otherwise we update the values with just a shared reference to the map.
     fn update_limit(
         &self,
         budget_key: BudgetKeyRef,
@@ -363,14 +363,15 @@ impl GlobalCounters {
             }
             None => {
                 drop(shared_map); // Necessary to avoid deadlock.
-
-                self.counters
+                let mut exclusive_map = self
+                    .counters
                     .write()
-                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?
-                    .insert(
-                        budget_key.to_owned(),
-                        BudgetState::new(new_budget, redis_value, current_slot),
-                    );
+                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
+
+                exclusive_map.insert(
+                    budget_key.to_owned(),
+                    BudgetState::new(new_budget, redis_value, current_slot),
+                );
             }
         }
 
