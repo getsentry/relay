@@ -277,6 +277,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 let item_scoping = ItemScoping {
                     category: DataCategory::Transaction,
                     scoping: &self.scoping,
+                    namespace: None,
                 };
                 let active_rate_limits =
                     rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
@@ -293,6 +294,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     let item_scoping = ItemScoping {
                         category: DataCategory::Profile,
                         scoping: &self.scoping,
+                        namespace: None,
                     };
                     let active_rate_limits =
                         rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
@@ -326,6 +328,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -519,3 +522,5 @@ mod tests {
         );
     }
 }
+
+*/

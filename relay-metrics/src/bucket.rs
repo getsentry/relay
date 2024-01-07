@@ -609,6 +609,12 @@ pub struct Bucket {
 }
 
 impl Bucket {
+    /// nice
+    pub fn namespace(&self) -> MetricNamespace {
+        let mri = MetricResourceIdentifier::parse(&self.name).unwrap();
+        mri.namespace
+    }
+
     /// Parses a statsd-compatible payload.
     ///
     /// ```text

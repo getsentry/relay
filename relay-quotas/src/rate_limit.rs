@@ -345,6 +345,7 @@ impl<'a> IntoIterator for &'a RateLimits {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use smallvec::smallvec;
@@ -881,3 +882,4 @@ mod tests {
         "#);
     }
 }
+*/

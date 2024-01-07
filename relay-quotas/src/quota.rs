@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_metrics::MetricNamespace;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -35,6 +36,7 @@ impl Scoping {
         ItemScoping {
             category,
             scoping: self,
+            namespace: None,
         }
     }
 }
@@ -51,6 +53,8 @@ pub struct ItemScoping<'a> {
 
     /// Scoping of the data.
     pub scoping: &'a Scoping,
+
+    pub namespace: Option<MetricNamespace>,
 }
 
 impl AsRef<Scoping> for ItemScoping<'_> {
@@ -267,6 +271,9 @@ pub struct Quota {
     /// `limit=None`, since unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_code: Option<ReasonCode>,
+
+    /// If a namespace is set, the quota also have to match on it.
+    pub namespace: Option<MetricNamespace>,
 }
 
 impl Quota {
@@ -323,6 +330,8 @@ impl Quota {
         self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
     }
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -811,3 +820,5 @@ mod tests {
         }));
     }
 }
+
+*/

@@ -1285,6 +1285,7 @@ impl EnvelopeProcessorService {
             let item_scoping = relay_quotas::ItemScoping {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
+                namespace: None,
             };
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent

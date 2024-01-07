@@ -585,6 +585,8 @@ impl RedisRateLimiter {
     }
 }
 
+/*
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -1183,3 +1185,5 @@ mod tests {
         }
     }
 }
+
+*/

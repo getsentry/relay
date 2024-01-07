@@ -17,6 +17,7 @@ redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
 hashbrown = {workspace = true}
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
+relay-metrics = { path = "../relay-metrics" }
 relay-log = { path = "../relay-log", optional = true }
 relay-redis = { path = "../relay-redis", optional = true }
 serde = { workspace = true }
