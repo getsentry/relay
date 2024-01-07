@@ -31,7 +31,10 @@ else
     local budget = math.min(headroom, requested_budget)
 
     redis.call('INCRBY', key, budget)
-    redis.call('EXPIREAT', key, expiry)
+
+    if redis_count == 0 then
+        redis.call('EXPIREAT', key, expiry)
+    end
 
     return {budget, redis_count + budget}
 end
