@@ -1341,26 +1341,19 @@ impl EnvelopeProcessorService {
 
     /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
-    fn rate_limit_batches(
+    fn rate_limit_namespace(
         &self,
-        scoping: Scoping,
+        item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
         project_state: &ProjectState,
         mode: ExtractionMode,
+        rate_limiter: &RedisRateLimiter,
     ) -> bool {
-        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return false;
-        };
-
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
 
         let quotas = &project_state.config.quotas;
-        let item_scoping = relay_quotas::ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: &scoping,
-        };
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
@@ -1375,13 +1368,14 @@ impl EnvelopeProcessorService {
                 utils::reject_metrics(
                     &self.inner.outcome_aggregator,
                     quantities,
-                    scoping,
+                    *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
                 );
 
-                self.inner
-                    .project_cache
-                    .send(UpdateRateLimits::new(scoping.project_key, limits));
+                self.inner.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
 
                 return true;
             }
@@ -1395,6 +1389,37 @@ impl EnvelopeProcessorService {
         }
 
         false
+    }
+
+    /// Returns `true` if the batches should be rate limited.
+    #[cfg(feature = "processing")]
+    fn rate_limit_batches(
+        &self,
+        scoping: Scoping,
+        buckets: &[Bucket],
+        project_state: &ProjectState,
+        mode: ExtractionMode,
+    ) -> bool {
+        let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
+            return false;
+        };
+
+        let mut session_buckets = vec![];
+        let mut transaction_buckets = vec![];
+        let mut spans_buckets = vec![];
+        let mut custom_buckets = vec![];
+        let mut unsupported_buckets = vec![];
+
+        for bucket in buckets {
+            match bucket.namespace() {
+                MetricNamespace::Sessions => session_buckets.push(bucket),
+                MetricNamespace::Transactions => transaction_buckets.push(bucket),
+                MetricNamespace::Spans => spans_buckets.push(bucket),
+                MetricNamespace::Custom => custom_buckets.push(bucket),
+                MetricNamespace::Unsupported => unsupported_buckets.push(bucket),
+            }
+        }
+        true
     }
 
     /// Processes metric buckets and sends them to kafka.

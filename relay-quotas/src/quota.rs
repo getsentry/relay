@@ -327,7 +327,9 @@ impl Quota {
 
     /// Checks whether the quota's constraints match the current item.
     pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
-        self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
+        self.matches_scope(scoping)
+            && scoping.matches_categories(&self.categories)
+            && self.namespace == scoping.namespace
     }
 }
 
