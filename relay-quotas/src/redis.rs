@@ -260,7 +260,7 @@ impl GlobalCounters {
         // total count have to subtract the current budget.
         let total_count = redis_count.saturating_sub(current_budget);
 
-        if total_count + quantity >= limit {
+        if total_count + quantity > limit {
             return Ok(true);
         }
 
