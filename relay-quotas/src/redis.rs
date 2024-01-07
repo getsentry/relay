@@ -148,16 +148,19 @@ enum GlobalRateLimitError {
     #[error("slot expired")]
     SlotExpired,
     #[error("budget empty")]
-    BudgetEmpty { budget: usize, dec: usize },
+    BudgetEmpty,
     #[error("failed to communicate with redis")]
     Redis,
 }
 
 /// Counters used as a cache for global quotas.
 ///
-/// We use an RwLock because the counter itself is an `AtomicUsize`. Atomics can be modified with
-/// a shared reference, meaning that we can have multiple threads updating the counter concurrently,
-/// as long as there's no writers.
+/// When we want to ratelimit across all relay-instances, we need to use redis to synchronize.
+/// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
+/// which is why we have this cache. It works by 'taking' a certain budget from redis, by pre-incrementing
+/// a global counter. We Put the amount we pre-incremented into this local cache and count down until
+/// we have no more budget, then we ask for more from redis. If we find the global counter is above
+/// the quota limit, we will ratelimit the item.
 #[derive(Clone)]
 struct GlobalCounters {
     script: Arc<Script>,
@@ -218,6 +221,7 @@ impl GlobalCounters {
             }
         };
 
+        // There's a tiny chance the slot might have expired between the two calls.
         self.decrement_budget(quota, quantity)
     }
 
@@ -227,7 +231,7 @@ impl GlobalCounters {
     fn decrement_budget(
         &self,
         quota: &RedisQuota,
-        decrement_qty: usize,
+        quantity: usize,
     ) -> Result<bool, GlobalRateLimitError> {
         let current_slot = quota.slot() as usize;
         let Some(limit) = quota.limit.map(|limit| limit as usize) else {
@@ -256,16 +260,13 @@ impl GlobalCounters {
         // total count have to subtract the current budget.
         let total_count = redis_count.saturating_sub(current_budget);
 
-        if total_count + decrement_qty >= limit {
+        if total_count + quantity >= limit {
             return Ok(true);
         }
 
         loop {
-            if current_budget < decrement_qty {
-                return Err(GlobalRateLimitError::BudgetEmpty {
-                    budget: current_budget,
-                    dec: decrement_qty,
-                });
+            if current_budget < quantity {
+                return Err(GlobalRateLimitError::BudgetEmpty);
             }
 
             // When setting the new value, we must ensure that it hasn't already been
@@ -274,7 +275,7 @@ impl GlobalCounters {
                 .budget
                 .compare_exchange_weak(
                     current_budget,
-                    current_budget - decrement_qty,
+                    current_budget - quantity,
                     Ordering::SeqCst,
                     Ordering::SeqCst,
                 )
@@ -323,6 +324,10 @@ impl GlobalCounters {
     }
 
     /// Updates the local counter after having synced with redis.
+    ///
+    // We want to avoid taking exclusive access to the RWLock whenever possible, in order to not
+    // block ratelimiting in other threads. That's why we only insert the new values if the key is
+    // missing, otherwise we update the values with just a shared reference.
     fn update_limit(
         &self,
         budget_key: BudgetKeyRef,
@@ -411,13 +416,6 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
 }
 
 /// Represents the local budget taken from a global quota.
-///
-/// It works by taking a certain amount of quota by pre-incrementing the redis counter before
-/// actually using it. Then we count down to zero before we ask for more. We store the value of the
-/// redis counter as it was when we previously took a budget, so that if we the count reach zero
-/// but we know the redis counter is still above the limit, we won't ask for more from redis.
-/// The counter works per slot, so when there's a new slot this value will be invalidated and we
-/// will check with redis again and create a new [`BudgetState`] for the local counter.
 struct BudgetState {
     budget: AtomicUsize,
     last_seen_redis_value: AtomicUsize,

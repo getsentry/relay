@@ -16,7 +16,7 @@ local key = KEYS[1]
 -- The max amount that we want to take within the given slot. We won't take a budget if
 -- the count is higher than the limit.
 local limit = tonumber(ARGV[1])
--- When the redis key/val should be deleted. Should be current_time() + window + grace.
+-- When the redis key/val should be deleted.
 local expiry = tonumber(ARGV[2])
 -- The budget that the caller intends to take. Will be capped if too close to the limit.
 local requested_budget = tonumber(ARGV[3])
