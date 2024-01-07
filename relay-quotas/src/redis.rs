@@ -151,6 +151,8 @@ enum GlobalRateLimitError {
     BudgetEmpty,
     #[error("failed to communicate with redis")]
     Redis,
+    #[error("stuck in loop")]
+    LoopLimitExceeded,
 }
 
 /// Counters used as a cache for global quotas.
@@ -215,7 +217,7 @@ impl GlobalCounters {
         use GlobalRateLimitError::*;
         match self.decrement_budget(quota, quantity) {
             ok @ Ok(_) => return ok,
-            err @ Err(Redis | PoisonedLock) => return err,
+            err @ Err(Redis | PoisonedLock | LoopLimitExceeded) => return err,
             Err(BudgetEmpty { .. } | KeyMissing | SlotExpired) => {
                 self.redis_sync(client, quota, quantity)?;
             }
@@ -247,24 +249,25 @@ impl GlobalCounters {
             .get(&BudgetKeyRef::new(quota))
             .ok_or(GlobalRateLimitError::KeyMissing)?;
 
-        if current_slot != val.slot.load(Ordering::SeqCst) {
-            // Expired slot implies the the time window has passed, and we need to
-            // ask for a new budget for the new slot.
-            return Err(GlobalRateLimitError::SlotExpired);
-        }
+        let max_loop_iterations = 10;
+        for _ in 0..max_loop_iterations {
+            if current_slot != val.slot.load(Ordering::SeqCst) {
+                // Expired slot implies the the time window has passed, and we need to
+                // ask for a new budget for the new slot.
+                return Err(GlobalRateLimitError::SlotExpired);
+            }
 
-        let redis_count = val.last_seen_redis_value.load(Ordering::SeqCst);
-        let mut current_budget = val.budget.load(Ordering::SeqCst);
+            let redis_count = val.last_seen_redis_value.load(Ordering::SeqCst);
+            let current_budget = val.budget.load(Ordering::SeqCst);
 
-        // Since the redis count was pre-incremented by the amount of budget we took, the actual
-        // total count have to subtract the current budget.
-        let total_count = redis_count.saturating_sub(current_budget);
+            // Since the redis count was pre-incremented by the amount of budget we took, the actual
+            // total count have to subtract the current budget.
+            let total_count = redis_count.saturating_sub(current_budget);
 
-        if total_count + quantity > limit {
-            return Ok(true);
-        }
+            if total_count + quantity > limit {
+                return Ok(true);
+            }
 
-        loop {
             if current_budget < quantity {
                 return Err(GlobalRateLimitError::BudgetEmpty);
             }
@@ -283,9 +286,9 @@ impl GlobalCounters {
             {
                 return Ok(false);
             }
-
-            current_budget = val.budget.load(Ordering::SeqCst);
         }
+
+        Err(GlobalRateLimitError::LoopLimitExceeded)
     }
 
     /// Ensures the local counter is up to date with the redis counter.
