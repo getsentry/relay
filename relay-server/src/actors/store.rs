@@ -22,7 +22,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::ser::Error;
 use serde::{Deserialize, Serialize};
-use serde_json::value::Value;
+use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
 
@@ -1134,13 +1134,13 @@ struct CheckInKafkaMessage {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct SpanKafkaMessage {
+struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing)]
     start_timestamp: f64,
     #[serde(rename(deserialize = "timestamp"), skip_serializing)]
     end_timestamp: f64,
 
-    description: String,
+    description: &'a str,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
@@ -1149,19 +1149,20 @@ struct SpanKafkaMessage {
     #[serde(rename(deserialize = "exclusive_time"))]
     exclusive_time_ms: f64,
     is_segment: bool,
-    #[serde(default, skip_serializing_if = "Value::is_null")]
-    measurements: Value,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<&'a RawValue>,
     #[serde(
         default,
         rename = "_metrics_summary",
-        skip_serializing_if = "Value::is_null"
+        skip_serializing_if = "Option::is_none"
     )]
-    metrics_summary: Value,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    parent_span_id: String,
+    metrics_summary: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    parent_span_id: Option<&'a str>,
     /// The numeric ID of the project.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    profile_id: Option<EventId>,
+    profile_id: Option<&'a str>,
     #[serde(default)]
     project_id: u64,
     /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
@@ -1169,14 +1170,16 @@ struct SpanKafkaMessage {
     /// Number of days until these data should be deleted.
     #[serde(default)]
     retention_days: u16,
-    #[serde(default)]
-    segment_id: String,
-    sentry_tags: BTreeMap<String, String>,
-    span_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    segment_id: Option<&'a str>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    sentry_tags: BTreeMap<&'a str, &'a str>,
+    span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
-    tags: BTreeMap<String, String>,
-    trace_id: EventId,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    tags: BTreeMap<&'a str, &'a str>,
+    trace_id: &'a str,
 }
 
 /// An enum over all possible ingest messages.
@@ -1199,7 +1202,7 @@ enum KafkaMessage<'a> {
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage),
+    Span(SpanKafkaMessage<'a>),
 }
 
 impl Message for KafkaMessage<'_> {
