@@ -1664,6 +1664,7 @@ def test_span_ingestion(
                 "file_extension": "js",
                 "span.category": "resource",
                 "span.description": "https://example.com/*/blah.js",
+                "span.domain": "example.com",
                 "span.group": "8a97a9e43588e2bd",
                 "span.op": "resource.script",
             },
