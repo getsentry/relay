@@ -1435,7 +1435,7 @@ impl EnvelopeProcessorService {
             };
 
             if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
-                return;
+                continue;
             }
 
             let retention = project_state
