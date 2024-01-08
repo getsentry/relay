@@ -539,7 +539,7 @@ fn span_metrics_reduced() -> impl IntoIterator<Item = MetricSpec> {
                     .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .when(is_db.clone()),
+                    .when(is_db.clone() | is_resource.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
                     .always(),
