@@ -1391,17 +1391,18 @@ impl EnvelopeProcessorService {
         false
     }
 
-    /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
     fn rate_limit_batches(
         &self,
         scoping: Scoping,
-        buckets: &[Bucket],
+        buckets: Vec<Bucket>,
         project_state: &ProjectState,
         mode: ExtractionMode,
-    ) -> bool {
+    ) -> Vec<Bucket> {
+        use relay_quotas::ItemScoping;
+
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return false;
+            return buckets;
         };
 
         let mut session_buckets = vec![];
@@ -1419,7 +1420,30 @@ impl EnvelopeProcessorService {
                 MetricNamespace::Unsupported => unsupported_buckets.push(bucket),
             }
         }
-        true
+
+        let mut item_scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: &scoping,
+            namespace: None,
+        };
+
+        let mut unlimited_buckets = vec![];
+
+        let mut ratelimit = |namespace: MetricNamespace, buckets: Vec<Bucket>| {
+            item_scoping.namespace = Some(namespace);
+            if !self.rate_limit_namespace(item_scoping, &buckets, project_state, mode, rate_limiter)
+            {
+                unlimited_buckets.extend(buckets);
+            };
+        };
+
+        ratelimit(MetricNamespace::Sessions, session_buckets);
+        ratelimit(MetricNamespace::Transactions, transaction_buckets);
+        ratelimit(MetricNamespace::Spans, spans_buckets);
+        ratelimit(MetricNamespace::Custom, custom_buckets);
+        ratelimit(MetricNamespace::Unsupported, unsupported_buckets);
+
+        unlimited_buckets
     }
 
     /// Processes metric buckets and sends them to kafka.
@@ -1460,14 +1484,16 @@ impl EnvelopeProcessorService {
                 _ => ExtractionMode::Duration,
             };
 
-            if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
-                return;
-            }
-
             let retention = project_state
                 .config
                 .event_retention
                 .unwrap_or(DEFAULT_EVENT_RETENTION);
+
+            let buckets = self.rate_limit_batches(scoping, buckets, &project_state, mode);
+
+            if buckets.is_empty() {
+                continue;
+            }
 
             // The store forwarder takes care of bucket splitting internally, so we can submit the
             // entire list of buckets. There is no batching needed here.

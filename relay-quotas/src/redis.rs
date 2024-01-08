@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
+use relay_metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError, RedisPool};
 use thiserror::Error;
@@ -67,6 +68,8 @@ struct RedisQuota<'a> {
     window: u64,
     /// The ingestion timestamp determining the rate limiting bucket.
     timestamp: UnixTimestamp,
+    ///
+    namespace: Option<MetricNamespace>,
 }
 
 impl<'a> RedisQuota<'a> {
@@ -81,6 +84,7 @@ impl<'a> RedisQuota<'a> {
             prefix,
             window,
             timestamp,
+            namespace: quota.namespace,
         })
     }
 
@@ -121,12 +125,18 @@ impl<'a> RedisQuota<'a> {
             self.scoping.organization_id
         };
 
+        let ns = match self.namespace {
+            Some(ns) => ns.as_str(),
+            None => "",
+        };
+
         format!(
-            "quota:{id}{{{org}}}{subscope}:{slot}",
+            "quota:{id}{{{org}}}{subscope}:{slot}{ns}",
             id = self.prefix,
             org = org,
             subscope = OptionalDisplay(subscope),
             slot = self.slot(),
+            ns = ns,
         )
     }
 }
@@ -380,6 +390,9 @@ impl GlobalCounters {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct BudgetKey {
     prefix: String,
+    namespace: Option<&'static str>,
+    scope: &'static str,
+    scope_id: Option<u64>,
     window: u64,
 }
 
@@ -389,6 +402,9 @@ struct BudgetKey {
 #[derive(Clone, Copy, Hash)]
 struct BudgetKeyRef<'a> {
     prefix: &'a str,
+    namespace: Option<&'static str>,
+    scope: &'static str,
+    scope_id: Option<u64>,
     window: u64,
 }
 
@@ -396,6 +412,9 @@ impl<'a> BudgetKeyRef<'a> {
     fn new(quota: &'a RedisQuota) -> Self {
         Self {
             prefix: quota.prefix,
+            namespace: quota.namespace.map(|ns| ns.as_str()),
+            scope: quota.scope.name(),
+            scope_id: quota.scoping.scope_id(quota.scope),
             window: quota.window,
         }
     }
@@ -403,6 +422,9 @@ impl<'a> BudgetKeyRef<'a> {
     fn to_owned(self) -> BudgetKey {
         BudgetKey {
             prefix: self.prefix.to_owned(),
+            namespace: self.namespace,
+            scope: self.scope,
+            scope_id: self.scope_id,
             window: self.window,
         }
     }
@@ -509,7 +531,7 @@ impl RedisRateLimiter {
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
-                if quota.scope == QuotaScope::Global {
+                if quota.scope == QuotaScope::Global || quota.namespace.is_some() {
                     match self.counters.evaluate_quota(&mut client, &quota, quantity) {
                         Ok(true) => {
                             rate_limits.add(RateLimit::from_quota(
