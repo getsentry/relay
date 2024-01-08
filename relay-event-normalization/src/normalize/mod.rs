@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::mem;
 use std::sync::Arc;
@@ -751,7 +750,6 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 }
 #[cfg(test)]
 mod tests {
-
     use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::DurationUnit;
@@ -766,6 +764,7 @@ mod tests {
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
+    use std::collections::BTreeMap;
     use uuid::Uuid;
 
     use crate::{normalize_event, NormalizationConfig};
