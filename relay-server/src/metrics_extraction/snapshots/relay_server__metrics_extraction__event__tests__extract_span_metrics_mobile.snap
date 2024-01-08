@@ -13,7 +13,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             ),
             exclusive_time: 2000.0,
             description: ~,
-            op: "default",
+            op: "app.start.cold",
             span_id: SpanId(
                 "bd429c44b67a3eb4",
             ),
@@ -29,9 +29,10 @@ expression: "(&event.value().unwrap().spans, metrics)"
             profile_id: ~,
             data: ~,
             sentry_tags: {
+                "category": "app",
                 "device.class": "1",
                 "mobile": "true",
-                "op": "default",
+                "op": "app.start.cold",
                 "os.name": "iOS",
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
@@ -139,7 +140,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
-                "span.op": "default",
+                "span.category": "app",
+                "span.op": "app.start.cold",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
                 "ttid": "ttid",
@@ -158,8 +160,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "device.class": "1",
                 "os.name": "iOS",
                 "release": "1.2.3",
-                "span.op": "default",
-                "transaction.method": "GET",
+                "span.category": "app",
+                "span.op": "app.start.cold",
             },
         },
         Bucket {
@@ -170,7 +172,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 1.0,
             ),
             tags: {
-                "span.op": "default",
+                "span.category": "app",
+                "span.op": "app.start.cold",
             },
         },
         Bucket {
@@ -218,7 +221,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "os.name": "iOS",
                 "release": "1.2.3",
                 "span.op": "ui.load.initial_display",
-                "transaction.method": "GET",
             },
         },
         Bucket {
@@ -283,7 +285,6 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "span.description": "Cold Start",
                 "span.group": "2d675185edfeb30c",
                 "span.op": "app.start.cold",
-                "transaction.method": "GET",
             },
         },
         Bucket {
