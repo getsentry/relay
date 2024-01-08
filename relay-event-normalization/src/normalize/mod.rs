@@ -228,11 +228,6 @@ fn normalize_metrics_summary_mris(value: &mut Value) {
                 value,
             ))
         })
-        .filter_map(|(key, value)| {
-            MetricResourceIdentifier::parse(&key)
-                .map(move |a| (a.to_string(), value))
-                .ok()
-        })
         .collect();
 
     *value = Value::Object(metrics);
