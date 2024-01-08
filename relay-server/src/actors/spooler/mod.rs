@@ -387,7 +387,7 @@ impl OnDisk {
         &self,
         row: SqliteRow,
         services: &Services,
-    ) -> Result<ManagedEnvelope, BufferError> {
+    ) -> Result<Vec<ManagedEnvelope>, BufferError> {
         let envelope_row: Vec<u8> = row.try_get("envelope").map_err(BufferError::FetchFailed)?;
         let envelope_bytes = bytes::Bytes::from(envelope_row);
         let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
@@ -399,13 +399,18 @@ impl OnDisk {
 
         envelope.set_start_time(start_time.into_inner());
 
-        let mut managed_envelope = self.buffer_guard.enter(
-            envelope,
-            services.outcome_aggregator.clone(),
-            services.test_store.clone(),
-        )?;
-        managed_envelope.set_group(ProcessingGroup::from_envelope(managed_envelope.envelope()));
-        Ok(managed_envelope)
+        ProcessingGroup::split_envelope(*envelope)
+            .into_iter()
+            .map(|(group, envelope)| {
+                let managed_envelope = self.buffer_guard.enter(
+                    envelope,
+                    services.outcome_aggregator.clone(),
+                    services.test_store.clone(),
+                    group,
+                )?;
+                Ok(managed_envelope)
+            })
+            .collect()
     }
 
     /// Tries to delete the envelopes from the persistent buffer in batches,
@@ -469,8 +474,10 @@ impl OnDisk {
                 };
 
                 match self.extract_envelope(envelope, services) {
-                    Ok(managed_envelope) => {
-                        sender.send(managed_envelope).ok();
+                    Ok(managed_envelopes) => {
+                        for managed_envelope in managed_envelopes {
+                            sender.send(managed_envelope).ok();
+                        }
                     }
                     Err(err) => relay_log::error!(
                         error = &err as &dyn Error,
@@ -1141,6 +1148,7 @@ mod tests {
                 empty_envelope(),
                 services.outcome_aggregator,
                 services.test_store,
+                ProcessingGroup::Unknown,
             )
             .unwrap();
 

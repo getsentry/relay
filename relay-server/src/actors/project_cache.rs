@@ -1085,6 +1085,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
+    use crate::actors::processor::ProcessingGroup;
     use crate::testutils::empty_envelope;
 
     use super::*;
@@ -1183,6 +1184,7 @@ mod tests {
                     empty_envelope(),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
+                    ProcessingGroup::Unknown,
                 )
                 .unwrap();
             let message = ValidateEnvelope { envelope };

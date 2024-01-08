@@ -184,7 +184,7 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config: &Config) {
     let (Some(dsc), Some(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -240,7 +240,7 @@ mod tests {
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
     use uuid::Uuid;
 
-    use crate::actors::processor::ProcessEnvelope;
+    use crate::actors::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::actors::project::ProjectState;
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
@@ -429,6 +429,7 @@ mod tests {
                     TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
+                    ProcessingGroup::Unknown,
                 ),
                 profile_id: None,
                 event_metrics_extracted: false,

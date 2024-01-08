@@ -62,7 +62,7 @@ struct EnvelopeContext {
     slot: Option<SemaphorePermit>,
     partition_key: Option<u64>,
     done: bool,
-    group: Option<ProcessingGroup>,
+    group: ProcessingGroup,
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -95,6 +95,7 @@ impl ManagedEnvelope {
         slot: Option<SemaphorePermit>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -107,7 +108,7 @@ impl ManagedEnvelope {
                 slot,
                 partition_key: None,
                 done: false,
-                group: None,
+                group,
             },
             outcome_aggregator,
             test_store,
@@ -120,7 +121,13 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        let mut envelope = Self::new_internal(envelope, None, outcome_aggregator, test_store);
+        let mut envelope = Self::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Unknown,
+        );
         envelope.context.done = true;
         envelope
     }
@@ -137,7 +144,13 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        Self::new_internal(envelope, None, outcome_aggregator, test_store)
+        Self::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Unknown,
+        )
     }
 
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
@@ -148,8 +161,9 @@ impl ManagedEnvelope {
         slot: SemaphorePermit,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
-        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store)
+        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store, group)
     }
 
     /// Returns a reference to the contained [`Envelope`].
@@ -158,12 +172,8 @@ impl ManagedEnvelope {
     }
 
     /// Returns the optional group where this envelope belongs to.
-    pub fn group(&self) -> Option<ProcessingGroup> {
+    pub fn group(&self) -> ProcessingGroup {
         self.context.group
-    }
-
-    pub fn set_group(&mut self, group: ProcessingGroup) {
-        self.context.group = Some(group)
     }
 
     /// Returns a mutable reference to the contained [`Envelope`].

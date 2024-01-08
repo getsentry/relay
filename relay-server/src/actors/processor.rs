@@ -121,85 +121,6 @@ pub enum ProcessingGroup {
 }
 
 impl ProcessingGroup {
-    /// Returns the group associated with the provided [`Envelope`].
-    ///
-    /// Based on the items, which the provided envelope contains, make the decision, which
-    /// group should be assigned.
-    ///
-    /// The decision made in the following order:
-    /// - if any of the items is a transaction - return group `Transaction`
-    /// - if the envelope contains only attachment items, and those attachments do not create
-    /// the event - we are dealing with `StandaloneAttachment`
-    /// - if there are ReplayEvent or ReplayRecording items - `Replay` group is assigned
-    /// - if any of the items require event - this is the `Error` group
-    /// - the rest of the items have dedicates groups: Session, UserReport, CheckIn,
-    /// Span
-    /// - the `Unknown` group is for forward-compatibility and assigned to the items which do
-    /// not fit into any of the groups mentioned above.
-    pub fn from_envelope(envelope: &Envelope) -> Self {
-        // In the envelope can be either Transaction or Error, but never both together, this
-        // condition if met assigns the `Transaction` group otherwise we assume it's ether errors
-        // or any other item types.
-        //
-        // Profile currently always belongs to the transaction. If it sent without transaction it
-        // will be silently dropped.
-        if envelope
-            .items()
-            .any(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Profile)
-        {
-            return Self::Transaction;
-        }
-
-        // We can have standalone attachments - the ones which do not create events.
-        if envelope
-            .items()
-            .any(|item| item.ty() == &ItemType::Attachment || item.ty() == &ItemType::FormData)
-            && !envelope.items().any(Item::creates_event)
-        {
-            return Self::StandaloneAttachment;
-        }
-
-        if envelope.items().any(|item| {
-            item.ty() == &ItemType::ReplayEvent || item.ty() == &ItemType::ReplayRecording
-        }) {
-            return Self::Replay;
-        }
-
-        // If there are any items in this envelope, which require event, but it's not a
-        // transaction, then it's must be general error.
-        if envelope.items().any(Item::requires_event) {
-            return Self::Error;
-        }
-
-        if envelope
-            .items()
-            .any(|item| item.ty() == &ItemType::UserReport || item.ty() == &ItemType::ClientReport)
-        {
-            return Self::UserReport;
-        }
-
-        if envelope.items().any(|item| item.ty() == &ItemType::CheckIn) {
-            return Self::CheckIn;
-        }
-
-        // Sessions are always grouped together, and require little processing.
-        if envelope
-            .items()
-            .any(|item| item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions)
-        {
-            return Self::Session;
-        }
-
-        if envelope
-            .items()
-            .any(|item| item.ty() == &ItemType::Span || item.ty() == &ItemType::OtelSpan)
-        {
-            return Self::Span;
-        }
-
-        Self::Unknown
-    }
-
     /// Splits provided envelope into list of tuples of groups with associated envelopes.
     pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
@@ -248,7 +169,18 @@ impl ProcessingGroup {
                 let headers = headers.clone();
                 let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
                 let envelope = Envelope::from_parts(headers, items);
-                (Self::from_envelope(&envelope), envelope)
+                let item_type = item.ty();
+                let group = if item_type == &ItemType::CheckIn {
+                    ProcessingGroup::CheckIn
+                } else if item_type == &ItemType::UserReport || item_type == &ItemType::ClientReport
+                {
+                    ProcessingGroup::UserReport
+                } else {
+                    relay_log::error!("Unsupported ItemType in the envelope: {item_type}");
+                    ProcessingGroup::Unknown
+                };
+
+                (group, envelope)
             })
             .collect();
 
@@ -1198,10 +1130,8 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         self.light_normalize_event(state)?;
-        dynamic_sampling::normalize(state);
         event::filter(state)?;
-        dynamic_sampling::run(state, &self.inner.config);
-        dynamic_sampling::sample_envelope(state)?;
+        dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1403,10 +1333,7 @@ impl EnvelopeProcessorService {
     fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
-        let group = state
-            .managed_envelope
-            .group()
-            .unwrap_or_else(|| ProcessingGroup::from_envelope(state.envelope()));
+        let group = state.managed_envelope.group();
 
         relay_log::trace!("Processing {group:?} group");
 
