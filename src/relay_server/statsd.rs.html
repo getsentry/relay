@@ -695,8 +695,6 @@
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
 <a href="#697" id="697">697</a>
-<a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -719,8 +717,6 @@
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     </span>BufferEnvelopesDiskCount,
-    <span class="doccomment">/// The current count of the keys in the &quot;in-memory&quot; buffer.
-    </span>BufferProjectsMemoryCount,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
@@ -730,7 +726,6 @@
             RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
             RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">&quot;buffer.envelopes_mem_count&quot;</span>,
             RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">&quot;buffer.envelopes_disk_count&quot;</span>,
-            RelayGauges::BufferProjectsMemoryCount =&gt; <span class="string">&quot;buffer.projects_mem_count&quot;</span>,
         }
     }
 }
@@ -1120,7 +1115,8 @@
     </span>BufferEnvelopesWritten,
     <span class="doccomment">/// Number of _envelopes_ the envelope buffer reads back from disk.
     </span>BufferEnvelopesRead,
-    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
+    <span class="doccomment">///
+    /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
     ///  - `outcome`: The basic cause for rejecting the event.
