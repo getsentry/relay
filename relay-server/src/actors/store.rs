@@ -1157,7 +1157,7 @@ struct SpanKafkaMessage {
         skip_serializing_if = "Value::is_null"
     )]
     metrics_summary: Value,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     parent_span_id: String,
     /// The numeric ID of the project.
     #[serde(default, skip_serializing_if = "Option::is_none")]
