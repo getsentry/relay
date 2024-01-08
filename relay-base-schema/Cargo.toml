@@ -16,6 +16,9 @@ relay-protocol = { path = "../relay-protocol" }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 
+[dev-dependencies]
+serde_json = { workspace = true }
+
 [features]
 default = []
 jsonschema = ["dep:schemars", "relay-protocol/jsonschema"]
