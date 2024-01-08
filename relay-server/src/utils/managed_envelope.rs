@@ -171,7 +171,7 @@ impl ManagedEnvelope {
         self.envelope.as_ref()
     }
 
-    /// Returns the optional group where this envelope belongs to.
+    /// Returns the [`ProcessingGroup`] where this envelope belongs to.
     pub fn group(&self) -> ProcessingGroup {
         self.context.group
     }

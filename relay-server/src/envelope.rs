@@ -824,7 +824,7 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
-            ItemType::Nel => true,
+            ItemType::Nel => false,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::UserReportV2 => true,

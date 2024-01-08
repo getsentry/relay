@@ -124,6 +124,7 @@ impl ProcessingGroup {
     /// Splits provided envelope into list of tuples of groups with associated envelopes.
     pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
         let headers = envelope.headers().clone();
+        let mut grouped_envelopes = smallvec![];
 
         // Each NEL item *must* have a dedicated envelope.
         let nel_envelopes = envelope
@@ -136,56 +137,57 @@ impl ProcessingGroup {
                 envelope.set_event_id(EventId::new());
                 (ProcessingGroup::Error, envelope)
             });
+        grouped_envelopes.extend(nel_envelopes);
 
         // Extract all standalone attachments.
         // Note: only if there is no items in the envelope which can create events.
-        let standalone_attachment_items = if !envelope.items().any(Item::creates_event) {
-            envelope.take_items_by(|item| {
+        if !envelope.items().any(Item::creates_event) {
+            let standalone_attachment_items = envelope.take_items_by(|item| {
                 item.ty() == &ItemType::Attachment || item.ty() == &ItemType::FormData
-            })
-        } else {
-            smallvec![]
+            });
+
+            if !standalone_attachment_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneAttachment,
+                    Envelope::from_parts(headers.clone(), standalone_attachment_items),
+                ))
+            }
         };
 
+        // Extract replays.
         let replay_items = envelope.take_items_by(|item| {
             item.ty() == &ItemType::ReplayEvent || item.ty() == &ItemType::ReplayRecording
         });
+        if !replay_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Replay,
+                Envelope::from_parts(headers.clone(), replay_items),
+            ))
+        }
 
         // Keep all the sessions together in one envelope.
         let session_items = envelope.take_items_by(|item| {
             item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions
         });
+        if !session_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Session,
+                Envelope::from_parts(headers.clone(), session_items),
+            ))
+        }
 
+        // Extract spans.
         let span_items = envelope
             .take_items_by(|item| item.ty() == &ItemType::Span || item.ty() == &ItemType::OtelSpan);
+        if !span_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Span,
+                Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
 
         // Extract all the items which require event into separate envelope.
         let require_event_items = envelope.take_items_by(Item::requires_event);
-
-        // Get the rest of the envelopes, one per item.
-        let mut envelopes: SmallVec<[(Self, Box<Envelope>); 3]> = envelope
-            .items_mut()
-            .map(|item| {
-                let headers = headers.clone();
-                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
-                let envelope = Envelope::from_parts(headers, items);
-                let item_type = item.ty();
-                let group = if item_type == &ItemType::CheckIn {
-                    ProcessingGroup::CheckIn
-                } else if item_type == &ItemType::UserReport || item_type == &ItemType::ClientReport
-                {
-                    ProcessingGroup::UserReport
-                } else {
-                    relay_log::error!("Unsupported ItemType in the envelope: {item_type}");
-                    ProcessingGroup::Unknown
-                };
-
-                (group, envelope)
-            })
-            .collect();
-
-        // Extend the rest of the envelopes.
-
         if !require_event_items.is_empty() {
             let group = if require_event_items
                 .iter()
@@ -195,43 +197,32 @@ impl ProcessingGroup {
             } else {
                 ProcessingGroup::Error
             };
-            envelopes.push((
+            grouped_envelopes.push((
                 group,
                 Envelope::from_parts(headers.clone(), require_event_items),
             ))
         }
 
-        if !standalone_attachment_items.is_empty() {
-            envelopes.push((
-                ProcessingGroup::StandaloneAttachment,
-                Envelope::from_parts(headers.clone(), standalone_attachment_items),
-            ))
-        }
+        // Get the rest of the envelopes, one per item.
+        let envelopes = envelope.items_mut().map(|item| {
+            let headers = headers.clone();
+            let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+            let envelope = Envelope::from_parts(headers, items);
+            let item_type = item.ty();
+            let group = if item_type == &ItemType::CheckIn {
+                ProcessingGroup::CheckIn
+            } else if item_type == &ItemType::UserReport || item_type == &ItemType::ClientReport {
+                ProcessingGroup::UserReport
+            } else {
+                relay_log::error!("Unsupported ItemType in the envelope: {item_type}");
+                ProcessingGroup::Unknown
+            };
 
-        if !replay_items.is_empty() {
-            envelopes.push((
-                ProcessingGroup::Replay,
-                Envelope::from_parts(headers.clone(), replay_items),
-            ))
-        }
+            (group, envelope)
+        });
+        grouped_envelopes.extend(envelopes);
 
-        if !span_items.is_empty() {
-            envelopes.push((
-                ProcessingGroup::Span,
-                Envelope::from_parts(headers.clone(), span_items),
-            ))
-        }
-
-        if !session_items.is_empty() {
-            envelopes.push((
-                ProcessingGroup::Session,
-                Envelope::from_parts(headers.clone(), session_items),
-            ))
-        }
-
-        envelopes.extend(nel_envelopes);
-
-        envelopes
+        grouped_envelopes
     }
 }
 
