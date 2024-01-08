@@ -47,7 +47,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    // "all-modules" is our de-facto feature flag for experimental features.
+    // The "all-modules" feature flag is our de-facto feature flag for experimental features.
     // Hijack it for the new, more restrictive config.
     let is_experimental = project_config
         .features
