@@ -1350,11 +1350,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Unknown => {
                 relay_log::error!(
                     tags.project = %state.project_id,
-                    "Could not identify the processing group based on the envelope's items."
-                );
-                relay_log::trace!(
-                    "Unknown items types: {:?}",
-                    state.envelope().items().map(Item::ty).collect::<Vec<_>>()
+                    items = ?state.envelope().items().next().map(Item::ty),
+                    "Could not identify the processing group based on the envelope's items"
                 );
 
                 // Call the old implementation of the `process_state` function.
