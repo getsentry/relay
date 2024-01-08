@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
+use std::mem;
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -215,44 +216,35 @@ fn normalize_app_start_spans(event: &mut Event) {
 /// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
 /// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
 /// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
-fn normalize_metrics_summary_mris(value: &Value) -> Option<Value> {
-    if let Value::Object(metrics) = value {
-        let mut new_metrics = BTreeMap::new();
-        for (metric_identifier, summary_values) in metrics.iter() {
-            if let Ok(parsed_mri) = MetricResourceIdentifier::parse(metric_identifier) {
-                new_metrics.insert(parsed_mri.to_string(), summary_values.clone());
-            }
-        }
+fn normalize_metrics_summary_mris(value: &mut Value) {
+    let Value::Object(metrics) = value else {
+        return;
+    };
 
-        return Some(Value::Object(new_metrics));
-    }
+    let metrics = mem::take(metrics)
+        .into_iter()
+        .filter_map(|(key, value)| {
+            Some((
+                MetricResourceIdentifier::parse(&key).ok()?.to_string(),
+                value,
+            ))
+        })
+        .collect();
 
-    None
+    *value = Value::Object(metrics);
 }
 
 /// Normalizes all the metrics summaries across the event payload.
 fn normalize_all_metrics_summaries(event: &mut Event) {
-    if let Some(normalized_metrics_summary) = event
-        ._metrics_summary
-        .value()
-        .and_then(normalize_metrics_summary_mris)
-    {
-        event
-            ._metrics_summary
-            .set_value(Some(normalized_metrics_summary));
+    if let Some(metrics_summary) = event._metrics_summary.value_mut().as_mut() {
+        normalize_metrics_summary_mris(metrics_summary)
     }
 
     if let Some(spans) = event.spans.value_mut() {
         for span in spans.iter_mut() {
-            if let Some(inner_span) = span.value_mut() {
-                if let Some(normalized_metrics_summary) = inner_span
-                    ._metrics_summary
-                    .value()
-                    .and_then(normalize_metrics_summary_mris)
-                {
-                    inner_span
-                        ._metrics_summary
-                        .set_value(Some(normalized_metrics_summary));
+            if let Some(span) = span.value_mut().as_mut() {
+                if let Some(metrics_summary) = span._metrics_summary.value_mut().as_mut() {
+                    normalize_metrics_summary_mris(metrics_summary)
                 }
             }
         }
