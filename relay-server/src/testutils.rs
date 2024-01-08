@@ -101,7 +101,9 @@ pub fn empty_envelope() -> Box<Envelope> {
         .parse()
         .unwrap();
 
-    Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
+    let mut envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
+    envelope.add_item(Item::new(ItemType::Event));
+    envelope
 }
 
 pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
