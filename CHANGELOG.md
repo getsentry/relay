@@ -13,6 +13,7 @@
 - Introduce the configuration option `http.global_metrics`. When enabled, Relay submits metric buckets not through regular project-scoped Envelopes, but instead through the global endpoint. When this Relay serves a high number of projects, this can reduce the overall request volume. ([#2902](https://github.com/getsentry/relay/pull/2902))
 - Record the size of global metrics requests in statsd as `upstream.metrics.body_size`. ([#2908](https://github.com/getsentry/relay/pull/2908))
 - Normalize `_metrics_summary` metric identifiers. ([#2914](https://github.com/getsentry/relay/pull/2914))
+- Only extract span metrics / tags when they are needed. ([#2907](https://github.com/getsentry/relay/pull/2907))
 
 ## 23.12.1
 
