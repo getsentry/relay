@@ -1777,7 +1777,7 @@ mod tests {
         normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
+        assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
         {
           "event_id": "74ad1301f4df489ead37d757295442b1",
           "level": "error",
@@ -2441,7 +2441,7 @@ mod tests {
             ..Default::default()
         });
         normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
-        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r###"
+        assert_json_snapshot!(SerializableAnnotated(&event), @r###"
         {
           "spans": [
             {
