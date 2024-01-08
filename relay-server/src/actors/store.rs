@@ -11,19 +11,19 @@ use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{
-    self, EventId, JsonLenientString, SessionAggregates, SessionStatus, SessionUpdate, Span, SpanId,
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
 };
-use relay_protocol::Annotated;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 use serde::ser::Error;
-use serde::Serialize;
-use serde_json::value::RawValue;
+use serde::{Deserialize, Serialize};
+use serde_json::value::Value;
+use serde_json::Deserializer;
 use uuid::Uuid;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -43,16 +43,6 @@ pub enum StoreError {
     SendFailed(#[from] ClientError),
     #[error("failed to store event because event id was missing")]
     NoEventId,
-    #[error("failed to store span: trace_id missing")]
-    NoTraceId,
-    #[error("failed to store span: span_id missing")]
-    NoSpanId,
-    #[error("failed to store span: start_timestamp missing")]
-    NoStartTimestamp,
-    #[error("failed to store span: end_timestamp missing")]
-    NoEndTimestamp,
-    #[error("failed to store span: exclusive_time missing")]
-    NoExclusiveTime,
 }
 
 fn make_distinct_id(s: &str) -> Uuid {
@@ -835,11 +825,13 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         event_id: Option<EventId>,
-        start_time: Instant,
+        _: Instant,
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let annotated_span = match Annotated::<Span>::from_json_bytes(&item.payload()) {
+        let payload = item.payload();
+        let d = &mut Deserializer::from_slice(&payload);
+        let mut span: SpanKafkaMessage = match serde_path_to_error::deserialize(d) {
             Ok(span) => span,
             Err(error) => {
                 relay_log::error!(
@@ -850,121 +842,13 @@ impl StoreService {
             }
         };
 
-        let Some(span) = annotated_span.value() else {
-            return Ok(());
-        };
-        let Some(start_timestamp) = span.start_timestamp.clone().into_value() else {
-            return Err(StoreError::NoStartTimestamp);
-        };
+        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.event_id = event_id;
+        span.project_id = project_id.value();
+        span.retention_days = retention_days;
+        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
 
-        let _metrics_summary = match span._metrics_summary.to_json() {
-            Ok(_metrics_summary) => match RawValue::from_string(_metrics_summary) {
-                Ok(value) => value,
-                Err(_) => Default::default(),
-            },
-            Err(_) => Default::default(),
-        };
-        let description = span.description.clone().into_value().unwrap_or_default();
-        let exclusive_time_ms = span
-            .exclusive_time
-            .clone()
-            .into_value()
-            .ok_or(StoreError::NoExclusiveTime)?;
-        let is_segment = span.is_segment.clone().into_value().unwrap_or_default();
-        let measurements = match span.measurements.to_json() {
-            Ok(measurements) => match RawValue::from_string(measurements) {
-                Ok(value) => value,
-                Err(_) => Default::default(),
-            },
-            Err(_) => Default::default(),
-        };
-        let parent_span_id = span
-            .parent_span_id
-            .clone()
-            .into_value()
-            .unwrap_or(SpanId("0".into()))
-            .as_ref()
-            .into();
-        let profile_id = span.profile_id.clone().into_value();
-        let segment_id = span
-            .segment_id
-            .clone()
-            .into_value()
-            .unwrap_or(SpanId("0".into()))
-            .as_ref()
-            .into();
-        let span_id = span
-            .span_id
-            .clone()
-            .into_value()
-            .ok_or(StoreError::NoSpanId)?
-            .as_ref()
-            .into();
-        let trace_id = span
-            .trace_id
-            .clone()
-            .into_value()
-            .ok_or(StoreError::NoTraceId)?
-            .as_ref()
-            .into();
-        let start_timestamp_ms = start_timestamp.into_inner().timestamp_millis() as u64;
-
-        let end_timestamp = span
-            .timestamp
-            .clone()
-            .into_value()
-            .ok_or(StoreError::NoEndTimestamp)?;
-        let duration_ms = (end_timestamp - start_timestamp).num_milliseconds() as u32;
-
-        let annotated_tags = span.tags.clone().into_value().unwrap_or_default();
-        let mut tags: BTreeMap<String, String> = BTreeMap::new();
-
-        for (key, annotated_value) in annotated_tags {
-            let value = annotated_value
-                .into_value()
-                .unwrap_or(JsonLenientString("".into()));
-            if !value.is_empty() {
-                tags.insert(key, value.to_string());
-            }
-        }
-
-        let annotated_sentry_tags = span.sentry_tags.clone().into_value().unwrap_or_default();
-        let mut sentry_tags: BTreeMap<String, String> = BTreeMap::new();
-
-        for (key, annotated_value) in annotated_sentry_tags {
-            if let Some(value) = annotated_value.into_value() {
-                if !value.is_empty() {
-                    sentry_tags.insert(key, value);
-                }
-            }
-        }
-
-        let message = SpanKafkaMessage {
-            _metrics_summary: &_metrics_summary,
-            description,
-            duration_ms,
-            event_id,
-            exclusive_time_ms,
-            group_raw: "0".into(),
-            is_segment,
-            measurements: &measurements,
-            parent_span_id,
-            profile_id,
-            project_id,
-            retention_days,
-            segment_id,
-            sentry_tags,
-            span_id,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
-            start_timestamp_ms,
-            tags,
-            trace_id,
-        };
-        self.produce(
-            KafkaTopic::Spans,
-            organization_id,
-            KafkaMessage::Span(message),
-        )?;
+        self.produce(KafkaTopic::Spans, organization_id, KafkaMessage::Span(span))?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -1249,33 +1133,50 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-#[derive(Debug, Serialize)]
-struct SpanKafkaMessage<'a> {
-    _metrics_summary: &'a RawValue,
+#[derive(Debug, Deserialize, Serialize)]
+struct SpanKafkaMessage {
+    #[serde(skip_serializing)]
+    start_timestamp: f64,
+    #[serde(rename(deserialize = "timestamp"), skip_serializing)]
+    end_timestamp: f64,
+
     description: String,
+    #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
+    #[serde(rename(deserialize = "exclusive_time"))]
     exclusive_time_ms: f64,
-    group_raw: String,
     is_segment: bool,
-    measurements: &'a RawValue,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    measurements: Value,
+    #[serde(
+        default,
+        rename = "_metrics_summary",
+        skip_serializing_if = "Value::is_null"
+    )]
+    metrics_summary: Value,
+    #[serde(default)]
     parent_span_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    profile_id: Option<EventId>,
     /// The numeric ID of the project.
-    project_id: ProjectId,
-    received: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    profile_id: Option<EventId>,
+    #[serde(default)]
+    project_id: u64,
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    received: f64,
     /// Number of days until these data should be deleted.
+    #[serde(default)]
     retention_days: u16,
+    #[serde(default)]
     segment_id: String,
     sentry_tags: BTreeMap<String, String>,
     span_id: String,
-    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    #[serde(default)]
     start_timestamp_ms: u64,
     tags: BTreeMap<String, String>,
-    trace_id: String,
+    trace_id: EventId,
 }
 
 /// An enum over all possible ingest messages.
@@ -1298,7 +1199,7 @@ enum KafkaMessage<'a> {
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage<'a>),
+    Span(SpanKafkaMessage),
 }
 
 impl Message for KafkaMessage<'_> {
