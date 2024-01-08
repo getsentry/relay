@@ -143,8 +143,6 @@ impl std::ops::Deref for RedisQuota<'_> {
 enum GlobalRateLimitError {
     #[error("quota key missing")]
     KeyMissing,
-    #[error("failed to access RWLock")]
-    PoisonedLock,
     #[error("slot expired")]
     SlotExpired,
     #[error("budget empty")]
@@ -216,7 +214,7 @@ impl GlobalCounters {
 
         match self.is_rate_limited(quota, quantity) {
             ok @ Ok(_) => ok,
-            err @ Err(E::Redis | E::PoisonedLock | E::LoopLimitExceeded) => err,
+            err @ Err(E::Redis | E::LoopLimitExceeded) => err,
             Err(E::BudgetEmpty | E::SlotExpired | E::KeyMissing) => {
                 self.redis_sync(client, quota, quantity)?;
                 self.is_rate_limited(quota, quantity)
@@ -235,10 +233,7 @@ impl GlobalCounters {
             return Ok(false);
         };
 
-        let map = self
-            .counters
-            .read()
-            .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
+        let map = self.counters.read().unwrap_or_else(|e| e.into_inner());
 
         let val = map
             .get(&BudgetKeyRef::new(quota))
@@ -333,35 +328,14 @@ impl GlobalCounters {
         new_budget: usize,
         redis_value: usize,
     ) -> Result<(), GlobalRateLimitError> {
-        let shared_map = self
-            .counters
-            .read()
-            .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
+        let shared_map = self.counters.read().unwrap_or_else(|e| e.into_inner());
 
         match shared_map.get(&budget_key) {
-            Some(val) => {
-                let is_slot_expired = val.slot.load(Ordering::SeqCst) != current_slot;
-
-                let old_budget = if is_slot_expired {
-                    0
-                } else {
-                    val.budget.load(Ordering::SeqCst)
-                };
-
-                if is_slot_expired {
-                    val.slot.store(current_slot, Ordering::SeqCst);
-                }
-
-                val.budget.store(new_budget + old_budget, Ordering::SeqCst);
-                val.last_seen_redis_value
-                    .store(redis_value, Ordering::SeqCst);
-            }
+            Some(val) => val.update(new_budget, redis_value, current_slot),
             None => {
                 drop(shared_map); // Necessary to avoid deadlock.
-                let mut exclusive_map = self
-                    .counters
-                    .write()
-                    .map_err(|_| GlobalRateLimitError::PoisonedLock)?;
+
+                let mut exclusive_map = self.counters.write().unwrap_or_else(|e| e.into_inner());
 
                 exclusive_map.insert(
                     budget_key.to_owned(),
@@ -428,6 +402,20 @@ impl BudgetState {
             last_seen_redis_value: AtomicUsize::new(redis_value),
             slot: AtomicUsize::new(slot),
         }
+    }
+
+    fn update(&self, new_budget: usize, redis_value: usize, current_slot: usize) {
+        let old_slot = self.slot.swap(current_slot, Ordering::SeqCst);
+        let is_slot_expired = old_slot != current_slot;
+
+        if is_slot_expired {
+            self.budget.store(new_budget, Ordering::SeqCst);
+        } else {
+            self.budget.fetch_add(new_budget, Ordering::SeqCst);
+        };
+
+        self.last_seen_redis_value
+            .store(redis_value, Ordering::SeqCst);
     }
 }
 
