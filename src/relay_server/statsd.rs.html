@@ -695,11 +695,6 @@
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
 <a href="#697" id="697">697</a>
-<a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -722,8 +717,6 @@
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     </span>BufferEnvelopesDiskCount,
-    <span class="doccomment">/// The current count of the keys in the &quot;in-memory&quot; buffer.
-    </span>BufferProjectsMemoryCount,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
@@ -733,7 +726,6 @@
             RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
             RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">&quot;buffer.envelopes_mem_count&quot;</span>,
             RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">&quot;buffer.envelopes_disk_count&quot;</span>,
-            RelayGauges::BufferProjectsMemoryCount =&gt; <span class="string">&quot;buffer.projects_mem_count&quot;</span>,
         }
     }
 }
@@ -956,8 +948,6 @@
     <span class="doccomment">/// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     </span>EnvelopeTotalTime,
-    <span class="doccomment">/// Total time in milliseconds an envelope spends in the Relay&#39;s on-disk buffer.
-    </span>EnvelopeOnDiskBufferTime,
     <span class="doccomment">/// Total time in milliseconds spent evicting outdated and unused projects happens.
     </span>ProjectStateEvictionDuration,
     <span class="doccomment">/// Total time in milliseconds spent fetching queued project configuration updates requests to
@@ -1072,7 +1062,6 @@
             RelayTimers::EnvelopeWaitTime =&gt; <span class="string">&quot;event.wait_time&quot;</span>,
             RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">&quot;event.processing_time&quot;</span>,
             RelayTimers::EnvelopeTotalTime =&gt; <span class="string">&quot;event.total_time&quot;</span>,
-            RelayTimers::EnvelopeOnDiskBufferTime =&gt; <span class="string">&quot;envelope.on_disk_buffer_time&quot;</span>,
             RelayTimers::ProjectStateEvictionDuration =&gt; <span class="string">&quot;project_state.eviction.duration&quot;</span>,
             RelayTimers::ProjectStateRequestDuration =&gt; <span class="string">&quot;project_state.request.duration&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -1126,7 +1115,8 @@
     </span>BufferEnvelopesWritten,
     <span class="doccomment">/// Number of _envelopes_ the envelope buffer reads back from disk.
     </span>BufferEnvelopesRead,
-    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
+    <span class="doccomment">///
+    /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
     ///  - `outcome`: The basic cause for rejecting the event.

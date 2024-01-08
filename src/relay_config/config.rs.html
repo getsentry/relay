@@ -2296,22 +2296,6 @@
 <a href="#2296" id="2296">2296</a>
 <a href="#2297" id="2297">2297</a>
 <a href="#2298" id="2298">2298</a>
-<a href="#2299" id="2299">2299</a>
-<a href="#2300" id="2300">2300</a>
-<a href="#2301" id="2301">2301</a>
-<a href="#2302" id="2302">2302</a>
-<a href="#2303" id="2303">2303</a>
-<a href="#2304" id="2304">2304</a>
-<a href="#2305" id="2305">2305</a>
-<a href="#2306" id="2306">2306</a>
-<a href="#2307" id="2307">2307</a>
-<a href="#2308" id="2308">2308</a>
-<a href="#2309" id="2309">2309</a>
-<a href="#2310" id="2310">2310</a>
-<a href="#2311" id="2311">2311</a>
-<a href="#2312" id="2312">2312</a>
-<a href="#2313" id="2313">2313</a>
-<a href="#2314" id="2314">2314</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -3127,11 +3111,6 @@
     <span class="number">20
 </span>}
 
-<span class="doccomment">/// Defaualt period for garbage collection in the spooler.
-</span><span class="kw">fn </span>spool_envelopes_check_interval() -&gt; u64 {
-    <span class="number">60
-</span>}
-
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
@@ -3155,11 +3134,6 @@
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_max_memory_size&quot;</span>)]
     </span>max_memory_size: ByteSize,
-
-    <span class="doccomment">/// The interval for the internal check to run and issue specific to the spooler metrics and
-    /// errors.
-    </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_check_interval&quot;</span>)]
-    </span>check_interval: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>EnvelopeSpool {
@@ -3170,7 +3144,6 @@
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            check_interval: spool_envelopes_check_interval(),
         }
     }
 }
@@ -4254,11 +4227,6 @@
     <span class="doccomment">/// The maximum size of the memory buffer, in bytes.
     </span><span class="kw">pub fn </span>spool_envelopes_max_memory_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.spool.envelopes.max_memory_size.as_bytes()
-    }
-
-    <span class="doccomment">/// The interval to run the check.
-    </span><span class="kw">pub fn </span>spool_envelopes_check_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_secs(<span class="self">self</span>.values.spool.envelopes.check_interval)
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.

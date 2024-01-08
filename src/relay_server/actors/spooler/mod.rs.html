@@ -1273,61 +1273,6 @@
 <a href="#1273" id="1273">1273</a>
 <a href="#1274" id="1274">1274</a>
 <a href="#1275" id="1275">1275</a>
-<a href="#1276" id="1276">1276</a>
-<a href="#1277" id="1277">1277</a>
-<a href="#1278" id="1278">1278</a>
-<a href="#1279" id="1279">1279</a>
-<a href="#1280" id="1280">1280</a>
-<a href="#1281" id="1281">1281</a>
-<a href="#1282" id="1282">1282</a>
-<a href="#1283" id="1283">1283</a>
-<a href="#1284" id="1284">1284</a>
-<a href="#1285" id="1285">1285</a>
-<a href="#1286" id="1286">1286</a>
-<a href="#1287" id="1287">1287</a>
-<a href="#1288" id="1288">1288</a>
-<a href="#1289" id="1289">1289</a>
-<a href="#1290" id="1290">1290</a>
-<a href="#1291" id="1291">1291</a>
-<a href="#1292" id="1292">1292</a>
-<a href="#1293" id="1293">1293</a>
-<a href="#1294" id="1294">1294</a>
-<a href="#1295" id="1295">1295</a>
-<a href="#1296" id="1296">1296</a>
-<a href="#1297" id="1297">1297</a>
-<a href="#1298" id="1298">1298</a>
-<a href="#1299" id="1299">1299</a>
-<a href="#1300" id="1300">1300</a>
-<a href="#1301" id="1301">1301</a>
-<a href="#1302" id="1302">1302</a>
-<a href="#1303" id="1303">1303</a>
-<a href="#1304" id="1304">1304</a>
-<a href="#1305" id="1305">1305</a>
-<a href="#1306" id="1306">1306</a>
-<a href="#1307" id="1307">1307</a>
-<a href="#1308" id="1308">1308</a>
-<a href="#1309" id="1309">1309</a>
-<a href="#1310" id="1310">1310</a>
-<a href="#1311" id="1311">1311</a>
-<a href="#1312" id="1312">1312</a>
-<a href="#1313" id="1313">1313</a>
-<a href="#1314" id="1314">1314</a>
-<a href="#1315" id="1315">1315</a>
-<a href="#1316" id="1316">1316</a>
-<a href="#1317" id="1317">1317</a>
-<a href="#1318" id="1318">1318</a>
-<a href="#1319" id="1319">1319</a>
-<a href="#1320" id="1320">1320</a>
-<a href="#1321" id="1321">1321</a>
-<a href="#1322" id="1322">1322</a>
-<a href="#1323" id="1323">1323</a>
-<a href="#1324" id="1324">1324</a>
-<a href="#1325" id="1325">1325</a>
-<a href="#1326" id="1326">1326</a>
-<a href="#1327" id="1327">1327</a>
-<a href="#1328" id="1328">1328</a>
-<a href="#1329" id="1329">1329</a>
-<a href="#1330" id="1330">1330</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1359,17 +1304,14 @@
 //!
 //! Current on-disk spool implementation uses SQLite as a storage.
 
-</span><span class="kw">static </span>NUMBER_OF_ENVELOPES_PER_KEY: usize = <span class="number">1000</span>;
-
-<span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+</span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>futures::stream::{<span class="self">self</span>, StreamExt};
-<span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
+<span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>sqlx::migrate::MigrateError;
@@ -1386,7 +1328,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, EnvelopeError};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::StartTime;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
 
 <span class="kw">mod </span>sql;
@@ -1585,25 +1527,6 @@
         <span class="self">self</span>.buffer.values().map(|v| v.len()).sum()
     }
 
-    <span class="doccomment">/// Runs the check for in-memory buffer and emits the metrics and/or errors.
-    </span><span class="kw">fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">let </span>count = <span class="self">self</span>.buffer.keys().len();
-        <span class="macro">relay_statsd::metric!</span>(gauge(RelayGauges::BufferProjectsMemoryCount) = count <span class="kw">as </span>u64);
-
-        <span class="comment">// Go over the buffered envelopes and check if any of the keys exceeds the threshold.
-        </span><span class="kw">for </span>(key, values) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.buffer {
-            <span class="kw">let </span>number_of_envelopes = values.len();
-            <span class="kw">if </span>number_of_envelopes &gt; NUMBER_OF_ENVELOPES_PER_KEY {
-                <span class="macro">relay_log::error!</span>(
-                    tags.own_key = %key.own_key,
-                    tags.sampling_key = %key.sampling_key,
-                    count = number_of_envelopes,
-                    <span class="string">&quot;Number of envelopes per key in memory exceeds the threshold&quot;
-                </span>);
-            }
-        }
-    }
-
     <span class="doccomment">/// Removes envelopes from the in-memory buffer.
     </span><span class="kw">fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, keys: <span class="kw-2">&amp;</span>BTreeSet&lt;QueueKey&gt;) -&gt; usize {
         <span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
@@ -1746,26 +1669,9 @@
         <span class="kw">let </span>received_at: i64 = row
             .try_get(<span class="string">&quot;received_at&quot;</span>)
             .map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
-        <span class="kw">let </span>start_time_instant = StartTime::from_timestamp_millis(received_at <span class="kw">as </span>u64).into_inner();
+        <span class="kw">let </span>start_time = StartTime::from_timestamp_millis(received_at <span class="kw">as </span>u64);
 
-        <span class="comment">// This metric should show how long we waited till the envelope was unspooled.
-        </span><span class="macro">relay_statsd::metric!</span>(
-            timer(RelayTimers::EnvelopeOnDiskBufferTime) = start_time_instant.elapsed()
-        );
-
-        <span class="comment">// If an envelope stays longer than 2 hours in on-disk spool, produce an error, so we could
-        // debug what kind of envelope it is.
-        </span><span class="kw">if </span>start_time_instant.elapsed() &gt; Duration::from_secs(<span class="number">7200</span>) {
-            <span class="macro">relay_log::error!</span>(
-                tags.project_key = %envelope.meta().public_key(),
-                tags.project_id = %envelope.meta().project_id().unwrap_or(ProjectId::new(<span class="number">0</span>)),
-                event_id = <span class="question-mark">?</span>envelope.event_id(),
-                duration = <span class="question-mark">?</span>start_time_instant.elapsed(),
-                <span class="string">&quot;Spooled envelope spent more than 2 hours in on-disk spool&quot;
-            </span>);
-        }
-
-        envelope.set_start_time(start_time_instant);
+        envelope.set_start_time(start_time.into_inner());
 
         <span class="kw">let </span>managed_envelope = <span class="self">self</span>.buffer_guard.enter(
             envelope,
@@ -2286,20 +2192,6 @@
         disk.spool(buffer).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
-
-    <span class="doccomment">/// Handles the check of the envelopes buffer.
-    ///
-    /// Note: currently the check runs only on the in-memory buffer to track if there is &quot;hot&quot;
-    /// projects keys which are always have too many envelopes in the queue.
-    </span><span class="kw">fn </span>handle_check(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>(BufferState::Memory(<span class="kw-2">ref mut </span>ram) | BufferState::MemoryFileStandby { <span class="kw-2">ref mut </span>ram, .. }) =
-            <span class="self">self</span>.state
-        <span class="kw">else </span>{
-            <span class="kw">return</span>;
-        };
-
-        ram.check();
-    }
 }
 
 <span class="kw">impl </span>Service <span class="kw">for </span>BufferService {
@@ -2308,13 +2200,11 @@
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
-            <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(<span class="self">self</span>.config.spool_envelopes_check_interval());
 
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select! </span>{
                     biased;
 
-                    <span class="kw">_ </span>= ticker.tick() =&gt; <span class="self">self</span>.handle_check(),
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
                         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.handle_message(message).<span class="kw">await </span>{
                             <span class="macro">relay_log::error!</span>(
