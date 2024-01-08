@@ -204,27 +204,24 @@ impl fmt::Debug for GlobalCounters {
 impl GlobalCounters {
     /// Returns `true` if the global quota should be ratelimited.
     ///
-    /// Certain errors can be fixed with syncing to redis, so in those cases
-    /// we try again to decrement the budget after the sync.
+    /// Certain errors can be resolved by syncing to redis, so in those cases
+    /// we try again to decrement the budget after syncing.
     fn evaluate_quota(
         &self,
         client: &mut PooledClient,
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, GlobalRateLimitError> {
-        debug_assert!(quota.scope == QuotaScope::Global);
+        use GlobalRateLimitError as E;
 
-        use GlobalRateLimitError::*;
         match self.decrement_budget(quota, quantity) {
-            ok @ Ok(_) => return ok,
-            err @ Err(Redis | PoisonedLock | LoopLimitExceeded) => return err,
-            Err(BudgetEmpty { .. } | KeyMissing | SlotExpired) => {
+            ok @ Ok(_) => ok,
+            err @ Err(E::Redis | E::PoisonedLock | E::LoopLimitExceeded) => err,
+            Err(E::BudgetEmpty | E::SlotExpired | E::KeyMissing) => {
                 self.redis_sync(client, quota, quantity)?;
+                self.decrement_budget(quota, quantity)
             }
-        };
-
-        // There's a tiny chance the slot might have expired between the two calls.
-        self.decrement_budget(quota, quantity)
+        }
     }
 
     /// Attempts to decrement the budget by a certain amount.
