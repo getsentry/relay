@@ -228,6 +228,11 @@ fn normalize_metrics_summary_mris(value: &mut Value) {
                 value,
             ))
         })
+        .filter_map(|(key, value)| {
+            MetricResourceIdentifier::parse(&key)
+                .map(move |a| (a.to_string(), value))
+                .ok()
+        })
         .collect();
 
     *value = Value::Object(metrics);
@@ -239,13 +244,18 @@ fn normalize_all_metrics_summaries(event: &mut Event) {
         normalize_metrics_summary_mris(metrics_summary)
     }
 
-    if let Some(spans) = event.spans.value_mut() {
-        for span in spans.iter_mut() {
-            if let Some(span) = span.value_mut().as_mut() {
-                if let Some(metrics_summary) = span._metrics_summary.value_mut().as_mut() {
-                    normalize_metrics_summary_mris(metrics_summary)
-                }
-            }
+    let Some(spans) = event.spans.value_mut() else {
+        return;
+    };
+
+    for span in spans.iter_mut() {
+        let metrics_summary = span
+            .value_mut()
+            .as_mut()
+            .and_then(|span| span._metrics_summary.value_mut().as_mut());
+
+        if let Some(ms) = metrics_summary {
+            normalize_metrics_summary_mris(ms)
         }
     }
 }
@@ -751,7 +761,7 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use insta::assert_debug_snapshot;
+    use insta::{assert_debug_snapshot, assert_json_snapshot};
     use relay_base_schema::metrics::DurationUnit;
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
@@ -2409,7 +2419,7 @@ mod tests {
             Annotated::new(Value::Array(Vec::new())),
         );
         metrics_summary.insert(
-            "c:page_click@none".to_string(),
+            "c:custom/page_click@none".to_string(),
             Annotated::new(Value::Array(Vec::new())),
         );
         metrics_summary.insert(
@@ -2421,7 +2431,7 @@ mod tests {
             Annotated::new(Value::Array(Vec::new())),
         );
 
-        let mut event = Event {
+        let mut event = Annotated::new(Event {
             spans: Annotated::new(vec![Annotated::new(Span {
                 op: Annotated::new("my_span".to_owned()),
                 _metrics_summary: Annotated::new(Value::Object(metrics_summary.clone())),
@@ -2429,113 +2439,27 @@ mod tests {
             })]),
             _metrics_summary: Annotated::new(Value::Object(metrics_summary)),
             ..Default::default()
-        };
-        normalize_all_metrics_summaries(&mut event);
-        assert_debug_snapshot!(event, @r###"
-        Event {
-            id: ~,
-            level: ~,
-            version: ~,
-            ty: ~,
-            fingerprint: ~,
-            culprit: ~,
-            transaction: ~,
-            transaction_info: ~,
-            time_spent: ~,
-            logentry: ~,
-            logger: ~,
-            modules: ~,
-            platform: ~,
-            timestamp: ~,
-            start_timestamp: ~,
-            received: ~,
-            server_name: ~,
-            release: ~,
-            dist: ~,
-            environment: ~,
-            site: ~,
-            user: ~,
-            request: ~,
-            contexts: ~,
-            breadcrumbs: ~,
-            exceptions: ~,
-            stacktrace: ~,
-            template: ~,
-            threads: ~,
-            tags: ~,
-            extra: ~,
-            debug_meta: ~,
-            client_sdk: ~,
-            ingest_path: ~,
-            errors: ~,
-            key_id: ~,
-            project: ~,
-            grouping_config: ~,
-            checksum: ~,
-            csp: ~,
-            hpkp: ~,
-            expectct: ~,
-            expectstaple: ~,
-            spans: [
-                Span {
-                    timestamp: ~,
-                    start_timestamp: ~,
-                    exclusive_time: ~,
-                    description: ~,
-                    op: "my_span",
-                    span_id: ~,
-                    parent_span_id: ~,
-                    trace_id: ~,
-                    segment_id: ~,
-                    is_segment: ~,
-                    status: ~,
-                    tags: ~,
-                    origin: ~,
-                    profile_id: ~,
-                    data: ~,
-                    sentry_tags: ~,
-                    received: ~,
-                    measurements: ~,
-                    _metrics_summary: Object(
-                        {
-                            "c:custom/page_click@none": Array(
-                                [],
-                            ),
-                            "d:custom/page_duration@millisecond": Array(
-                                [],
-                            ),
-                            "g:custom/page_load@second": Array(
-                                [],
-                            ),
-                            "s:custom/user@none": Array(
-                                [],
-                            ),
-                        },
-                    ),
-                    other: {},
-                },
-            ],
-            measurements: ~,
-            breakdowns: ~,
-            scraping_attempts: ~,
-            _metrics: ~,
-            _metrics_summary: Object(
-                {
-                    "c:custom/page_click@none": Array(
-                        [],
-                    ),
-                    "d:custom/page_duration@millisecond": Array(
-                        [],
-                    ),
-                    "g:custom/page_load@second": Array(
-                        [],
-                    ),
-                    "s:custom/user@none": Array(
-                        [],
-                    ),
-                },
-            ),
-            other: {},
+        });
+        normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), @r###"
+        {
+          "spans": [
+            {
+              "op": "my_span",
+              "_metrics_summary": {
+                "c:custom/page_click@none": [],
+                "d:custom/page_duration@millisecond": [],
+                "g:custom/page_load@second": [],
+                "s:custom/user@none": []
+              }
+            }
+          ],
+          "_metrics_summary": {
+            "c:custom/page_click@none": [],
+            "d:custom/page_duration@millisecond": [],
+            "g:custom/page_load@second": [],
+            "s:custom/user@none": []
+          }
         }
         "###);
     }
