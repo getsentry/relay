@@ -232,25 +232,27 @@ fn normalize_metrics_summary_mris(value: &Value) -> Option<Value> {
 
 /// Normalizes all the metrics summaries across the event payload.
 fn normalize_all_metrics_summaries(event: &mut Event) {
-    if let Some(metrics_summary) = event._metrics_summary.value() {
-        if let Some(normalized_metrics_summary) = normalize_metrics_summary_mris(metrics_summary) {
-            event
-                ._metrics_summary
-                .set_value(Some(normalized_metrics_summary));
-        }
+    if let Some(normalized_metrics_summary) = event
+        ._metrics_summary
+        .value()
+        .and_then(normalize_metrics_summary_mris)
+    {
+        event
+            ._metrics_summary
+            .set_value(Some(normalized_metrics_summary));
     }
 
     if let Some(spans) = event.spans.value_mut() {
         for span in spans.iter_mut() {
             if let Some(inner_span) = span.value_mut() {
-                if let Some(metrics_summary) = inner_span._metrics_summary.value() {
-                    if let Some(normalized_metrics_summary) =
-                        normalize_metrics_summary_mris(metrics_summary)
-                    {
-                        inner_span
-                            ._metrics_summary
-                            .set_value(Some(normalized_metrics_summary));
-                    }
+                if let Some(normalized_metrics_summary) = inner_span
+                    ._metrics_summary
+                    .value()
+                    .and_then(normalize_metrics_summary_mris)
+                {
+                    inner_span
+                        ._metrics_summary
+                        .set_value(Some(normalized_metrics_summary));
                 }
             }
         }
