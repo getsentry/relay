@@ -3456,6 +3456,7 @@ dependencies = [
  "relay-protocol",
  "schemars",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -29,17 +29,14 @@
 //!
 //! Current on-disk spool implementation uses SQLite as a storage.
 
-static NUMBER_OF_ENVELOPES_PER_KEY: usize = 1000;
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
-use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
@@ -56,7 +53,7 @@ use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 mod sql;
@@ -255,25 +252,6 @@ impl InMemory {
         self.buffer.values().map(|v| v.len()).sum()
     }
 
-    /// Runs the check for in-memory buffer and emits the metrics and/or errors.
-    fn check(&self) {
-        let count = self.buffer.keys().len();
-        relay_statsd::metric!(gauge(RelayGauges::BufferProjectsMemoryCount) = count as u64);
-
-        // Go over the buffered envelopes and check if any of the keys exceeds the threshold.
-        for (key, values) in &self.buffer {
-            let number_of_envelopes = values.len();
-            if number_of_envelopes > NUMBER_OF_ENVELOPES_PER_KEY {
-                relay_log::error!(
-                    tags.own_key = %key.own_key,
-                    tags.sampling_key = %key.sampling_key,
-                    count = number_of_envelopes,
-                    "Number of envelopes per key in memory exceeds the threshold"
-                );
-            }
-        }
-    }
-
     /// Removes envelopes from the in-memory buffer.
     fn remove(&mut self, keys: &BTreeSet<QueueKey>) -> usize {
         let mut count = 0;
@@ -416,26 +394,9 @@ impl OnDisk {
         let received_at: i64 = row
             .try_get("received_at")
             .map_err(BufferError::FetchFailed)?;
-        let start_time_instant = StartTime::from_timestamp_millis(received_at as u64).into_inner();
+        let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
-        // This metric should show how long we waited till the envelope was unspooled.
-        relay_statsd::metric!(
-            timer(RelayTimers::EnvelopeOnDiskBufferTime) = start_time_instant.elapsed()
-        );
-
-        // If an envelope stays longer than 2 hours in on-disk spool, produce an error, so we could
-        // debug what kind of envelope it is.
-        if start_time_instant.elapsed() > Duration::from_secs(7200) {
-            relay_log::error!(
-                tags.project_key = %envelope.meta().public_key(),
-                tags.project_id = %envelope.meta().project_id().unwrap_or(ProjectId::new(0)),
-                event_id = ?envelope.event_id(),
-                duration = ?start_time_instant.elapsed(),
-                "Spooled envelope spent more than 2 hours in on-disk spool"
-            );
-        }
-
-        envelope.set_start_time(start_time_instant);
+        envelope.set_start_time(start_time.into_inner());
 
         let managed_envelope = self.buffer_guard.enter(
             envelope,
@@ -956,20 +917,6 @@ impl BufferService {
         disk.spool(buffer).await?;
         Ok(())
     }
-
-    /// Handles the check of the envelopes buffer.
-    ///
-    /// Note: currently the check runs only on the in-memory buffer to track if there is "hot"
-    /// projects keys which are always have too many envelopes in the queue.
-    fn handle_check(&mut self) {
-        let (BufferState::Memory(ref mut ram) | BufferState::MemoryFileStandby { ref mut ram, .. }) =
-            self.state
-        else {
-            return;
-        };
-
-        ram.check();
-    }
 }
 
 impl Service for BufferService {
@@ -978,13 +925,11 @@ impl Service for BufferService {
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
-            let mut ticker = tokio::time::interval(self.config.spool_envelopes_check_interval());
 
             loop {
                 tokio::select! {
                     biased;
 
-                    _ = ticker.tick() => self.handle_check(),
                     Some(message) = rx.recv() => {
                         if let Err(err) = self.handle_message(message).await {
                             relay_log::error!(
