@@ -5,8 +5,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use relay_base_schema::metrics::MetricResourceIdentifier;
-use relay_base_schema::metrics::{MetricUnit, MetricResourceIdentifier};
+use relay_base_schema::metrics::{MetricResourceIdentifier, MetricUnit};
 use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
@@ -118,8 +117,13 @@ impl<'a> StoreNormalizeProcessor<'a> {
     fn normalize_spans(&self, event: &mut Event) {
         if event.ty.value() == Some(&EventType::Transaction) {
             normalize_app_start_spans(event);
-            normalize_all_metrics_summaries(event);
             span::attributes::normalize_spans(event, &self.config.span_attributes);
+        }
+    }
+
+    fn normalize_metrics_summaries(&self, event: &mut Event) {
+        if event.ty.value() == Some(&EventType::Transaction) {
+            normalize_all_metrics_summaries(event);
         }
     }
 
@@ -486,6 +490,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         // Normalize connected attributes and interfaces
         self.normalize_spans(event);
+        self.normalize_metrics_summaries(event);
         self.normalize_trace_context(event);
         self.normalize_replay_context(event);
 
