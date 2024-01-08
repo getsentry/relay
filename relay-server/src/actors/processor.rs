@@ -1341,19 +1341,17 @@ impl EnvelopeProcessorService {
 
     /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
-    fn rate_limit_namespace(
+    fn rate_limit_buckets(
         &self,
         item_scoping: relay_quotas::ItemScoping,
         buckets: &[Bucket],
-        project_state: &ProjectState,
+        quotas: &[relay_quotas::Quota],
         mode: ExtractionMode,
         rate_limiter: &RedisRateLimiter,
     ) -> bool {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
-
-        let quotas = &project_state.config.quotas;
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
@@ -1392,11 +1390,11 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn rate_limit_batches(
+    fn rate_limit_buckets_by_namespace(
         &self,
         scoping: Scoping,
         buckets: Vec<Bucket>,
-        project_state: &ProjectState,
+        quotas: &[relay_quotas::Quota],
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         use relay_quotas::ItemScoping;
@@ -1412,7 +1410,11 @@ impl EnvelopeProcessorService {
         let mut unsupported_buckets = vec![];
 
         for bucket in buckets {
-            match bucket.namespace() {
+            let Some(ns) = bucket.namespace() else {
+                continue;
+            };
+
+            match ns {
                 MetricNamespace::Sessions => session_buckets.push(bucket),
                 MetricNamespace::Transactions => transaction_buckets.push(bucket),
                 MetricNamespace::Spans => spans_buckets.push(bucket),
@@ -1431,8 +1433,7 @@ impl EnvelopeProcessorService {
 
         let mut ratelimit = |namespace: MetricNamespace, buckets: Vec<Bucket>| {
             item_scoping.namespace = Some(namespace);
-            if !self.rate_limit_namespace(item_scoping, &buckets, project_state, mode, rate_limiter)
-            {
+            if !self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter) {
                 unlimited_buckets.extend(buckets);
             };
         };
@@ -1484,16 +1485,21 @@ impl EnvelopeProcessorService {
                 _ => ExtractionMode::Duration,
             };
 
-            let retention = project_state
-                .config
-                .event_retention
-                .unwrap_or(DEFAULT_EVENT_RETENTION);
-
-            let buckets = self.rate_limit_batches(scoping, buckets, &project_state, mode);
+            let buckets = self.rate_limit_buckets_by_namespace(
+                scoping,
+                buckets,
+                &project_state.config.quotas,
+                mode,
+            );
 
             if buckets.is_empty() {
                 continue;
             }
+
+            let retention = project_state
+                .config
+                .event_retention
+                .unwrap_or(DEFAULT_EVENT_RETENTION);
 
             // The store forwarder takes care of bucket splitting internally, so we can submit the
             // entire list of buckets. There is no batching needed here.
