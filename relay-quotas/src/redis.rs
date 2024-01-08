@@ -214,20 +214,18 @@ impl GlobalCounters {
     ) -> Result<bool, GlobalRateLimitError> {
         use GlobalRateLimitError as E;
 
-        match self.decrement_budget(quota, quantity) {
+        match self.is_rate_limited(quota, quantity) {
             ok @ Ok(_) => ok,
             err @ Err(E::Redis | E::PoisonedLock | E::LoopLimitExceeded) => err,
             Err(E::BudgetEmpty | E::SlotExpired | E::KeyMissing) => {
                 self.redis_sync(client, quota, quantity)?;
-                self.decrement_budget(quota, quantity)
+                self.is_rate_limited(quota, quantity)
             }
         }
     }
 
-    /// Attempts to decrement the budget by a certain amount.
-    ///
     /// Returns `true` if items should be ratelimited.
-    fn decrement_budget(
+    fn is_rate_limited(
         &self,
         quota: &RedisQuota,
         quantity: usize,
