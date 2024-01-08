@@ -6,7 +6,7 @@ use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
 use relay_base_schema::metrics::MetricResourceIdentifier;
-use relay_base_schema::metrics::MetricUnit;
+use relay_base_schema::metrics::{MetricUnit, MetricResourceIdentifier};
 use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
