@@ -17,7 +17,7 @@ use relay_event_schema::protocol::{
 use relay_metrics::MetricResourceIdentifier;
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
-    Val, Value,
+    Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -227,7 +227,7 @@ fn normalize_metrics_summary_mris(value: &Value) -> Option<Value> {
         return Some(Value::Object(new_metrics));
     }
 
-    return None;
+    None
 }
 
 /// Normalizes all the metrics summaries across the event payload.
