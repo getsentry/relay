@@ -1975,8 +1975,8 @@
     ///     .expect(&quot;metric should parse&quot;);
     /// ```
     </span><span class="kw">pub fn </span>parse(slice: <span class="kw-2">&amp;</span>[u8], timestamp: UnixTimestamp) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ParseMetricError&gt; {
-        <span class="kw">let </span>string = std::str::from_utf8(slice).or(<span class="prelude-val">Err</span>(ParseMetricError(())))<span class="question-mark">?</span>;
-        <span class="self">Self</span>::parse_str(string, timestamp).ok_or(ParseMetricError(()))
+        <span class="kw">let </span>string = std::str::from_utf8(slice).map_err(|<span class="kw">_</span>| ParseMetricError)<span class="question-mark">?</span>;
+        <span class="self">Self</span>::parse_str(string, timestamp).ok_or(ParseMetricError)
     }
 
     <span class="doccomment">/// Parses a set of metric aggregates from the raw protocol.
@@ -2079,11 +2079,11 @@
 
             <span class="kw">let </span>string = <span class="kw">match </span>std::str::from_utf8(current) {
                 <span class="prelude-val">Ok</span>(string) =&gt; string.strip_suffix(<span class="string">&#39;\r&#39;</span>).unwrap_or(string),
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(ParseMetricError(()))),
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(ParseMetricError)),
             };
 
             <span class="kw">if </span>!string.is_empty() {
-                <span class="kw">return </span><span class="prelude-val">Some</span>(Bucket::parse_str(string, <span class="self">self</span>.timestamp).ok_or(ParseMetricError(())));
+                <span class="kw">return </span><span class="prelude-val">Some</span>(Bucket::parse_str(string, <span class="self">self</span>.timestamp).ok_or(ParseMetricError));
             }
         }
     }
