@@ -22,7 +22,6 @@ relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-log = { path = "../relay-log" }
-relay-metrics = { path = "../relay-metrics" }
 relay-protocol = { path = "../relay-protocol" }
 relay-statsd = { path = "../relay-statsd" }
 relay-ua = { path = "../relay-ua" }

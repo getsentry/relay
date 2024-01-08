@@ -5,6 +5,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
+use relay_base_schema::metrics::MetricResourceIdentifier;
 use relay_base_schema::metrics::MetricUnit;
 use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
@@ -14,7 +15,6 @@ use relay_event_schema::protocol::{
     Frame, IpAddr, Level, NelContext, ReplayContext, Request, Stacktrace, TraceContext, User,
     VALID_PLATFORMS,
 };
-use relay_metrics::MetricResourceIdentifier;
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
     Value,
