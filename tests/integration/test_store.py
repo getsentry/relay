@@ -1510,6 +1510,24 @@ def test_span_ingestion(
             ),
         )
     )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "op": "default",
+                        "span_id": "ed429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
     relay.send_envelope(project_id, envelope)
 
     # 2 - Send OTel span via endpoint
@@ -1614,6 +1632,18 @@ def test_span_ingestion(
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
         },
+        {
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "ed429c44b67a3eb1",
+            "sentry_tags": {"op": "default"},
+            "span_id": "ed429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
     ]
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
@@ -1662,7 +1692,7 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
             "type": "c",
-            "value": 1.0,
+            "value": 2.0,
             "timestamp": expected_timestamp + 1,
             "tags": {"span.op": "default"},
             "retention_days": 90,
