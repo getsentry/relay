@@ -254,8 +254,14 @@ fn normalize(
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
-    span.is_segment = Annotated::new(span.parent_span_id.is_empty());
+
+    let is_segment = span.parent_span_id.is_empty();
+    span.is_segment = Annotated::new(is_segment);
     span.received = Annotated::new(received_at.into());
+
+    if is_segment {
+        span.segment_id = span.span_id.clone();
+    }
 
     // Tag extraction:
     let config = tag_extraction::Config { max_tag_value_size };
