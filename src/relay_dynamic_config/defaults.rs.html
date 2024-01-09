@@ -1207,7 +1207,7 @@
                     .always(),
                 Tag::with_key(<span class="string">&quot;span.domain&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.domain&quot;</span>)
-                    .when(is_db.clone()),
+                    .when(is_db.clone() | is_resource.clone()),
                 Tag::with_key(<span class="string">&quot;span.group&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.group&quot;</span>)
                     .always(),
@@ -1274,7 +1274,7 @@
                     .always(),
                 Tag::with_key(<span class="string">&quot;span.domain&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.domain&quot;</span>)
-                    .when(is_db.clone()),
+                    .when(is_db.clone() | is_resource.clone()),
                 Tag::with_key(<span class="string">&quot;span.group&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.group&quot;</span>)
                     .always(),
