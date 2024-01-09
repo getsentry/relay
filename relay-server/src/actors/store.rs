@@ -1138,7 +1138,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(rename(deserialize = "timestamp"), skip_serializing)]
     end_timestamp: f64,
 
-    description: &'a RawValue,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<&'a RawValue>,
     #[serde(default)]
     duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
