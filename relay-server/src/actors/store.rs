@@ -1158,9 +1158,9 @@ struct SpanKafkaMessage<'a> {
     metrics_summary: Option<&'a RawValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
-    /// The numeric ID of the project.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     profile_id: Option<&'a str>,
+    /// The numeric ID of the project.
     #[serde(default)]
     project_id: u64,
     /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
