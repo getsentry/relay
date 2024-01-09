@@ -149,7 +149,10 @@ enum BudgetOutcome {
 }
 
 fn current_slot(window: u64) -> usize {
-    (UnixTimestamp::now().as_secs() / window) as usize
+    UnixTimestamp::now()
+        .as_secs()
+        .checked_div(window)
+        .unwrap_or_default() as usize
 }
 
 /// Counters used as a cache for global quotas.
@@ -214,27 +217,26 @@ impl GlobalCounters {
             return BudgetOutcome::SlotExpired;
         }
 
+        use Ordering::*;
         loop {
-            let current_budget = val.budget.load(Ordering::SeqCst);
-            let total_count = val.last_seen_redis_value - current_budget;
+            let budget = val.budget.load(SeqCst);
+            let total_count = val.last_seen_redis_value - budget;
 
             if total_count + quantity > limit {
                 return BudgetOutcome::RateLimited;
             }
 
-            if current_budget < quantity {
+            if budget < quantity {
                 return BudgetOutcome::LocalBudgetExhausted;
-            } else {
-                match val.budget.compare_exchange_weak(
-                    current_budget,
-                    current_budget - quantity,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                ) {
-                    Ok(_) => return BudgetOutcome::NotRateLimited,
-                    Err(_) => continue,
-                }
-            };
+            }
+
+            match val
+                .budget
+                .compare_exchange_weak(budget, budget - quantity, SeqCst, SeqCst)
+            {
+                Ok(_) => return BudgetOutcome::NotRateLimited,
+                Err(_) => continue,
+            }
         }
     }
 
@@ -299,8 +301,6 @@ impl GlobalCounters {
         client: &mut PooledClient,
         quantity: usize,
     ) -> Result<(usize, usize), RedisError> {
-        // We don't want to reject a metrics batch just because it's too large, so we increase the
-        // requested budget if the default is less than the metric bucket quantity.
         let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
         let redis_key = quota.key();
         let expiry = quota.timestamp.as_secs() + quota.window + GRACE;
