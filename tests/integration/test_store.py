@@ -1675,24 +1675,10 @@ def test_span_ingestion(
             "org_id": 1,
             "project_id": 42,
             "retention_days": 90,
-            "tags": {
-                "span.category": "db",
-                "span.op": "db.query",
-                "span.status": "ok",
-            },
+            "tags": {"span.category": "db", "span.op": "db.query"},
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time@millisecond",
-            "type": "d",
-            "value": [1500],
-            "timestamp": expected_timestamp,
-            "tags": {"span.status": "ok", "span.op": "default"},
-            "retention_days": 90,
         },
         {
             "org_id": 1,
@@ -1719,24 +1705,10 @@ def test_span_ingestion(
             "tags": {
                 "span.category": "db",
                 "span.op": "db.query",
-                "span.status": "ok",
             },
             "timestamp": expected_timestamp,
             "type": "d",
             "value": [500.0],
-        },
-        {
-            "org_id": 1,
-            "project_id": 42,
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "type": "d",
-            "value": [1500],
-            "timestamp": expected_timestamp,
-            "tags": {
-                "span.op": "default",
-                "span.status": "ok",
-            },
-            "retention_days": 90,
         },
     ]
 
