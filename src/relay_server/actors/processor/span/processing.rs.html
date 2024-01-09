@@ -395,6 +395,12 @@
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
 <a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -651,8 +657,14 @@
     <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::NoEventPayload);
     };
-    span.is_segment = Annotated::new(span.parent_span_id.is_empty());
+
+    <span class="kw">let </span>is_segment = span.parent_span_id.is_empty();
+    span.is_segment = Annotated::new(is_segment);
     span.received = Annotated::new(received_at.into());
+
+    <span class="kw">if </span>is_segment {
+        span.segment_id = span.span_id.clone();
+    }
 
     <span class="comment">// Tag extraction:
     </span><span class="kw">let </span>config = tag_extraction::Config { max_tag_value_size };

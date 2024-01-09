@@ -1400,6 +1400,30 @@
 <a href="#1400" id="1400">1400</a>
 <a href="#1401" id="1401">1401</a>
 <a href="#1402" id="1402">1402</a>
+<a href="#1403" id="1403">1403</a>
+<a href="#1404" id="1404">1404</a>
+<a href="#1405" id="1405">1405</a>
+<a href="#1406" id="1406">1406</a>
+<a href="#1407" id="1407">1407</a>
+<a href="#1408" id="1408">1408</a>
+<a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1423,8 +1447,9 @@
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
 <span class="kw">use </span>serde::ser::Error;
-<span class="kw">use </span>serde::Serialize;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::value::RawValue;
+<span class="kw">use </span>serde_json::Deserializer;
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -1645,7 +1670,6 @@
                     scoping.organization_id,
                     scoping.project_id,
                     event_id,
-                    start_time,
                     retention,
                     item,
                 )<span class="question-mark">?</span>,
@@ -2226,12 +2250,12 @@
         organization_id: u64,
         project_id: ProjectId,
         event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
-        start_time: Instant,
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>payload = item.payload();
-        <span class="kw">let </span>span = <span class="kw">match </span>serde_json::from_slice(<span class="kw-2">&amp;</span>payload) {
+        <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>Deserializer::from_slice(<span class="kw-2">&amp;</span>payload);
+        <span class="kw">let </span><span class="kw-2">mut </span>span: SpanKafkaMessage = <span class="kw">match </span>serde_path_to_error::deserialize(d) {
             <span class="prelude-val">Ok</span>(span) =&gt; span,
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="macro">relay_log::error!</span>(
@@ -2241,19 +2265,14 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
         };
-        <span class="kw">let </span>message = SpanKafkaMessage {
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            event_id,
-            organization_id,
-            project_id,
-            retention_days,
-            span,
-        };
-        <span class="self">self</span>.produce(
-            KafkaTopic::Spans,
-            organization_id,
-            KafkaMessage::Span(message),
-        )<span class="question-mark">?</span>;
+
+        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * <span class="number">1e3</span>) <span class="kw">as </span>u32;
+        span.event_id = event_id;
+        span.project_id = project_id.value();
+        span.retention_days = retention_days;
+        span.start_timestamp_ms = (span.start_timestamp * <span class="number">1e3</span>) <span class="kw">as </span>u64;
+
+        <span class="self">self</span>.produce(KafkaTopic::Spans, organization_id, KafkaMessage::Span(span))<span class="question-mark">?</span>;
 
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
@@ -2538,24 +2557,53 @@
     </span>retention_days: u16,
 }
 
-<span class="attr">#[derive(Debug, Serialize)]
+<span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">struct </span>SpanKafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
-    </span>start_time: u64,
+    <span class="attr">#[serde(skip_serializing)]
+    </span>start_timestamp: f64,
+    <span class="attr">#[serde(rename(deserialize = <span class="string">&quot;timestamp&quot;</span>), skip_serializing)]
+    </span>end_timestamp: f64,
+
+    description: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="attr">#[serde(default)]
+    </span>duration_ms: u32,
     <span class="doccomment">/// The ID of the transaction event associated to this span, if any.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
-    <span class="doccomment">/// The numeric ID of the organization.
-    </span>organization_id: u64,
+    <span class="attr">#[serde(rename(deserialize = <span class="string">&quot;exclusive_time&quot;</span>))]
+    </span>exclusive_time_ms: f64,
+    is_segment: bool,
+
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>measurements: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
+    <span class="attr">#[serde(
+        default,
+        rename = <span class="string">&quot;_metrics_summary&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;Option::is_none&quot;
+    </span>)]
+    </span>metrics_summary: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>parent_span_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>profile_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
     <span class="doccomment">/// The numeric ID of the project.
-    </span>project_id: ProjectId,
+    </span><span class="attr">#[serde(default)]
+    </span>project_id: u64,
+    <span class="doccomment">/// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    </span>received: f64,
     <span class="doccomment">/// Number of days until these data should be deleted.
+    </span><span class="attr">#[serde(default)]
     </span>retention_days: u16,
-    <span class="doccomment">/// Fields from the original span payload.
-    /// See [`relay-event-schema::protocol::span::Span`] for schema.
-    ///
-    /// By using a [`RawValue`] here, we can embed the span&#39;s JSON without additional parsing.
-    </span>span: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>segment_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>sentry_tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
+    span_id: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="attr">#[serde(default)]
+    </span>start_timestamp_ms: u64,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
+    trace_id: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
 }
 
 <span class="doccomment">/// An enum over all possible ingest messages.
