@@ -1424,6 +1424,7 @@
 <a href="#1424" id="1424">1424</a>
 <a href="#1425" id="1425">1425</a>
 <a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2564,7 +2565,8 @@
     <span class="attr">#[serde(rename(deserialize = <span class="string">&quot;timestamp&quot;</span>), skip_serializing)]
     </span>end_timestamp: f64,
 
-    description: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>description: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue&gt;,
     <span class="attr">#[serde(default)]
     </span>duration_ms: u32,
     <span class="doccomment">/// The ID of the transaction event associated to this span, if any.
