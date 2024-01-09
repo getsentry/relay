@@ -1,10 +1,11 @@
 use std::hash::Hash;
+use std::mem;
 use std::sync::Arc;
 
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use relay_base_schema::metrics::MetricUnit;
+use relay_base_schema::metrics::{MetricResourceIdentifier, MetricUnit};
 use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
@@ -120,6 +121,12 @@ impl<'a> StoreNormalizeProcessor<'a> {
         }
     }
 
+    fn normalize_metrics_summaries(&self, event: &mut Event) {
+        if event.ty.value() == Some(&EventType::Transaction) {
+            normalize_all_metrics_summaries(event);
+        }
+    }
+
     fn normalize_trace_context(&self, event: &mut Event) {
         if let Some(context) = event.context_mut::<TraceContext>() {
             context.client_sample_rate = Annotated::from(self.config.client_sample_rate);
@@ -203,6 +210,51 @@ fn normalize_app_start_spans(event: &mut Event) {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Replaces all incoming metric identifiers in the metric summary with the correct MRI.
+///
+/// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
+/// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
+/// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
+fn normalize_metrics_summary_mris(value: &mut Value) {
+    let Value::Object(metrics) = value else {
+        return;
+    };
+
+    let metrics = mem::take(metrics)
+        .into_iter()
+        .filter_map(|(key, value)| {
+            Some((
+                MetricResourceIdentifier::parse(&key).ok()?.to_string(),
+                value,
+            ))
+        })
+        .collect();
+
+    *value = Value::Object(metrics);
+}
+
+/// Normalizes all the metrics summaries across the event payload.
+fn normalize_all_metrics_summaries(event: &mut Event) {
+    if let Some(metrics_summary) = event._metrics_summary.value_mut().as_mut() {
+        normalize_metrics_summary_mris(metrics_summary)
+    }
+
+    let Some(spans) = event.spans.value_mut() else {
+        return;
+    };
+
+    for span in spans.iter_mut() {
+        let metrics_summary = span
+            .value_mut()
+            .as_mut()
+            .and_then(|span| span._metrics_summary.value_mut().as_mut());
+
+        if let Some(ms) = metrics_summary {
+            normalize_metrics_summary_mris(ms)
         }
     }
 }
@@ -438,6 +490,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         // Normalize connected attributes and interfaces
         self.normalize_spans(event);
+        self.normalize_metrics_summaries(event);
         self.normalize_trace_context(event);
         self.normalize_replay_context(event);
 
@@ -707,9 +760,8 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
 }
 #[cfg(test)]
 mod tests {
-
     use chrono::{TimeZone, Utc};
-    use insta::assert_debug_snapshot;
+    use insta::{assert_debug_snapshot, assert_json_snapshot};
     use relay_base_schema::metrics::DurationUnit;
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
@@ -722,6 +774,7 @@ mod tests {
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
+    use std::collections::BTreeMap;
     use uuid::Uuid;
 
     use crate::{normalize_event, NormalizationConfig};
@@ -1724,7 +1777,7 @@ mod tests {
         normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
+        assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
         {
           "event_id": "74ad1301f4df489ead37d757295442b1",
           "level": "error",
@@ -2355,6 +2408,59 @@ mod tests {
                 other: {},
             },
         ]
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_metrics_summary_metric_identifiers() {
+        let mut metrics_summary = BTreeMap::new();
+        metrics_summary.insert(
+            "d:page_duration@millisecond".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+        metrics_summary.insert(
+            "c:custom/page_click@none".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+        metrics_summary.insert(
+            "s:user@none".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+        metrics_summary.insert(
+            "g:page_load@second".to_string(),
+            Annotated::new(Value::Array(Vec::new())),
+        );
+
+        let mut event = Annotated::new(Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("my_span".to_owned()),
+                _metrics_summary: Annotated::new(Value::Object(metrics_summary.clone())),
+                ..Default::default()
+            })]),
+            _metrics_summary: Annotated::new(Value::Object(metrics_summary)),
+            ..Default::default()
+        });
+        normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
+        assert_json_snapshot!(SerializableAnnotated(&event), @r###"
+        {
+          "spans": [
+            {
+              "op": "my_span",
+              "_metrics_summary": {
+                "c:custom/page_click@none": [],
+                "d:custom/page_duration@millisecond": [],
+                "g:custom/page_load@second": [],
+                "s:custom/user@none": []
+              }
+            }
+          ],
+          "_metrics_summary": {
+            "c:custom/page_click@none": [],
+            "d:custom/page_duration@millisecond": [],
+            "g:custom/page_load@second": [],
+            "s:custom/user@none": []
+          }
+        }
         "###);
     }
 
