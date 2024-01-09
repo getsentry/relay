@@ -1,5 +1,5 @@
 use std::fmt::{self, Debug};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
 use relay_common::time::UnixTimestamp;
@@ -139,20 +139,17 @@ impl std::ops::Deref for RedisQuota<'_> {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-enum GlobalRateLimitError {
-    #[error("quota key missing")]
+#[derive(Debug)]
+enum BudgetOutcome {
+    NotRateLimited,
+    RateLimited,
     KeyMissing,
-    #[error("slot expired")]
     SlotExpired,
-    #[error("budget empty")]
-    BudgetEmpty,
-    #[error("failed to communicate with redis")]
-    Redis,
+    LocalBudgetExhausted,
 }
 
-fn current_slot(window: u64) -> u64 {
-    UnixTimestamp::now().as_secs() / window
+fn current_slot(window: u64) -> usize {
+    (UnixTimestamp::now().as_secs() / window) as usize
 }
 
 /// Counters used as a cache for global quotas.
@@ -163,10 +160,9 @@ fn current_slot(window: u64) -> u64 {
 /// a global counter. We Put the amount we pre-incremented into this local cache and count down until
 /// we have no more budget, then we ask for more from redis. If we find the global counter is above
 /// the quota limit, we will ratelimit the item.
-#[derive(Clone)]
 struct GlobalCounters {
     script: Arc<Script>,
-    counters: Arc<RwLock<hashbrown::HashMap<BudgetKey, RwLock<BudgetState>>>>,
+    counters: RwLock<hashbrown::HashMap<BudgetKey, RwLock<BudgetState>>>,
 }
 
 impl Default for GlobalCounters {
@@ -178,31 +174,6 @@ impl Default for GlobalCounters {
     }
 }
 
-/*
-impl fmt::Debug for GlobalCounters {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut debug_struct = f.debug_struct("GlobalCounters");
-
-        if let Ok(counters) = self.counters.read() {
-            for (key, val) in counters.iter() {
-                let budget = val.budget.load(Ordering::SeqCst);
-                let slot = val.slot;
-                let redis = val.last_seen_redis_value;
-
-                debug_struct.field(
-                    &format!("{:?}", key),
-                    &format!("budget: {}, redis_value: {}, slot {}", budget, redis, slot),
-                );
-            }
-        } else {
-            debug_struct.field("counters", &"Lock Poisoned");
-        }
-
-        debug_struct.finish()
-    }
-}
-*/
-
 impl GlobalCounters {
     /// Returns `true` if the global quota should be ratelimited.
     ///
@@ -213,68 +184,113 @@ impl GlobalCounters {
         client: &mut PooledClient,
         quota: &RedisQuota,
         quantity: usize,
-    ) -> Result<bool, GlobalRateLimitError> {
-        use GlobalRateLimitError as E;
+    ) -> Result<bool, RedisError> {
+        let Some(limit) = quota.limit.map(|limit| limit as usize) else {
+            return Ok(false);
+        };
 
-        match self.is_rate_limited(quota, quantity) {
-            ok @ Ok(_) => ok,
-            err @ Err(E::Redis) => err,
-            Err(E::BudgetEmpty | E::SlotExpired | E::KeyMissing) => {
-                self.redis_sync(client, quota, quantity)?;
-                self.is_rate_limited(quota, quantity)
+        loop {
+            use BudgetOutcome as BO;
+
+            match self.decrement_budget(quota, quantity, limit) {
+                BO::RateLimited => return Ok(true),
+                BO::NotRateLimited => return Ok(false),
+                BO::KeyMissing | BO::SlotExpired | BO::LocalBudgetExhausted => {
+                    self.redis_sync(client, quota, quantity)?;
+                }
             }
         }
     }
 
     /// Returns `true` if items should be ratelimited.
-    fn is_rate_limited(
-        &self,
-        quota: &RedisQuota,
-        quantity: usize,
-    ) -> Result<bool, GlobalRateLimitError> {
-        let Some(limit) = quota.limit.map(|limit| limit as usize) else {
-            return Ok(false);
+    fn decrement_budget(&self, quota: &RedisQuota, quantity: usize, limit: usize) -> BudgetOutcome {
+        let map = self.counters.read().unwrap_or_else(|e| e.into_inner());
+        let val = match map.get(&BudgetKeyRef::new(quota)) {
+            Some(inner_lock) => inner_lock.read().unwrap_or_else(|e| e.into_inner()),
+            None => return BudgetOutcome::KeyMissing,
         };
 
-        let current_slot = current_slot(quota.window) as usize;
-        let map = self.counters.read().unwrap_or_else(|e| e.into_inner());
-        let val = map
-            .get(&BudgetKeyRef::new(quota))
-            .ok_or(GlobalRateLimitError::KeyMissing)?
-            .read()
-            .unwrap_or_else(|e| e.into_inner());
-
-        if current_slot != val.slot {
-            return Err(GlobalRateLimitError::SlotExpired);
+        if current_slot(quota.window) != val.slot {
+            return BudgetOutcome::SlotExpired;
         }
-
-        let redis_count = val.last_seen_redis_value;
 
         loop {
             let current_budget = val.budget.load(Ordering::SeqCst);
-            let total_count = redis_count.saturating_sub(current_budget);
+            let total_count = val.last_seen_redis_value - current_budget;
 
             if total_count + quantity > limit {
-                return Ok(true);
+                return BudgetOutcome::RateLimited;
             }
 
             if current_budget < quantity {
-                return Err(GlobalRateLimitError::BudgetEmpty);
-            }
-
-            if val
-                .budget
-                .compare_exchange_weak(
+                return BudgetOutcome::LocalBudgetExhausted;
+            } else {
+                match val.budget.compare_exchange_weak(
                     current_budget,
                     current_budget - quantity,
                     Ordering::SeqCst,
                     Ordering::SeqCst,
-                )
-                .is_ok()
-            {
-                return Ok(false);
+                ) {
+                    Ok(_) => return BudgetOutcome::NotRateLimited,
+                    Err(_) => continue,
+                }
+            };
+        }
+    }
+
+    /// Ensures the local counter is up to date with the redis counter.
+    fn redis_sync(
+        &self,
+        client: &mut PooledClient,
+        quota: &RedisQuota,
+        quantity: usize,
+    ) -> Result<(), RedisError> {
+        let shared_counter_map = self.counters.read().unwrap_or_else(|e| e.into_inner());
+        let current_slot = current_slot(quota.window);
+        let budget_key = BudgetKeyRef::new(quota);
+
+        match shared_counter_map.get(&budget_key) {
+            Some(val) => {
+                if val
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .redis_call_in_progress
+                    .swap(true, Ordering::SeqCst)
+                {
+                    return Ok(());
+                }
+
+                let res = self.call_redis(quota, client, quantity);
+
+                if let Ok((new_budget, redis_value)) = res {
+                    val.write().unwrap_or_else(|e| e.into_inner()).update(
+                        new_budget,
+                        redis_value,
+                        current_slot,
+                    );
+                }
+
+                val.read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .redis_call_in_progress
+                    .store(false, Ordering::SeqCst);
+
+                res?;
+            }
+            None => {
+                drop(shared_counter_map); // Necessary to avoid deadlock.
+                let mut lock = self.counters.write().unwrap_or_else(|e| e.into_inner());
+
+                if !lock.contains_key(&budget_key) {
+                    let (new_budget, redis_value) = self.call_redis(quota, client, quantity)?;
+                    lock.insert(
+                        budget_key.into_owned(),
+                        RwLock::new(BudgetState::new(new_budget, redis_value, current_slot)),
+                    );
+                }
             }
         }
+        Ok(())
     }
 
     fn call_redis(
@@ -282,7 +298,7 @@ impl GlobalCounters {
         quota: &RedisQuota,
         client: &mut PooledClient,
         quantity: usize,
-    ) -> Result<(usize, usize), GlobalRateLimitError> {
+    ) -> Result<(usize, usize), RedisError> {
         // We don't want to reject a metrics batch just because it's too large, so we increase the
         // requested budget if the default is less than the metric bucket quantity.
         let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
@@ -296,62 +312,10 @@ impl GlobalCounters {
             .arg(quota.limit)
             .arg(expiry)
             .arg(requested_budget)
-            .invoke(
-                &mut client
-                    .connection()
-                    .map_err(|_| GlobalRateLimitError::Redis)?,
-            )
-            .map_err(|_| GlobalRateLimitError::Redis)?;
+            .invoke(&mut client.connection()?)
+            .map_err(RedisError::Redis)?;
 
         Ok((budget, redis_count))
-    }
-
-    /// Ensures the local counter is up to date with the redis counter.
-    fn redis_sync(
-        &self,
-        client: &mut PooledClient,
-        quota: &RedisQuota,
-        quantity: usize,
-    ) -> Result<(), GlobalRateLimitError> {
-        let shared_counter_map = self.counters.read().unwrap_or_else(|e| e.into_inner());
-        let current_slot = current_slot(quota.window) as usize;
-        let budget_key = BudgetKeyRef::new(quota);
-
-        match shared_counter_map.get(&budget_key) {
-            Some(val) => {
-                let lock_available = val.try_read().is_ok();
-
-                if lock_available {
-                    let mut exclusive_val_lock = val.write().unwrap_or_else(|e| e.into_inner());
-                    let (new_budget, redis_value) = self.call_redis(quota, client, quantity)?;
-                    exclusive_val_lock.update(new_budget, redis_value, current_slot);
-                } else {
-                    drop(val.write().unwrap_or_else(|e| e.into_inner()));
-                }
-            }
-            None => {
-                drop(shared_counter_map); // Necessary to avoid deadlock.
-
-                // This evaluating to false implies that another thread is currently in the process
-                // of calling redis and inserting a new key.
-                let lock_available = self.counters.try_read().is_ok();
-
-                if lock_available {
-                    let mut exclusive_map =
-                        self.counters.write().unwrap_or_else(|e| e.into_inner());
-
-                    let (new_budget, redis_value) = self.call_redis(quota, client, quantity)?;
-
-                    exclusive_map.insert(
-                        budget_key.into_owned(),
-                        RwLock::new(BudgetState::new(new_budget, redis_value, current_slot)),
-                    );
-                } else {
-                    drop(self.counters.write().unwrap_or_else(|e| e.into_inner()));
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -397,9 +361,10 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
 
 /// Represents the local budget taken from a global quota.
 struct BudgetState {
+    slot: usize,
     budget: AtomicUsize,
     last_seen_redis_value: usize,
-    slot: usize,
+    redis_call_in_progress: AtomicBool,
 }
 
 impl BudgetState {
@@ -408,6 +373,7 @@ impl BudgetState {
             budget: AtomicUsize::new(budget),
             last_seen_redis_value: redis_value,
             slot,
+            redis_call_in_progress: AtomicBool::new(false),
         }
     }
 
@@ -434,7 +400,6 @@ impl BudgetState {
 /// attachments. For more information on quota parameters, see `QuotaConfig`.
 ///
 /// Requires the `redis` feature.
-#[derive(Clone)]
 pub struct RedisRateLimiter {
     pool: RedisPool,
     script: Arc<Script>,
