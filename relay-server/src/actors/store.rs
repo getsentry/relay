@@ -244,7 +244,6 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     event_id,
-                    start_time,
                     retention,
                     item,
                 )?,
@@ -825,7 +824,6 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         event_id: Option<EventId>,
-        _: Instant,
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
