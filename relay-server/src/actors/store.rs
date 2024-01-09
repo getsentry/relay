@@ -1170,13 +1170,13 @@ struct SpanKafkaMessage<'a> {
     retention_days: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<&'a str>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    sentry_tags: BTreeMap<&'a str, &'a str>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sentry_tags: Option<&'a RawValue>,
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    tags: BTreeMap<&'a str, &'a str>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tags: Option<&'a RawValue>,
     trace_id: &'a str,
 }
 
