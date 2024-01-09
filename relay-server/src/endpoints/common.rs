@@ -334,7 +334,7 @@ pub async fn handle_envelope(
             state.test_store().clone(),
             // It's not clear at this point which group this envelope belongs to.
             // The decission will be made while queueing in `queue_envelope` function.
-            ProcessingGroup::Unknown,
+            ProcessingGroup::Ungrouped,
         )
         .map_err(BadStoreRequest::QueueFailed)?;
 

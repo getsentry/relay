@@ -1148,7 +1148,7 @@ mod tests {
                 empty_envelope(),
                 services.outcome_aggregator,
                 services.test_store,
-                ProcessingGroup::Unknown,
+                ProcessingGroup::Ungrouped,
             )
             .unwrap();
 

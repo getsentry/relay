@@ -114,10 +114,11 @@ pub enum ProcessingGroup {
     /// Crons.
     CheckIn,
     Span,
-    /// Fallback.
-    ///
-    /// Kept for forward compatibility.
-    Unknown,
+    /// The unknow item types will be forwarded upstream (to processing Relay), where we will
+    /// decide what to do with it.
+    ForwardUnknown,
+    /// All the events in the envelope we failed to group.
+    Ungrouped,
 }
 
 impl ProcessingGroup {
@@ -128,7 +129,7 @@ impl ProcessingGroup {
 
         // Each NEL item *must* have a dedicated envelope.
         let nel_envelopes = envelope
-            .take_items_by(|item| item.ty() == &ItemType::Nel)
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Nel))
             .into_iter()
             .map(|item| {
                 let headers = headers.clone();
@@ -143,9 +144,8 @@ impl ProcessingGroup {
         // Note: only if there is no items in the envelope which can create events.
         if !envelope.items().any(Item::creates_event) {
             let standalone_attachment_items = envelope.take_items_by(|item| {
-                item.ty() == &ItemType::Attachment || item.ty() == &ItemType::FormData
+                matches!(item.ty(), &ItemType::Attachment | &ItemType::FormData)
             });
-
             if !standalone_attachment_items.is_empty() {
                 grouped_envelopes.push((
                     ProcessingGroup::StandaloneAttachment,
@@ -156,7 +156,10 @@ impl ProcessingGroup {
 
         // Extract replays.
         let replay_items = envelope.take_items_by(|item| {
-            item.ty() == &ItemType::ReplayEvent || item.ty() == &ItemType::ReplayRecording
+            matches!(
+                item.ty(),
+                &ItemType::ReplayEvent | &ItemType::ReplayRecording
+            )
         });
         if !replay_items.is_empty() {
             grouped_envelopes.push((
@@ -166,9 +169,8 @@ impl ProcessingGroup {
         }
 
         // Keep all the sessions together in one envelope.
-        let session_items = envelope.take_items_by(|item| {
-            item.ty() == &ItemType::Session || item.ty() == &ItemType::Sessions
-        });
+        let session_items = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Session | &ItemType::Sessions));
         if !session_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Session,
@@ -178,7 +180,7 @@ impl ProcessingGroup {
 
         // Extract spans.
         let span_items = envelope
-            .take_items_by(|item| item.ty() == &ItemType::Span || item.ty() == &ItemType::OtelSpan);
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan));
         if !span_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
@@ -186,12 +188,12 @@ impl ProcessingGroup {
             ))
         }
 
-        // Extract all the items which require event into separate envelope.
+        // Extract all the items which require an event into separate envelope.
         let require_event_items = envelope.take_items_by(Item::requires_event);
         if !require_event_items.is_empty() {
             let group = if require_event_items
                 .iter()
-                .any(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Profile)
+                .any(|item| matches!(item.ty(), &ItemType::Transaction | &ItemType::Profile))
             {
                 ProcessingGroup::Transaction
             } else {
@@ -209,13 +211,15 @@ impl ProcessingGroup {
             let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
             let envelope = Envelope::from_parts(headers, items);
             let item_type = item.ty();
-            let group = if item_type == &ItemType::CheckIn {
+            let group = if matches!(item_type, &ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
-            } else if item_type == &ItemType::UserReport || item_type == &ItemType::ClientReport {
+            } else if matches!(item_type, &ItemType::UserReport | &ItemType::ClientReport) {
                 ProcessingGroup::UserReport
+            } else if matches!(item_type, &ItemType::Unknown(_)) {
+                ProcessingGroup::ForwardUnknown
             } else {
-                relay_log::error!("Unsupported ItemType in the envelope: {item_type}");
-                ProcessingGroup::Unknown
+                // Cannot group this item type.
+                ProcessingGroup::Ungrouped
             };
 
             (group, envelope)
@@ -1249,12 +1253,15 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Previous / Old implementation of the `process_state` function, which is used for all
+    /// Legacy implementation of the `process_state` function, which is used for all
     /// unknown [`ProcessingGroup`] variant.
     ///
     /// Note: this will be removed once we are confident in the new implementation and make sure
     /// that all the groups properly covered.
-    fn process_state_pre(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_state_legacy(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
         session::process(state, &self.inner.config);
         report::process(
             state,
@@ -1337,17 +1344,21 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Replay => self.process_replays(state)?,
             ProcessingGroup::CheckIn => self.process_checkins(state)?,
             ProcessingGroup::Span => self.process_spans(state)?,
-            // Fallback to the old process_state implementation for time being.
-            ProcessingGroup::Unknown => {
+            // Fallback to the legacy process_state implementation for Ungrouped events.
+            ProcessingGroup::Ungrouped => {
                 relay_log::error!(
                     tags.project = %state.project_id,
                     items = ?state.envelope().items().next().map(Item::ty),
                     "Could not identify the processing group based on the envelope's items"
                 );
 
-                // Call the old implementation of the `process_state` function.
-                self.process_state_pre(state)?;
+                // Call the legacy implementation of the `process_state` function.
+                self.process_state_legacy(state)?;
             }
+            // Leave this group unchanged.
+            //
+            // This will later be forwarded to upstream.
+            ProcessingGroup::ForwardUnknown => (),
         }
 
         Ok(())

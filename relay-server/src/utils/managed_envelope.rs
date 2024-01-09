@@ -126,7 +126,7 @@ impl ManagedEnvelope {
             None,
             outcome_aggregator,
             test_store,
-            ProcessingGroup::Unknown,
+            ProcessingGroup::Ungrouped,
         );
         envelope.context.done = true;
         envelope
@@ -149,7 +149,7 @@ impl ManagedEnvelope {
             None,
             outcome_aggregator,
             test_store,
-            ProcessingGroup::Unknown,
+            ProcessingGroup::Ungrouped,
         )
     }
 

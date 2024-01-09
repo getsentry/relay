@@ -429,7 +429,7 @@ mod tests {
                     TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
-                    ProcessingGroup::Unknown,
+                    ProcessingGroup::Ungrouped,
                 ),
                 profile_id: None,
                 event_metrics_extracted: false,
