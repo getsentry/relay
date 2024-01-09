@@ -253,31 +253,24 @@ impl GlobalCounters {
 
         match shared_counter_map.get(&budget_key) {
             Some(val) => {
-                if val
-                    .read()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .redis_call_in_progress
-                    .swap(true, Ordering::SeqCst)
-                {
+                let val_read = val.read().unwrap_or_else(|e| e.into_inner());
+
+                if val_read.fetch_block_redis() {
                     return Ok(());
                 }
 
-                let res = self.call_redis(quota, client, quantity);
-
-                if let Ok((new_budget, redis_value)) = res {
-                    val.write().unwrap_or_else(|e| e.into_inner()).update(
-                        new_budget,
-                        redis_value,
-                        current_slot,
-                    );
+                match self.call_redis(quota, client, quantity) {
+                    Ok((new_budget, redis_value)) => {
+                        drop(val_read);
+                        let mut val_write = val.write().unwrap_or_else(|e| e.into_inner());
+                        val_write.update(new_budget, redis_value, current_slot);
+                        val_write.unblock_redis();
+                    }
+                    Err(e) => {
+                        val_read.unblock_redis();
+                        return Err(e);
+                    }
                 }
-
-                val.read()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .redis_call_in_progress
-                    .store(false, Ordering::SeqCst);
-
-                res?;
             }
             None => {
                 drop(shared_counter_map); // Necessary to avoid deadlock.
@@ -375,6 +368,14 @@ impl BudgetState {
             slot,
             redis_call_in_progress: AtomicBool::new(false),
         }
+    }
+
+    fn fetch_block_redis(&self) -> bool {
+        self.redis_call_in_progress.swap(true, Ordering::SeqCst)
+    }
+
+    fn unblock_redis(&self) {
+        self.redis_call_in_progress.store(false, Ordering::SeqCst);
     }
 
     fn update(&mut self, new_budget: usize, redis_value: usize, current_slot: usize) {
