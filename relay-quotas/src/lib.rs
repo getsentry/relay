@@ -11,6 +11,7 @@
 /// typically happens for disabled keys, projects, or organizations.
 const REJECT_ALL_SECS: u64 = 60;
 
+pub mod global;
 mod quota;
 mod rate_limit;
 
