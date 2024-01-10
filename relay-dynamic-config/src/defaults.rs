@@ -18,7 +18,13 @@ const DISABLED_DATABASES: &[&str] = &[
 ];
 
 /// A list of `span.op` patterns we want to enable for mobile.
-const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
+const MOBILE_OPS: &[&str] = &[
+    "app.*",
+    "ui.load*",
+    "contentprovider.load",
+    "application.load",
+    "activity.load",
+];
 
 /// A list of span descriptions that indicate top-level app start spans.
 const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
