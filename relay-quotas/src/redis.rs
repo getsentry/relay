@@ -392,6 +392,7 @@ impl BudgetState {
             self.budget.fetch_add(new_budget, Ordering::SeqCst);
         };
 
+        self.slot = current_slot;
         self.last_seen_redis_value = redis_value;
     }
 }
