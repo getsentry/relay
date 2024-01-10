@@ -46,14 +46,22 @@ impl GlobalRateLimits {
         let key = BudgetKeyRef::new(quota);
 
         if let Some(foobar) = self.counters.read().unwrap().get(&key) {
-            let mut foobar = foobar.lock().unwrap();
-            foobar.is_rate_limited(client, quota, quantity)
+            return foobar
+                .lock()
+                .unwrap()
+                .is_rate_limited(client, quota, quantity);
         } else {
             self.counters.write().unwrap().entry_ref(&key).or_default();
-
-            // TODO think about the recursion
-            self.is_rate_limited(client, quota, quantity)
         }
+
+        self.counters
+            .read()
+            .unwrap()
+            .get(&key)
+            .unwrap()
+            .lock()
+            .unwrap()
+            .is_rate_limited(client, quota, quantity)
     }
 }
 
@@ -99,18 +107,16 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
     }
 }
 
-trait Counter {}
-
 struct SlottedFooBar {
     slot: usize,
-    foobar: FooBar,
+    counter: Counter,
 }
 
 impl SlottedFooBar {
     pub fn new() -> Self {
         Self {
             slot: 0,
-            foobar: FooBar::new(),
+            counter: Counter::new(),
         }
     }
 
@@ -121,19 +127,23 @@ impl SlottedFooBar {
         quantity: usize,
     ) -> Result<bool, RedisError> {
         let quota_slot = current_slot(quota.window());
+        let Some(limit) = quota.limit else {
+            return Ok(false);
+        };
 
         match self.slot.cmp(&quota_slot) {
             Ordering::Greater => {
                 // TODO double check logic here
                 // in theory this should never happen only if someone messes with the system time
                 // be safe and dont rate limit
+                relay_log::error!("time went backwards");
                 return Ok(false);
             }
-            Ordering::Less => self.foobar = FooBar::new(),
+            Ordering::Less => self.counter = Counter::new(),
             Ordering::Equal => {}
         }
 
-        self.foobar.is_rate_limited(client, quota, quantity)
+        self.counter.is_rate_limited(client, limit, quantity, quota)
     }
 }
 
@@ -144,12 +154,12 @@ impl Default for SlottedFooBar {
 }
 
 /// Represents the local budget taken from a global quota.
-struct FooBar {
+struct Counter {
     local_counter: LocalCounter,
     redis_counter: RedisCounter,
 }
 
-impl FooBar {
+impl Counter {
     pub fn new() -> Self {
         Self {
             local_counter: LocalCounter::new(),
@@ -160,11 +170,10 @@ impl FooBar {
     pub fn is_rate_limited(
         &mut self,
         client: &mut PooledClient,
-        quota: &RedisQuota,
+        limit: u64,
         quantity: usize,
+        quota: &RedisQuota,
     ) -> Result<bool, RedisError> {
-        let limit = quota.limit.unwrap(); // TODO should maybe an argument, THINK ABOUT THIS
-
         if self.local_counter.try_consume(quantity) {
             return Ok(false);
         }
@@ -175,7 +184,9 @@ impl FooBar {
         }
 
         let budget_to_reserve = quantity.max(self.default_request_size_based_on_limit());
-        let reserved = self.redis_counter.try_reserve(budget_to_reserve, limit) as usize;
+        let reserved = self
+            .redis_counter
+            .try_reserve(client, budget_to_reserve, limit, quota)? as usize;
 
         self.local_counter.increase_budget(reserved);
         Ok(self.local_counter.try_consume(quantity))
@@ -224,9 +235,29 @@ impl RedisCounter {
         self.last_seen + quantity as u64 <= limit
     }
 
-    fn try_reserve(&mut self, quantity: usize, limit: u64) -> u64 {
-        let _script = load_global_lua_script();
+    fn try_reserve(
+        &mut self,
+        client: &mut PooledClient,
+        quantity: usize,
+        limit: u64,
+        quota: &RedisQuota,
+    ) -> Result<u64, RedisError> {
+        let script = load_global_lua_script();
 
-        todo!()
+        let redis_key = quota.key();
+        let expiry = current_slot(quota.window()) + quota.window() as usize;
+
+        let (budget, redis_count): (u64, u64) = script
+            .prepare_invoke()
+            .key(redis_key.as_str())
+            .arg(limit)
+            .arg(expiry)
+            .arg(quantity)
+            .invoke(&mut client.connection()?)
+            .map_err(RedisError::Redis)?;
+
+        self.last_seen = redis_count;
+
+        Ok(budget)
     }
 }

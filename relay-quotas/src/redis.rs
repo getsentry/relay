@@ -108,7 +108,7 @@ impl<'a> RedisQuota<'a> {
         UnixTimestamp::from_secs(next_start)
     }
 
-    fn key(&self) -> String {
+    pub fn key(&self) -> String {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
