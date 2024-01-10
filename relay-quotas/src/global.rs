@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::sync::{Mutex, OnceLock, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use relay_common::time::UnixTimestamp;
 use relay_redis::redis::Script;
@@ -29,7 +29,7 @@ fn current_slot(window: u64) -> usize {
 /// the quota limit, we will ratelimit the item.
 #[derive(Default)]
 pub struct GlobalRateLimits {
-    counters: RwLock<hashbrown::HashMap<BudgetKey, Mutex<SlottedFooBar>>>,
+    counters: RwLock<hashbrown::HashMap<BudgetKey, Arc<Mutex<SlottedCounter>>>>,
 }
 
 impl GlobalRateLimits {
@@ -45,23 +45,13 @@ impl GlobalRateLimits {
     ) -> Result<bool, RedisError> {
         let key = BudgetKeyRef::new(quota);
 
-        if let Some(foobar) = self.counters.read().unwrap().get(&key) {
-            return foobar
-                .lock()
-                .unwrap()
-                .is_rate_limited(client, quota, quantity);
-        } else {
-            self.counters.write().unwrap().entry_ref(&key).or_default();
-        }
+        let val = match self.counters.read().unwrap().get(&key).cloned() {
+            Some(val) => val,
+            None => Arc::clone(self.counters.write().unwrap().entry_ref(&key).or_default()),
+        };
 
-        self.counters
-            .read()
-            .unwrap()
-            .get(&key)
-            .unwrap()
-            .lock()
-            .unwrap()
-            .is_rate_limited(client, quota, quantity)
+        let mut lock = val.lock().unwrap();
+        lock.is_rate_limited(client, quota, quantity)
     }
 }
 
@@ -107,12 +97,12 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
     }
 }
 
-struct SlottedFooBar {
+struct SlottedCounter {
     slot: usize,
     counter: Counter,
 }
 
-impl SlottedFooBar {
+impl SlottedCounter {
     pub fn new() -> Self {
         Self {
             slot: 0,
@@ -147,7 +137,7 @@ impl SlottedFooBar {
     }
 }
 
-impl Default for SlottedFooBar {
+impl Default for SlottedCounter {
     fn default() -> Self {
         Self::new()
     }
@@ -178,7 +168,6 @@ impl Counter {
             return Ok(false);
         }
 
-        // TODO
         if !self.redis_counter.can_satisfy(quantity, limit) {
             return Ok(true);
         }
