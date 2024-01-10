@@ -211,8 +211,8 @@ mod tests {
 
     scrub_sql_test!(
         various_parameterized_ins_percentage,
-        "SELECT count() FROM table1 WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
-        "SELECT count() FROM table1 WHERE id IN (%s) AND id IN (%s)"
+        "SELECT count() FROM table1 WHERE id1 IN (%s, %s) AND id2 IN (%s, %s, %s)",
+        "SELECT count() FROM table1 WHERE id1 IN (%s) AND id2 IN (%s)"
     );
 
     scrub_sql_test!(
