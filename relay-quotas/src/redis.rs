@@ -258,16 +258,16 @@ impl GlobalCounters {
                 if val_read.fetch_block_redis() {
                     return Ok(());
                 }
+                drop(val_read);
+                let mut val_write = val.write().unwrap_or_else(|e| e.into_inner());
 
                 match self.call_redis(quota, client, quantity) {
                     Ok((new_budget, redis_value)) => {
-                        drop(val_read);
-                        let mut val_write = val.write().unwrap_or_else(|e| e.into_inner());
                         val_write.update(new_budget, redis_value, current_slot);
                         val_write.unblock_redis();
                     }
                     Err(e) => {
-                        val_read.unblock_redis();
+                        val_write.unblock_redis();
                         return Err(e);
                     }
                 }
