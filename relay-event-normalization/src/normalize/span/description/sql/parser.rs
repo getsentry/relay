@@ -6,9 +6,9 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    AlterTableOperation, Assignment, CloseCursor, ColumnDef, Expr, Ident, ObjectName, Query,
-    Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint, TableFactor,
-    UnaryOperator, Value, VisitMut, VisitorMut,
+    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, Expr, Ident,
+    ObjectName, Query, Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint,
+    TableFactor, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -268,10 +268,20 @@ impl VisitorMut for NormalizeVisitor {
     fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         // Casts are omitted for simplification. Because we replace the entire expression,
         // the replacement has to occur *after* visiting its children.
-        if let Expr::Cast { expr: inner, .. } = expr {
-            let mut swapped = Expr::Value(Value::Null);
-            std::mem::swap(&mut swapped, inner);
-            *expr = swapped;
+        match expr {
+            Expr::Cast { expr: inner, .. } => {
+                let mut swapped = Expr::Value(Value::Null);
+                std::mem::swap(&mut swapped, inner);
+                *expr = swapped;
+            }
+            Expr::BinaryOp {
+                left,
+                op: BinaryOperator::And,
+                right,
+            } => {
+                dbg!(left, right);
+            }
+            _ => (),
         }
 
         self.current_expr_depth = self.current_expr_depth.saturating_sub(1);

@@ -699,6 +699,20 @@ mod tests {
     );
 
     scrub_sql_test!(
+        duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+        (a.id = %s AND a.org = %s)
+        OR (a.id = %s AND a.org = %s)
+        OR (a.id = %s AND a.org = %s)
+        OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND ((a.id = %s AND a.org = %s) OR ..)"
+    );
+
+    scrub_sql_test!(
         unique_alias,
         "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
         "SELECT pg_advisory_unlock(%s, %s)"
