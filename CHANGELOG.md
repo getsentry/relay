@@ -15,6 +15,7 @@
 - Make Kafka spans compatible with the Snuba span schema. ([#2917](https://github.com/getsentry/relay/pull/2917), [#2926](https://github.com/getsentry/relay/pull/2926))
 - Only extract span metrics / tags when they are needed. ([#2907](https://github.com/getsentry/relay/pull/2907), [#2923](https://github.com/getsentry/relay/pull/2923))
 - Normalize metric resource identifiers in `event._metrics_summary` and `span._metrics_summary`. ([#2914](https://github.com/getsentry/relay/pull/2914))
+- Add nested Android app start span ops to span ingestion ([#2906](https://github.com/getsentry/relay/pull/2906))
 
 ## 23.12.1
 
