@@ -713,6 +713,32 @@ mod tests {
     );
 
     scrub_sql_test!(
+        duplicate_conditions_or,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        OR (
+            (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s OR ((id = %s OR org = %s))"
+    );
+
+    scrub_sql_test!(
+        non_duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+            (a.id = %s AND a.org2 = %s)
+            OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND ((id = %s AND org2 = %s) OR (id = %s AND org = %s))"
+    );
+
+    scrub_sql_test!(
         unique_alias,
         "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
         "SELECT pg_advisory_unlock(%s, %s)"

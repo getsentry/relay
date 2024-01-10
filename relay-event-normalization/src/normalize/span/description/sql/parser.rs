@@ -276,7 +276,7 @@ impl VisitorMut for NormalizeVisitor {
             }
             Expr::BinaryOp {
                 ref mut left,
-                op: BinaryOperator::Or, // TODO: And
+                op: BinaryOperator::Or | BinaryOperator::And,
                 ref right,
             } => {
                 let is_equal = left == right;
