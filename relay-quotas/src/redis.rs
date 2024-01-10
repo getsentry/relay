@@ -195,7 +195,7 @@ impl GlobalCounters {
         loop {
             use BudgetOutcome as BO;
 
-            match self.decrement_budget(quota, quantity, limit) {
+            match self.try_use_budget(quota, quantity, limit) {
                 BO::RateLimited => return Ok(true),
                 BO::NotRateLimited => return Ok(false),
                 BO::KeyMissing | BO::SlotExpired | BO::LocalBudgetExhausted => {
@@ -206,19 +206,20 @@ impl GlobalCounters {
     }
 
     /// Returns `true` if items should be ratelimited.
-    fn decrement_budget(&self, quota: &RedisQuota, quantity: usize, limit: usize) -> BudgetOutcome {
+    fn try_use_budget(&self, quota: &RedisQuota, quantity: usize, limit: usize) -> BudgetOutcome {
         let map = self.counters.read().unwrap_or_else(|e| e.into_inner());
         let val = match map.get(&BudgetKeyRef::new(quota)) {
             Some(inner_lock) => inner_lock.read().unwrap_or_else(|e| e.into_inner()),
             None => return BudgetOutcome::KeyMissing,
         };
 
-        if current_slot(quota.window) != val.slot {
+        if current_slot(quota.window) > val.slot {
             return BudgetOutcome::SlotExpired;
         }
 
         use Ordering::*;
         loop {
+            // invariant: budget can only decrease concurrently when we have read-lock.
             let budget = val.budget.load(SeqCst);
             let total_count = val.last_seen_redis_value - budget;
 
@@ -256,8 +257,12 @@ impl GlobalCounters {
                 let val_read = val.read().unwrap_or_else(|e| e.into_inner());
 
                 if val_read.fetch_block_redis() {
+                    drop(val_read);
+                    // wait until redis call is done before returning to avoid spin lock.
+                    drop(val.write().unwrap_or_else(|e| e.into_inner()));
                     return Ok(());
                 }
+
                 drop(val_read);
                 let mut val_write = val.write().unwrap_or_else(|e| e.into_inner());
 
