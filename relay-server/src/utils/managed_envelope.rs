@@ -199,6 +199,7 @@ impl ManagedEnvelope {
         let use_indexed = self.use_index_category();
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
+            #[cfg(feature = "processing")]
             ItemAction::Accept => {
                 if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((Outcome::Accepted, category, item.quantity()));

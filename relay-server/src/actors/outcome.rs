@@ -183,6 +183,7 @@ impl Outcome {
             Outcome::Invalid(_) => OutcomeId::INVALID,
             Outcome::Abuse => OutcomeId::ABUSE,
             Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
+            #[cfg(feature = "processing")]
             Outcome::Accepted => OutcomeId::ACCEPTED,
         }
     }
@@ -199,6 +200,7 @@ impl Outcome {
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
+            #[cfg(feature = "processing")]
             Outcome::Accepted => None,
         }
     }
@@ -231,6 +233,7 @@ impl fmt::Display for Outcome {
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
             Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
+            #[cfg(feature = "processing")]
             Outcome::Accepted => write!(f, "accepted"),
         }
     }
