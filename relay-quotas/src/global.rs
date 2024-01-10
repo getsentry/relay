@@ -43,6 +43,10 @@ impl GlobalRateLimits {
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, RedisError> {
+        let Some(limit) = quota.limit else {
+            return Ok(false);
+        };
+
         let key = BudgetKeyRef::new(quota);
 
         let val = match self.counters.read().unwrap().get(&key).cloned() {
@@ -51,7 +55,7 @@ impl GlobalRateLimits {
         };
 
         let mut lock = val.lock().unwrap();
-        lock.is_rate_limited(client, quota, quantity)
+        lock.is_rate_limited(client, quota, quantity, limit)
     }
 }
 
@@ -115,11 +119,9 @@ impl SlottedCounter {
         client: &mut PooledClient,
         quota: &RedisQuota,
         quantity: usize,
+        limit: u64,
     ) -> Result<bool, RedisError> {
         let quota_slot = current_slot(quota.window());
-        let Some(limit) = quota.limit else {
-            return Ok(false);
-        };
 
         match self.slot.cmp(&quota_slot) {
             Ordering::Greater => {
@@ -127,13 +129,14 @@ impl SlottedCounter {
                 // in theory this should never happen only if someone messes with the system time
                 // be safe and dont rate limit
                 relay_log::error!("time went backwards");
-                return Ok(false);
+                Ok(false)
             }
-            Ordering::Less => self.counter = Counter::new(),
-            Ordering::Equal => {}
+            Ordering::Less => {
+                self.counter = Counter::new();
+                self.counter.is_rate_limited(client, limit, quantity, quota)
+            }
+            Ordering::Equal => self.counter.is_rate_limited(client, limit, quantity, quota),
         }
-
-        self.counter.is_rate_limited(client, limit, quantity, quota)
     }
 }
 
