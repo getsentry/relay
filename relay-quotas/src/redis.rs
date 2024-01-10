@@ -1,5 +1,5 @@
 use std::fmt::{self, Debug};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{Arc, RwLock};
 
 use relay_common::time::UnixTimestamp;
@@ -17,7 +17,7 @@ use crate::REJECT_ALL_SECS;
 /// metrics may not be in sync with the computer running this code.
 const GRACE: u64 = 60;
 
-const DEFAULT_BUDGET_REQUEST: usize = 100;
+const DEFAULT_BUDGET_REQUEST: isize = 100;
 
 /// An error returned by `RedisRateLimiter`.
 #[derive(Debug, Error)]
@@ -188,7 +188,11 @@ impl GlobalCounters {
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, RedisError> {
-        let Some(limit) = quota.limit.map(|limit| limit as usize) else {
+        let Some(limit) = quota.limit.map(|limit| limit as isize) else {
+            return Ok(false);
+        };
+
+        let Ok(quantity) = quantity.try_into() else {
             return Ok(false);
         };
 
@@ -206,7 +210,7 @@ impl GlobalCounters {
     }
 
     /// Returns `true` if items should be ratelimited.
-    fn try_use_budget(&self, quota: &RedisQuota, quantity: usize, limit: usize) -> BudgetOutcome {
+    fn try_use_budget(&self, quota: &RedisQuota, quantity: isize, limit: isize) -> BudgetOutcome {
         let map = self.counters.read().unwrap_or_else(|e| e.into_inner());
         let val = match map.get(&BudgetKeyRef::new(quota)) {
             Some(inner_lock) => inner_lock.read().unwrap_or_else(|e| e.into_inner()),
@@ -217,28 +221,17 @@ impl GlobalCounters {
             return BudgetOutcome::SlotExpired;
         }
 
-        use Ordering::*;
-        loop {
-            // invariant: budget can only decrease concurrently when we have read-lock.
-            let budget = val.budget.load(SeqCst);
-            let total_count = val.last_seen_redis_value - budget;
+        let before_sub = val.budget.fetch_sub(quantity, Ordering::SeqCst);
 
-            if total_count + quantity > limit {
-                return BudgetOutcome::RateLimited;
-            }
-
-            if budget < quantity {
-                return BudgetOutcome::LocalBudgetExhausted;
-            }
-
-            match val
-                .budget
-                .compare_exchange_weak(budget, budget - quantity, SeqCst, SeqCst)
-            {
-                Ok(_) => return BudgetOutcome::NotRateLimited,
-                Err(_) => continue,
-            }
+        if before_sub > quantity {
+            return BudgetOutcome::NotRateLimited;
         }
+
+        if val.last_seen_redis_value as isize + quantity > limit {
+            return BudgetOutcome::RateLimited;
+        }
+
+        BudgetOutcome::LocalBudgetExhausted
     }
 
     /// Ensures the local counter is up to date with the redis counter.
@@ -246,7 +239,7 @@ impl GlobalCounters {
         &self,
         client: &mut PooledClient,
         quota: &RedisQuota,
-        quantity: usize,
+        quantity: isize,
     ) -> Result<(), RedisError> {
         let shared_counter_map = self.counters.read().unwrap_or_else(|e| e.into_inner());
         let current_slot = current_slot(quota.window);
@@ -297,13 +290,13 @@ impl GlobalCounters {
         &self,
         quota: &RedisQuota,
         client: &mut PooledClient,
-        quantity: usize,
-    ) -> Result<(usize, usize), RedisError> {
+        quantity: isize,
+    ) -> Result<(isize, usize), RedisError> {
         let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
         let redis_key = quota.key();
         let expiry = quota.timestamp.as_secs() + quota.window + GRACE;
 
-        let (budget, redis_count): (usize, usize) = self
+        let (budget, redis_count): (isize, usize) = self
             .script
             .prepare_invoke()
             .key(redis_key.as_str())
@@ -360,15 +353,15 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
 /// Represents the local budget taken from a global quota.
 struct BudgetState {
     slot: usize,
-    budget: AtomicUsize,
+    budget: AtomicIsize,
     last_seen_redis_value: usize,
     redis_call_in_progress: AtomicBool,
 }
 
 impl BudgetState {
-    fn new(budget: usize, redis_value: usize, slot: usize) -> Self {
+    fn new(budget: isize, redis_value: usize, slot: usize) -> Self {
         Self {
-            budget: AtomicUsize::new(budget),
+            budget: AtomicIsize::new(budget),
             last_seen_redis_value: redis_value,
             slot,
             redis_call_in_progress: AtomicBool::new(false),
@@ -383,7 +376,7 @@ impl BudgetState {
         self.redis_call_in_progress.store(false, Ordering::SeqCst);
     }
 
-    fn update(&mut self, new_budget: usize, redis_value: usize, current_slot: usize) {
+    fn update(&mut self, new_budget: isize, redis_value: usize, current_slot: usize) {
         let is_slot_expired = self.slot != current_slot;
 
         if is_slot_expired {
