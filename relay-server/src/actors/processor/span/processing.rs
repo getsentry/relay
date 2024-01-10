@@ -14,6 +14,7 @@ use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 
+use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
@@ -45,7 +46,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
                     Ok(otel_span) => Annotated::new(otel_span.into()),
                     Err(err) => {
                         relay_log::debug!("failed to parse OTel span: {}", err);
-                        return ItemAction::DropSilently;
+                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
                     }
                 }
             }
@@ -53,7 +54,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
                 Ok(span) => span,
                 Err(err) => {
                     relay_log::debug!("failed to parse span: {}", err);
-                    return ItemAction::DropSilently;
+                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
                 }
             },
 
@@ -62,11 +63,11 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
 
         if let Err(e) = normalize(&mut annotated_span, config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
-            return ItemAction::DropSilently;
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
         let Some(span) = annotated_span.value_mut() else {
-            return ItemAction::DropSilently;
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
         if let Some(config) = span_metrics_extraction_config {
@@ -95,7 +96,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             Ok(res) => res,
             Err(err) => {
                 relay_log::error!("invalid span: {err}");
-                return ItemAction::DropSilently;
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
             }
         };
 
@@ -105,7 +106,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             Ok(payload) => payload,
             Err(err) => {
                 relay_log::debug!("failed to serialize span: {}", err);
-                return ItemAction::DropSilently;
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             }
         };
         new_item.set_payload(ContentType::Json, payload);
