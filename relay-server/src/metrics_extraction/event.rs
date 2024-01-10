@@ -1220,7 +1220,15 @@ mod tests {
     #[test]
     fn test_app_start_cold_inlier() {
         let metrics = extract_span_metrics_mobile("app.start.cold", 180000.0);
-        assert!(!metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
+        );
     }
 
     #[test]
@@ -1232,7 +1240,15 @@ mod tests {
     #[test]
     fn test_app_start_warm_inlier() {
         let metrics = extract_span_metrics_mobile("app.start.warm", 180000.0);
-        assert!(!metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
+        );
     }
 
     #[test]
@@ -1244,7 +1260,15 @@ mod tests {
     #[test]
     fn test_ui_load_initial_display_inlier() {
         let metrics = extract_span_metrics_mobile("ui.load.initial_display", 180000.0);
-        assert!(!metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
+        );
     }
 
     #[test]
@@ -1256,7 +1280,15 @@ mod tests {
     #[test]
     fn test_ui_load_full_display_inlier() {
         let metrics = extract_span_metrics_mobile("ui.load.full_display", 180000.0);
-        assert!(!metrics.is_empty());
+        assert_eq!(
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
+        );
     }
 
     #[test]
