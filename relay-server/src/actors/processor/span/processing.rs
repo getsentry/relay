@@ -113,7 +113,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
 
         *item = new_item;
 
-        ItemAction::Keep
+        ItemAction::Accept
     });
 }
 
