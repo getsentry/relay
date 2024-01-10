@@ -704,12 +704,12 @@ mod tests {
         FROM a
         WHERE a.status = %s
         AND (
-        (a.id = %s AND a.org = %s)
-        OR (a.id = %s AND a.org = %s)
-        OR (a.id = %s AND a.org = %s)
-        OR (a.id = %s AND a.org = %s)
+            (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
         )"#,
-        "SELECT * FROM a WHERE status = %s AND ((a.id = %s AND a.org = %s) OR ..)"
+        "SELECT * FROM a WHERE status = %s AND ((id = %s AND org = %s))"
     );
 
     scrub_sql_test!(

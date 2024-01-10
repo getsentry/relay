@@ -275,24 +275,15 @@ impl VisitorMut for NormalizeVisitor {
                 *expr = swapped;
             }
             Expr::BinaryOp {
-                left,
+                ref mut left,
                 op: BinaryOperator::Or, // TODO: And
-                right,
+                ref right,
             } => {
-                while let Expr::Nested(boxed_expr) = right.as_mut() {
-                    if let Expr::BinaryOp {
-                        left: right_left,
-                        op: right_op,
-                        right: ref mut right_right,
-                    } = boxed_expr.as_mut()
-                    {
-                        if right_op == &BinaryOperator::Or && right_left == left {
-                            *right = right_right.clone();
-                            right = right_right;
-                        }
-                        continue;
-                    }
-                    break;
+                let is_equal = left == right;
+                if is_equal {
+                    let mut swapped = Expr::Value(Value::Null);
+                    std::mem::swap(&mut swapped, left.as_mut());
+                    *expr = swapped;
                 }
             }
             _ => (),
