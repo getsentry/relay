@@ -383,5 +383,39 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .always(), // already guarded by condition on metric
             ],
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/count_dynamically_loaded_libraries@none".into(),
+            field: Some("span.measurements.count_dynamically_loaded_libraries".into()),
+            condition: Some(
+                duration_condition.clone() & is_mobile.clone() & app_start_condition.clone(),
+            ),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.description")
+                    .from_field("span.sentry_tags.description")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("span.group")
+                    .from_field("span.sentry_tags.group")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("device.class")
+                    .from_field("span.sentry_tags.device.class")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("os.name")
+                    .from_field("span.sentry_tags.os.name")
+                    .always(), // already guarded by condition on metric
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
     ]
 }

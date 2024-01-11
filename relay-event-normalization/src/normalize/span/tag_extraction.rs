@@ -1,4 +1,4 @@
-//! Logic for persisting items into `span.data` fields.
+//! Logic for persisting items into `span.sentry_tags`, `span.data`, or `span.measurements` fields.
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -7,8 +7,9 @@ use std::ops::ControlFlow;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{InformationUnit, MetricUnit};
+
 use relay_event_schema::protocol::{
-    AppContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, DebugMeta, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -59,6 +60,7 @@ pub enum SpanTagKey {
     FileExtension,
     /// Span started on main thread.
     MainTread,
+    CountDynamicallyLoadedImages,
 }
 
 impl SpanTagKey {
@@ -93,6 +95,7 @@ impl SpanTagKey {
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainTread => "main_thread",
             SpanTagKey::OsName => "os.name",
+            SpanTagKey::CountDynamicallyLoadedImages => "count_dynamically_loaded_libraries",
         }
     }
 }
@@ -133,7 +136,8 @@ pub struct Config {
     pub max_tag_value_size: usize,
 }
 
-/// Extracts tags from event and spans and materializes them into `span.data`.
+/// Extracts tags from event and spans and materializes them into `span.sentry_tags`,
+/// or `span.measurements`.
 pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
@@ -148,6 +152,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
 
     let ttid = timestamp_by_op(spans, "ui.load.initial_display");
     let ttfd = timestamp_by_op(spans, "ui.load.full_display");
+    let count_dynamically_loaded_libraries = count_images(&event.debug_meta);
 
     for span in spans {
         let Some(span) = span.value_mut().as_mut() else {
@@ -164,6 +169,32 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
         );
+
+        // Only add dynamically loaded library information to root app start spans in mobile
+        if is_mobile {
+            if let Some(span_op) = span.op.value() {
+                if let Some(description) = span.description.value() {
+                    if (span_op.starts_with("app.start."))
+                        && (description == "Cold Start" || description == "Warm Start")
+                    {
+                        if let Some(count_dynamically_loaded_libraries) =
+                            count_dynamically_loaded_libraries
+                        {
+                            let measurements =
+                                span.measurements.get_or_insert_with(Default::default);
+                            measurements.insert(
+                                "count_dynamically_loaded_libraries".into(),
+                                Measurement {
+                                    value: Annotated::new(count_dynamically_loaded_libraries),
+                                    unit: MetricUnit::None.into(),
+                                }
+                                .into(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
 
         extract_measurements(span);
     }
@@ -229,7 +260,7 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     tags
 }
 
-/// Writes fields into [`Span::data`].
+/// Writes fields into [`Span::sentry_tags`].
 ///
 /// Generating new span data fields is based on a combination of looking at
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
@@ -441,7 +472,7 @@ pub fn extract_tags(
     span_tags
 }
 
-/// Copies specific numeric values from span data to span measurements.
+/// Copies specific numeric values from span.data to span measurements.
 pub fn extract_measurements(span: &mut Span) {
     let Some(span_op) = span.op.as_str() else {
         return;
@@ -488,6 +519,14 @@ fn timestamp_by_op(spans: &[Annotated<Span>], op: &str) -> Option<Timestamp> {
         .filter_map(Annotated::value)
         .find(|span| span.op.as_str() == Some(op))
         .and_then(|span| span.timestamp.value().copied())
+}
+
+/// Counts the number of dynamically loaded images from debug meta.
+fn count_images(debug_meta: &Annotated<DebugMeta>) -> Option<f64> {
+    debug_meta
+        .value()
+        .and_then(|debug_meta| debug_meta.images.value())
+        .map(|images| images.len() as f64)
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens

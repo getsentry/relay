@@ -1201,6 +1201,104 @@ mod tests {
             .any(|b| b.name == "d:spans/exclusive_time_light@millisecond"));
     }
 
+    #[test]
+    fn test_extract_span_metrics_debug_meta() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "sdk": {"name": "sentry.javascript.react-native"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "transaction": "gEt /api/:version/users/",
+            "debug_meta": {
+                "images": [
+                    {
+                        "code_file": "/private/var/containers/Bundle/Application/569FE0C2-02A5-4590-B613-6E66085CA7C4/iOS-Swift.app/iOS-Swift",
+                        "debug_id": "abe2f487-f23f-395e-ab1e-4af69ae63fac",
+                        "arch": "arm64",
+                        "image_addr": "0x102f60000",
+                        "image_size": 278528
+                    }
+                ]
+            },
+            "contexts": {
+                "trace": {
+                    "op": "ui.load",
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4"
+                }
+            },
+            "spans": [
+                {
+                    "description": "Cold Start",
+                    "op": "app.start.cold",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "exclusive_time": 2000.0,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
+                    },
+                    "sentry_tags": {
+                        "action": "GET",
+                        "category": "http",
+                        "description": "Cold Start",
+                        "domain": "domain.tld",
+                        "group": "d9dc18637d441612",
+                        "mobile": "true",
+                        "op": "app.start.cold",
+                        "transaction": "gEt /api/:version/users/",
+                        "transaction.method": "GET",
+                        "transaction.op": "ui.load"
+                    }
+                }
+            ]
+        }
+        "#;
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                normalize_spans: true,
+                device_class_synthesis_config: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [
+                Feature::SpanMetricsExtraction,
+                Feature::SpanMetricsExtractionAllModules,
+            ]
+            .into_iter()
+            .collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+
+        // print metrics
+        for metric in &metrics {
+            println!("{:?}", metric);
+        }
+        assert!(metrics
+            .iter()
+            .any(|b| b.name == "c:spans/count_dynamically_loaded_libraries@none"));
+        // assert!(metrics
+        //     .iter()
+        //     .any(|b| b.name == "c:spans/size_dynamically_loaded_libraries@none"));
+    }
+
     /// Helper function for span metric extraction tests.
     fn extract_span_metrics(span: &Span) -> Vec<Bucket> {
         let mut config = ProjectConfig::default();
