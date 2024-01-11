@@ -471,7 +471,7 @@
             ],
         );
 
-    <span class="kw">let </span>is_mobile = is_mobile_sdk &amp; (is_mobile_op.clone() | is_screen);
+    <span class="kw">let </span>is_mobile = is_mobile_sdk.clone() &amp; (is_mobile_op.clone() | is_screen);
 
     <span class="comment">// For mobile spans, only extract duration metrics when they are below a threshold.
     </span><span class="kw">let </span>duration_condition = RuleCondition::negate(is_mobile_op.clone())
@@ -723,7 +723,7 @@
             category: DataCategory::Span,
             mri: <span class="string">&quot;c:spans/count_per_segment@none&quot;</span>.into(),
             field: <span class="prelude-val">None</span>,
-            condition: <span class="prelude-val">Some</span>(is_mobile.clone() &amp; duration_condition.clone()),
+            condition: <span class="prelude-val">Some</span>(is_mobile_sdk.clone() &amp; duration_condition.clone()),
             tags: <span class="macro">vec!</span>[
                 Tag::with_key(<span class="string">&quot;transaction.op&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.transaction.op&quot;</span>)
