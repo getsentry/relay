@@ -840,6 +840,18 @@ impl StoreService {
                     error = &error as &dyn std::error::Error,
                     "failed to parse span"
                 );
+                self.outcome_aggregator.send(TrackOutcome {
+                    timestamp: instant_to_date_time(start_time),
+                    scoping,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
+                    event_id,
+                    remote_addr,
+                    category: DataCategory::Span,
+                    // Quantities are usually `usize` which lets us go all the way to 64-bit on our
+                    // machines, but the protocol and data store can only do 32-bit.
+                    quantity: 1,
+                });
+
                 return Ok(());
             }
         };
@@ -856,10 +868,8 @@ impl StoreService {
             KafkaMessage::Span(span),
         )?;
 
-        let timestamp = instant_to_date_time(start_time);
-
         self.outcome_aggregator.send(TrackOutcome {
-            timestamp,
+            timestamp: instant_to_date_time(start_time),
             scoping,
             outcome: Outcome::Accepted,
             event_id,
