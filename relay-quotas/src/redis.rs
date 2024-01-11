@@ -143,8 +143,8 @@ impl std::ops::Deref for RedisQuota<'_> {
 
 #[derive(Debug)]
 enum BudgetOutcome {
-    NotRateLimited,
-    RateLimited,
+    LocalBudgetDecremented,
+    GlobalCountExceeded,
     LocalBudgetExhausted,
 }
 
@@ -164,16 +164,14 @@ fn current_slot(window: u64) -> usize {
 /// we have no more budget, then we ask for more from redis. If we find the global counter is above
 /// the quota limit, we will ratelimit the item.
 #[derive(Default)]
-struct GlobalCounters {
-    counters: RwLock<hashbrown::HashMap<BudgetKey, Arc<RwLock<BudgetState>>>>,
-}
+struct GlobalCounters(RwLock<hashbrown::HashMap<BudgetKey, Arc<RwLock<BudgetState>>>>);
 
 impl GlobalCounters {
     /// Returns `true` if the global quota should be ratelimited.
     ///
     /// Certain errors can be resolved by syncing to redis, so in those cases
     /// we try again to decrement the budget after syncing.
-    fn evaluate_quota(
+    fn is_rate_limited(
         &self,
         client: &mut PooledClient,
         quota: &RedisQuota,
@@ -186,15 +184,15 @@ impl GlobalCounters {
         let budget_state = self.get_state(quota);
 
         match budget_state.read().unwrap().try_use_budget(quantity, limit) {
-            BudgetOutcome::RateLimited => return Ok(true),
-            BudgetOutcome::NotRateLimited => return Ok(false),
+            BudgetOutcome::GlobalCountExceeded => return Ok(true),
+            BudgetOutcome::LocalBudgetDecremented => return Ok(false),
             BudgetOutcome::LocalBudgetExhausted => {}
         }
 
         return budget_state
             .write()
             .unwrap()
-            .try_use_budget_with_redis(client, quota, quantity);
+            .is_rate_limited(client, quota, quantity);
     }
 
     /// Retrieves a valid [`BudgetState`] from the map.
@@ -202,7 +200,7 @@ impl GlobalCounters {
     /// If it's missing or outdated, a new one is inserted before being returned.
     fn get_state(&self, quota: &RedisQuota) -> Arc<RwLock<BudgetState>> {
         let key = BudgetKeyRef::new(quota);
-        let state_opt = self.counters.read().unwrap().get(&key).cloned();
+        let state_opt = self.0.read().unwrap().get(&key).cloned();
 
         match state_opt {
             Some(state) => {
@@ -225,7 +223,7 @@ impl GlobalCounters {
             None => {
                 // Acquire a write lock on the HashMap to insert a new BudgetState.
                 let new_state = Arc::new(RwLock::new(BudgetState::new(quota.window)));
-                self.counters
+                self.0
                     .write()
                     .unwrap()
                     .insert(key.into_owned(), Arc::clone(&new_state));
@@ -301,22 +299,36 @@ impl BudgetState {
         }
     }
 
-    /// Returns `true` if items should be ratelimited.
     fn try_use_budget(&self, quantity: usize, limit: usize) -> BudgetOutcome {
         use Ordering::SeqCst;
-        let total_count = self.last_seen_redis_value + quantity;
 
-        match self
+        // invariant: budget should not increase in &self.
+        let current_budget = self.budget.load(SeqCst);
+
+        let total_current_count = self.last_seen_redis_value - current_budget;
+
+        if total_current_count + quantity > limit {
+            return BudgetOutcome::GlobalCountExceeded;
+        }
+
+        if current_budget < quantity {
+            return BudgetOutcome::LocalBudgetExhausted;
+        }
+
+        // fails if budget has changed to be under the quantity.
+        let decremented_successfully = self
             .budget
             .fetch_update(SeqCst, SeqCst, |val| val.checked_sub(quantity))
-        {
-            Ok(_) => BudgetOutcome::NotRateLimited,
-            Err(_) if total_count > limit => BudgetOutcome::RateLimited,
-            Err(_) => BudgetOutcome::LocalBudgetExhausted,
+            .is_ok();
+
+        if decremented_successfully {
+            BudgetOutcome::LocalBudgetDecremented
+        } else {
+            BudgetOutcome::LocalBudgetExhausted
         }
     }
 
-    fn try_use_budget_with_redis(
+    fn is_rate_limited(
         &mut self,
         client: &mut PooledClient,
         quota: &RedisQuota,
@@ -446,7 +458,7 @@ impl RedisRateLimiter {
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
-                    match self.counters.evaluate_quota(&mut client, &quota, quantity) {
+                    match self.counters.is_rate_limited(&mut client, &quota, quantity) {
                         Ok(true) => {
                             rate_limits.add(RateLimit::from_quota(
                                 &quota,
@@ -1107,7 +1119,7 @@ mod tests {
         // still be under the limit. 90 < 200 -> 180 < 200 -> 270 > 200 -> 360 > 200.
         for should_ratelimit in expected_ratelimit_result {
             let is_ratelimited = counter
-                .evaluate_quota(&mut client, &redis_quota, 90)
+                .is_rate_limited(&mut client, &redis_quota, 90)
                 .unwrap();
 
             assert_eq!(should_ratelimit, is_ratelimited);
