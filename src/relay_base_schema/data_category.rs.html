@@ -173,6 +173,12 @@
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -224,7 +230,7 @@
     </span>ProfileIndexed = <span class="number">11</span>,
     <span class="doccomment">/// Span
     ///
-    /// Used for spans processed independently of transactions.
+    /// This is the category for spans from which we extracted metrics from.
     </span>Span = <span class="number">12</span>,
     <span class="doccomment">/// Monitor Seat
     ///
@@ -240,6 +246,10 @@
     </span>UserReportV2 = <span class="number">14</span>,
     <span class="doccomment">/// Metric buckets.
     </span>MetricBucket = <span class="number">15</span>,
+    <span class="doccomment">/// SpanIndexed
+    ///
+    /// This is the category for spans we store in full.
+    </span>SpanIndexed = <span class="number">16</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -271,6 +281,7 @@
             <span class="string">&quot;monitor_seat&quot; </span>=&gt; <span class="self">Self</span>::MonitorSeat,
             <span class="string">&quot;feedback&quot; </span>=&gt; <span class="self">Self</span>::UserReportV2,
             <span class="string">&quot;metric_bucket&quot; </span>=&gt; <span class="self">Self</span>::MetricBucket,
+            <span class="string">&quot;span_indexed&quot; </span>=&gt; <span class="self">Self</span>::SpanIndexed,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -295,6 +306,7 @@
             <span class="self">Self</span>::MonitorSeat =&gt; <span class="string">&quot;monitor_seat&quot;</span>,
             <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">&quot;feedback&quot;</span>,
             <span class="self">Self</span>::MetricBucket =&gt; <span class="string">&quot;metric_bucket&quot;</span>,
+            <span class="self">Self</span>::SpanIndexed =&gt; <span class="string">&quot;span_indexed&quot;</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
