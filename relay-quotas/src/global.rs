@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 
 use relay_common::time::UnixTimestamp;
 use relay_redis::redis::Script;
-use relay_redis::{PooledClient, RedisError};
+use relay_redis::PooledClient;
 
 use crate::RedisQuota;
 
@@ -15,17 +15,19 @@ fn current_slot(window: u64) -> usize {
         .unwrap_or_default() as usize
 }
 
-fn load_global_lua_script() -> &'static Script {
-    static SCRIPT: OnceLock<Script> = OnceLock::new();
-    SCRIPT.get_or_init(|| Script::new(include_str!("global_quota.lua")))
-}
-
 const DEFAULT_BUDGET_REQUEST: usize = 100;
 
-/// Represents the case of a [`BudgetState`]'s slot being ahead of the current slot.
-///
-/// This should only be possible if the internal clock of relay gets decremented during production.
-struct InvalidSlot;
+/// The possible errors from checking global rate limits.
+#[derive(thiserror::Error, Debug)]
+pub enum GlobalCountErrors {
+    /// Failure in Redis communication.
+    #[error("failed to communicate with redis")]
+    Redis,
+
+    /// Invalid budget slot.
+    #[error("budget slot ahead of current slot")]
+    InvalidSlot,
+}
 
 /// Counters used as a cache for global quotas.
 ///
@@ -35,8 +37,19 @@ struct InvalidSlot;
 /// a global counter. We Put the amount we pre-incremented into this local cache and count down until
 /// we have no more budget, then we ask for more from redis. If we find the global counter is above
 /// the quota limit, we will ratelimit the item.
-#[derive(Default)]
-pub struct GlobalCounters(RwLock<hashbrown::HashMap<BudgetKey, Arc<RwLock<BudgetState>>>>);
+pub struct GlobalCounters {
+    redis_script: Script,
+    counters: RwLock<hashbrown::HashMap<BudgetKey, Arc<RwLock<BudgetState>>>>,
+}
+
+impl Default for GlobalCounters {
+    fn default() -> Self {
+        Self {
+            redis_script: Script::new(include_str!("global_quota.lua")),
+            counters: Default::default(),
+        }
+    }
+}
 
 impl GlobalCounters {
     /// Returns `true` if the global quota should be ratelimited.
@@ -45,14 +58,8 @@ impl GlobalCounters {
         client: &mut PooledClient,
         quota: &RedisQuota,
         quantity: usize,
-    ) -> Result<bool, RedisError> {
-        let budget_state = match self.try_get_state(quota) {
-            Ok(state) => state,
-            Err(InvalidSlot) => {
-                relay_log::error!("budget slot ahead of current slot");
-                return Ok(false);
-            }
-        };
+    ) -> Result<bool, GlobalCountErrors> {
+        let budget_state = self.try_get_state(quota)?;
 
         {
             let read_lock = budget_state.read().unwrap();
@@ -66,11 +73,10 @@ impl GlobalCounters {
             }
         }
 
-        // From here we are guaranteed exclusive access to the budget.
         let mut write_lock = budget_state.write().unwrap();
 
         if !write_lock.fits_budget(quantity) {
-            let (budget, redis_count) = Self::reserve_budget_from_redis(client, quota, quantity)?;
+            let (budget, redis_count) = self.take_budget_from_redis(client, quota, quantity)?;
             write_lock.update_budget(budget, redis_count);
         };
 
@@ -80,11 +86,14 @@ impl GlobalCounters {
     /// Retrieves a valid [`BudgetState`] from the map.
     ///
     /// If it's missing or outdated, a new one is inserted before being returned.
-    fn try_get_state(&self, quota: &RedisQuota) -> Result<Arc<RwLock<BudgetState>>, InvalidSlot> {
+    fn try_get_state(
+        &self,
+        quota: &RedisQuota,
+    ) -> Result<Arc<RwLock<BudgetState>>, GlobalCountErrors> {
         let key = BudgetKeyRef::new(quota);
         let window = quota.window();
 
-        let state_opt = self.0.read().unwrap().get(&key).cloned();
+        let state_opt = self.counters.read().unwrap().get(&key).cloned();
         match state_opt {
             Some(state) => {
                 if state.read().unwrap().is_valid(window)? {
@@ -97,7 +106,7 @@ impl GlobalCounters {
                 Ok(state)
             }
             None => {
-                let mut write_guard = self.0.write().unwrap();
+                let mut write_guard = self.counters.write().unwrap();
                 let new_state = || Arc::new(RwLock::new(BudgetState::new(window)));
 
                 let state = write_guard
@@ -110,25 +119,26 @@ impl GlobalCounters {
     }
 
     /// Ask redis for more budget.
-    fn reserve_budget_from_redis(
+    fn take_budget_from_redis(
+        &self,
         client: &mut PooledClient,
         quota: &RedisQuota,
         quantity: usize,
-    ) -> Result<(usize, usize), RedisError> {
-        let script = load_global_lua_script();
+    ) -> Result<(usize, usize), GlobalCountErrors> {
         let requested_budget = DEFAULT_BUDGET_REQUEST.max(quantity);
         let redis_key = quota.key();
         let expiry = UnixTimestamp::now().as_secs() + quota.window();
         let limit = quota.limit();
 
-        let (received_budget, redis_count): (usize, usize) = script
+        let (received_budget, redis_count): (usize, usize) = self
+            .redis_script
             .prepare_invoke()
             .key(redis_key.as_str())
             .arg(limit)
             .arg(expiry)
             .arg(requested_budget)
-            .invoke(&mut client.connection()?)
-            .map_err(RedisError::Redis)?;
+            .invoke(&mut client.connection().map_err(|_| GlobalCountErrors::Redis)?)
+            .map_err(|_| GlobalCountErrors::Redis)?;
 
         Ok((received_budget, redis_count))
     }
@@ -200,18 +210,18 @@ impl BudgetState {
     }
 
     /// Returns `true` if slot has not expired.
-    fn is_valid(&self, window: u64) -> Result<bool, InvalidSlot> {
+    fn is_valid(&self, window: u64) -> Result<bool, GlobalCountErrors> {
         use std::cmp::Ordering::*;
         let current_slot = current_slot(window);
 
         match self.slot.cmp(&current_slot) {
             Less => Ok(false),
             Equal => Ok(true),
-            Greater => Err(InvalidSlot),
+            Greater => Err(GlobalCountErrors::InvalidSlot),
         }
     }
 
-    fn reset_if_expired(&mut self, window: u64) -> Result<(), InvalidSlot> {
+    fn reset_if_expired(&mut self, window: u64) -> Result<(), GlobalCountErrors> {
         if !self.is_valid(window)? {
             *self = Self::new(window);
         }
