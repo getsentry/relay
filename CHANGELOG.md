@@ -1,7 +1,5 @@
 # Changelog
 
-
-
 ## 23.12.1
 
 **Features**:
