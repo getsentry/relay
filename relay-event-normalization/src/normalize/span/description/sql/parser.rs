@@ -6,9 +6,9 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    AlterTableOperation, Assignment, CloseCursor, ColumnDef, Expr, Ident, ObjectName, Query,
-    Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint, TableFactor,
-    UnaryOperator, Value, VisitMut, VisitorMut,
+    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, Expr, Ident,
+    ObjectName, Query, Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint,
+    TableFactor, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -268,10 +268,26 @@ impl VisitorMut for NormalizeVisitor {
     fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         // Casts are omitted for simplification. Because we replace the entire expression,
         // the replacement has to occur *after* visiting its children.
-        if let Expr::Cast { expr: inner, .. } = expr {
-            let mut swapped = Expr::Value(Value::Null);
-            std::mem::swap(&mut swapped, inner);
-            *expr = swapped;
+        match expr {
+            Expr::Cast { expr: inner, .. } => {
+                *expr = take_expr(inner);
+            }
+            Expr::BinaryOp {
+                ref mut left,
+                op: BinaryOperator::Or | BinaryOperator::And,
+                ref right,
+            } => {
+                let is_equal = left == right;
+                if is_equal {
+                    *expr = take_expr(left);
+                }
+            }
+            Expr::Nested(inner) if matches!(inner.as_ref(), &Expr::Nested(_)) => {
+                // Remove multiple levels of parentheses.
+                // These can occur because of the binary op reduction above.
+                *expr = take_expr(inner);
+            }
+            _ => (),
         }
 
         self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
@@ -418,6 +434,15 @@ impl VisitorMut for NormalizeVisitor {
 
         ControlFlow::Continue(())
     }
+}
+
+/// Get ownership of an `Expr` and leave a NULL value in its place.
+///
+/// We cannot use [`std::mem::take`], because [`Expr`] does not implement [`Default`].
+fn take_expr(expr: &mut Expr) -> Expr {
+    let mut swapped = Expr::Value(Value::Null);
+    std::mem::swap(&mut swapped, expr);
+    swapped
 }
 
 /// An extension of an SQL dialect that accepts `?`, `%s`, `:c0` as valid input.
