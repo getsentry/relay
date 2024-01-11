@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Group db spans with repeating logical conditions together. ([#2929](https://github.com/getsentry/relay/pull/2929))
+
 **Bug Fixes**:
 
 - Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
