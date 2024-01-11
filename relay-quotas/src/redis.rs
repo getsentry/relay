@@ -168,9 +168,6 @@ struct GlobalCounters(RwLock<hashbrown::HashMap<BudgetKey, Arc<RwLock<BudgetStat
 
 impl GlobalCounters {
     /// Returns `true` if the global quota should be ratelimited.
-    ///
-    /// Certain errors can be resolved by syncing to redis, so in those cases
-    /// we try again to decrement the budget after syncing.
     fn is_rate_limited(
         &self,
         client: &mut PooledClient,
@@ -328,6 +325,7 @@ impl BudgetState {
         }
     }
 
+    /// Returns `true` if the quota should be ratelimited.
     fn is_rate_limited(
         &mut self,
         client: &mut PooledClient,
@@ -346,6 +344,7 @@ impl BudgetState {
         let should_ratelimit = current_budget < quantity;
 
         if !should_ratelimit {
+            // we know the budget didn't change since we loaded it, because we have exclusive access.
             self.budget.fetch_sub(quantity, Ordering::SeqCst);
         }
 
