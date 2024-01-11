@@ -2,13 +2,15 @@
 //! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
+use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
-use relay_common::time::UnixTimestamp;
+use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
@@ -241,11 +243,12 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::Span => self.produce_span(
-                    scoping.organization_id,
-                    scoping.project_id,
+                    scoping,
+                    start_time,
                     event_id,
                     retention,
                     item,
+                    envelope.meta().remote_addr(),
                 )?,
                 _ => {}
             }
@@ -821,11 +824,12 @@ impl StoreService {
 
     fn produce_span(
         &self,
-        organization_id: u64,
-        project_id: ProjectId,
+        scoping: Scoping,
+        start_time: Instant,
         event_id: Option<EventId>,
         retention_days: u16,
         item: &Item,
+        remote_addr: Option<IpAddr>,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
         let d = &mut Deserializer::from_slice(&payload);
@@ -842,11 +846,29 @@ impl StoreService {
 
         span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
         span.event_id = event_id;
-        span.project_id = project_id.value();
+        span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
 
-        self.produce(KafkaTopic::Spans, organization_id, KafkaMessage::Span(span))?;
+        self.produce(
+            KafkaTopic::Spans,
+            scoping.organization_id,
+            KafkaMessage::Span(span),
+        )?;
+
+        let timestamp = instant_to_date_time(start_time);
+
+        self.outcome_aggregator.send(TrackOutcome {
+            timestamp,
+            scoping,
+            outcome: Outcome::Accepted,
+            event_id,
+            remote_addr,
+            category: DataCategory::Span,
+            // Quantities are usually `usize` which lets us go all the way to 64-bit on our
+            // machines, but the protocol and data store can only do 32-bit.
+            quantity: 1,
+        });
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,

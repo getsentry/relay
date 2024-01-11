@@ -47,9 +47,6 @@ impl Handling {
 pub enum ItemAction {
     /// Keep the item.
     Keep,
-    /// Keep the item and send an Accepted outcome.
-    #[cfg(feature = "processing")]
-    Accept,
     /// Drop the item and log an outcome for it.
     /// The outcome will only be logged if the item has a corresponding [`Item::outcome_category()`].
     Drop(Outcome),
@@ -199,13 +196,6 @@ impl ManagedEnvelope {
         let use_indexed = self.use_index_category();
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
-            #[cfg(feature = "processing")]
-            ItemAction::Accept => {
-                if let Some(category) = item.outcome_category(use_indexed) {
-                    outcomes.push((Outcome::Accepted, category, item.quantity()));
-                }
-                true
-            }
             ItemAction::Drop(outcome) => {
                 if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
