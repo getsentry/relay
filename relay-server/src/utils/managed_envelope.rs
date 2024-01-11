@@ -219,7 +219,7 @@ impl ManagedEnvelope {
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
             ItemAction::Drop(outcome) => {
-                if let Some(category) = dbg!(item.outcome_category(use_indexed)) {
+                if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
                 }
 
@@ -249,7 +249,7 @@ impl ManagedEnvelope {
         self
     }
 
-    /// Remove event item(s) and log an outcome.
+    /// Removes event item(s) and log an outcome.
     ///
     /// Note: This function relies on the envelope summary being correct.
     pub fn reject_event(&mut self, outcome: Outcome) {
