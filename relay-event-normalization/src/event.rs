@@ -274,8 +274,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
     processor::apply(&mut event.request, |request, _| {
-        request::normalize_request(request)
-    })?;
+        request::normalize_request(request);
+        Ok(())
+    })
+    .ok();
 
     // Some contexts need to be normalized before metrics extraction takes place.
     processor::apply(&mut event.contexts, normalize_contexts)?;

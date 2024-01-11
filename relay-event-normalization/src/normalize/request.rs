@@ -192,12 +192,11 @@ fn normalize_cookies(request: &mut Request) {
 /// - The data is parsed as JSON or urlencoded and put into the `data` field.
 /// - The `Content-Type` header is parsed and put into the `inferred_content_type` field.
 /// - The `Cookie` header is parsed and put into the `cookies` field.
-pub fn normalize_request(request: &mut Request) -> ProcessingResult {
-    processor::apply(&mut request.method, normalize_method)?;
+pub fn normalize_request(request: &mut Request) {
+    processor::apply(&mut request.method, normalize_method).ok();
     normalize_url(request);
     normalize_data(request);
     normalize_cookies(request);
-    Ok(())
 }
 
 #[cfg(test)]
@@ -215,7 +214,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.url.as_str(), Some("http://example.com/path"));
     }
 
@@ -227,7 +226,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.url.as_str(), Some("http://example.com/path"));
     }
 
@@ -238,7 +237,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.url.as_str(), Some("http://example.com/path..."));
     }
 
@@ -249,7 +248,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(
             request,
@@ -272,7 +271,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(
             request,
             Request {
@@ -289,7 +288,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(
             request,
@@ -312,7 +311,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(
             request,
@@ -335,7 +334,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(
             request,
@@ -361,7 +360,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(
             request.cookies,
@@ -398,7 +397,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(
             request.cookies,
@@ -419,7 +418,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(request.method.value(), None);
     }
@@ -431,7 +430,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
 
         assert_eq!(request.method.as_str(), Some("POST"));
     }
@@ -449,7 +448,7 @@ mod tests {
             Annotated::from(Value::String("bar".into())),
         );
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(
             request.inferred_content_type.as_str(),
             Some("application/json")
@@ -468,7 +467,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.inferred_content_type.as_str(), Some("text/plain"));
         assert_eq!(request.data.as_str(), Some(r#"{"foo":"b"#));
     }
@@ -480,7 +479,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.inferred_content_type.value(), None);
         assert_eq!(request.data.as_str(), Some(r#"{"foo":"b"#));
     }
@@ -498,7 +497,7 @@ mod tests {
             Annotated::from(Value::String("bar".into())),
         );
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(
             request.inferred_content_type.as_str(),
             Some("application/x-www-form-urlencoded")
@@ -513,7 +512,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.inferred_content_type.value(), None);
         assert_eq!(request.data.as_str(), Some("dGU="));
     }
@@ -525,7 +524,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.inferred_content_type.value(), None);
         assert_eq!(request.data.as_str(), Some("dA=="));
     }
@@ -537,7 +536,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.inferred_content_type.value(), None);
         assert_eq!(request.data.as_str(), Some("<?xml version=\"1.0\" ?>"));
     }
@@ -549,7 +548,7 @@ mod tests {
             ..Request::default()
         };
 
-        normalize_request(&mut request).unwrap();
+        normalize_request(&mut request);
         assert_eq!(request.inferred_content_type.value(), None);
         assert_eq!(request.data.as_str(), Some("\u{001f}1\u{0000}\u{0000}"));
     }
