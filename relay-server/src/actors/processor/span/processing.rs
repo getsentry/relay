@@ -128,6 +128,11 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!("Invalid span: {e}");
+                state.managed_envelope.track_outcome(
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                    relay_quotas::DataCategory::SpanIndexed,
+                    1,
+                );
                 return;
             }
         };
@@ -135,6 +140,11 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
+                state.managed_envelope.track_outcome(
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                    relay_quotas::DataCategory::SpanIndexed,
+                    1,
+                );
                 return;
             }
         };
