@@ -1,5 +1,8 @@
 -- Global quota system.
 --
+--
+-- Input:
+--
 -- ``KEY``:
 --  * [string] Key of the counter.
 --
@@ -7,6 +10,20 @@
 --  * [number]  Quota limit. will not go over this limit while taking budget.
 --  * [number]  Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
 --  * [number]  Quantity we want to take. Limited by the Quota limit.
+--
+-- Output:
+--
+-- A two-element table containing the following:
+--
+-- 1. Reserved Budget (number):
+--    - The amount of budget that has been successfully allocated based on the request.
+--    - This value is 0 if the current quota limit has already been reached or exceeded.
+--    - Otherwise, it reflects the actual budget allocated, which may be less than or equal to the requested budget,
+--      depending on the available quota (headroom).
+--
+-- 2. Redis count (number):
+--    - Represents the value of the counter after we have allocated our budget.
+--
 --
 -- Made to work with a local cache of quota limit. The caller will "take" a certain budget
 -- from the global redis counter, given that the limit have not been exceeded. This is to dramatically
