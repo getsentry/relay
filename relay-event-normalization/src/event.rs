@@ -303,7 +303,9 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     if config.enable_trimming {
         // Trim large strings and databags down
-        trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root())?;
+        trimming::TrimmingProcessor::new()
+            .process_event(event, meta, ProcessingState::root())
+            .ok();
     }
 
     Ok(())
