@@ -219,7 +219,7 @@ impl ManagedEnvelope {
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
             ItemAction::Drop(outcome) => {
-                if let Some(category) = item.outcome_category(use_indexed) {
+                if let Some(category) = dbg!(item.outcome_category(use_indexed)) {
                     outcomes.push((outcome, category, item.quantity()));
                 }
 
@@ -247,6 +247,16 @@ impl ManagedEnvelope {
     pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
         self.context.scoping = scoping;
         self
+    }
+
+    /// Remove event item(s) and log an outcome.
+    ///
+    /// Note: This function relies on the envelope summary being correct.
+    pub fn reject_event(&mut self, outcome: Outcome) {
+        if let Some(event_category) = self.event_category() {
+            self.envelope.retain_items(|item| !item.creates_event());
+            self.track_outcome(outcome, event_category, 1);
+        }
     }
 
     /// Records an outcome scoped to this envelope's context.
