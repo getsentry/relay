@@ -200,6 +200,7 @@ impl ManagedEnvelope {
                 if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
                 }
+
                 false
             }
             ItemAction::DropSilently => false,
