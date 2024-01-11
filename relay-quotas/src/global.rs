@@ -49,7 +49,8 @@ impl GlobalRateLimits {
 
         let key = BudgetKeyRef::new(quota);
 
-        let val = match self.counters.read().unwrap().get(&key).cloned() {
+        let opt_val = self.counters.read().unwrap().get(&key).cloned();
+        let val = match opt_val {
             Some(val) => val,
             None => Arc::clone(self.counters.write().unwrap().entry_ref(&key).or_default()),
         };
@@ -181,7 +182,7 @@ impl Counter {
             .try_reserve(client, budget_to_reserve, limit, quota)? as usize;
 
         self.local_counter.increase_budget(reserved);
-        Ok(self.local_counter.try_consume(quantity))
+        Ok(!self.local_counter.try_consume(quantity))
     }
 
     fn default_request_size_based_on_limit(&self) -> usize {
@@ -208,7 +209,7 @@ impl LocalCounter {
     }
 
     fn increase_budget(&mut self, quantity: usize) {
-        let _ = self.budget.saturating_add(quantity);
+        self.budget = self.budget.saturating_add(quantity);
     }
 }
 
@@ -235,7 +236,7 @@ impl RedisCounter {
         let script = load_global_lua_script();
 
         let redis_key = quota.key();
-        let expiry = current_slot(quota.window()) + quota.window() as usize;
+        let expiry = UnixTimestamp::now().as_secs() + quota.window();
 
         let (budget, redis_count): (u64, u64) = script
             .prepare_invoke()
