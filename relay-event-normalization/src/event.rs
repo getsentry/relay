@@ -263,7 +263,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         normalize_device_class(event);
     }
     normalize_stacktraces(event);
-    normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
+    normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
     normalize_measurements(
         event,
@@ -650,7 +650,7 @@ fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
     .ok();
 }
 
-fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
+fn normalize_exceptions(event: &mut Event) {
     let os_hint = mechanism::OsHint::from_event(event);
 
     if let Some(exception_values) = event.exceptions.value_mut() {
@@ -674,14 +674,12 @@ fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
             for exception in exceptions {
                 if let Some(exception) = exception.value_mut() {
                     if let Some(mechanism) = exception.mechanism.value_mut() {
-                        mechanism::normalize_mechanism(mechanism, os_hint)?;
+                        mechanism::normalize_mechanism(mechanism, os_hint);
                     }
                 }
             }
         }
     }
-
-    Ok(())
 }
 
 fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
