@@ -250,7 +250,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
             meta.add_error(ErrorKind::InvalidData);
             Err(ProcessingAction::DeleteValueSoft)
         }
-    })?;
+    })
+    .ok();
 
     // Default required attributes, even if they have errors
     normalize_logentry(&mut event.logentry, meta)?;
