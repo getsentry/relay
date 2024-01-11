@@ -42,8 +42,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::project_cache::UpdateRateLimits,
-    crate::actors::store::Store,
+    crate::actors::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
@@ -54,8 +53,7 @@ use {
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
-use crate::actors::store::StoreEnvelope;
+use crate::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
 use crate::actors::test_store::{Capture, TestStore};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{
