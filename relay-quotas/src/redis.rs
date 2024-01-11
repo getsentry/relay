@@ -206,14 +206,15 @@ impl GlobalCounters {
 
         match state_opt {
             Some(state) => {
-                let slot_cmp = state.read().unwrap().slot.cmp(&current_slot(quota.window));
+                let local_slot_compared_to_current =
+                    state.read().unwrap().slot.cmp(&current_slot(quota.window));
 
-                match slot_cmp {
+                match local_slot_compared_to_current {
+                    cmp::Ordering::Equal => state,
                     cmp::Ordering::Less => {
                         *state.write().unwrap() = BudgetState::new(quota.window);
                         state
                     }
-                    cmp::Ordering::Equal => state,
                     cmp::Ordering::Greater => {
                         relay_log::error!("time went backwards");
                         *state.write().unwrap() = BudgetState::new(quota.window);
