@@ -1,4 +1,5 @@
 import json
+import uuid
 
 
 def generate_replay_sdk_event():
@@ -11,8 +12,8 @@ def generate_replay_sdk_event():
         "timestamp": 1597977777.6189718,
         "replay_start_timestamp": 1597976392.6542819,
         "urls": ["sentry.io"],
-        "error_ids": ["1", "2"],
-        "trace_ids": ["3", "4"],
+        "error_ids": [uuid.uuid4().hex],
+        "trace_ids": [uuid.uuid4().hex],
         "dist": "1.12",
         "platform": "javascript",
         "environment": "production",
