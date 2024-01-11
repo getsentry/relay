@@ -346,8 +346,7 @@ impl BudgetState {
         let should_ratelimit = current_budget < quantity;
 
         if !should_ratelimit {
-            self.budget
-                .store(current_budget - quantity, Ordering::SeqCst);
+            self.budget.fetch_sub(quantity, Ordering::SeqCst);
         }
 
         Ok(should_ratelimit)
