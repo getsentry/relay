@@ -509,6 +509,31 @@
 <a href="#509" id="509">509</a>
 <a href="#510" id="510">510</a>
 <a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::ControlFlow;
@@ -517,9 +542,9 @@
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>sqlparser::ast::{
-    AlterTableOperation, Assignment, CloseCursor, ColumnDef, Expr, Ident, ObjectName, Query,
-    Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint, TableFactor,
-    UnaryOperator, Value, VisitMut, VisitorMut,
+    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, Expr, Ident,
+    ObjectName, Query, Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint,
+    TableFactor, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 <span class="kw">use </span>sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -779,10 +804,26 @@
     <span class="kw">fn </span>post_visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;mut </span>Expr) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
         <span class="comment">// Casts are omitted for simplification. Because we replace the entire expression,
         // the replacement has to occur *after* visiting its children.
-        </span><span class="kw">if let </span>Expr::Cast { expr: inner, .. } = expr {
-            <span class="kw">let </span><span class="kw-2">mut </span>swapped = Expr::Value(Value::Null);
-            std::mem::swap(<span class="kw-2">&amp;mut </span>swapped, inner);
-            <span class="kw-2">*</span>expr = swapped;
+        </span><span class="kw">match </span>expr {
+            Expr::Cast { expr: inner, .. } =&gt; {
+                <span class="kw-2">*</span>expr = take_expr(inner);
+            }
+            Expr::BinaryOp {
+                <span class="kw-2">ref mut </span>left,
+                op: BinaryOperator::Or | BinaryOperator::And,
+                <span class="kw-2">ref </span>right,
+            } =&gt; {
+                <span class="kw">let </span>is_equal = left == right;
+                <span class="kw">if </span>is_equal {
+                    <span class="kw-2">*</span>expr = take_expr(left);
+                }
+            }
+            Expr::Nested(inner) <span class="kw">if </span><span class="macro">matches!</span>(inner.as_ref(), <span class="kw-2">&amp;</span>Expr::Nested(<span class="kw">_</span>)) =&gt; {
+                <span class="comment">// Remove multiple levels of parentheses.
+                // These can occur because of the binary op reduction above.
+                </span><span class="kw-2">*</span>expr = take_expr(inner);
+            }
+            <span class="kw">_ </span>=&gt; (),
         }
 
         <span class="self">self</span>.current_expr_depth = <span class="self">self</span>.current_expr_depth.saturating_sub(<span class="number">1</span>);
@@ -929,6 +970,15 @@
 
         ControlFlow::Continue(())
     }
+}
+
+<span class="doccomment">/// Get ownership of an `Expr` and leave a NULL value in its place.
+///
+/// We cannot use [`std::mem::take`], because [`Expr`] does not implement [`Default`].
+</span><span class="kw">fn </span>take_expr(expr: <span class="kw-2">&amp;mut </span>Expr) -&gt; Expr {
+    <span class="kw">let </span><span class="kw-2">mut </span>swapped = Expr::Value(Value::Null);
+    std::mem::swap(<span class="kw-2">&amp;mut </span>swapped, expr);
+    swapped
 }
 
 <span class="doccomment">/// An extension of an SQL dialect that accepts `?`, `%s`, `:c0` as valid input.
