@@ -149,15 +149,17 @@ impl StoreService {
 
         let scoping = managed.scoping();
         let envelope = managed.take_envelope();
-        let start_time = envelope.meta().start_time();
 
-        if let Err(error) = self.store_envelope(envelope, start_time, scoping) {
-            managed.reject(Outcome::Invalid(DiscardReason::Internal));
-            relay_log::error!(
-                error = &error as &dyn Error,
-                tags.project_key = %scoping.project_key,
-                "failed to store envelope"
-            );
+        match self.store_envelope(envelope, managed.start_time(), scoping) {
+            Ok(()) => managed.accept(),
+            Err(error) => {
+                managed.reject(Outcome::Invalid(DiscardReason::Internal));
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %scoping.project_key,
+                    "failed to store envelope"
+                );
+            }
         }
     }
 
