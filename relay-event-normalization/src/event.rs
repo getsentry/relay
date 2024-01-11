@@ -200,7 +200,9 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
     // Check for required and non-empty values
-    schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+    schema::SchemaProcessor
+        .process_event(event, meta, ProcessingState::root())
+        .ok();
 
     normalize_timestamps(
         event,
