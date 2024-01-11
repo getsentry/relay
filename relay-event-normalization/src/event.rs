@@ -256,7 +256,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     // Default required attributes, even if they have errors
     normalize_logentry(&mut event.logentry, meta);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
-    normalize_event_tags(event)?; // Tags are added to every metric
+    normalize_event_tags(event); // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
     if config.device_class_synthesis_config {
@@ -541,7 +541,7 @@ impl DedupCache {
 }
 
 /// Removes internal tags and adds tags for well-known attributes.
-fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
+fn normalize_event_tags(event: &mut Event) {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
     let environment = &mut event.environment;
     if environment.is_empty() {
@@ -587,7 +587,8 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
             }
 
             Ok(())
-        })?;
+        })
+        .ok();
     }
 
     let server_name = std::mem::take(&mut event.server_name);
@@ -601,8 +602,6 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
         let tag_name = "site".to_string();
         tags.insert(tag_name, site);
     }
-
-    Ok(())
 }
 
 // Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high,
