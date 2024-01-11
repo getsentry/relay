@@ -109,6 +109,7 @@ impl CategoryUnit {
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
             | DataCategory::Span
+            | DataCategory::SpanIndexed
             | DataCategory::MonitorSeat
             | DataCategory::Monitor
             | DataCategory::MetricBucket
