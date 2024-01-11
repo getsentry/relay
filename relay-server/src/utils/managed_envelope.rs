@@ -9,7 +9,7 @@ use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -194,16 +194,23 @@ impl ManagedEnvelope {
     {
         let mut outcomes = vec![];
         let use_indexed = self.use_index_category();
+        let mut push_outcome =
+            |item: &mut Item, outcome: Outcome, quantity: usize, use_indexed: bool| {
+                if let Some(category) = item.outcome_category(use_indexed) {
+                    outcomes.push((outcome, category, quantity));
+                };
+            };
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
-            ItemAction::Drop(outcome) => {
-                if let Some(category) = item.outcome_category(use_indexed) {
-                    outcomes.push((outcome, category, item.quantity()));
-                }
-
+            ItemAction::DropSilently => false,
+            ItemAction::Drop(outcome) if item.ty() == &ItemType::Span => {
+                push_outcome(item, outcome, item.quantity(), item.metrics_extracted());
                 false
             }
-            ItemAction::DropSilently => false,
+            ItemAction::Drop(outcome) => {
+                push_outcome(item, outcome, item.quantity(), use_indexed);
+                false
+            }
         });
         for (outcome, category, quantity) in outcomes {
             self.track_outcome(outcome, category, quantity);

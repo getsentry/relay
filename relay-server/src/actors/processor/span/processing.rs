@@ -73,6 +73,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
         if let Some(config) = span_metrics_extraction_config {
             let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
+            item.set_metrics_extracted(true);
         }
 
         // TODO: dynamic sampling
@@ -110,6 +111,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             }
         };
         new_item.set_payload(ContentType::Json, payload);
+        new_item.set_metrics_extracted(state.event_metrics_extracted);
 
         *item = new_item;
 
