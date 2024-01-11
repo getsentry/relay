@@ -709,7 +709,7 @@ mod tests {
             OR (a.id = %s AND a.org = %s)
             OR (a.id = %s AND a.org = %s)
         )"#,
-        "SELECT * FROM a WHERE status = %s AND ((id = %s AND org = %s))"
+        "SELECT * FROM a WHERE status = %s AND (id = %s AND org = %s)"
     );
 
     scrub_sql_test!(
@@ -723,7 +723,7 @@ mod tests {
             OR (a.id = %s OR a.org = %s)
             OR (a.id = %s OR a.org = %s)
         )"#,
-        "SELECT * FROM a WHERE status = %s OR ((id = %s OR org = %s))"
+        "SELECT * FROM a WHERE status = %s OR (id = %s OR org = %s)"
     );
 
     scrub_sql_test!(

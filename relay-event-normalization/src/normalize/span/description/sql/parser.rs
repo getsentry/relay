@@ -1,5 +1,6 @@
 //! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 use std::borrow::Cow;
+use std::mem::swap;
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
@@ -270,9 +271,7 @@ impl VisitorMut for NormalizeVisitor {
         // the replacement has to occur *after* visiting its children.
         match expr {
             Expr::Cast { expr: inner, .. } => {
-                let mut swapped = Expr::Value(Value::Null);
-                std::mem::swap(&mut swapped, inner);
-                *expr = swapped;
+                *expr = take_expr(inner);
             }
             Expr::BinaryOp {
                 ref mut left,
@@ -281,10 +280,13 @@ impl VisitorMut for NormalizeVisitor {
             } => {
                 let is_equal = left == right;
                 if is_equal {
-                    let mut swapped = Expr::Value(Value::Null);
-                    std::mem::swap(&mut swapped, left.as_mut());
-                    *expr = swapped;
+                    *expr = take_expr(left);
                 }
+            }
+            Expr::Nested(inner) if matches!(inner.as_ref(), &Expr::Nested(_)) => {
+                // Remove multiple levels of parentheses.
+                // These can occur because of the binary op reduction above.
+                *expr = take_expr(inner);
             }
             _ => (),
         }
@@ -433,6 +435,15 @@ impl VisitorMut for NormalizeVisitor {
 
         ControlFlow::Continue(())
     }
+}
+
+/// Get ownership of an `Expr` and leave a NULL value in its place.
+///
+/// We cannot use [`std::mem::take`], because [`Expr`] does not implement [`Default`].
+fn take_expr(expr: &mut Expr) -> Expr {
+    let mut swapped = Expr::Value(Value::Null);
+    std::mem::swap(&mut swapped, expr);
+    swapped
 }
 
 /// An extension of an SQL dialect that accepts `?`, `%s`, `:c0` as valid input.
