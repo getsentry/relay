@@ -300,6 +300,7 @@
 <a href="#300" id="300">300</a>
 <a href="#301" id="301">301</a>
 <a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -335,6 +336,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     ClientSdkInfo, Contexts, EventId, LenientString, Request, Tags, Timestamp, User,
 };
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
@@ -438,11 +440,11 @@
 
     <span class="doccomment">/// A list of error-ids discovered during the lifetime of the segment.
     </span><span class="attr">#[metastructure(bag_size = <span class="string">&quot;medium&quot;</span>)]
-    </span><span class="kw">pub </span>error_ids: Annotated&lt;Array&lt;String&gt;&gt;,
+    </span><span class="kw">pub </span>error_ids: Annotated&lt;Array&lt;Uuid&gt;&gt;,
 
     <span class="doccomment">/// A list of trace-ids discovered during the lifetime of the segment.
     </span><span class="attr">#[metastructure(bag_size = <span class="string">&quot;medium&quot;</span>)]
-    </span><span class="kw">pub </span>trace_ids: Annotated&lt;Array&lt;String&gt;&gt;,
+    </span><span class="kw">pub </span>trace_ids: Annotated&lt;Array&lt;Uuid&gt;&gt;,
 
     <span class="doccomment">/// Contexts describing the environment (e.g. device, os or browser).
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
@@ -567,10 +569,10 @@
             ),
             urls: Annotated::new(<span class="macro">vec!</span>[Annotated::new(<span class="string">&quot;localhost:9000&quot;</span>.to_string())]),
             error_ids: Annotated::new(<span class="macro">vec!</span>[Annotated::new(
-                <span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.to_string(),
+                Uuid::parse_str(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>).unwrap(),
             )]),
             trace_ids: Annotated::new(<span class="macro">vec!</span>[Annotated::new(
-                <span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>.to_string(),
+                Uuid::parse_str(<span class="string">&quot;52df9022835246eeb317dbd739ccd059&quot;</span>).unwrap(),
             )]),
             platform: Annotated::new(<span class="string">&quot;myplatform&quot;</span>.to_string()),
             release: Annotated::new(<span class="string">&quot;myrelease&quot;</span>.to_string().into()),
