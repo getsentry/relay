@@ -20,8 +20,6 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
-    /// The current count of the keys in the "in-memory" buffer.
-    BufferProjectsMemoryCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -31,7 +29,6 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
-            RelayGauges::BufferProjectsMemoryCount => "buffer.projects_mem_count",
         }
     }
 }
@@ -254,8 +251,6 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
-    /// Total time in milliseconds an envelope spends in the Relay's on-disk buffer.
-    EnvelopeOnDiskBufferTime,
     /// Total time in milliseconds spent evicting outdated and unused projects happens.
     ProjectStateEvictionDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
@@ -370,7 +365,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
-            RelayTimers::EnvelopeOnDiskBufferTime => "envelope.on_disk_buffer_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
@@ -424,6 +418,7 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
+    ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:

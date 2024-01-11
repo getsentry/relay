@@ -664,8 +664,8 @@ impl Bucket {
     ///     .expect("metric should parse");
     /// ```
     pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
-        let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
-        Self::parse_str(string, timestamp).ok_or(ParseMetricError(()))
+        let string = std::str::from_utf8(slice).map_err(|_| ParseMetricError)?;
+        Self::parse_str(string, timestamp).ok_or(ParseMetricError)
     }
 
     /// Parses a set of metric aggregates from the raw protocol.
@@ -768,11 +768,11 @@ impl Iterator for ParseBuckets<'_> {
 
             let string = match std::str::from_utf8(current) {
                 Ok(string) => string.strip_suffix('\r').unwrap_or(string),
-                Err(_) => return Some(Err(ParseMetricError(()))),
+                Err(_) => return Some(Err(ParseMetricError)),
             };
 
             if !string.is_empty() {
-                return Some(Bucket::parse_str(string, self.timestamp).ok_or(ParseMetricError(())));
+                return Some(Bucket::parse_str(string, self.timestamp).ok_or(ParseMetricError));
             }
         }
     }

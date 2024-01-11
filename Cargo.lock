@@ -3456,6 +3456,7 @@ dependencies = [
  "relay-protocol",
  "schemars",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3965,6 +3966,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "similar-asserts",
  "smallvec",
  "sqlx",
