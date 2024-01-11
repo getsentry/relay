@@ -360,7 +360,7 @@ impl BudgetState {
         let script = load_global_lua_script();
         let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
         let redis_key = quota.key();
-        let expiry = quota.timestamp.as_secs() + quota.window + GRACE;
+        let expiry = UnixTimestamp::now().as_secs() + quota.window + GRACE;
 
         let (received_budget, redis_count): (usize, usize) = script
             .prepare_invoke()
