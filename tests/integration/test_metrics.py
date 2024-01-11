@@ -1212,16 +1212,17 @@ def test_transaction_name_too_long(
             assert metric["tags"]["transaction"] == expected_transaction_name
 
 
-@pytest.mark.skip(reason="flake")
-def test_graceful_shutdown(mini_sentry, relay):
+@pytest.mark.parametrize("attempt", range(10))  # temporary, to test flakiness.
+def test_graceful_shutdown(mini_sentry, relay, attempt):
     relay = relay(
         mini_sentry,
         options={
             "limits": {"shutdown_timeout": 2},
             "aggregator": {
                 "bucket_interval": 1,
-                "initial_delay": 10,
+                "initial_delay": 100,
                 "debounce_delay": 0,
+                "shift_key": "none",
             },
         },
     )
@@ -1233,17 +1234,17 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     # Backdated metric will be flushed immediately due to debounce delay
     past_timestamp = timestamp - 1000
-    metrics_payload = f"transactions/foo:42|c|T{past_timestamp}"
+    metrics_payload = f"transactions/past:42|c|T{past_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     # Future timestamp will not be flushed regularly, only through force flush
     future_timestamp = timestamp + 30
-    metrics_payload = f"transactions/bar:17|c|T{future_timestamp}"
+    metrics_payload = f"transactions/future:17|c|T{future_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
-    relay.shutdown(sig=signal.SIGTERM)
+    relay.process.send_signal(signal.SIGTERM)
 
     # Try to send another metric (will be rejected)
-    metrics_payload = f"transactions/zap:666|c|T{timestamp}"
+    metrics_payload = f"transactions/now:666|c|T{timestamp}"
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload)
 
@@ -1257,14 +1258,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": future_timestamp,
             "width": 1,
-            "name": "c:transactions/bar@none",
+            "name": "c:transactions/future@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": past_timestamp,
             "width": 1,
-            "name": "c:transactions/foo@none",
+            "name": "c:transactions/past@none",
             "value": 42.0,
             "type": "c",
         },
