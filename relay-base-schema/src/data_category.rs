@@ -100,6 +100,7 @@ impl DataCategory {
             "monitor_seat" => Self::MonitorSeat,
             "feedback" => Self::UserReportV2,
             "metric_bucket" => Self::MetricBucket,
+            "span_indexed" => Self::SpanIndexed,
             _ => Self::Unknown,
         }
     }
@@ -124,6 +125,7 @@ impl DataCategory {
             Self::MonitorSeat => "monitor_seat",
             Self::UserReportV2 => "feedback",
             Self::MetricBucket => "metric_bucket",
+            Self::SpanIndexed => "span_indexed",
             Self::Unknown => "unknown",
         }
     }
