@@ -304,23 +304,26 @@ impl BudgetState {
         }
     }
 
+    fn current_budget(&self) -> usize {
+        self.budget.load(Ordering::SeqCst)
+    }
+
+    /// Since the redis value is pre-incremented, we have to subtract the remaining budget.
+    fn cached_global_count(&self) -> usize {
+        self.last_seen_redis_value - self.current_budget()
+    }
+
     fn try_use_budget(&self, quantity: usize, limit: usize) -> BudgetOutcome {
         use Ordering::SeqCst;
 
-        // invariant: budget should not increase in &self.
-        let current_budget = self.budget.load(SeqCst);
-
-        let total_current_count = self.last_seen_redis_value - current_budget;
-
-        if total_current_count + quantity > limit {
+        if self.cached_global_count() + quantity > limit {
             return BudgetOutcome::GlobalCountExceeded;
         }
 
-        if current_budget < quantity {
+        if self.current_budget() < quantity {
             return BudgetOutcome::LocalBudgetExhausted;
         }
 
-        // fails if budget has changed to be under the quantity.
         let decremented_successfully = self
             .budget
             .fetch_update(SeqCst, SeqCst, |val| val.checked_sub(quantity))
@@ -340,10 +343,11 @@ impl BudgetState {
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, RedisError> {
-        let budget = self.budget.load(Ordering::SeqCst);
+        let budget = self.current_budget();
 
         let current_budget = if budget < quantity {
-            self.redis_updated_budget(client, quota, quantity)?
+            self.redis_update_budget(client, quota, quantity)?;
+            self.current_budget()
         } else {
             // implies another writer already called redis while you were waiting.
             budget
@@ -359,12 +363,13 @@ impl BudgetState {
         Ok(should_ratelimit)
     }
 
-    fn redis_updated_budget(
+    /// Updates the budget after calling redis.
+    fn redis_update_budget(
         &mut self,
         client: &mut PooledClient,
         quota: &RedisQuota,
         quantity: usize,
-    ) -> Result<usize, RedisError> {
+    ) -> Result<(), RedisError> {
         let script = load_global_lua_script();
         let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
         let redis_key = quota.key();
@@ -380,9 +385,9 @@ impl BudgetState {
             .map_err(RedisError::Redis)?;
 
         self.last_seen_redis_value = redis_count;
-        let old_budget = self.budget.fetch_add(received_budget, Ordering::SeqCst);
+        self.budget.fetch_add(received_budget, Ordering::SeqCst);
 
-        Ok(old_budget + received_budget)
+        Ok(())
     }
 }
 
