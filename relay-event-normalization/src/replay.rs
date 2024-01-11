@@ -55,6 +55,30 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         ));
     }
 
+    if replay
+        .error_ids
+        .value()
+        .into_iter()
+        .flat_map(|v| v.iter())
+        .any(|v| v.meta().has_errors())
+    {
+        return Err(ReplayError::InvalidPayload(
+            "Invalid error-id specified.".to_string(),
+        ));
+    }
+
+    if replay
+        .trace_ids
+        .value()
+        .into_iter()
+        .flat_map(|v| v.iter())
+        .any(|v| v.meta().has_errors())
+    {
+        return Err(ReplayError::InvalidPayload(
+            "Invalid trace-id specified.".to_string(),
+        ));
+    }
+
     Ok(())
 }
 
@@ -137,6 +161,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
     use chrono::{TimeZone, Utc};
+    use uuid::Uuid;
 
     use relay_event_schema::protocol::{
         BrowserContext, Context, DeviceContext, EventId, OsContext, TagEntry, Tags,
@@ -182,10 +207,10 @@ mod tests {
             ),
             urls: Annotated::new(vec![Annotated::new("localhost:9000".to_string())]),
             error_ids: Annotated::new(vec![Annotated::new(
-                "52df9022835246eeb317dbd739ccd059".to_string(),
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
             trace_ids: Annotated::new(vec![Annotated::new(
-                "52df9022835246eeb317dbd739ccd059".to_string(),
+                Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap(),
             )]),
             platform: Annotated::new("myplatform".to_string()),
             release: Annotated::new("myrelease".to_string().into()),
@@ -309,12 +334,12 @@ mod tests {
             .map(|_| Annotated::new("localhost:9000".to_string()))
             .collect();
 
-        let error_ids: Vec<Annotated<String>> = (0..101)
-            .map(|_| Annotated::new("52df9022835246eeb317dbd739ccd059".to_string()))
+        let error_ids: Vec<Annotated<Uuid>> = (0..101)
+            .map(|_| Annotated::new(Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap()))
             .collect();
 
-        let trace_ids: Vec<Annotated<String>> = (0..101)
-            .map(|_| Annotated::new("52df9022835246eeb317dbd739ccd059".to_string()))
+        let trace_ids: Vec<Annotated<Uuid>> = (0..101)
+            .map(|_| Annotated::new(Uuid::parse_str("52df9022835246eeb317dbd739ccd059").unwrap()))
             .collect();
 
         let mut replay = Annotated::new(Replay {
@@ -372,5 +397,69 @@ mod tests {
         assert!(replay_value.error_ids.value().unwrap().is_empty());
         assert!(replay_value.trace_ids.value().unwrap().is_empty());
         assert!(replay_value.urls.value().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_error_id_validation() {
+        // NOTE: Interfaces will be tested separately.
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "replay_id": "52df9022835246eeb317dbd739ccd059",
+  "segment_id": 0,
+  "replay_type": "session",
+  "error_sample_rate": 0.5,
+  "session_sample_rate": 0.5,
+  "timestamp": 946684800.0,
+  "replay_start_timestamp": 946684800.0,
+  "urls": ["localhost:9000"],
+  "error_ids": ["test"],
+  "trace_ids": [],
+  "platform": "myplatform",
+  "release": "myrelease",
+  "dist": "mydist",
+  "environment": "myenv",
+  "tags": [
+    [
+      "tag",
+      "value"
+    ]
+  ]
+}"#;
+
+        let mut replay = Annotated::<Replay>::from_json(json).unwrap();
+        let validation_result = validate(replay.value_mut().as_mut().unwrap());
+        assert!(validation_result.is_err());
+    }
+
+    #[test]
+    fn test_trace_id_validation() {
+        // NOTE: Interfaces will be tested separately.
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "replay_id": "52df9022835246eeb317dbd739ccd059",
+  "segment_id": 0,
+  "replay_type": "session",
+  "error_sample_rate": 0.5,
+  "session_sample_rate": 0.5,
+  "timestamp": 946684800.0,
+  "replay_start_timestamp": 946684800.0,
+  "urls": ["localhost:9000"],
+  "error_ids": [],
+  "trace_ids": ["123"],
+  "platform": "myplatform",
+  "release": "myrelease",
+  "dist": "mydist",
+  "environment": "myenv",
+  "tags": [
+    [
+      "tag",
+      "value"
+    ]
+  ]
+}"#;
+
+        let mut replay = Annotated::<Replay>::from_json(json).unwrap();
+        let validation_result = validate(replay.value_mut().as_mut().unwrap());
+        assert!(validation_result.is_err());
     }
 }
