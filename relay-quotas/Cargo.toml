@@ -14,7 +14,7 @@ default = []
 redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
 
 [dependencies]
-hashbrown = {workspace = true}
+hashbrown = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log", optional = true }

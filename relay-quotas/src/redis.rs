@@ -836,7 +836,7 @@ mod tests {
         );
     }
 
-    fn redis_quota_dummy(window: u64, limit: u64) -> RedisQuota<'static> {
+    fn redis_quota_for_metric_buckets(window: u64, limit: u64) -> RedisQuota<'static> {
         let quota = Quota {
             id: Some("foo".to_owned()),
             categories: DataCategories::new(),
@@ -870,7 +870,7 @@ mod tests {
         let window = 10;
         let limit = 200;
 
-        let redis_quota = redis_quota_dummy(window, limit);
+        let redis_quota = redis_quota_for_metric_buckets(window, limit);
         let counter = GlobalRateLimits::default();
 
         let mut client = RedisPool::single("redis://127.0.0.1:6379", RedisConfigOptions::default())

@@ -122,19 +122,19 @@ impl SlottedCounter {
         quantity: usize,
         limit: u64,
     ) -> Result<bool, RedisError> {
-        let quota_slot = current_slot(quota.window());
+        let current_slot = current_slot(quota.window());
 
-        match self.slot.cmp(&quota_slot) {
+        match self.slot.cmp(&current_slot) {
             Ordering::Greater => {
                 // TODO double check logic here
                 // in theory this should never happen only if someone messes with the system time
                 // be safe and dont rate limit
-                relay_log::error!("time went backwards");
+                relay_log::error!("budget slot ahead of current slot");
                 Ok(false)
             }
             Ordering::Less => {
                 self.counter = Counter::new();
-                self.slot = quota_slot;
+                self.slot = current_slot;
 
                 self.counter.is_rate_limited(client, limit, quantity, quota)
             }

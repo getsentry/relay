@@ -1,11 +1,20 @@
 -- Global quota system.
 --
+-- ``KEY``:
+--  * [string] Key of the counter.
+--
+-- ``ARGV``:
+--  * [number]  Quota limit. will not go over this limit while taking budget.
+--  * [number]  Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
+--  * [number]  Quantity we want to take. Limited by the Quota limit.
+--
 -- Made to work with a local cache of quota limit. The caller will "take" a certain budget
 -- from the global redis counter, given that the limit have not been exceeded. This is to dramatically
 -- reduce the amount of redis calls while at the same time not overshooting the quota.
 -- We return both the size of the taken budget and the size of the redis count.
 -- The reason we return the size of the redis count is to avoid asking for more budget when
 -- the previously seen redis count is still bigger than the limit.
+--
 --
 -- The redis keys are unique to their timeslot, which is why we let them expire in order to not
 -- fill up redis with dead keys.
