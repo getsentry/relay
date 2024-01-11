@@ -168,6 +168,11 @@ impl Counter {
         quantity: usize,
         quota: &RedisQuota,
     ) -> Result<bool, RedisError> {
+        if self.redis_counter.last_seen - self.local_counter.budget as u64 + quantity as u64 > limit
+        {
+            return Ok(true);
+        }
+
         if self.local_counter.try_consume(quantity) {
             return Ok(false);
         }
