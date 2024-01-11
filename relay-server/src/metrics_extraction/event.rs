@@ -1086,6 +1086,14 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
+                    "op": "custom.op",
+                    "description": "Custom Op",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
                     "op": "contentprovider.load",
                     "description": "io.sentry.android.core.SentryPerformanceProvider.onCreate",
                     "span_id": "bd429c44b67a3eb2",
@@ -1228,8 +1236,11 @@ mod tests {
     }
 
     /// Helper function for span metric extraction tests.
-    fn extract_span_metrics_op_duration(span_op: &str, duration_millis: f64) -> Vec<Bucket> {
+    fn extract_span_metrics_mobile(span_op: &str, duration_millis: f64) -> Vec<Bucket> {
         let mut span = Span::default();
+        span.sentry_tags
+            .get_or_insert_with(Default::default)
+            .insert("mobile".to_owned(), "true".to_owned().into());
         span.timestamp
             .set_value(Some(Timestamp::from(DateTime::<Utc>::MAX_UTC))); // whatever
         span.op.set_value(Some(span_op.into()));
@@ -1240,66 +1251,82 @@ mod tests {
 
     #[test]
     fn test_app_start_cold_inlier() {
+        let metrics = extract_span_metrics_mobile("app.start.cold", 180000.0);
         assert_eq!(
-            3,
-            extract_span_metrics_op_duration("app.start.cold", 180000.0).len()
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
         );
     }
 
     #[test]
     fn test_app_start_cold_outlier() {
-        assert_eq!(
-            0,
-            extract_span_metrics_op_duration("app.start.cold", 181000.0).len()
-        );
+        let metrics = extract_span_metrics_mobile("app.start.cold", 181000.0);
+        assert!(metrics.is_empty());
     }
 
     #[test]
     fn test_app_start_warm_inlier() {
+        let metrics = extract_span_metrics_mobile("app.start.warm", 180000.0);
         assert_eq!(
-            3,
-            extract_span_metrics_op_duration("app.start.warm", 180000.0).len()
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
         );
     }
 
     #[test]
     fn test_app_start_warm_outlier() {
-        assert_eq!(
-            0,
-            extract_span_metrics_op_duration("app.start.warm", 181000.0).len()
-        );
+        let metrics = extract_span_metrics_mobile("app.start.warm", 181000.0);
+        assert!(metrics.is_empty());
     }
 
     #[test]
     fn test_ui_load_initial_display_inlier() {
+        let metrics = extract_span_metrics_mobile("ui.load.initial_display", 180000.0);
         assert_eq!(
-            3,
-            extract_span_metrics_op_duration("ui.load.initial_display", 180000.0).len()
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
         );
     }
 
     #[test]
     fn test_ui_load_initial_display_outlier() {
-        assert_eq!(
-            0,
-            extract_span_metrics_op_duration("ui.load.initial_display", 181000.0).len()
-        );
+        let metrics = extract_span_metrics_mobile("ui.load.initial_display", 181000.0);
+        assert!(metrics.is_empty());
     }
 
     #[test]
     fn test_ui_load_full_display_inlier() {
+        let metrics = extract_span_metrics_mobile("ui.load.full_display", 180000.0);
         assert_eq!(
-            3,
-            extract_span_metrics_op_duration("ui.load.full_display", 180000.0).len()
+            metrics.iter().map(|m| &m.name).collect::<Vec<_>>(),
+            vec![
+                "d:spans/exclusive_time@millisecond",
+                "d:spans/exclusive_time_light@millisecond",
+                "c:spans/count_per_op@none",
+                "c:spans/count_per_segment@none"
+            ]
         );
     }
 
     #[test]
     fn test_ui_load_full_display_outlier() {
-        assert_eq!(
-            0,
-            extract_span_metrics_op_duration("ui.load.full_display", 181000.0).len()
-        );
+        let metrics = extract_span_metrics_mobile("ui.load.full_display", 181000.0);
+        assert!(metrics.is_empty());
     }
 
     #[test]
