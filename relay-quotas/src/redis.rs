@@ -4,7 +4,7 @@ use std::sync::Arc;
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
-use relay_redis::{PooledClient, RedisError, RedisPool};
+use relay_redis::{RedisError, RedisPool};
 use thiserror::Error;
 
 use crate::global::GlobalRateLimits;
@@ -78,10 +78,12 @@ impl<'a> RedisQuota<'a> {
         })
     }
 
+    /// Returns the window size of the quota.
     pub fn window(&self) -> u64 {
         self.window
     }
 
+    /// Returns the prefix of the quota.
     pub fn prefix(&self) -> &'a str {
         self.prefix
     }
@@ -108,6 +110,7 @@ impl<'a> RedisQuota<'a> {
         UnixTimestamp::from_secs(next_start)
     }
 
+    /// Returns the key of the quota.
     pub fn key(&self) -> String {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.

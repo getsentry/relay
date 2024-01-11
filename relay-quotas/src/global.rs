@@ -185,7 +185,6 @@ impl Counter {
     }
 
     fn default_request_size_based_on_limit(&self) -> usize {
-        // TODO
         100
     }
 }
@@ -199,7 +198,6 @@ impl LocalCounter {
         Self { budget: 0 }
     }
 
-    ///
     fn try_consume(&mut self, quantity: usize) -> bool {
         if self.budget >= quantity {
             self.budget -= quantity;
