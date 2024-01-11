@@ -1,6 +1,5 @@
 //! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 use std::borrow::Cow;
-use std::mem::swap;
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
