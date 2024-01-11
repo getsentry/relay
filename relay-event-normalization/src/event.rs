@@ -255,7 +255,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     // Default required attributes, even if they have errors
     normalize_logentry(&mut event.logentry, meta);
-    normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
+    normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event)?; // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
@@ -439,11 +439,11 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
 }
 
 /// Ensures that the `release` and `dist` fields match up.
-fn normalize_release_dist(event: &mut Event) -> ProcessingResult {
-    normalize_dist(&mut event.dist)
+fn normalize_release_dist(event: &mut Event) {
+    normalize_dist(&mut event.dist);
 }
 
-fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
+fn normalize_dist(distribution: &mut Annotated<String>) {
     processor::apply(distribution, |dist, meta| {
         let trimmed = dist.trim();
         if trimmed.is_empty() {
@@ -456,6 +456,7 @@ fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
         }
         Ok(())
     })
+    .ok();
 }
 
 /// Validates the timestamp range and sets a default value.
@@ -1095,28 +1096,28 @@ mod tests {
     #[test]
     fn test_normalize_dist_none() {
         let mut dist = Annotated::default();
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_empty() {
         let mut dist = Annotated::new("".to_string());
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_trim() {
         let mut dist = Annotated::new(" foo  ".to_string());
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), Some(&"foo".to_string()));
     }
 
     #[test]
     fn test_normalize_dist_whitespace() {
         let mut dist = Annotated::new(" ".to_owned());
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
