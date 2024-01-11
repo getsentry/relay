@@ -65,6 +65,7 @@ mod tests {
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
     use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
+    use relay_metrics::BucketValue;
     use relay_protocol::Annotated;
     use std::collections::BTreeSet;
 
@@ -1217,7 +1218,16 @@ mod tests {
                         "debug_id": "abe2f487-f23f-395e-ab1e-4af69ae63fac",
                         "arch": "arm64",
                         "image_addr": "0x102f60000",
-                        "image_size": 278528
+                        "image_size": 278528,
+                        "type": "macho"
+                    },
+                    {
+                        "code_file": "/private/var/containers/Bundle/Application/569FE0C2-02A5-4590-B613-6E66085CA7C4/iOS-Swift.app/iOS-Swift",
+                        "debug_id": "abe2f487-f23f-395e-ab1e-4af69ae63fac",
+                        "arch": "arm64",
+                        "image_addr": "0x102f60000",
+                        "image_size": 10000,
+                        "type": "macho"
                     }
                 ]
             },
@@ -1287,16 +1297,15 @@ mod tests {
         let config = project.metric_extraction.ok().unwrap();
         let metrics = extract_metrics(event.value().unwrap(), &config);
 
-        // print metrics
-        for metric in &metrics {
-            println!("{:?}", metric);
+        for metric in metrics {
+            if metric.name == "c:spans/dynamically_loaded_libraries_count@none" {
+                assert_eq!(metric.value, BucketValue::Counter(2.0));
+            }
+
+            if metric.name == "c:spans/dynamically_loaded_libraries_size@byte" {
+                assert_eq!(metric.value, BucketValue::Counter(288528.0));
+            }
         }
-        assert!(metrics
-            .iter()
-            .any(|b| b.name == "c:spans/count_dynamically_loaded_libraries@none"));
-        // assert!(metrics
-        //     .iter()
-        //     .any(|b| b.name == "c:spans/size_dynamically_loaded_libraries@none"));
     }
 
     /// Helper function for span metric extraction tests.

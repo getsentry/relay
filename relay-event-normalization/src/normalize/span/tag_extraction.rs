@@ -9,7 +9,7 @@ use regex::Regex;
 use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 
 use relay_event_schema::protocol::{
-    AppContext, DebugMeta, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, DebugImage, DebugMeta, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -95,7 +95,7 @@ impl SpanTagKey {
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainTread => "main_thread",
             SpanTagKey::OsName => "os.name",
-            SpanTagKey::CountDynamicallyLoadedImages => "count_dynamically_loaded_libraries",
+            SpanTagKey::CountDynamicallyLoadedImages => "dynamically_loaded_libraries_count",
         }
     }
 }
@@ -152,7 +152,8 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
 
     let ttid = timestamp_by_op(spans, "ui.load.initial_display");
     let ttfd = timestamp_by_op(spans, "ui.load.full_display");
-    let count_dynamically_loaded_libraries = count_images(&event.debug_meta);
+    let dynamically_loaded_libraries_count = count_images(&event.debug_meta);
+    let dynamically_loaded_libraries_size = sum_images_size(&event.debug_meta);
 
     for span in spans {
         let Some(span) = span.value_mut().as_mut() else {
@@ -177,16 +178,28 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
                     if (span_op.starts_with("app.start."))
                         && (description == "Cold Start" || description == "Warm Start")
                     {
-                        if let Some(count_dynamically_loaded_libraries) =
-                            count_dynamically_loaded_libraries
+                        let measurements = span.measurements.get_or_insert_with(Default::default);
+                        if let Some(dynamically_loaded_libraries_count) =
+                            dynamically_loaded_libraries_count
                         {
-                            let measurements =
-                                span.measurements.get_or_insert_with(Default::default);
                             measurements.insert(
-                                "count_dynamically_loaded_libraries".into(),
+                                "dynamically_loaded_libraries_count".into(),
                                 Measurement {
-                                    value: Annotated::new(count_dynamically_loaded_libraries),
+                                    value: Annotated::new(dynamically_loaded_libraries_count),
                                     unit: MetricUnit::None.into(),
+                                }
+                                .into(),
+                            );
+                        }
+
+                        if let Some(dynamically_loaded_libraries_size) =
+                            dynamically_loaded_libraries_size
+                        {
+                            measurements.insert(
+                                "dynamically_loaded_libraries_size".into(),
+                                Measurement {
+                                    value: Annotated::new(dynamically_loaded_libraries_size),
+                                    unit: MetricUnit::Information(InformationUnit::Byte).into(),
                                 }
                                 .into(),
                             );
@@ -527,6 +540,34 @@ fn count_images(debug_meta: &Annotated<DebugMeta>) -> Option<f64> {
         .value()
         .and_then(|debug_meta| debug_meta.images.value())
         .map(|images| images.len() as f64)
+}
+
+/// Sum the sizes of dynamically loaded images from debug meta.
+fn sum_images_size(debug_meta: &Annotated<DebugMeta>) -> Option<f64> {
+    debug_meta
+        .value()
+        .and_then(|debug_meta| debug_meta.images.value())
+        .map(|images| {
+            images
+                .iter()
+                .filter_map(|image| {
+                    image
+                        .value()
+                        .and_then(get_image_size)
+                        .and_then(|size| size.value().map(|v| *v as f64))
+                })
+                .sum()
+        })
+}
+
+fn get_image_size(debug_image: &DebugImage) -> Option<Annotated<u64>> {
+    match debug_image {
+        DebugImage::Apple(image) => Some(image.image_size.clone()),
+        DebugImage::Symbolic(image) => Some(image.image_size.clone()),
+        DebugImage::MachO(image) => Some(image.image_size.clone()),
+        // TODO(nar): Add support for Android image types
+        _ => None, // Return None if the variant doesn't have an image_size property
+    }
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens
