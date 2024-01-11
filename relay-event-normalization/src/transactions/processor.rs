@@ -49,10 +49,7 @@ impl<'r> TransactionsProcessor<'r> {
     ///
     /// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
     /// patterns like `/<something>/*/**` where we have `**` at the end are a match.
-    pub fn apply_transaction_rename_rule(
-        &self,
-        transaction: &mut Annotated<String>,
-    ) -> ProcessingResult {
+    pub fn apply_transaction_rename_rule(&self, transaction: &mut Annotated<String>) {
         processor::apply(transaction, |transaction, meta| {
             let result = self.name_config.rules.iter().find_map(|rule| {
                 rule.match_and_apply(Cow::Borrowed(transaction))
@@ -75,9 +72,8 @@ impl<'r> TransactionsProcessor<'r> {
             }
 
             Ok(())
-        })?;
-
-        Ok(())
+        })
+        .ok();
     }
 
     /// Returns `true` if the given transaction name should be treated as a URL.
@@ -101,15 +97,15 @@ impl<'r> TransactionsProcessor<'r> {
         ) || (source.is_none() && event.transaction.value().map_or(false, |t| t.contains('/')))
     }
 
-    fn normalize_transaction_name(&self, event: &mut Event) -> ProcessingResult {
+    fn normalize_transaction_name(&self, event: &mut Event) {
         if self.treat_transaction_as_url(event) {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            scrub_identifiers(&mut event.transaction)?;
+            scrub_identifiers(&mut event.transaction);
 
             // Apply rules discovered by the transaction clusterer in sentry.
             if !self.name_config.rules.is_empty() {
-                self.apply_transaction_rename_rule(&mut event.transaction)?;
+                self.apply_transaction_rename_rule(&mut event.transaction);
             }
 
             // Always mark URL transactions as sanitized, even if no modification were made by
@@ -125,8 +121,6 @@ impl<'r> TransactionsProcessor<'r> {
                 .source
                 .set_value(Some(TransactionSource::Sanitized));
         }
-
-        Ok(())
     }
 
     fn validate_transaction(&self, event: &mut Event) -> ProcessingResult {
@@ -216,7 +210,7 @@ impl Processor for TransactionsProcessor<'_> {
         }
 
         set_default_transaction_source(event);
-        self.normalize_transaction_name(event)?;
+        self.normalize_transaction_name(event);
         self.validate_transaction(event)?;
         end_all_spans(event)?;
 
@@ -382,18 +376,17 @@ fn is_high_cardinality_transaction(event: &Event) -> bool {
 ///
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
 /// Returns `Ok(true)` if the name was changed.
-pub(crate) fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*")
+pub(crate) fn scrub_identifiers(string: &mut Annotated<String>) {
+    scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*");
 }
 
 fn scrub_identifiers_with_regex(
     string: &mut Annotated<String>,
     pattern: &Lazy<Regex>,
     replacer: &str,
-) -> Result<bool, ProcessingAction> {
+) {
     let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
 
-    let mut did_change = false;
     processor::apply(string, |trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
@@ -431,11 +424,10 @@ fn scrub_identifiers_with_regex(
         if !changed.is_empty() && changed != "*" {
             meta.set_original_value(Some(trans.to_string()));
             *trans = changed;
-            did_change = true;
         }
         Ok(())
-    })?;
-    Ok(did_change)
+    })
+    .ok();
 }
 
 /// Copies the event's end timestamp into the spans that don't have one.
@@ -1869,7 +1861,7 @@ mod tests {
         ];
         let replaced = should_be_replaced.map(|s| {
             let mut s = Annotated::new(s.to_owned());
-            scrub_identifiers(&mut s).unwrap();
+            scrub_identifiers(&mut s);
             s.0.unwrap()
         });
         assert_eq!(
