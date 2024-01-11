@@ -57,10 +57,9 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
 
     if replay
         .error_ids
-        .0
-        .clone()
-        .unwrap_or_default()
+        .value()
         .into_iter()
+        .flat_map(|v| v.iter())
         .any(|v| v.meta().has_errors())
     {
         return Err(ReplayError::InvalidPayload(
@@ -70,10 +69,9 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
 
     if replay
         .trace_ids
-        .0
-        .clone()
-        .unwrap_or_default()
+        .value()
         .into_iter()
+        .flat_map(|v| v.iter())
         .any(|v| v.meta().has_errors())
     {
         return Err(ReplayError::InvalidPayload(
