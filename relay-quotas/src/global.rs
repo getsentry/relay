@@ -134,6 +134,8 @@ impl SlottedCounter {
             }
             Ordering::Less => {
                 self.counter = Counter::new();
+                self.slot = quota_slot;
+
                 self.counter.is_rate_limited(client, limit, quantity, quota)
             }
             Ordering::Equal => self.counter.is_rate_limited(client, limit, quantity, quota),
