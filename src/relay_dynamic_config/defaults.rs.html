@@ -385,6 +385,18 @@
 <a href="#385" id="385">385</a>
 <a href="#386" id="386">386</a>
 <a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -434,7 +446,11 @@
         <span class="kw">return</span>;
     }
 
-    config.metrics.extend(span_metrics());
+    <span class="kw">let </span>is_extract_all = project_config
+        .features
+        .has(Feature::SpanMetricsExtractionAllModules);
+
+    config.metrics.extend(span_metrics(is_extract_all));
 
     config._span_metrics_extended = <span class="bool-val">true</span>;
     <span class="kw">if </span>config.version == <span class="number">0 </span>{
@@ -443,14 +459,22 @@
 }
 
 <span class="doccomment">/// Metrics with tags applied as required.
-</span><span class="kw">fn </span>span_metrics() -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = MetricSpec&gt; {
+</span><span class="kw">fn </span>span_metrics(is_extract_all: bool) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = MetricSpec&gt; {
+    <span class="kw">let </span>flagged_mobile_ops = {
+        <span class="kw">let </span><span class="kw-2">mut </span>ops = MOBILE_OPS.to_vec();
+        <span class="kw">if </span>is_extract_all {
+            ops.extend([<span class="string">&quot;contentprovider.load&quot;</span>, <span class="string">&quot;application.load&quot;</span>, <span class="string">&quot;activity.load&quot;</span>]);
+        }
+        ops
+    };
+
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">&quot;span.sentry_tags.category&quot;</span>, <span class="string">&quot;db&quot;</span>)
         &amp; !(RuleCondition::eq(<span class="string">&quot;span.system&quot;</span>, <span class="string">&quot;mongodb&quot;</span>)
             | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, DISABLED_DATABASES)
             | RuleCondition::glob(<span class="string">&quot;span.description&quot;</span>, MONGODB_QUERIES));
     <span class="kw">let </span>is_resource = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, RESOURCE_SPAN_OPS);
 
-    <span class="kw">let </span>is_mobile_op = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, MOBILE_OPS);
+    <span class="kw">let </span>is_mobile_op = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, flagged_mobile_ops);
 
     <span class="kw">let </span>is_mobile_sdk = RuleCondition::eq(<span class="string">&quot;span.sentry_tags.mobile&quot;</span>, <span class="string">&quot;true&quot;</span>);
 

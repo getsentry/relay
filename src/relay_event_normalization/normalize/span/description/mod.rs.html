@@ -934,6 +934,47 @@
 <a href="#934" id="934">934</a>
 <a href="#935" id="935">935</a>
 <a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -1016,6 +1057,26 @@
                 <span class="comment">// `app.*` has static descriptions, like `Cold Start`
                 // or `Pre Runtime Init`.
                 // They are low-cardinality.
+                </span><span class="prelude-val">Some</span>(description.to_owned())
+            }
+            (<span class="string">&quot;contentprovider&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
+                <span class="comment">// `contentprovider.load` spans contain paths of third party framework components
+                // and their onCreate method such as
+                // `io.sentry.android.core.SentryPerformanceProvider.onCreate`, which
+                // _should_ be low-cardinality, on the order of 10s per project.
+                </span><span class="prelude-val">Some</span>(description.to_owned())
+            }
+            (<span class="string">&quot;application&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
+                <span class="comment">// `application.load` spans contain paths of app components and their
+                // onCreate method such as
+                // `io.sentry.samples.android.MyApplication.onCreate`, which _should_ be
+                // low-cardinality.
+                </span><span class="prelude-val">Some</span>(description.to_owned())
+            }
+            (<span class="string">&quot;activity&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
+                <span class="comment">// `activity.load` spans contain paths of app components and their onCreate/onStart
+                // method such as `io.sentry.samples.android.MainActivity.onCreate`, which
+                // _should_ be low-cardinality, less than 10 per project.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
             (<span class="string">&quot;file&quot;</span>, <span class="kw">_</span>) =&gt; scrub_file(description),
@@ -1617,6 +1678,27 @@
         <span class="string">&quot;ListAppViewController&quot;</span>,
         <span class="string">&quot;ui.load&quot;</span>,
         <span class="string">&quot;ListAppViewController&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        contentprovider_load,
+        <span class="string">&quot;io.sentry.android.core.SentryPerformanceProvider.onCreate&quot;</span>,
+        <span class="string">&quot;contentprovider.load&quot;</span>,
+        <span class="string">&quot;io.sentry.android.core.SentryPerformanceProvider.onCreate&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        application_load,
+        <span class="string">&quot;io.sentry.samples.android.MyApplication.onCreate&quot;</span>,
+        <span class="string">&quot;application.load&quot;</span>,
+        <span class="string">&quot;io.sentry.samples.android.MyApplication.onCreate&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        activity_load,
+        <span class="string">&quot;io.sentry.samples.android.MainActivity.onCreate&quot;</span>,
+        <span class="string">&quot;activity.load&quot;</span>,
+        <span class="string">&quot;io.sentry.samples.android.MainActivity.onCreate&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
