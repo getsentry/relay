@@ -254,7 +254,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     .ok();
 
     // Default required attributes, even if they have errors
-    normalize_logentry(&mut event.logentry, meta)?;
+    normalize_logentry(&mut event.logentry, meta);
     normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event)?; // Tags are added to every metric
 
@@ -431,8 +431,11 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
-    processor::apply(logentry, crate::logentry::normalize_logentry)
+fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
+    processor::apply(logentry, |logentry, meta| {
+        crate::logentry::normalize_logentry(logentry, meta)
+    })
+    .ok();
 }
 
 /// Ensures that the `release` and `dist` fields match up.
