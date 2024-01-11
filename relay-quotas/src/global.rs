@@ -50,8 +50,8 @@ impl GlobalRateLimits {
         let key = BudgetKeyRef::new(quota);
 
         let val = match self.counters.read().unwrap().get(&key).cloned() {
-            None => Arc::clone(self.counters.write().unwrap().entry_ref(&key).or_default()),
             Some(val) => val,
+            None => Arc::clone(self.counters.write().unwrap().entry_ref(&key).or_default()),
         };
 
         let mut lock = val.lock().unwrap();
