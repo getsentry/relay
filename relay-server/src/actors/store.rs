@@ -841,17 +841,14 @@ impl StoreService {
                     "failed to parse span"
                 );
                 self.outcome_aggregator.send(TrackOutcome {
-                    timestamp: instant_to_date_time(start_time),
-                    scoping,
-                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
+                    category: DataCategory::SpanIndexed,
                     event_id,
-                    remote_addr,
-                    category: DataCategory::Span,
-                    // Quantities are usually `usize` which lets us go all the way to 64-bit on our
-                    // machines, but the protocol and data store can only do 32-bit.
+                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
                     quantity: 1,
+                    remote_addr,
+                    scoping,
+                    timestamp: instant_to_date_time(start_time),
                 });
-
                 return Ok(());
             }
         };
@@ -869,15 +866,13 @@ impl StoreService {
         )?;
 
         self.outcome_aggregator.send(TrackOutcome {
-            timestamp: instant_to_date_time(start_time),
-            scoping,
-            outcome: Outcome::Accepted,
+            category: DataCategory::SpanIndexed,
             event_id,
-            remote_addr,
-            category: DataCategory::Span,
-            // Quantities are usually `usize` which lets us go all the way to 64-bit on our
-            // machines, but the protocol and data store can only do 32-bit.
+            outcome: Outcome::Accepted,
             quantity: 1,
+            remote_addr,
+            scoping,
+            timestamp: instant_to_date_time(start_time),
         });
 
         metric!(
