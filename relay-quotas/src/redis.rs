@@ -11,7 +11,7 @@ use thiserror::Error;
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::{redis, REJECT_ALL_SECS};
+use crate::REJECT_ALL_SECS;
 
 fn load_global_lua_script() -> &'static Script {
     static SCRIPT: OnceLock<Script> = OnceLock::new();
