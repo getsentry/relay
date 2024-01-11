@@ -22,6 +22,7 @@
 - Validate error_id and trace_id vectors in replay deserializer. ([#2931](https://github.com/getsentry/relay/pull/2931))
 - Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
 - Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
+- Add size and count metrics for dynamically loaded libraries on app start spans ([#2938](https://github.com/getsentry/relay/pull/2938))
 
 ## 23.12.1
 

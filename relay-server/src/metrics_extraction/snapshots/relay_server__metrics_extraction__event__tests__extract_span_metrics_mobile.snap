@@ -121,7 +121,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "ttid": "ttid",
             },
             received: ~,
-            measurements: ~,
+            measurements: Measurements(
+                {},
+            ),
             _metrics_summary: ~,
             other: {},
         },
