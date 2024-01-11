@@ -20,7 +20,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, TraceContext, User,
+    Tags, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -280,7 +280,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     .ok();
 
     // Some contexts need to be normalized before metrics extraction takes place.
-    processor::apply(&mut event.contexts, normalize_contexts)?;
+    normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         // XXX(iker): span normalization runs in the store processor, but
@@ -898,14 +898,17 @@ fn normalize_app_start_spans(event: &mut Event) {
 }
 
 /// Normalizes incoming contexts for the downstream metric extraction.
-fn normalize_contexts(contexts: &mut Contexts, _: &mut Meta) -> ProcessingResult {
-    for annotated in &mut contexts.0.values_mut() {
-        if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
-            normalize_trace_context(context)?
+fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
+    processor::apply(contexts, |contexts, _meta| {
+        for annotated in &mut contexts.0.values_mut() {
+            if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
+                context.status.get_or_insert_with(|| SpanStatus::Unknown);
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .ok();
 }
 
 /// New SDKs do not send measurements when they exceed 180 seconds.
@@ -944,11 +947,6 @@ fn normalize_units(measurements: &mut Measurements) {
             .unit
             .set_value(Some(stated_unit.or(default_unit).unwrap_or_default()))
     }
-}
-
-fn normalize_trace_context(context: &mut TraceContext) -> ProcessingResult {
-    context.status.get_or_insert_with(|| SpanStatus::Unknown);
-    Ok(())
 }
 
 /// Remove measurements that do not conform to the given config.
