@@ -84,7 +84,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             ],
         );
 
-    let is_mobile = is_mobile_sdk & (is_mobile_op.clone() | is_screen);
+    let is_mobile = is_mobile_sdk.clone() & (is_mobile_op.clone() | is_screen);
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
     let duration_condition = RuleCondition::negate(is_mobile_op.clone())
@@ -336,7 +336,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "c:spans/count_per_segment@none".into(),
             field: None,
-            condition: Some(is_mobile.clone() & duration_condition.clone()),
+            condition: Some(is_mobile_sdk.clone() & duration_condition.clone()),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
