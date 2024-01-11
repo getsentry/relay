@@ -1,6 +1,6 @@
 use std::mem;
 
-use relay_event_schema::processor::{self, ProcessingResult};
+use relay_event_schema::processor;
 use relay_event_schema::protocol::{Frame, RawStacktrace};
 use relay_protocol::{Annotated, Empty, Meta};
 use url::Url;
@@ -12,39 +12,38 @@ fn is_url(filename: &str) -> bool {
         || filename.starts_with("applewebdata:")
 }
 
-pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) -> ProcessingResult {
+pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) {
     // This processing is only done for non raw frames (i.e. not for exception.raw_stacktrace).
     if let Some(frames) = stacktrace.frames.value_mut() {
         for frame in frames.iter_mut() {
-            processor::apply(frame, process_non_raw_frame)?;
+            process_non_raw_frame(frame);
         }
     }
-
-    Ok(())
 }
+pub fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
+    processor::apply(frame, |frame, _meta| {
+        if frame.abs_path.value().is_empty() {
+            frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
+        }
 
-pub fn process_non_raw_frame(frame: &mut Frame, _meta: &mut Meta) -> ProcessingResult {
-    if frame.abs_path.value().is_empty() {
-        frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
-    }
+        if frame.filename.value().is_empty() {
+            if let Some(abs_path) = frame.abs_path.value_mut() {
+                frame.filename = Annotated::new(abs_path.clone());
 
-    if frame.filename.value().is_empty() {
-        if let Some(abs_path) = frame.abs_path.value_mut() {
-            frame.filename = Annotated::new(abs_path.clone());
+                if is_url(abs_path.as_str()) {
+                    if let Ok(url) = Url::parse(abs_path.as_str()) {
+                        let path = url.path();
 
-            if is_url(abs_path.as_str()) {
-                if let Ok(url) = Url::parse(abs_path.as_str()) {
-                    let path = url.path();
-
-                    if !path.is_empty() && path != "/" {
-                        frame.filename = Annotated::new(path.into());
+                        if !path.is_empty() && path != "/" {
+                            frame.filename = Annotated::new(path.into());
+                        }
                     }
                 }
             }
         }
-    }
-
-    Ok(())
+        Ok(())
+    })
+    .ok();
 }
 
 #[cfg(test)]
@@ -61,7 +60,7 @@ mod tests {
             ..Default::default()
         });
 
-        processor::apply(&mut frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "/foo.js");
@@ -80,7 +79,7 @@ mod tests {
             ..Default::default()
         });
 
-        processor::apply(&mut frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "foo.js");
@@ -98,7 +97,7 @@ mod tests {
             ..Default::default()
         });
 
-        processor::apply(&mut frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "http://foo.com");
@@ -116,7 +115,7 @@ mod tests {
             ..Default::default()
         });
 
-        processor::apply(&mut frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "http://foo.com/");
@@ -135,7 +134,7 @@ mod tests {
             ..Default::default()
         });
 
-        processor::apply(&mut frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(&mut frame);
         let frame = frame.value().unwrap();
 
         assert_eq!(frame.filename.value().unwrap().as_str(), "/foo.js");

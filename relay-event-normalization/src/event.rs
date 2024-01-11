@@ -262,7 +262,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     if config.device_class_synthesis_config {
         normalize_device_class(event);
     }
-    normalize_stacktraces(event)?;
+    normalize_stacktraces(event);
     normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
     normalize_measurements(
@@ -621,29 +621,33 @@ fn normalize_device_class(event: &mut Event) {
 /// Process the last frame of the stacktrace of the first exception.
 ///
 /// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
-fn normalize_stacktraces(event: &mut Event) -> ProcessingResult {
+fn normalize_stacktraces(event: &mut Event) {
     match event.exceptions.value_mut() {
-        None => Ok(()),
+        None => (),
         Some(exception) => match exception.values.value_mut() {
-            None => Ok(()),
+            None => (),
             Some(exceptions) => match exceptions.first_mut() {
-                None => Ok(()),
+                None => (),
                 Some(first) => normalize_last_stacktrace_frame(first),
             },
         },
-    }
+    };
 }
 
-fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) -> ProcessingResult {
+fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
     processor::apply(exception, |e, _| {
         processor::apply(&mut e.stacktrace, |s, _| match s.frames.value_mut() {
             None => Ok(()),
             Some(frames) => match frames.last_mut() {
                 None => Ok(()),
-                Some(frame) => processor::apply(frame, stacktrace::process_non_raw_frame),
+                Some(frame) => {
+                    stacktrace::process_non_raw_frame(frame);
+                    Ok(())
+                }
             },
         })
     })
+    .ok();
 }
 
 fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
