@@ -61,12 +61,12 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
 /// Metrics with tags applied as required.
 fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
-    let flagged_mobile_ops = if is_extract_all {
-        let mut new_mobile_ops = MOBILE_OPS.to_vec();
-        new_mobile_ops.extend(["contentprovider.load", "application.load", "activity.load"]);
-        new_mobile_ops
-    } else {
-        MOBILE_OPS.to_vec()
+    let flagged_mobile_ops = {
+        let mut ops = MOBILE_OPS.to_vec();
+        if is_extract_all {
+            ops.extend(["contentprovider.load", "application.load", "activity.load"]);
+        }
+        ops
     };
 
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
