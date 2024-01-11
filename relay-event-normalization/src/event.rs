@@ -241,7 +241,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
             meta.add_error(ErrorKind::InvalidData);
             Err(ProcessingAction::DeleteValueSoft)
         }
-    })?;
+    })
+    .ok();
     processor::apply(&mut event.environment, |environment, meta| {
         if crate::validate_environment(environment).is_ok() {
             Ok(())
