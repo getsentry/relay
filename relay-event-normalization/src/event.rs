@@ -210,7 +210,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         config.received_at,
         config.max_secs_in_past,
         config.max_secs_in_future,
-    )?; // Timestamps are core in the metrics extraction
+    ); // Timestamps are core in the metrics extraction
     TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
     // Process security reports first to ensure all props.
@@ -466,7 +466,7 @@ fn normalize_timestamps(
     received_at: Option<DateTime<Utc>>,
     max_secs_in_past: Option<i64>,
     max_secs_in_future: Option<i64>,
-) -> ProcessingResult {
+) {
     let received_at = received_at.unwrap_or_else(Utc::now);
 
     let mut sent_at = None;
@@ -490,11 +490,13 @@ fn normalize_timestamps(
         }
 
         Ok(())
-    })?;
+    })
+    .ok();
 
     ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
         .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root())?;
+        .process_event(event, meta, ProcessingState::root())
+        .ok();
 
     // Apply this after clock drift correction, otherwise we will malform it.
     event.received = Annotated::new(received_at.into());
@@ -505,9 +507,8 @@ fn normalize_timestamps(
 
     processor::apply(&mut event.time_spent, |time_spent, _| {
         validate_bounded_integer_field(*time_spent)
-    })?;
-
-    Ok(())
+    })
+    .ok();
 }
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
