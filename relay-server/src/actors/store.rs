@@ -2,6 +2,7 @@
 //! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -19,8 +20,7 @@ use relay_metrics::{
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
-use serde::ser::Error;
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Deserializer;
@@ -29,7 +29,7 @@ use uuid::Uuid;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ExtractionMode};
+use crate::utils::{self, ExtractionMode, ManagedEnvelope};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -76,11 +76,9 @@ impl Producer {
 }
 
 /// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct StoreEnvelope {
-    pub envelope: Box<Envelope>,
-    pub start_time: Instant,
-    pub scoping: Scoping,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
@@ -95,17 +93,17 @@ pub struct StoreMetrics {
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
-    Envelope(StoreEnvelope, Sender<Result<(), StoreError>>),
+    Envelope(StoreEnvelope),
     Metrics(StoreMetrics),
 }
 
 impl Interface for Store {}
 
 impl FromMessage<StoreEnvelope> for Store {
-    type Response = AsyncResponse<Result<(), StoreError>>;
+    type Response = NoResponse;
 
-    fn from_message(message: StoreEnvelope, sender: Sender<Result<(), StoreError>>) -> Self {
-        Self::Envelope(message, sender)
+    fn from_message(message: StoreEnvelope, _: ()) -> Self {
+        Self::Envelope(message)
     }
 }
 
@@ -139,17 +137,36 @@ impl StoreService {
 
     fn handle_message(&self, message: Store) {
         match message {
-            Store::Envelope(message, sender) => sender.send(self.handle_store_envelope(message)),
+            Store::Envelope(message) => self.handle_store_envelope(message),
             Store::Metrics(message) => self.handle_store_metrics(message),
         }
     }
 
-    fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
+    fn handle_store_envelope(&self, message: StoreEnvelope) {
         let StoreEnvelope {
-            envelope,
-            start_time,
-            scoping,
+            envelope: mut managed,
         } = message;
+
+        let scoping = managed.scoping();
+        let envelope = managed.take_envelope();
+        let start_time = envelope.meta().start_time();
+
+        if let Err(error) = self.store_envelope(envelope, start_time, scoping) {
+            managed.reject(Outcome::Invalid(DiscardReason::Internal));
+            relay_log::error!(
+                error = &error as &dyn Error,
+                tags.project_key = %scoping.project_key,
+                "failed to store envelope"
+            );
+        }
+    }
+
+    fn store_envelope(
+        &self,
+        envelope: Box<Envelope>,
+        start_time: Instant,
+        scoping: Scoping,
+    ) -> Result<(), StoreError> {
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
@@ -919,7 +936,7 @@ where
     T: serde::Serialize,
 {
     serde_json::to_value(t)
-        .map_err(|e| S::Error::custom(e.to_string()))?
+        .map_err(|e| serde::ser::Error::custom(e.to_string()))?
         .serialize(serializer)
 }
 
