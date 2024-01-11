@@ -1212,8 +1212,7 @@ def test_transaction_name_too_long(
             assert metric["tags"]["transaction"] == expected_transaction_name
 
 
-@pytest.mark.parametrize("attempt", range(10))  # temporary, to test flakiness.
-def test_graceful_shutdown(mini_sentry, relay, attempt):
+def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         options={
