@@ -23,6 +23,10 @@ local requested_budget = tonumber(ARGV[3])
 
 local redis_count = tonumber(redis.call('GET', key) or 0)
 
+if limit == -1 then
+    limit = math.huge
+end
+
 if redis_count >= limit then
     return {0, redis_count}
 else

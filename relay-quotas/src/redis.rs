@@ -1,29 +1,20 @@
-use std::cmp;
 use std::fmt::{self, Debug};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::Arc;
 
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
-use relay_redis::{PooledClient, RedisError, RedisPool};
+use relay_redis::{RedisError, RedisPool};
 use thiserror::Error;
 
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::REJECT_ALL_SECS;
-
-fn load_global_lua_script() -> &'static Script {
-    static SCRIPT: OnceLock<Script> = OnceLock::new();
-    SCRIPT.get_or_init(|| Script::new(include_str!("global_quota.lua")))
-}
+use crate::{GlobalCounters, REJECT_ALL_SECS};
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
 /// metrics may not be in sync with the computer running this code.
 const GRACE: u64 = 60;
-
-const DEFAULT_BUDGET_REQUEST: usize = 100;
 
 /// An error returned by `RedisRateLimiter`.
 #[derive(Debug, Error)]
@@ -58,7 +49,7 @@ where
 
 /// Reference to information required for tracking quotas in Redis.
 #[derive(Debug)]
-struct RedisQuota<'a> {
+pub struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.
@@ -87,11 +78,21 @@ impl<'a> RedisQuota<'a> {
     }
 
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
-    fn limit(&self) -> i64 {
+    pub fn limit(&self) -> i64 {
         self.limit
             // If it does not fit into i64, treat as unlimited:
             .and_then(|limit| limit.try_into().ok())
             .unwrap_or(-1)
+    }
+
+    /// Returns the `window` of the quota.
+    pub fn window(&self) -> u64 {
+        self.window
+    }
+
+    /// Returns the prefix of the quota.
+    pub fn prefix(&self) -> &str {
+        self.prefix
     }
 
     fn shift(&self) -> u64 {
@@ -108,7 +109,8 @@ impl<'a> RedisQuota<'a> {
         UnixTimestamp::from_secs(next_start)
     }
 
-    fn key(&self) -> String {
+    /// Returns the key of the quota.
+    pub fn key(&self) -> String {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
@@ -138,245 +140,6 @@ impl std::ops::Deref for RedisQuota<'_> {
 
     fn deref(&self) -> &Self::Target {
         self.quota
-    }
-}
-
-fn current_slot(window: u64) -> usize {
-    UnixTimestamp::now()
-        .as_secs()
-        .checked_div(window)
-        .unwrap_or_default() as usize
-}
-
-/// Represents the case of a [`BudgetState`]'s slot being ahead of the current slot.
-///
-/// This should only be possible if the internal clock of relay gets decremented during production.
-struct InvalidSlot;
-
-/// Counters used as a cache for global quotas.
-///
-/// When we want to ratelimit across all relay-instances, we need to use redis to synchronize.
-/// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
-/// which is why we have this cache. It works by 'taking' a certain budget from redis, by pre-incrementing
-/// a global counter. We Put the amount we pre-incremented into this local cache and count down until
-/// we have no more budget, then we ask for more from redis. If we find the global counter is above
-/// the quota limit, we will ratelimit the item.
-#[derive(Default)]
-struct GlobalCounters(RwLock<hashbrown::HashMap<BudgetKey, Arc<RwLock<BudgetState>>>>);
-
-impl GlobalCounters {
-    /// Returns `true` if the global quota should be ratelimited.
-    fn is_rate_limited(
-        &self,
-        client: &mut PooledClient,
-        quota: &RedisQuota,
-        quantity: usize,
-    ) -> Result<bool, RedisError> {
-        let Some(limit) = quota.limit.map(|limit| limit as usize) else {
-            return Ok(false);
-        };
-
-        let budget_state = match self.try_get_state(quota) {
-            Ok(state) => state,
-            Err(InvalidSlot) => {
-                relay_log::error!("budget slot ahead of current slot");
-                return Ok(false);
-            }
-        };
-
-        {
-            let read_lock = budget_state.read().unwrap();
-
-            if read_lock.cached_global_count_exceeded(quantity, limit) {
-                return Ok(true);
-            }
-
-            if read_lock.try_consume_budget(quantity) {
-                return Ok(false);
-            }
-        }
-
-        let should_ratelimit = !budget_state
-            .write()
-            .unwrap()
-            .try_consume_budget_with_redis(client, quota, quantity, limit)?;
-
-        Ok(should_ratelimit)
-    }
-
-    /// Retrieves a valid [`BudgetState`] from the map.
-    ///
-    /// If it's missing or outdated, a new one is inserted before being returned.
-    fn try_get_state(&self, quota: &RedisQuota) -> Result<Arc<RwLock<BudgetState>>, InvalidSlot> {
-        let key = BudgetKeyRef::new(quota);
-        let state_opt = self.0.read().unwrap().get(&key).cloned();
-
-        match state_opt {
-            Some(state) => {
-                let local_slot_compared_to_current =
-                    state.read().unwrap().slot.cmp(&current_slot(quota.window));
-
-                match local_slot_compared_to_current {
-                    cmp::Ordering::Equal => Ok(state),
-                    cmp::Ordering::Less => {
-                        *state.write().unwrap() = BudgetState::new(quota.window);
-                        Ok(state)
-                    }
-                    cmp::Ordering::Greater => Err(InvalidSlot),
-                }
-            }
-            None => {
-                let new_state = Arc::new(RwLock::new(BudgetState::new(quota.window)));
-                self.0
-                    .write()
-                    .unwrap()
-                    .insert(key.into_owned(), Arc::clone(&new_state));
-
-                Ok(new_state)
-            }
-        }
-    }
-}
-
-/// Key for storing global quota-budgets locally.
-///
-/// Note: must not be used in redis. For that, use RedisQuota.key().
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct BudgetKey {
-    prefix: String,
-    window: u64,
-}
-
-/// Used to look up a hashmap of [`BudgetKey`]-keys without a string allocation.
-///
-/// This works due to the 'Equivalent' trait in the hashbrown crate.
-#[derive(Clone, Copy, Hash)]
-struct BudgetKeyRef<'a> {
-    prefix: &'a str,
-    window: u64,
-}
-
-impl From<&BudgetKeyRef<'_>> for BudgetKey {
-    fn from(value: &BudgetKeyRef<'_>) -> Self {
-        Self {
-            prefix: value.prefix.to_owned(),
-            window: value.window,
-        }
-    }
-}
-
-impl<'a> BudgetKeyRef<'a> {
-    fn new(quota: &'a RedisQuota) -> Self {
-        Self {
-            prefix: quota.prefix,
-            window: quota.window,
-        }
-    }
-
-    fn into_owned(self) -> BudgetKey {
-        BudgetKey {
-            prefix: self.prefix.to_owned(),
-            window: self.window,
-        }
-    }
-}
-
-impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
-    fn equivalent(&self, key: &BudgetKey) -> bool {
-        self.prefix == key.prefix && self.window == key.window
-    }
-}
-
-/// Represents the local budget taken from a global quota.
-struct BudgetState {
-    slot: usize,
-    budget: AtomicUsize,
-    last_seen_redis_value: usize,
-}
-
-impl BudgetState {
-    fn new(window: u64) -> Self {
-        Self {
-            budget: AtomicUsize::new(0),
-            last_seen_redis_value: 0,
-            slot: current_slot(window),
-        }
-    }
-
-    /// Ask redis for more budget.
-    fn reserve_budget(
-        &self,
-        client: &mut PooledClient,
-        quota: &RedisQuota,
-        quantity: usize,
-        limit: usize,
-    ) -> Result<(usize, usize), RedisError> {
-        let script = load_global_lua_script();
-        let requested_budget = std::cmp::max(DEFAULT_BUDGET_REQUEST, quantity);
-        let redis_key = quota.key();
-        let expiry = UnixTimestamp::now().as_secs() + quota.window + GRACE;
-
-        let (received_budget, redis_count): (usize, usize) = script
-            .prepare_invoke()
-            .key(redis_key.as_str())
-            .arg(limit)
-            .arg(expiry)
-            .arg(requested_budget)
-            .invoke(&mut client.connection()?)
-            .map_err(RedisError::Redis)?;
-
-        Ok((received_budget, redis_count))
-    }
-
-    /// Same as `try_consume_budget` but we get more budget from redis if we ran out.
-    ///
-    /// Since we take &mut self here, we are guaranteed to be the only writer of the budget.
-    fn try_consume_budget_with_redis(
-        &mut self,
-        client: &mut PooledClient,
-        quota: &RedisQuota,
-        quantity: usize,
-        limit: usize,
-    ) -> Result<bool, RedisError> {
-        if !self.fits_budget(quantity) {
-            let (budget, redis_val) = self.reserve_budget(client, quota, quantity, limit)?;
-            // Side effect: updating the budget will increase the 'last_seen_redis_count'.
-            // If we're over the limit then next function call will return early on 'global_count_exceeded'.
-            self.update_budget(budget, redis_val);
-        };
-
-        Ok(self.try_consume_budget(quantity))
-    }
-
-    fn try_consume_budget(&self, quantity: usize) -> bool {
-        use Ordering::SeqCst;
-
-        if !self.fits_budget(quantity) {
-            return false;
-        }
-
-        self.budget
-            .fetch_update(SeqCst, SeqCst, |val| val.checked_sub(quantity))
-            .is_ok()
-    }
-
-    fn current_budget(&self) -> usize {
-        self.budget.load(Ordering::SeqCst)
-    }
-
-    fn cached_global_count_exceeded(&self, quantity: usize, limit: usize) -> bool {
-        let cached_global_count = self.last_seen_redis_value - self.current_budget();
-
-        cached_global_count + quantity > limit
-    }
-
-    fn fits_budget(&self, quantity: usize) -> bool {
-        self.current_budget() >= quantity
-    }
-
-    fn update_budget(&mut self, budget: usize, redis_count: usize) {
-        self.budget.fetch_add(budget, Ordering::SeqCst);
-        self.last_seen_redis_value = redis_count;
     }
 }
 
