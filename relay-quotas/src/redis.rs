@@ -155,6 +155,11 @@ fn current_slot(window: u64) -> usize {
         .unwrap_or_default() as usize
 }
 
+/// Represents the case of a [`BudgetState`]'s slot being ahead of the current slot.
+///
+/// This should only be possible if the internal clock of relay gets decremented during production.
+struct InvalidSlot;
+
 /// Counters used as a cache for global quotas.
 ///
 /// When we want to ratelimit across all relay-instances, we need to use redis to synchronize.
@@ -178,24 +183,32 @@ impl GlobalCounters {
             return Ok(false);
         };
 
-        let budget_state = self.get_state(quota);
+        let budget_state = match self.try_get_state(quota) {
+            Ok(state) => state,
+            Err(InvalidSlot) => {
+                relay_log::error!("budget slot ahead of current slot");
+                return Ok(false);
+            }
+        };
 
-        match budget_state.read().unwrap().try_use_budget(quantity, limit) {
-            BudgetOutcome::GlobalCountExceeded => return Ok(true),
-            BudgetOutcome::LocalBudgetDecremented => return Ok(false),
-            BudgetOutcome::LocalBudgetExhausted => {}
+        let read_lock = budget_state.read().unwrap();
+
+        match read_lock.try_use_budget(quantity, limit) {
+            BudgetOutcome::GlobalCountExceeded => Ok(true),
+            BudgetOutcome::LocalBudgetDecremented => Ok(false),
+            BudgetOutcome::LocalBudgetExhausted => {
+                drop(read_lock);
+                let mut write_lock = budget_state.write().unwrap();
+
+                write_lock.is_rate_limited(client, quota, quantity)
+            }
         }
-
-        return budget_state
-            .write()
-            .unwrap()
-            .is_rate_limited(client, quota, quantity);
     }
 
     /// Retrieves a valid [`BudgetState`] from the map.
     ///
     /// If it's missing or outdated, a new one is inserted before being returned.
-    fn get_state(&self, quota: &RedisQuota) -> Arc<RwLock<BudgetState>> {
+    fn try_get_state(&self, quota: &RedisQuota) -> Result<Arc<RwLock<BudgetState>>, InvalidSlot> {
         let key = BudgetKeyRef::new(quota);
         let state_opt = self.0.read().unwrap().get(&key).cloned();
 
@@ -205,27 +218,22 @@ impl GlobalCounters {
                     state.read().unwrap().slot.cmp(&current_slot(quota.window));
 
                 match local_slot_compared_to_current {
-                    cmp::Ordering::Equal => state,
+                    cmp::Ordering::Equal => Ok(state),
                     cmp::Ordering::Less => {
                         *state.write().unwrap() = BudgetState::new(quota.window);
-                        state
+                        Ok(state)
                     }
-                    cmp::Ordering::Greater => {
-                        relay_log::error!("time went backwards");
-                        *state.write().unwrap() = BudgetState::new(quota.window);
-                        state
-                    }
+                    cmp::Ordering::Greater => Err(InvalidSlot),
                 }
             }
             None => {
-                // Acquire a write lock on the HashMap to insert a new BudgetState.
                 let new_state = Arc::new(RwLock::new(BudgetState::new(quota.window)));
                 self.0
                     .write()
                     .unwrap()
                     .insert(key.into_owned(), Arc::clone(&new_state));
 
-                new_state
+                Ok(new_state)
             }
         }
     }
