@@ -21,6 +21,7 @@
 - Normalize metric resource identifiers in `event._metrics_summary` and `span._metrics_summary`. ([#2914](https://github.com/getsentry/relay/pull/2914))
 - Validate error_id and trace_id vectors in replay deserializer. ([#2931](https://github.com/getsentry/relay/pull/2931))
 - Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
+- Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
 
 ## 23.12.1
 
