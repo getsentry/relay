@@ -1888,19 +1888,9 @@ impl UpstreamRequest for SendEnvelope {
 
             match result {
                 Ok(()) => self.envelope.accept(),
-                Err(e) if e.is_received() => self.envelope.accept(),
-                Err(error) => {
-                    let mut envelope = self.envelope;
-                    let scoping = envelope.scoping();
-
-                    // Errors are only logged for what we consider an internal discard reason. These
-                    // indicate errors in the infrastructure or implementation bugs.
-                    envelope.reject(Outcome::Invalid(DiscardReason::Internal));
-                    relay_log::error!(
-                        error = &error as &dyn Error,
-                        tags.project_key = %scoping.project_key,
-                        "error sending envelope"
-                    );
+                Err(error) if error.is_received() => {
+                    let scoping = self.envelope.scoping();
+                    self.envelope.accept();
 
                     if let UpstreamRequestError::RateLimited(limits) = error {
                         self.project_cache.send(UpdateRateLimits::new(
@@ -1908,6 +1898,17 @@ impl UpstreamRequest for SendEnvelope {
                             limits.scope(&scoping),
                         ));
                     }
+                }
+                Err(error) => {
+                    // Errors are only logged for what we consider an internal discard reason. These
+                    // indicate errors in the infrastructure or implementation bugs.
+                    let mut envelope = self.envelope;
+                    envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        tags.project_key = %envelope.scoping().project_key,
+                        "error sending envelope"
+                    );
                 }
             }
         })
