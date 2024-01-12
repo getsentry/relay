@@ -194,21 +194,18 @@ impl ManagedEnvelope {
     {
         let mut outcomes = vec![];
         let use_indexed = self.use_index_category();
-        let mut push_outcome =
-            |item: &mut Item, outcome: Outcome, quantity: usize, use_indexed: bool| {
-                if let Some(category) = item.outcome_category(use_indexed) {
-                    outcomes.push((outcome, category, quantity));
-                };
-            };
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
-            ItemAction::Drop(outcome) if item.ty() == &ItemType::Span => {
-                push_outcome(item, outcome, item.quantity(), item.metrics_extracted());
-                false
-            }
             ItemAction::Drop(outcome) => {
-                push_outcome(item, outcome, item.quantity(), use_indexed);
+                let use_indexed = if item.ty() == &ItemType::Span {
+                    item.metrics_extracted()
+                } else {
+                    use_indexed
+                };
+                if let Some(category) = item.outcome_category(use_indexed) {
+                    outcomes.push((outcome, category, item.quantity()));
+                };
                 false
             }
         });
