@@ -17,7 +17,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
     normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
     NormalizationConfig, TransactionNameConfig,
@@ -52,6 +52,7 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
+use crate::actors::global_config::GlobalConfigHandle;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
@@ -447,9 +448,6 @@ struct ProcessEnvelopeState<'a> {
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
-
-    /// Global config used for envelope processing.
-    global_config: Arc<GlobalConfig>,
 }
 
 impl<'a> ProcessEnvelopeState<'a> {
@@ -531,7 +529,6 @@ pub struct ProcessEnvelope {
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
     pub reservoir_counters: ReservoirCounters,
-    pub global_config: Arc<GlobalConfig>,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -749,6 +746,7 @@ pub struct EnvelopeProcessorService {
 
 struct InnerProcessor {
     config: Arc<Config>,
+    global_config: GlobalConfigHandle,
     #[cfg(feature = "processing")]
     redis_pool: Option<RedisPool>,
     project_cache: Addr<ProjectCache>,
@@ -773,6 +771,7 @@ impl EnvelopeProcessorService {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
+        global_config: GlobalConfigHandle,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
@@ -792,6 +791,7 @@ impl EnvelopeProcessorService {
         });
 
         let inner = InnerProcessor {
+            global_config,
             #[cfg(feature = "processing")]
             redis_pool: redis.clone(),
             #[cfg(feature = "processing")]
@@ -872,7 +872,6 @@ impl EnvelopeProcessorService {
             project_state,
             sampling_project_state,
             reservoir_counters,
-            global_config,
         } = message;
 
         let envelope = managed_envelope.envelope_mut();
@@ -927,7 +926,6 @@ impl EnvelopeProcessorService {
             managed_envelope,
             profile_id: None,
             reservoir,
-            global_config,
         })
     }
 
@@ -1057,6 +1055,8 @@ impl EnvelopeProcessorService {
             .config
             .aggregator_config_for(MetricNamespace::Transactions);
 
+        let global_config = self.inner.global_config.current();
+
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -1099,7 +1099,7 @@ impl EnvelopeProcessorService {
                 enable_trimming: true,
                 measurements: Some(DynamicMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
-                    state.global_config.measurements.as_ref(),
+                    global_config.measurements.as_ref(),
                 )),
             };
 
@@ -2491,7 +2491,6 @@ mod tests {
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
