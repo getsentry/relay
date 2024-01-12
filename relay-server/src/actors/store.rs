@@ -867,10 +867,10 @@ impl StoreService {
 
         self.outcome_aggregator.send(TrackOutcome {
             category: DataCategory::SpanIndexed,
-            event_id,
+            event_id: None,
             outcome: Outcome::Accepted,
             quantity: 1,
-            remote_addr,
+            remote_addr: None,
             scoping,
             timestamp: instant_to_date_time(start_time),
         });
