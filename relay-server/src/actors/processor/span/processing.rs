@@ -111,7 +111,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             }
         };
         new_item.set_payload(ContentType::Json, payload);
-        new_item.set_metrics_extracted(state.event_metrics_extracted);
+        new_item.set_metrics_extracted(item.metrics_extracted());
 
         *item = new_item;
 
