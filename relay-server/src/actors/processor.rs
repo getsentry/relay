@@ -25,7 +25,7 @@ use relay_event_normalization::{
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
-    ClientReport, Event, EventType, IpAddr, Metrics, NetworkReportError,
+    ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
@@ -38,6 +38,7 @@ use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEva
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
+use smallvec::{smallvec, SmallVec};
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
@@ -78,8 +79,157 @@ mod span;
 #[cfg(feature = "processing")]
 mod unreal;
 
+/// Creates the block only if used with `processing` feature.
+///
+/// Provided code block will be executed only if the provided config has `processing_enabled` set.
+macro_rules! if_processing {
+    ($config:expr, $if_true:block) => {
+        #[cfg(feature = "processing")] {
+            if $config.processing_enabled() $if_true
+        }
+    };
+}
+
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
+
+/// Describes the groups of the processable items.
+#[derive(Clone, Copy, Debug)]
+pub enum ProcessingGroup {
+    /// All the transaction related items.
+    ///
+    /// Includes transactions, related attachments, profiles.
+    Transaction,
+    /// All the items which require (have or create) events.
+    ///
+    /// This includes: errors, NEL, security reports, user and clients reports, some of the
+    /// attachments.
+    Error,
+    /// Session events.
+    Session,
+    /// Attachments which can be sent alone without any event attached to it in the current
+    /// envelope.
+    StandaloneAttachment,
+    UserReport,
+    Replay,
+    /// Crons.
+    CheckIn,
+    Span,
+    /// The unknow item types will be forwarded upstream (to processing Relay), where we will
+    /// decide what to do with it.
+    ForwardUnknown,
+    /// All the events in the envelope we failed to group.
+    Ungrouped,
+}
+
+impl ProcessingGroup {
+    /// Splits provided envelope into list of tuples of groups with associated envelopes.
+    pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
+        let headers = envelope.headers().clone();
+        let mut grouped_envelopes = smallvec![];
+
+        // Each NEL item *must* have a dedicated envelope.
+        let nel_envelopes = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Nel))
+            .into_iter()
+            .map(|item| {
+                let headers = headers.clone();
+                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+                let mut envelope = Envelope::from_parts(headers, items);
+                envelope.set_event_id(EventId::new());
+                (ProcessingGroup::Error, envelope)
+            });
+        grouped_envelopes.extend(nel_envelopes);
+
+        // Extract all standalone attachments.
+        // Note: only if there is no items in the envelope which can create events.
+        if !envelope.items().any(Item::creates_event) {
+            let standalone_attachment_items = envelope.take_items_by(|item| {
+                matches!(item.ty(), &ItemType::Attachment | &ItemType::FormData)
+            });
+            if !standalone_attachment_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneAttachment,
+                    Envelope::from_parts(headers.clone(), standalone_attachment_items),
+                ))
+            }
+        };
+
+        // Extract replays.
+        let replay_items = envelope.take_items_by(|item| {
+            matches!(
+                item.ty(),
+                &ItemType::ReplayEvent | &ItemType::ReplayRecording
+            )
+        });
+        if !replay_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Replay,
+                Envelope::from_parts(headers.clone(), replay_items),
+            ))
+        }
+
+        // Keep all the sessions together in one envelope.
+        let session_items = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Session | &ItemType::Sessions));
+        if !session_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Session,
+                Envelope::from_parts(headers.clone(), session_items),
+            ))
+        }
+
+        // Extract spans.
+        let span_items = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan));
+        if !span_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Span,
+                Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        // Extract all the items which require an event into separate envelope.
+        let require_event_items = envelope.take_items_by(Item::requires_event);
+        if !require_event_items.is_empty() {
+            let group = if require_event_items
+                .iter()
+                .any(|item| matches!(item.ty(), &ItemType::Transaction | &ItemType::Profile))
+            {
+                ProcessingGroup::Transaction
+            } else {
+                ProcessingGroup::Error
+            };
+            grouped_envelopes.push((
+                group,
+                Envelope::from_parts(headers.clone(), require_event_items),
+            ))
+        }
+
+        // Get the rest of the envelopes, one per item.
+        let envelopes = envelope.items_mut().map(|item| {
+            let headers = headers.clone();
+            let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+            let envelope = Envelope::from_parts(headers, items);
+            let item_type = item.ty();
+            let group = if matches!(item_type, &ItemType::CheckIn) {
+                ProcessingGroup::CheckIn
+            } else if matches!(item_type, &ItemType::UserReport | &ItemType::ClientReport) {
+                ProcessingGroup::UserReport
+            } else if matches!(item_type, &ItemType::Unknown(_)) {
+                ProcessingGroup::ForwardUnknown
+            } else {
+                // Cannot group this item type.
+                ProcessingGroup::Ungrouped
+            };
+
+            (group, envelope)
+        });
+        grouped_envelopes.extend(envelopes);
+
+        grouped_envelopes
+    }
+}
 
 /// An error returned when handling [`ProcessEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -961,15 +1111,165 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        macro_rules! if_processing {
-            ($if_true:block) => {
-                #[cfg(feature = "processing")] {
-                    if self.inner.config.processing_enabled() $if_true
-                }
-            };
+    /// Processes the general errors, and the items which require or create the events.
+    fn process_errors(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // Events can also contain user reports.
+        report::process(
+            state,
+            &self.inner.config,
+            self.inner.outcome_aggregator.clone(),
+        );
+
+        if_processing!(self.inner.config, {
+            unreal::expand(state, &self.inner.config)?;
+        });
+
+        event::extract(state, &self.inner.config)?;
+
+        if_processing!(self.inner.config, {
+            unreal::process(state)?;
+            attachment::create_placeholders(state);
+        });
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        event::filter(state)?;
+        dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
         }
 
+        attachment::scrub(state);
+
+        Ok(())
+    }
+
+    /// Processes only transactions and transaction-related items.
+    fn process_transactions(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        profile::filter(state);
+        event::extract(state, &self.inner.config)?;
+        profile::transfer_id(state);
+
+        if_processing!(self.inner.config, {
+            attachment::create_placeholders(state);
+        });
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        dynamic_sampling::normalize(state);
+        event::filter(state)?;
+        dynamic_sampling::run(state, &self.inner.config);
+
+        // We avoid extracting metrics if we are not sampling the event while in non-processing
+        // relays, in order to synchronize rate limits on indexed and processed transactions.
+        if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+            self.extract_metrics(state)?;
+        }
+
+        dynamic_sampling::sample_envelope(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+            profile::process(state, &self.inner.config);
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+            if_processing!(self.inner.config, {
+                span::extract_from_event(state);
+            });
+        }
+
+        attachment::scrub(state);
+        Ok(())
+    }
+
+    /// Processes standalone attachments.
+    fn process_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+
+        attachment::scrub(state);
+        Ok(())
+    }
+
+    /// Processes user sessions.
+    fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        session::process(state, &self.inner.config);
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+        Ok(())
+    }
+
+    /// Processes user and client reports.
+    fn process_user_reports(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+
+        report::process(
+            state,
+            &self.inner.config,
+            self.inner.outcome_aggregator.clone(),
+        );
+
+        Ok(())
+    }
+
+    /// Processes replays.
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        replay::process(state, &self.inner.config)?;
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+        Ok(())
+    }
+
+    /// Processes cron check-ins.
+    fn process_checkins(&self, _state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(_state)?;
+            self.process_check_ins(_state);
+        });
+        Ok(())
+    }
+
+    /// Processes spans.
+    fn process_spans(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        span::filter(state);
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+            span::process(state, self.inner.config.clone());
+        });
+        Ok(())
+    }
+
+    /// Legacy implementation of the `process_state` function, which is used for all
+    /// unknown [`ProcessingGroup`] variant.
+    ///
+    /// Note: this will be removed once we are confident in the new implementation and make sure
+    /// that all the groups properly covered.
+    fn process_state_legacy(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
         session::process(state, &self.inner.config);
         report::process(
             state,
@@ -985,14 +1285,14 @@ impl EnvelopeProcessorService {
             // This makes it possible to get in this code block while not really having an event in
             // the envelope.
 
-            if_processing!({
+            if_processing!(self.inner.config, {
                 unreal::expand(state, &self.inner.config)?;
             });
 
             event::extract(state, &self.inner.config)?;
             profile::transfer_id(state);
 
-            if_processing!({
+            if_processing!(self.inner.config, {
                 unreal::process(state)?;
                 attachment::create_placeholders(state);
             });
@@ -1011,12 +1311,12 @@ impl EnvelopeProcessorService {
 
             dynamic_sampling::sample_envelope(state)?;
 
-            if_processing!({
+            if_processing!(self.inner.config, {
                 event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
             });
         }
 
-        if_processing!({
+        if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
             self.process_check_ins(state);
@@ -1026,12 +1326,48 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::scrub(state)?;
             event::serialize(state)?;
-            if_processing!({
+            if_processing!(self.inner.config, {
                 span::extract_from_event(state);
             });
         }
 
         attachment::scrub(state);
+
+        Ok(())
+    }
+
+    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // Get the group from the managed envelope context, and if it's not set, try to guess it
+        // from the contents of the envelope.
+        let group = state.managed_envelope.group();
+
+        relay_log::trace!("Processing {group:?} group");
+
+        match group {
+            ProcessingGroup::Error => self.process_errors(state)?,
+            ProcessingGroup::Transaction => self.process_transactions(state)?,
+            ProcessingGroup::Session => self.process_sessions(state)?,
+            ProcessingGroup::StandaloneAttachment => self.process_attachments(state)?,
+            ProcessingGroup::UserReport => self.process_user_reports(state)?,
+            ProcessingGroup::Replay => self.process_replays(state)?,
+            ProcessingGroup::CheckIn => self.process_checkins(state)?,
+            ProcessingGroup::Span => self.process_spans(state)?,
+            // Fallback to the legacy process_state implementation for Ungrouped events.
+            ProcessingGroup::Ungrouped => {
+                relay_log::error!(
+                    tags.project = %state.project_id,
+                    items = ?state.envelope().items().next().map(Item::ty),
+                    "Could not identify the processing group based on the envelope's items"
+                );
+
+                // Call the legacy implementation of the `process_state` function.
+                self.process_state_legacy(state)?;
+            }
+            // Leave this group unchanged.
+            //
+            // This will later be forwarded to upstream.
+            ProcessingGroup::ForwardUnknown => (),
+        }
 
         Ok(())
     }
@@ -1112,7 +1448,6 @@ impl EnvelopeProcessorService {
         let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
         });
-
         match result {
             Ok(response) => {
                 if let Some(envelope) = response.envelope {
