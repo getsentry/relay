@@ -7,7 +7,6 @@ import signal
 from pathlib import Path
 
 import requests
-import random
 import pytest
 import time
 
@@ -1593,7 +1592,7 @@ def test_profile_outcomes_rate_limited(
     assert outcomes == expected_outcomes, outcomes
 
 
-def test_global_throughput_limit(
+def test_global_rate_limit(
     mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
     metrics_consumer = metrics_consumer()
@@ -1619,16 +1618,13 @@ def test_global_throughput_limit(
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
 
-    # Random to avoid re-use of old redis key-values from previous runs of this test.
-    window = random.randint(1000, 10_000)
-
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting",
+            "id": "test_rate_limiting" + str(uuid.uuid4()),
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
-            "window": window,
+            "window": 100,
             "reasonCode": "global rate limit hit",
         }
     ]
