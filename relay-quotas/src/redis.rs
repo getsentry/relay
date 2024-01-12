@@ -50,7 +50,7 @@ where
 
 /// Reference to information required for tracking quotas in Redis.
 #[derive(Debug)]
-pub struct RedisQuota<'a> {
+pub(crate) struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.

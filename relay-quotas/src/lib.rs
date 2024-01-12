@@ -19,8 +19,6 @@ pub use self::rate_limit::*;
 
 #[cfg(feature = "redis")]
 mod global;
-#[cfg(feature = "redis")]
-pub use self::global::*;
 
 #[cfg(feature = "redis")]
 mod redis;
