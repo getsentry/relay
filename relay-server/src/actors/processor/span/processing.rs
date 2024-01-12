@@ -152,8 +152,8 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         };
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
-        // At this point, metrics were extracted already.
-        item.set_metrics_extracted(true);
+        // If metrics extraction happened for the event, it also happened for its spans:
+        item.set_metrics_extracted(state.event_metrics_extracted);
         state.managed_envelope.envelope_mut().add_item(item);
     };
 
