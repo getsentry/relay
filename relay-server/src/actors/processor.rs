@@ -1297,10 +1297,7 @@ impl EnvelopeProcessorService {
         // If we are in capture mode, we stash away the event instead of forwarding it.
         if Capture::should_capture(&self.inner.config) {
             relay_log::trace!("capturing envelope in memory");
-            self.inner
-                .test_store
-                .send(Capture::accepted(envelope.take_envelope()));
-            envelope.accept();
+            self.inner.test_store.send(Capture::accepted(envelope));
             return;
         }
 

@@ -7,6 +7,7 @@ use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
 use crate::actors::outcome::Outcome;
 use crate::envelope::Envelope;
+use crate::utils::ManagedEnvelope;
 
 /// Either a captured envelope or an error that occured during processing.
 pub type CapturedEnvelope = Result<Box<Envelope>, String>;
@@ -31,7 +32,10 @@ impl Capture {
     }
 
     /// Captures an accepted envelope.
-    pub fn accepted(envelope: Box<Envelope>) -> Self {
+    pub fn accepted(mut managed: ManagedEnvelope) -> Self {
+        let envelope = managed.take_envelope();
+        managed.accept();
+
         Self {
             event_id: envelope.event_id(),
             capture: Ok(envelope),
