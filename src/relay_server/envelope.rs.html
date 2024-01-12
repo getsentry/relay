@@ -1856,20 +1856,6 @@
 <a href="#1856" id="1856">1856</a>
 <a href="#1857" id="1857">1857</a>
 <a href="#1858" id="1858">1858</a>
-<a href="#1859" id="1859">1859</a>
-<a href="#1860" id="1860">1860</a>
-<a href="#1861" id="1861">1861</a>
-<a href="#1862" id="1862">1862</a>
-<a href="#1863" id="1863">1863</a>
-<a href="#1864" id="1864">1864</a>
-<a href="#1865" id="1865">1865</a>
-<a href="#1866" id="1866">1866</a>
-<a href="#1867" id="1867">1867</a>
-<a href="#1868" id="1868">1868</a>
-<a href="#1869" id="1869">1869</a>
-<a href="#1870" id="1870">1870</a>
-<a href="#1871" id="1871">1871</a>
-<a href="#1872" id="1872">1872</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1919,7 +1905,7 @@
 <span class="kw">use </span>relay_sampling::DynamicSamplingContext;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>smallvec::{smallvec, SmallVec};
+<span class="kw">use </span>smallvec::SmallVec;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialMeta, RequestMeta};
@@ -2817,6 +2803,11 @@
 }
 
 <span class="kw">impl </span>Envelope {
+    <span class="doccomment">/// Creates an envelope from the provided parts.
+    </span><span class="kw">pub fn </span>from_parts(headers: EnvelopeHeaders, items: Items) -&gt; Box&lt;<span class="self">Self</span>&gt; {
+        Box::new(<span class="self">Self </span>{ items, headers })
+    }
+
     <span class="doccomment">/// Creates an envelope from request information.
     </span><span class="kw">pub fn </span>from_request(event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;, meta: RequestMeta) -&gt; Box&lt;<span class="self">Self</span>&gt; {
         Box::new(<span class="self">Self </span>{
@@ -2872,6 +2863,11 @@
         }
     }
 
+    <span class="doccomment">/// Returns reference to the [`EnvelopeHeaders`].
+    </span><span class="kw">pub fn </span>headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>EnvelopeHeaders {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.headers
+    }
+
     <span class="doccomment">/// Returns the number of items in this envelope.
     </span><span class="attr">#[allow(dead_code)]
     </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
@@ -2915,6 +2911,11 @@
     <span class="doccomment">/// When the event has been sent, according to the SDK.
     </span><span class="kw">pub fn </span>sent_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt; {
         <span class="self">self</span>.headers.sent_at
+    }
+
+    <span class="doccomment">/// Sets the event id on the envelope.
+    </span><span class="kw">pub fn </span>set_event_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, event_id: EventId) {
+        <span class="self">self</span>.headers.event_id = <span class="prelude-val">Some</span>(event_id);
     }
 
     <span class="doccomment">/// Sets the timestamp at which an envelope is sent to the upstream.
@@ -2982,7 +2983,7 @@
         <span class="self">self</span>.items.iter_mut()
     }
 
-    <span class="doccomment">/// Returns the an option with a reference to the first item that matches
+    <span class="doccomment">/// Returns an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     </span><span class="kw">pub fn </span>get_item_by&lt;F&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>pred: F) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Item&gt;
     <span class="kw">where
@@ -2991,7 +2992,7 @@
         <span class="self">self</span>.items().find(|item| pred(item))
     }
 
-    <span class="doccomment">/// Returns the an option with a mutable reference to the first item that matches
+    <span class="doccomment">/// Returns an option with a mutable reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     </span><span class="kw">pub fn </span>get_item_by_mut&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>pred: F) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Item&gt;
     <span class="kw">where
@@ -3024,8 +3025,9 @@
 
     <span class="doccomment">/// Splits off the items from the envelope using provided predicates.
     ///
-    /// First predicate is the the additional condition on the count of found items by second
+    /// First predicate is the additional condition on the count of found items by second
     /// predicate.
+    </span><span class="attr">#[cfg(test)]
     </span><span class="kw">fn </span>split_off_items&lt;C, F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cond: C, <span class="kw-2">mut </span>f: F) -&gt; <span class="prelude-ty">Option</span>&lt;SmallVec&lt;[Item; <span class="number">3</span>]&gt;&gt;
     <span class="kw">where
         </span>C: Fn(usize) -&gt; bool,
@@ -3050,6 +3052,7 @@
     /// with all items that return `true`. Items that return `false` remain in this envelope.
     ///
     /// The returned envelope assumes the same headers.
+    </span><span class="attr">#[cfg(test)]
     </span><span class="kw">pub fn </span>split_by&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, f: F) -&gt; <span class="prelude-ty">Option</span>&lt;Box&lt;<span class="self">Self</span>&gt;&gt;
     <span class="kw">where
         </span>F: FnMut(<span class="kw-2">&amp;</span>Item) -&gt; bool,
@@ -3060,37 +3063,6 @@
             headers: <span class="self">self</span>.headers.clone(),
             items: split_items,
         }))
-    }
-
-    <span class="doccomment">/// Splits the envelope by the given predicate.
-    ///
-    /// The main differents from `split_by()` is this function returns the list of the newly
-    /// constracted envelopes with all the items where the predicate returns `true`. Otherwise it
-    /// returns an empty list.
-    ///
-    /// The returned envelopes assume the same headers.
-    </span><span class="kw">pub fn </span>split_all_by&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, f: F) -&gt; SmallVec&lt;[Box&lt;<span class="self">Self</span>&gt;; <span class="number">3</span>]&gt;
-    <span class="kw">where
-        </span>F: FnMut(<span class="kw-2">&amp;</span>Item) -&gt; bool,
-    {
-        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = <span class="macro">smallvec!</span>[];
-        <span class="kw">let </span><span class="prelude-val">Some</span>(split_items) = <span class="self">self</span>.split_off_items(|count| count == <span class="number">0</span>, f) <span class="kw">else </span>{
-            <span class="kw">return </span>envelopes;
-        };
-
-        <span class="kw">let </span>headers = <span class="kw-2">&amp;mut </span><span class="self">self</span>.headers;
-
-        <span class="kw">for </span>item <span class="kw">in </span>split_items {
-            <span class="comment">// Each item should get an envelope with the new event id.
-            </span>headers.event_id = <span class="prelude-val">Some</span>(EventId::new());
-
-            envelopes.push(Box::new(Envelope {
-                items: <span class="macro">smallvec!</span>[item],
-                headers: headers.clone(),
-            }))
-        }
-
-        envelopes
     }
 
     <span class="doccomment">/// Retains only the items specified by the predicate.

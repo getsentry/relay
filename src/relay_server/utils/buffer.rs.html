@@ -112,11 +112,15 @@
 <a href="#112" id="112">112</a>
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>relay_system::Addr;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::TrackOutcome;
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessingGroup;
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
@@ -206,6 +210,7 @@
         envelope: Box&lt;Envelope&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         test_store: Addr&lt;TestStore&gt;,
+        group: ProcessingGroup,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ManagedEnvelope, BufferError&gt; {
         <span class="kw">let </span>permit = <span class="self">self</span>.inner.try_acquire().ok_or(BufferError)<span class="question-mark">?</span>;
 
@@ -223,6 +228,7 @@
             permit,
             outcome_aggregator,
             test_store,
+            group,
         ))
     }
 }

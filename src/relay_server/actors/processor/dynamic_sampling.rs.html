@@ -690,6 +690,8 @@
 <a href="#690" id="690">690</a>
 <a href="#691" id="691">691</a>
 <a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -876,7 +878,7 @@
 ///
 /// This execution of dynamic sampling is technically a &quot;simulation&quot; since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-</span><span class="kw">fn </span>tag_error_with_sampling_decision(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>tag_error_with_sampling_decision(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, config: <span class="kw-2">&amp;</span>Config) {
     <span class="kw">let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -932,7 +934,7 @@
     <span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
     <span class="kw">use </span>uuid::Uuid;
 
-    <span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessEnvelope;
+    <span class="kw">use </span><span class="kw">crate</span>::actors::processor::{ProcessEnvelope, ProcessingGroup};
     <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
     <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
@@ -966,7 +968,8 @@
         }
     }
 
-    <span class="kw">fn </span>process_envelope_with_root_project_state(
+    <span class="doccomment">/// Always sets the processing item type to event.
+    </span><span class="kw">fn </span>process_envelope_with_root_project_state(
         envelope: Box&lt;Envelope&gt;,
         sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
     ) -&gt; Envelope {
@@ -1120,6 +1123,7 @@
                     TestSemaphore::new(<span class="number">42</span>).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
+                    ProcessingGroup::Ungrouped,
                 ),
                 profile_id: <span class="prelude-val">None</span>,
                 event_metrics_extracted: <span class="bool-val">false</span>,
