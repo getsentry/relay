@@ -59,22 +59,22 @@ impl GlobalCounters {
         quantity: usize,
     ) -> Result<bool, GlobalCountErrors> {
         let state = self.get_state(KeyRef::new(quota));
-        let mut lock = state.lock().unwrap();
 
-        lock.reset_if_expired(quota.window())?;
+        let mut budget = state.lock().unwrap();
+        budget.reset_if_expired(quota.window())?;
 
-        if lock.cached_global_count_exceeded(quantity, quota.limit) {
+        if budget.cached_global_count_exceeded(quantity, quota.limit) {
             return Ok(true);
         }
-
-        if lock.try_consume_budget(quantity) {
+        if budget.try_consume(quantity) {
             return Ok(false);
         }
 
-        let (budget, redis_count) = self.take_budget_from_redis(client, quota, quantity)?;
-        lock.update_budget(budget, redis_count);
+        let (extra_budget, redis_count) = self.take_budget_from_redis(client, quota, quantity)?;
 
-        Ok(!lock.try_consume_budget(quantity))
+        budget.update(extra_budget, redis_count);
+
+        Ok(!budget.try_consume(quantity))
     }
 
     fn get_state(&self, key: KeyRef) -> Arc<Mutex<BudgetState>> {
@@ -174,7 +174,7 @@ impl BudgetState {
         }
     }
 
-    fn update_budget(&mut self, extra_budget: usize, redis_count: usize) {
+    fn update(&mut self, extra_budget: usize, redis_count: usize) {
         self.budget += extra_budget;
         self.last_seen_redis_value = redis_count;
     }
@@ -201,7 +201,7 @@ impl BudgetState {
     /// Returns `true` if we succesfully decreased the budget by `quantity`.
     ///
     /// `false` means there is not enough budget.
-    fn try_consume_budget(&mut self, quantity: usize) -> bool {
+    fn try_consume(&mut self, quantity: usize) -> bool {
         if quantity > self.budget {
             false
         } else {
