@@ -63,6 +63,7 @@ pub struct RedisQuota<'a> {
 }
 
 impl<'a> RedisQuota<'a> {
+    /// Returns a new instance of [`RedisQuota`].
     pub fn new(
         quota: &'a Quota,
         scoping: ItemScoping<'a>,

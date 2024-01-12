@@ -44,8 +44,7 @@ fn multi_threaded_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("Multi-threaded Benchmark");
 
     // Adjust the sample size and measurement time
-    group.sample_size(100); // Limit the number of iterations
-    group.measurement_time(std::time::Duration::from_secs(50)); // Limit the total measurement time
+    group.sample_size(50); // Limit the number of iterations
 
     group.bench_with_input(
         BenchmarkId::new("multi_threaded_whatever", 12),
@@ -65,7 +64,7 @@ fn multi_threaded_benchmark(c: &mut Criterion) {
                         let counter_clone = counter.clone();
                         thread::spawn(move || {
                             let mut client = pool_clone.client().unwrap();
-                            whatever(&mut client, counter_clone, window as u64);
+                            decrement_until_ratelimited(&mut client, counter_clone, window as u64);
                         })
                     })
                     .collect();
@@ -80,7 +79,11 @@ fn multi_threaded_benchmark(c: &mut Criterion) {
     group.finish();
 }
 
-fn whatever(client: &mut PooledClient, counter: Arc<GlobalCounters>, window: u64) {
+fn decrement_until_ratelimited(
+    client: &mut PooledClient,
+    counter: Arc<GlobalCounters>,
+    window: u64,
+) {
     let quota = redis_quota_dummy(window, 100_000);
     let mut cnt = 1;
 

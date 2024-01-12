@@ -1,6 +1,5 @@
 use std::fmt::Debug;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use relay_common::time::UnixTimestamp;
 use relay_redis::redis::Script;
@@ -39,7 +38,7 @@ pub enum GlobalCountErrors {
 /// the quota limit, we will ratelimit the item.
 pub struct GlobalCounters {
     redis_script: Script,
-    counters: RwLock<hashbrown::HashMap<Key, Arc<RwLock<BudgetState>>>>,
+    counters: RwLock<hashbrown::HashMap<Key, Arc<Mutex<BudgetState>>>>,
 }
 
 impl Default for GlobalCounters {
@@ -59,60 +58,40 @@ impl GlobalCounters {
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, GlobalCountErrors> {
-        let budget_state = self.try_get_state(KeyRef::new(quota))?;
-        //let mut lock = budget_state.write().unwrap();
+        let state = self.get_state(KeyRef::new(quota));
+        let mut lock = state.lock().unwrap();
 
-        {
-            let lock = budget_state.read().unwrap();
+        lock.reset_if_expired(quota.window())?;
 
-            if lock.cached_global_count_exceeded(quantity, quota.limit) {
-                return Ok(true);
-            }
-
-            if lock.try_consume_budget(quantity) {
-                return Ok(false);
-            }
+        if lock.cached_global_count_exceeded(quantity, quota.limit) {
+            return Ok(true);
         }
 
-        let mut lock = budget_state.write().unwrap();
+        if lock.try_consume_budget(quantity) {
+            return Ok(false);
+        }
 
-        if !lock.fits_budget(quantity) {
-            let (budget, redis_count) = self.take_budget_from_redis(client, quota, quantity)?;
-            lock.update_budget(budget, redis_count);
-        };
+        let (budget, redis_count) = self.take_budget_from_redis(client, quota, quantity)?;
+        lock.update_budget(budget, redis_count);
 
         Ok(!lock.try_consume_budget(quantity))
     }
 
-    /// Retrieves a valid [`BudgetState`] from the map.
-    ///
-    /// If it's missing or outdated, a new one is inserted before being returned.
-    fn try_get_state(&self, key: KeyRef) -> Result<Arc<RwLock<BudgetState>>, GlobalCountErrors> {
-        let state_opt = self.counters.read().unwrap().get(&key).cloned();
-
-        let state = match state_opt {
-            Some(state) => {
-                if state.read().unwrap().is_expired(key.window)? {
-                    state.write().unwrap().reset_if_expired(key.window)?;
-                };
-                state
+    fn get_state(&self, key: KeyRef) -> Arc<Mutex<BudgetState>> {
+        let state_opt = self.counters.read().unwrap().get(&key).map(Arc::clone);
+        match state_opt {
+            Some(state) => state,
+            None => {
+                let new_state = || Arc::new(Mutex::new(BudgetState::new(key.window)));
+                Arc::clone(
+                    self.counters
+                        .write()
+                        .unwrap()
+                        .entry(key.into_owned())
+                        .or_insert_with(new_state),
+                )
             }
-            None => self.get_or_insert_state(key),
-        };
-
-        Ok(state)
-    }
-
-    fn get_or_insert_state(&self, key: KeyRef) -> Arc<RwLock<BudgetState>> {
-        let new_state = || Arc::new(RwLock::new(BudgetState::new(key.window)));
-
-        Arc::clone(
-            self.counters
-                .write()
-                .unwrap()
-                .entry(key.into_owned())
-                .or_insert_with(new_state),
-        )
+        }
     }
 
     /// Ask redis for more budget.
@@ -182,7 +161,7 @@ impl hashbrown::Equivalent<Key> for KeyRef<'_> {
 /// Represents the local budget taken from a global quota.
 struct BudgetState {
     slot: usize,
-    budget: AtomicUsize,
+    budget: usize,
     last_seen_redis_value: usize,
 }
 
@@ -190,9 +169,14 @@ impl BudgetState {
     fn new(window: u64) -> Self {
         Self {
             slot: current_slot(window),
-            budget: AtomicUsize::new(0),
+            budget: 0,
             last_seen_redis_value: 0,
         }
+    }
+
+    fn update_budget(&mut self, extra_budget: usize, redis_count: usize) {
+        self.budget += extra_budget;
+        self.last_seen_redis_value = redis_count;
     }
 
     /// Returns `true` if slot has expired.
@@ -217,65 +201,23 @@ impl BudgetState {
     /// Returns `true` if we succesfully decreased the budget by `quantity`.
     ///
     /// `false` means there is not enough budget.
-    fn try_consume_budget(&self, quantity: usize) -> bool {
-        use Ordering::SeqCst;
-
-        if !self.fits_budget(quantity) {
-            return false;
-        }
-
-        let x = self.budget.fetch_sub(quantity, SeqCst);
-
-        if x >= quantity {
-            return true;
+    fn try_consume_budget(&mut self, quantity: usize) -> bool {
+        if quantity > self.budget {
+            false
         } else {
-            self.budget.fetch_add(quantity, SeqCst);
-            return false;
+            self.budget -= quantity;
+            true
         }
-
-        loop {
-            let current = self.budget.load(SeqCst);
-
-            if current < quantity {
-                return false; // Not enough budget
-            }
-
-            let new = current - quantity;
-
-            // compare_exchange: (current value, new value, success ordering, failure ordering)
-            match self.budget.compare_exchange(current, new, SeqCst, SeqCst) {
-                Ok(_) => return true, // Successfully updated
-                Err(_) => continue,   // Value changed in the meantime, retry
-            }
-        }
-
-        return self
-            .budget
-            .fetch_update(SeqCst, SeqCst, |val| val.checked_sub(quantity))
-            .is_ok();
     }
 
     fn cached_global_count_exceeded(&self, quantity: usize, limit: Option<u64>) -> bool {
         match limit {
             Some(limit) => {
-                let cached_global_count = self.last_seen_redis_value - self.current_budget();
+                let cached_global_count = self.last_seen_redis_value - self.budget;
                 cached_global_count + quantity > limit as usize
             }
 
             None => false,
         }
-    }
-
-    fn fits_budget(&self, quantity: usize) -> bool {
-        self.current_budget() >= quantity
-    }
-
-    fn current_budget(&self) -> usize {
-        self.budget.load(Ordering::SeqCst)
-    }
-
-    fn update_budget(&mut self, budget: usize, redis_count: usize) {
-        self.budget.fetch_add(budget, Ordering::SeqCst);
-        self.last_seen_redis_value = redis_count;
     }
 }
