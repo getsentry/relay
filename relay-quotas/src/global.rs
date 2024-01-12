@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use relay_common::time::UnixTimestamp;
 use relay_redis::redis::Script;
@@ -21,7 +21,7 @@ fn current_slot(window: u64) -> usize {
 /// A rate limiter for global rate limits.
 #[derive(Default)]
 pub struct GlobalRateLimits {
-    limits: RwLock<hashbrown::HashMap<BudgetKey, Arc<Mutex<GlobalRateLimit>>>>,
+    limits: Mutex<hashbrown::HashMap<BudgetKey, Arc<Mutex<GlobalRateLimit>>>>,
 }
 
 impl GlobalRateLimits {
@@ -40,15 +40,13 @@ impl GlobalRateLimits {
         };
 
         let key = BudgetKeyRef::new(quota);
-
-        let opt_val = self.limits.read().unwrap().get(&key).cloned();
-        let val = match opt_val {
-            Some(val) => val,
-            None => Arc::clone(self.limits.write().unwrap().entry_ref(&key).or_default()),
+        let val = {
+            let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
+            Arc::clone(limits.entry_ref(&key).or_default())
         };
 
-        let mut lock = val.lock().unwrap();
-        lock.is_rate_limited(client, quota, quantity, limit)
+        let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
+        val.is_rate_limited(client, quota, quantity, limit)
     }
 }
 
