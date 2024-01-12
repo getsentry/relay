@@ -2,7 +2,6 @@
 //! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
-use std::net::IpAddr;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
