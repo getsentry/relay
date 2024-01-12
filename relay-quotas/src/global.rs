@@ -18,14 +18,7 @@ fn current_slot(window: u64) -> usize {
         .unwrap_or_default() as usize
 }
 
-/// Counters used as a cache for global quotas.
-///
-/// When we want to ratelimit across all relay-instances, we need to use redis to synchronize.
-/// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
-/// which is why we have this cache. It works by 'taking' a certain budget from redis, by pre-incrementing
-/// a global counter. We Put the amount we pre-incremented into this local cache and count down until
-/// we have no more budget, then we ask for more from redis. If we find the global counter is above
-/// the quota limit, we will ratelimit the item.
+/// A rate limiter for global rate limits.
 #[derive(Default)]
 pub struct GlobalRateLimits {
     limits: RwLock<hashbrown::HashMap<BudgetKey, Arc<Mutex<GlobalRateLimit>>>>,
@@ -101,7 +94,14 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
     }
 }
 
-/// Represents the local budget taken from a global quota.
+/// A single global rate limit.
+///
+/// When we want to ratelimit across all relay-instances, we need to use Redis to synchronize.
+/// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
+/// which is why we have this cache. It works by 'taking' a certain budget from Redis, by pre-incrementing
+/// a global counter. We Put the amount we pre-incremented into this local cache and count down until
+/// we have no more budget, then we ask for more from Redis. If we find the global counter is above
+/// the quota limit, we will ratelimit the item.
 struct GlobalRateLimit {
     local_counter: LocalCounter,
     redis_counter: RedisCounter,
