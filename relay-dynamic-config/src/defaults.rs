@@ -47,62 +47,87 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    // Add conditions to filter spans if a specific module is enabled.
-    // By default, this will extract all spans.
-    let (span_op_conditions, resource_condition) = if project_config
+    let is_extract_all = project_config
         .features
-        .has(Feature::SpanMetricsExtractionAllModules)
-    {
-        (
-            RuleCondition::all(),
-            RuleCondition::glob("span.op", "resource.*"),
-        )
-    } else {
-        let is_disabled = RuleCondition::glob("span.op", DISABLED_DATABASES);
-        let is_mongo = RuleCondition::eq("span.system", "mongodb")
-            | RuleCondition::glob("span.description", MONGODB_QUERIES);
-        let resource_condition = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
+        .has(Feature::SpanMetricsExtractionAllModules);
 
-        (
-            RuleCondition::eq("span.op", "http.client")
-                | RuleCondition::glob("span.op", MOBILE_OPS)
-                | RuleCondition::glob("span.op", "file.*")
-                | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
-                | resource_condition.clone(),
-            resource_condition,
-        )
+    config.metrics.extend(span_metrics(is_extract_all));
+
+    config._span_metrics_extended = true;
+    if config.version == 0 {
+        config.version = MetricExtractionConfig::VERSION;
+    }
+}
+
+/// Metrics with tags applied as required.
+fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
+    let flagged_mobile_ops = {
+        let mut ops = MOBILE_OPS.to_vec();
+        if is_extract_all {
+            ops.extend(["contentprovider.load", "application.load", "activity.load"]);
+        }
+        ops
     };
 
+    let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
+        & !(RuleCondition::eq("span.system", "mongodb")
+            | RuleCondition::glob("span.op", DISABLED_DATABASES)
+            | RuleCondition::glob("span.description", MONGODB_QUERIES));
+    let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
+
+    let is_mobile_op = RuleCondition::glob("span.op", flagged_mobile_ops);
+
+    let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
+
+    // This filter is based on
+    // https://github.com/getsentry/sentry/blob/e01885215ff1a5b4e0da3046b4d929398a946360/static/app/views/starfish/views/screens/screenLoadSpans/spanOpSelector.tsx#L31-L34
+    let is_screen = RuleCondition::eq("span.sentry_tags.transaction.op", "ui.load")
+        & RuleCondition::eq(
+            "span.op",
+            vec![
+                "file.read",
+                "file.write",
+                "ui.load",
+                "http.client",
+                "db",
+                "db.sql.room",
+                "db.sql.query",
+                "db.sql.transaction",
+            ],
+        );
+
+    let is_mobile = is_mobile_sdk.clone() & (is_mobile_op.clone() | is_screen);
+
     // For mobile spans, only extract duration metrics when they are below a threshold.
-    let duration_condition = RuleCondition::negate(RuleCondition::glob("span.op", MOBILE_OPS))
+    let duration_condition = RuleCondition::negate(is_mobile_op.clone())
         | RuleCondition::lte(
             "span.exclusive_time",
             Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
-    let mobile_condition = RuleCondition::eq("span.sentry_tags.mobile", "true");
+
     let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    config.metrics.extend([
+    [
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
+            condition: Some(
+                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                    & duration_condition.clone(),
+            ),
             tags: vec![
                 // Common tags:
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .always(),
+                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
                 Tag::with_key("transaction.method")
                     .from_field("span.sentry_tags.transaction.method")
-                    .always(),
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
-                    .always(),
+                    .when(is_db.clone() | is_mobile.clone()), // groups by method + txn, e.g. `GET /users`
                 Tag::with_key("span.action")
                     .from_field("span.sentry_tags.action")
-                    .always(),
+                    .when(is_db.clone()),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
                     .always(),
@@ -111,74 +136,65 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .always(),
+                    .when(is_db.clone() | is_resource.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
                     .always(),
-                Tag::with_key("span.module")
-                    .from_field("span.sentry_tags.module")
-                    .always(),
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
-                    .always(),
-                Tag::with_key("span.status")
-                    .from_field("span.status") // from top-level field
-                    .always(),
-                Tag::with_key("span.status_code")
-                    .from_field("span.sentry_tags.status_code")
-                    .always(),
-                Tag::with_key("span.system")
-                    .from_field("span.sentry_tags.system")
                     .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
                     .always(),
                 // Mobile:
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .when(is_mobile.clone()), // filters by `transaction.op:ui.load`
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
                     .from_field("span.sentry_tags.os.name")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 Tag::with_key("ttfd")
                     .from_field("span.sentry_tags.ttfd")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 Tag::with_key("ttid")
                     .from_field("span.sentry_tags.ttid")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 Tag::with_key("span.main_thread")
                     .from_field("span.sentry_tags.main_thread")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 // Resource module:
                 Tag::with_key("file_extension")
                     .from_field("span.sentry_tags.file_extension")
-                    .when(resource_condition.clone()),
+                    .when(is_resource.clone()),
                 Tag::with_key("resource.render_blocking_status")
                     .from_field("span.sentry_tags.resource.render_blocking_status")
-                    .when(resource_condition.clone()),
+                    .when(is_resource.clone()),
             ],
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
+            condition: Some(
+                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                    & duration_condition.clone(),
+            ),
             tags: vec![
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
-                    .always(),
-                Tag::with_key("transaction.method")
-                    .from_field("span.sentry_tags.transaction.method")
-                    .always(),
+                    .when(is_db.clone() | is_resource.clone() | is_mobile.clone()),
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
-                    .always(),
+                    .when(is_mobile.clone()),
                 Tag::with_key("span.action")
                     .from_field("span.sentry_tags.action")
-                    .always(),
+                    .when(is_db.clone()),
                 Tag::with_key("span.category")
                     .from_field("span.sentry_tags.category")
                     .always(),
@@ -187,42 +203,30 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     .always(),
                 Tag::with_key("span.domain")
                     .from_field("span.sentry_tags.domain")
-                    .always(),
+                    .when(is_db.clone() | is_resource.clone()),
                 Tag::with_key("span.group")
                     .from_field("span.sentry_tags.group")
-                    .always(),
-                Tag::with_key("span.module")
-                    .from_field("span.sentry_tags.module")
                     .always(),
                 Tag::with_key("span.op")
                     .from_field("span.sentry_tags.op")
                     .always(),
-                Tag::with_key("span.status")
-                    .from_field("span.status") // from top-level field
-                    .always(),
-                Tag::with_key("span.status_code")
-                    .from_field("span.sentry_tags.status_code")
-                    .always(),
-                Tag::with_key("span.system")
-                    .from_field("span.sentry_tags.system")
-                    .always(),
                 // Mobile:
                 Tag::with_key("device.class")
                     .from_field("span.sentry_tags.device.class")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 Tag::with_key("os.name") // TODO: might not be needed on both `exclusive_time` metrics
                     .from_field("span.sentry_tags.os.name")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
-                    .when(mobile_condition.clone()),
+                    .when(is_mobile.clone()),
                 // Resource module:
                 Tag::with_key("file_extension")
                     .from_field("span.sentry_tags.file_extension")
-                    .when(resource_condition.clone()),
+                    .when(is_resource.clone()),
                 Tag::with_key("resource.render_blocking_status")
                     .from_field("span.sentry_tags.resource.render_blocking_status")
-                    .when(resource_condition.clone()),
+                    .when(is_resource.clone()),
             ],
         },
         MetricSpec {
@@ -230,8 +234,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             mri: "d:spans/http.response_content_length@byte".into(),
             field: Some("span.data.http\\.response_content_length".into()),
             condition: Some(
-                span_op_conditions.clone()
-                    & resource_condition.clone()
+                is_resource.clone()
                     & RuleCondition::gt("span.data.http\\.response_content_length", 0),
             ),
             tags: vec![
@@ -266,8 +269,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             mri: "d:spans/http.decoded_response_content_length@byte".into(),
             field: Some("span.data.http\\.decoded_response_content_length".into()),
             condition: Some(
-                span_op_conditions.clone()
-                    & resource_condition.clone()
+                is_resource.clone()
                     & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
             ),
             tags: vec![
@@ -299,9 +301,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             mri: "d:spans/http.response_transfer_size@byte".into(),
             field: Some("span.data.http\\.response_transfer_size".into()),
             condition: Some(
-                span_op_conditions.clone()
-                    & resource_condition.clone()
-                    & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
+                is_resource & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
             ),
             tags: vec![
                 Tag::with_key("environment")
@@ -348,7 +348,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "c:spans/count_per_segment@none".into(),
             field: None,
-            condition: Some(mobile_condition.clone() & duration_condition.clone()),
+            condition: Some(is_mobile_sdk.clone() & duration_condition.clone()),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
@@ -366,7 +366,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             mri: "d:spans/duration@millisecond".into(),
             field: Some("span.duration".into()),
             condition: Some(
-                duration_condition.clone() & mobile_condition.clone() & app_start_condition.clone(),
+                duration_condition.clone() & is_mobile.clone() & app_start_condition.clone(),
             ),
             tags: vec![
                 Tag::with_key("span.op")
@@ -395,10 +395,5 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     .always(), // already guarded by condition on metric
             ],
         },
-    ]);
-
-    config._span_metrics_extended = true;
-    if config.version == 0 {
-        config.version = MetricExtractionConfig::VERSION;
-    }
+    ]
 }
