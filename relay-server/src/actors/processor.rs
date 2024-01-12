@@ -447,10 +447,10 @@ pub struct EncodeMetrics {
     pub scopes: HashMap<Scoping, ProjectMetrics>,
 }
 
-/// Encodes metric meta into an envelope and sends it upstream.
+/// Encodes metric meta into an [`Envelope`] and sends it upstream.
 ///
-/// Upstream means directly into redis for processing relays
-/// and otherwise submitting the envelope with the envelope manager.
+/// At the moment, upstream means directly into Redis for processing relays
+/// and otherwise submitting the Envelope via HTTP to the [`UpstreamRelay`].
 #[derive(Debug)]
 pub struct EncodeMetricMeta {
     /// Scoping of the meta.
@@ -474,7 +474,7 @@ pub struct SubmitClientReports {
     pub scoping: Scoping,
 }
 
-/// Applies rate limits to metrics buckets and forwards them to the envelope manager.
+/// Applies rate limits to metrics buckets and forwards them to the [`Aggregator`].
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct RateLimitBuckets {
@@ -1531,7 +1531,7 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON and pack in an envelope
-    ///  - submit the envelope to the envelope manager
+    ///  - submit the envelope to upstream or kafka depending on configuration
     ///
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
