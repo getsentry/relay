@@ -6,7 +6,7 @@ use {crate::envelope::ContentType, relay_config::Config, relay_dynamic_config::F
 use relay_base_schema::events::EventType;
 use relay_event_schema::protocol::{Contexts, ProfileContext};
 use relay_profiling::ProfileError;
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Value};
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::ProcessEnvelopeState;
@@ -23,10 +23,15 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
         .count();
     let mut profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
-        // Drop profile without a transaction in the same envelope.
-        ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
+            // Drop profile without a transaction in the same envelope.
+            let profile_allowed = transaction_count > 0
+                || matches!(item.get_header("sampled"), Some(Value::Bool(false))); // TODO: type sampled
+            if !profile_allowed {
+                return ItemAction::DropSilently;
+            }
+
             match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
                 Ok(id) => {
                     profile_id = Some(id);
