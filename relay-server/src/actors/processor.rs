@@ -1304,9 +1304,20 @@ impl EnvelopeProcessorService {
             return;
         }
 
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.envelope_mut().set_sent_at(Utc::now());
+
         relay_log::trace!("sending envelope to sentry endpoint");
         let http_encoding = self.inner.config.http_encoding();
-        match encode_envelope(envelope.envelope_mut(), http_encoding) {
+        let result = envelope.envelope().to_vec().and_then(|v| {
+            encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
+        });
+
+        match result {
             Ok(body) => {
                 self.inner.upstream_relay.send(SendRequest(SendEnvelope {
                     envelope,
@@ -1818,21 +1829,6 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
     };
 
     Ok(envelope_body.into())
-}
-
-/// Serializes the given Envelope and applies the configured HTTP encoding.
-///
-/// This function overrides the `sent_at` timestamp stored in the envelope. Since the envelope went
-/// through basic normalization, all timestamps have been corrected. We propagate the new `sent_at`
-/// to allow the next Relay to double-check this timestamp and potentially apply correction again.
-/// This is done as close to sending as possible so that we avoid internal delays.
-fn encode_envelope(
-    envelope: &mut Envelope,
-    encoding: HttpEncoding,
-) -> Result<Bytes, EnvelopeError> {
-    envelope.set_sent_at(Utc::now());
-    let serialized = envelope.to_vec()?.into();
-    encode_payload(&serialized, encoding).map_err(EnvelopeError::PayloadIoFailed)
 }
 
 /// An upstream request that submits an envelope via HTTP.
