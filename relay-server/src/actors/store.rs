@@ -242,14 +242,9 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                ItemType::Span => self.produce_span(
-                    scoping,
-                    start_time,
-                    event_id,
-                    retention,
-                    item,
-                    envelope.meta().remote_addr(),
-                )?,
+                ItemType::Span => {
+                    self.produce_span(scoping, start_time, event_id, retention, item)?
+                }
                 _ => {}
             }
         }
@@ -829,7 +824,6 @@ impl StoreService {
         event_id: Option<EventId>,
         retention_days: u16,
         item: &Item,
-        remote_addr: Option<IpAddr>,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
         let d = &mut Deserializer::from_slice(&payload);
@@ -842,10 +836,10 @@ impl StoreService {
                 );
                 self.outcome_aggregator.send(TrackOutcome {
                     category: DataCategory::SpanIndexed,
-                    event_id,
+                    event_id: None,
                     outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
                     quantity: 1,
-                    remote_addr,
+                    remote_addr: None,
                     scoping,
                     timestamp: instant_to_date_time(start_time),
                 });
