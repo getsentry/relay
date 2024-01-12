@@ -63,7 +63,11 @@ pub struct RedisQuota<'a> {
 }
 
 impl<'a> RedisQuota<'a> {
-    fn new(quota: &'a Quota, scoping: ItemScoping<'a>, timestamp: UnixTimestamp) -> Option<Self> {
+    pub fn new(
+        quota: &'a Quota,
+        scoping: ItemScoping<'a>,
+        timestamp: UnixTimestamp,
+    ) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
         let prefix = quota.id.as_deref()?;
         let window = quota.window?;

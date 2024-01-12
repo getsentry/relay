@@ -24,5 +24,14 @@ smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 insta = { workspace = true }
 serde_json = { workspace = true }
+rand = "0.8.5"
+
+
+[[bench]]
+name = "my_benchmark"
+harness = false
+required-features = ["redis"]
+
