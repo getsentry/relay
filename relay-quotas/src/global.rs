@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use relay_common::time::UnixTimestamp;
@@ -29,7 +28,7 @@ fn current_slot(window: u64) -> usize {
 /// the quota limit, we will ratelimit the item.
 #[derive(Default)]
 pub struct GlobalRateLimits {
-    counters: RwLock<hashbrown::HashMap<BudgetKey, Arc<Mutex<SlottedCounter>>>>,
+    limits: RwLock<hashbrown::HashMap<BudgetKey, Arc<Mutex<GlobalRateLimit>>>>,
 }
 
 impl GlobalRateLimits {
@@ -49,10 +48,10 @@ impl GlobalRateLimits {
 
         let key = BudgetKeyRef::new(quota);
 
-        let opt_val = self.counters.read().unwrap().get(&key).cloned();
+        let opt_val = self.limits.read().unwrap().get(&key).cloned();
         let val = match opt_val {
             Some(val) => val,
-            None => Arc::clone(self.counters.write().unwrap().entry_ref(&key).or_default()),
+            None => Arc::clone(self.limits.write().unwrap().entry_ref(&key).or_default()),
         };
 
         let mut lock = val.lock().unwrap();
@@ -102,16 +101,19 @@ impl hashbrown::Equivalent<BudgetKey> for BudgetKeyRef<'_> {
     }
 }
 
-struct SlottedCounter {
+/// Represents the local budget taken from a global quota.
+struct GlobalRateLimit {
+    local_counter: LocalCounter,
+    redis_counter: RedisCounter,
     slot: usize,
-    counter: Counter,
 }
 
-impl SlottedCounter {
+impl GlobalRateLimit {
     pub fn new() -> Self {
         Self {
+            local_counter: LocalCounter::new(),
+            redis_counter: RedisCounter::new(),
             slot: 0,
-            counter: Counter::new(),
         }
     }
 
@@ -124,52 +126,21 @@ impl SlottedCounter {
     ) -> Result<bool, RedisError> {
         let current_slot = current_slot(quota.window());
 
-        match self.slot.cmp(&current_slot) {
-            Ordering::Greater => {
-                // TODO double check logic here
-                // in theory this should never happen only if someone messes with the system time
-                // be safe and dont rate limit
-                relay_log::error!("budget slot ahead of current slot");
-                Ok(false)
-            }
-            Ordering::Less => {
-                self.counter = Counter::new();
-                self.slot = current_slot;
-
-                self.counter.is_rate_limited(client, limit, quantity, quota)
-            }
-            Ordering::Equal => self.counter.is_rate_limited(client, limit, quantity, quota),
+        if current_slot < self.slot {
+            // TODO double check logic here
+            // in theory this should never happen only if someone messes with the system time
+            // be safe and dont rate limit
+            relay_log::error!("budget slot ahead of current slot");
+            return Ok(false);
         }
-    }
-}
 
-impl Default for SlottedCounter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Represents the local budget taken from a global quota.
-struct Counter {
-    local_counter: LocalCounter,
-    redis_counter: RedisCounter,
-}
-
-impl Counter {
-    pub fn new() -> Self {
-        Self {
-            local_counter: LocalCounter::new(),
-            redis_counter: RedisCounter::new(),
+        if current_slot > self.slot {
+            // We moved to the next slot and need to reset the local counter,
+            // Redis already handles this by having the slot in the key.
+            self.local_counter = LocalCounter::new();
+            self.slot = current_slot;
         }
-    }
 
-    pub fn is_rate_limited(
-        &mut self,
-        client: &mut PooledClient,
-        limit: u64,
-        quantity: usize,
-        quota: &RedisQuota,
-    ) -> Result<bool, RedisError> {
         if self.local_counter.try_consume(quantity) {
             return Ok(false);
         }
@@ -189,6 +160,12 @@ impl Counter {
 
     fn default_request_size_based_on_limit(&self) -> usize {
         100
+    }
+}
+
+impl Default for GlobalRateLimit {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
