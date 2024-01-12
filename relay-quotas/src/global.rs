@@ -59,9 +59,9 @@ impl From<&KeyRef<'_>> for Key {
     }
 }
 
-/// Used to look up a hashmap of [`BudgetKey`]-keys without a string allocation.
+/// Used to look up a hashmap of [`keys`](Key) without a string allocation.
 ///
-/// This works due to the 'Equivalent' trait in the hashbrown crate.
+/// This works due to the [`hashbrown::Equivalent`] trait.
 #[derive(Clone, Copy, Hash)]
 struct KeyRef<'a> {
     prefix: &'a str,
