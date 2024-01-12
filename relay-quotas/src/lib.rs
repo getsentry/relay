@@ -11,16 +11,16 @@
 /// typically happens for disabled keys, projects, or organizations.
 const REJECT_ALL_SECS: u64 = 60;
 
-#[cfg(feature = "redis")]
-mod global;
 mod quota;
 mod rate_limit;
 
-#[cfg(feature = "redis")]
-pub use self::global::*;
-
 pub use self::quota::*;
 pub use self::rate_limit::*;
+
+#[cfg(feature = "redis")]
+mod global;
+#[cfg(feature = "redis")]
+pub use self::global::*;
 
 #[cfg(feature = "redis")]
 mod redis;

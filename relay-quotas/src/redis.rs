@@ -15,7 +15,7 @@ use crate::REJECT_ALL_SECS;
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
 /// metrics may not be in sync with the computer running this code.
-pub(crate) const GRACE: u64 = 60;
+const GRACE: u64 = 60;
 
 /// An error returned by `RedisRateLimiter`.
 #[derive(Debug, Error)]
@@ -132,6 +132,7 @@ impl<'a> RedisQuota<'a> {
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
+            QuotaScope::Global => None,
             QuotaScope::Organization => None,
             scope => self.scoping.scope_id(scope),
         };
@@ -175,7 +176,7 @@ pub struct RedisRateLimiter {
     pool: RedisPool,
     script: Arc<Script>,
     max_limit: Option<u64>,
-    global_rate_limits: GlobalRateLimits,
+    global_limits: GlobalRateLimits,
 }
 
 impl RedisRateLimiter {
@@ -185,7 +186,7 @@ impl RedisRateLimiter {
             pool,
             script: Arc::new(load_lua_script()),
             max_limit: None,
-            global_rate_limits: GlobalRateLimits::default(),
+            global_limits: GlobalRateLimits::default(),
         }
     }
 
@@ -239,24 +240,14 @@ impl RedisRateLimiter {
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
-                    match self
-                        .global_rate_limits
+                    let is_rate_limited = self
+                        .global_limits
                         .is_rate_limited(&mut client, &quota, quantity)
-                    {
-                        Ok(true) => {
-                            let retry_after =
-                                self.retry_after((quota.expiry() - timestamp).as_secs());
-                            rate_limits.add(RateLimit::from_quota(
-                                &quota,
-                                &item_scoping,
-                                retry_after,
-                            ));
-                        }
-                        Ok(false) => {}
-                        Err(e) => relay_log::error!(
-                            error = &e as &dyn std::error::Error,
-                            "failed to check global rate limit"
-                        ),
+                        .map_err(RateLimitingError::Redis)?;
+
+                    if is_rate_limited {
+                        let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
+                        rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
                     }
                 } else {
                     let key = quota.key();
@@ -335,7 +326,7 @@ mod tests {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
-            global_rate_limits: GlobalRateLimits::default(),
+            global_limits: GlobalRateLimits::default(),
         }
     }
 

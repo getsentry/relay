@@ -20,7 +20,7 @@ pub struct GlobalRateLimits {
 }
 
 impl GlobalRateLimits {
-    /// Returns `true` if the global quota should be ratelimited.
+    /// Returns `Ok(true)` if the global quota should be ratelimited.
     ///
     /// Certain errors can be resolved by syncing to redis, so in those cases
     /// we try again to decrement the budget after syncing.
@@ -90,7 +90,7 @@ impl hashbrown::Equivalent<Key> for KeyRef<'_> {
 /// When we want to ratelimit across all relay-instances, we need to use Redis to synchronize.
 /// Calling Redis every time we want to check if an item should be ratelimited would be very expensive,
 /// which is why we have this cache. It works by 'taking' a certain budget from Redis, by pre-incrementing
-/// a global counter. We Put the amount we pre-incremented into this local cache and count down until
+/// a global counter. We put the amount we pre-incremented into this local cache and count down until
 /// we have no more budget, then we ask for more from Redis. If we find the global counter is above
 /// the quota limit, we will ratelimit the item.
 struct GlobalRateLimit {
@@ -167,9 +167,9 @@ impl GlobalRateLimit {
         let (budget, value): (u64, u64) = load_global_lua_script()
             .prepare_invoke()
             .key(quota.key().as_str())
+            .arg(budget_to_reserve)
             .arg(quota.limit())
             .arg(quota.key_expiry())
-            .arg(budget_to_reserve)
             .invoke(&mut client.connection()?)
             .map_err(RedisError::Redis)?;
 
@@ -213,14 +213,14 @@ mod tests {
         RedisPool::single(&url, RedisConfigOptions::default()).unwrap()
     }
 
-    fn build_quota(window: u64, limit: u64) -> Quota {
+    fn build_quota(window: u64, limit: impl Into<Option<u64>>) -> Quota {
         Quota {
-            id: Some("foo".to_owned()),
+            id: Some(uuid::Uuid::new_v4().to_string()),
             categories: DataCategories::new(),
             scope: QuotaScope::Global,
             scope_id: None,
             window: Some(window),
-            limit: Some(limit),
+            limit: limit.into(),
             reason_code: None,
         }
     }
@@ -244,10 +244,9 @@ mod tests {
 
     #[test]
     fn test_global_ratelimit() {
-        let window = 10;
         let limit = 200;
 
-        let quota = build_quota(window, limit);
+        let quota = build_quota(10, limit);
         let scoping = build_scoping();
         let redis_quota = build_redis_quota(&quota, &scoping);
 
@@ -271,9 +270,8 @@ mod tests {
     #[test]
     fn test_multiple_global_ratelimit() {
         let limit = 91_337;
-        let window = 10;
 
-        let quota = build_quota(window, limit as u64);
+        let quota = build_quota(10, limit as u64);
         let scoping = build_scoping();
         let quota = build_redis_quota(&quota, &scoping);
 
@@ -320,8 +318,8 @@ mod tests {
 
     #[test]
     fn test_global_ratelimit_slots() {
-        let window = 10;
         let limit = 200;
+        let window = 10;
 
         let ts = UnixTimestamp::now();
         let quota = build_quota(window, limit);
@@ -345,5 +343,38 @@ mod tests {
             RedisQuota::new(&quota, scoping, ts + Duration::from_secs(window + 1)).unwrap();
         assert!(!rl.is_rate_limited(&mut client, &redis_quota, 200).unwrap());
         assert!(rl.is_rate_limited(&mut client, &redis_quota, 1).unwrap());
+    }
+
+    #[test]
+    fn test_global_ratelimit_infinite() {
+        let limit = None;
+
+        let mut quota = build_quota(10, limit);
+        let scoping = build_scoping();
+        let redis_quota = build_redis_quota(&quota, &scoping);
+
+        let pool = build_redis_pool();
+        let mut client = pool.client().unwrap();
+
+        let rl = GlobalRateLimits::default();
+
+        let quantity = 2;
+        let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_PERCENTAGE) as u64;
+        for _ in 0..redis_threshold + 10 {
+            assert!(!rl
+                .is_rate_limited(&mut client, &redis_quota, quantity)
+                .unwrap());
+        }
+
+        // Grab a new rate limiter and make sure even with the infinite limit,
+        // the quantity was still synchronized via Redis.
+        let rl = GlobalRateLimits::default();
+
+        quota.limit = Some(redis_threshold);
+        let redis_quota = build_redis_quota(&quota, &scoping);
+
+        assert!(rl
+            .is_rate_limited(&mut client, &redis_quota, quantity)
+            .unwrap());
     }
 }

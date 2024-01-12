@@ -71,7 +71,7 @@ impl ItemScoping<'_> {
     /// Returns the identifier of the given scope.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
-            QuotaScope::Global => Some(0),
+            QuotaScope::Global => None,
             QuotaScope::Organization => Some(self.organization_id),
             QuotaScope::Project => Some(self.project_id.value()),
             QuotaScope::Key => self.key_id,

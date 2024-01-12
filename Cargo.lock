@@ -3856,6 +3856,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]

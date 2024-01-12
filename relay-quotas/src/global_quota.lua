@@ -7,9 +7,9 @@
 --  * [string] Key of the counter.
 --
 -- ``ARGV``:
---  * [number]  Quota limit. will not go over this limit while taking budget.
---  * [number]  Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
 --  * [number]  Quantity we want to take. Limited by the Quota limit.
+--  * [number]  Quota limit. will not go over this limit while taking budget, ``-1`` means infinite limit.
+--  * [number]  Absolute Expiration time as Unix timestamp (secs since 1.1.1970 ) for the key.
 --
 -- Output:
 --
@@ -39,13 +39,13 @@
 
 -- The key to the global quota.
 local key = KEYS[1]
+-- The budget that the caller intends to take. Will be capped if too close to the limit.
+local requested_budget = tonumber(ARGV[1])
 -- The max amount that we want to take within the given slot. We won't take a budget if
 -- the count is higher than the limit.
-local limit = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
 -- When the redis key/val should be deleted.
-local expiry = tonumber(ARGV[2])
--- The budget that the caller intends to take. Will be capped if too close to the limit.
-local requested_budget = tonumber(ARGV[3])
+local expiry = tonumber(ARGV[3])
 
 local redis_count = tonumber(redis.call('GET', key) or 0)
 
@@ -59,6 +59,7 @@ else
     -- Ensures the budget is not more than the quantity needed to hit the limit.
     local headroom = limit - redis_count
     local budget = math.min(headroom, requested_budget)
+
     redis.call('INCRBY', key, budget)
 
     if redis_count == 0 then
