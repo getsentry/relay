@@ -1173,6 +1173,7 @@ def test_profile_outcomes(
             )
         )
         envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+        envelope.add_item(Item(payload=PayloadRef(bytes=b"foobar"), type="attachment"))
         return envelope
 
     upstream.send_envelope(
@@ -1192,6 +1193,16 @@ def test_profile_outcomes(
         2: "pop-relay",
     }[num_intermediate_relays]
     expected_outcomes = [
+        {
+            "category": 4,  # attachment
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,
+            "project_id": 42,
+            "quantity": 6,  # len(b"foobar")
+            "reason": "Sampled:1",
+            "source": expected_source,
+        },
         {
             "category": 9,  # TransactionIndexed
             "key_id": 123,

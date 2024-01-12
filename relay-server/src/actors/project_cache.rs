@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ use tokio::time::Instant;
 use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
-use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
+use crate::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
 use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
@@ -883,11 +883,18 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let envelope_processor = self.services.envelope_processor.clone();
-        let project_cache = self.services.project_cache.clone();
+        let mut output = HashMap::new();
+        for (project_key, buckets) in message.buckets {
+            let outcome_aggregator = self.services.outcome_aggregator.clone();
+            let project = self.get_or_create_project(project_key);
+            if let Some((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
+                output.insert(scoping, b);
+            }
+        }
 
-        self.get_or_create_project(message.project_key)
-            .flush_buckets(project_cache, envelope_processor, message.buckets);
+        self.services
+            .envelope_processor
+            .send(EncodeMetrics { scopes: output })
     }
 
     fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {
@@ -1078,6 +1085,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
+    use crate::actors::processor::ProcessingGroup;
     use crate::testutils::empty_envelope;
 
     use super::*;
@@ -1176,6 +1184,7 @@ mod tests {
                     empty_envelope(),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
+                    ProcessingGroup::Ungrouped,
                 )
                 .unwrap();
             let message = ValidateEnvelope { envelope };

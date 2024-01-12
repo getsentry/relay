@@ -4,6 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, HttpEncoding};
@@ -24,7 +25,7 @@ use crate::actors::upstream::{
 };
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
-use crate::http::{HttpError, Request, RequestBuilder, Response};
+use crate::http::{HttpError, RequestBuilder, Response};
 use crate::statsd::RelayHistograms;
 use crate::utils::ManagedEnvelope;
 
@@ -56,7 +57,7 @@ impl From<relay_system::SendError> for SendEnvelopeError {
 /// An upstream request that submits an envelope via HTTP.
 #[derive(Debug)]
 pub struct SendEnvelope {
-    pub envelope_body: Vec<u8>,
+    pub envelope_body: Bytes,
     pub envelope_meta: RequestMeta,
     pub project_cache: Addr<ProjectCache>,
     pub scoping: Scoping,
@@ -79,8 +80,8 @@ impl UpstreamRequest for SendEnvelope {
         "envelope"
     }
 
-    fn build(&mut self, _: &Config, builder: RequestBuilder) -> Result<Request, HttpError> {
-        let envelope_body = &self.envelope_body;
+    fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
+        let envelope_body = self.envelope_body.clone();
         metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
 
         let meta = &self.envelope_meta;
@@ -92,7 +93,9 @@ impl UpstreamRequest for SendEnvelope {
             .header("X-Forwarded-For", meta.forwarded_for())
             .header("Content-Type", envelope::CONTENT_TYPE)
             .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
-            .body(envelope_body)
+            .body(envelope_body);
+
+        Ok(())
     }
 
     fn respond(
@@ -188,6 +191,7 @@ impl EnvelopeManagerService {
         project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
         upstream_relay: Addr<UpstreamRelay>,
+        #[cfg(feature = "processing")] store_forwarder: Option<Addr<Store>>,
     ) -> Self {
         Self {
             config,
@@ -196,14 +200,8 @@ impl EnvelopeManagerService {
             test_store,
             upstream_relay,
             #[cfg(feature = "processing")]
-            store_forwarder: None,
+            store_forwarder,
         }
-    }
-
-    /// Configures a store forwarder to produce Envelopes to Kafka.
-    #[cfg(feature = "processing")]
-    pub fn set_store_forwarder(&mut self, addr: Addr<Store>) {
-        self.store_forwarder = Some(addr);
     }
 
     /// Sends an envelope to the upstream or Kafka.
@@ -214,7 +212,7 @@ impl EnvelopeManagerService {
         partition_key: Option<u64>,
     ) -> Result<(), SendEnvelopeError> {
         #[cfg(feature = "processing")]
-        {
+        if self.config.processing_enabled() {
             if let Some(store_forwarder) = self.store_forwarder.clone() {
                 relay_log::trace!("sending envelope to kafka");
                 let future = store_forwarder.send(StoreEnvelope {
@@ -242,11 +240,9 @@ impl EnvelopeManagerService {
         // possible so that we avoid internal delays.
         envelope.set_sent_at(Utc::now());
 
-        let envelope_body = envelope.to_vec()?;
-
         let (tx, rx) = oneshot::channel();
         let request = SendEnvelope {
-            envelope_body,
+            envelope_body: envelope.to_vec()?.into(),
             envelope_meta: envelope.meta().clone(),
             project_cache: self.project_cache.clone(),
             scoping,

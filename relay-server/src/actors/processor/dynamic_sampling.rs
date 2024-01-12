@@ -13,7 +13,7 @@ use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::actors::outcome::Outcome;
-use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
+use crate::actors::processor::ProcessEnvelopeState;
 use crate::envelope::ItemType;
 use crate::utils::{self, ItemAction, SamplingResult};
 
@@ -97,13 +97,13 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn sample_envelope(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-    let project_state = &state.project_state;
+pub fn sample_envelope_items(state: &mut ProcessEnvelopeState) {
     if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
         // We assume that sampling is only supposed to work on transactions.
         if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
-            let unsampled_profiles_enabled =
-                project_state.has_feature(Feature::IngestUnsampledProfiles);
+            let unsampled_profiles_enabled = state
+                .project_state
+                .has_feature(Feature::IngestUnsampledProfiles);
 
             let matched_rules = sampling_match.into_matched_rules();
             let outcome = Outcome::FilteredSampling(matched_rules.clone());
@@ -115,21 +115,10 @@ pub fn sample_envelope(state: &mut ProcessEnvelopeState) -> Result<(), Processin
                     ItemAction::Drop(outcome.clone())
                 }
             });
-            state.managed_envelope.update_freeze_event();
-            if state.managed_envelope.envelope().is_empty() {
-                // Call reject to make sure that outcomes are generated for the transaction event,
-                // which has already been removed from the envelope for processing.
-                state.managed_envelope.reject(outcome);
-            }
-
-            state
-                .managed_envelope
-                .reject(Outcome::FilteredSampling(matched_rules.clone()));
-
-            return Err(ProcessingError::Sampled(matched_rules));
+            // The event is no longer in the envelope, so we need to handle it separately:
+            state.reject_event(outcome);
         }
     }
-    Ok(())
 }
 
 /// Computes the sampling decision on the incoming transaction.
@@ -204,7 +193,7 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config: &Config) {
     let (Some(dsc), Some(event)) = (
         state.managed_envelope.envelope().dsc(),
         state.event.value_mut(),
@@ -260,7 +249,7 @@ mod tests {
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
     use uuid::Uuid;
 
-    use crate::actors::processor::ProcessEnvelope;
+    use crate::actors::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::actors::project::ProjectState;
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
@@ -294,6 +283,7 @@ mod tests {
         }
     }
 
+    /// Always sets the processing item type to event.
     fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
         sampling_project_state: Option<Arc<ProjectState>>,
@@ -448,6 +438,7 @@ mod tests {
                     TestSemaphore::new(42).try_acquire().unwrap(),
                     outcome_aggregator.clone(),
                     test_store.clone(),
+                    ProcessingGroup::Ungrouped,
                 ),
                 profile_id: None,
                 event_metrics_extracted: false,

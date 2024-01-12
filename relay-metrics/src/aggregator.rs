@@ -10,7 +10,7 @@ use std::{fmt, mem};
 
 use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
-use relay_common::time::{MonotonicResult, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
@@ -71,13 +71,9 @@ impl BucketKey {
     ///
     /// This is used for partition key computation and statsd logging.
     fn hash64(&self) -> u64 {
-        BucketKeyRef {
-            project_key: self.project_key,
-            timestamp: self.timestamp,
-            metric_name: &self.metric_name,
-            tags: &self.tags,
-        }
-        .hash64()
+        let mut hasher = FnvHasher::default();
+        std::hash::Hash::hash(self, &mut hasher);
+        hasher.finish()
     }
 
     /// Estimates the number of bytes needed to encode the bucket key.
@@ -94,29 +90,6 @@ impl BucketKey {
             Ok(mri) => mri.namespace,
             Err(_) => MetricNamespace::Unsupported,
         }
-    }
-}
-
-/// Pendant to [`BucketKey`] for referenced data, not owned data.
-///
-/// This makes it possible to compute a hash for a [`Bucket`]
-/// without destructing the bucket into a [`BucketKey`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct BucketKeyRef<'a> {
-    project_key: ProjectKey,
-    timestamp: UnixTimestamp,
-    metric_name: &'a str,
-    tags: &'a BTreeMap<String, String>,
-}
-
-impl<'a> BucketKeyRef<'a> {
-    /// Creates a 64-bit hash of the bucket key using FnvHasher.
-    ///
-    /// This is used for partition key computation and statsd logging.
-    fn hash64(&self) -> u64 {
-        let mut hasher = FnvHasher::default();
-        std::hash::Hash::hash(self, &mut hasher);
-        hasher.finish()
     }
 }
 
@@ -144,6 +117,9 @@ pub enum ShiftKey {
     ///
     /// Only for use in processing Relays.
     Bucket,
+
+    /// Do not apply shift. This should be set when `http.global_metrics` is used.
+    None,
 }
 
 /// Parameters used by the [`Aggregator`].
@@ -221,31 +197,35 @@ impl AggregatorConfig {
     /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
     /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
     fn get_flush_time(&self, bucket_key: &BucketKey) -> Instant {
-        let now = Instant::now();
-        let mut flush = None;
+        let initial_flush = bucket_key.timestamp + self.bucket_interval() + self.initial_delay();
 
-        if let MonotonicResult::Instant(instant) = bucket_key.timestamp.to_instant() {
-            let instant = Instant::from_std(instant);
-            let bucket_end = instant + self.bucket_interval();
-            let initial_flush = bucket_end + self.initial_delay();
-            // If the initial flush is still pending, use that.
-            if initial_flush > now {
-                flush = Some(initial_flush + self.flush_time_shift(bucket_key));
-            }
-        }
+        let now = UnixTimestamp::now();
+        let backdated = initial_flush <= now;
 
-        let delay = UnixTimestamp::now().as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
+        let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
         relay_statsd::metric!(
             histogram(MetricHistograms::BucketsDelay) = delay as f64,
-            backdated = if flush.is_none() { "true" } else { "false" },
+            backdated = if backdated { "true" } else { "false" },
         );
 
-        // If the initial flush time has passed or cannot be represented, debounce future flushes
-        // with the `debounce_delay` starting now.
-        match flush {
-            Some(initial_flush) => initial_flush,
-            None => now + self.debounce_delay(),
-        }
+        let flush_timestamp = if backdated {
+            // If the initial flush time has passed or cannot be represented, debounce future
+            // flushes with the `debounce_delay` starting now. However, align the current timestamp
+            // with the bucket interval for proper batching.
+            let floor = (now.as_secs() / self.bucket_interval) * self.bucket_interval;
+            UnixTimestamp::from_secs(floor) + self.bucket_interval() + self.debounce_delay()
+        } else {
+            // If the initial flush is still pending, use that.
+            initial_flush
+        };
+
+        let instant = if flush_timestamp > now {
+            Instant::now().checked_add(flush_timestamp - now)
+        } else {
+            Instant::now().checked_sub(now - flush_timestamp)
+        };
+
+        instant.unwrap_or_else(Instant::now) + self.flush_time_shift(bucket_key)
     }
 
     /// The delay to debounce backdated flushes.
@@ -274,9 +254,10 @@ impl AggregatorConfig {
                 hasher.finish()
             }
             ShiftKey::Bucket => bucket.hash64(),
+            ShiftKey::None => return Duration::ZERO,
         };
-        let shift_millis = hash_value % (self.bucket_interval * 1000);
 
+        let shift_millis = hash_value % (self.bucket_interval * 1000);
         Duration::from_millis(shift_millis)
     }
 
@@ -284,22 +265,12 @@ impl AggregatorConfig {
     ///
     /// We select the output bucket which overlaps with the center of the incoming bucket.
     /// Fails if timestamp is too old or too far into the future.
-    fn get_bucket_timestamp(
-        &self,
-        timestamp: UnixTimestamp,
-        bucket_width: u64,
-    ) -> Result<UnixTimestamp, AggregateMetricsError> {
+    fn get_bucket_timestamp(&self, timestamp: UnixTimestamp, bucket_width: u64) -> UnixTimestamp {
         // Find middle of the input bucket to select a target
         let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
         // Align target_timestamp to output bucket width
         let ts = (ts / self.bucket_interval) * self.bucket_interval;
-        let output_timestamp = UnixTimestamp::from_secs(ts);
-
-        if !self.timestamp_range().contains(&output_timestamp) {
-            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
-        }
-
-        Ok(output_timestamp)
+        UnixTimestamp::from_secs(ts)
     }
 
     /// Returns the valid range for metrics timestamps.
@@ -723,26 +694,27 @@ impl Aggregator {
         key
     }
 
-    // Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
-    // Logs a statsd metric for invalid timestamps.
+    /// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
+    ///
+    /// Logs a statsd metric for invalid timestamps.
     fn get_bucket_timestamp(
         &self,
         timestamp: UnixTimestamp,
         bucket_width: u64,
     ) -> Result<UnixTimestamp, AggregateMetricsError> {
-        let res = self.config.get_bucket_timestamp(timestamp, bucket_width);
-        if let Err(AggregateMetricsError {
-            kind: AggregateMetricsErrorKind::InvalidTimestamp(ts),
-        }) = res
-        {
-            let delta = (ts.as_secs() as i64) - (UnixTimestamp::now().as_secs() as i64);
+        let bucket_ts = self.config.get_bucket_timestamp(timestamp, bucket_width);
+
+        if !self.config.timestamp_range().contains(&bucket_ts) {
+            let delta = (bucket_ts.as_secs() as i64) - (UnixTimestamp::now().as_secs() as i64);
             relay_statsd::metric!(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64,
                 aggregator = &self.name,
             );
+
+            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
         }
 
-        res
+        Ok(bucket_ts)
     }
 
     /// Merge a preaggregated bucket into this aggregator.
@@ -888,39 +860,8 @@ impl fmt::Debug for Aggregator {
     }
 }
 
-/// Splits buckets into N logical partitions, determined by the bucket key.
-pub fn partition_buckets(
-    project_key: ProjectKey,
-    buckets: impl IntoIterator<Item = Bucket>,
-    flush_partitions: Option<u64>,
-) -> BTreeMap<Option<u64>, Vec<Bucket>> {
-    let flush_partitions = match flush_partitions {
-        None => return BTreeMap::from([(None, buckets.into_iter().collect())]),
-        Some(x) => x.max(1), // handle 0,
-    };
-    let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
-    for bucket in buckets {
-        let key = BucketKeyRef {
-            project_key,
-            timestamp: bucket.timestamp,
-            metric_name: &bucket.name,
-            tags: &bucket.tags,
-        };
-
-        let partition_key = key.hash64() % flush_partitions;
-        partitions
-            .entry(Some(partition_key))
-            .or_default()
-            .push(bucket);
-
-        relay_statsd::metric!(histogram(MetricHistograms::PartitionKeys) = partition_key);
-    }
-    partitions
-}
-
 #[cfg(test)]
 mod tests {
-
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -937,7 +878,7 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            ..Default::default()
+            shift_key: ShiftKey::default(),
         }
     }
 
@@ -1238,7 +1179,7 @@ mod tests {
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
-        aggregator.pop_flush_buckets(false);
+        aggregator.pop_flush_buckets(true);
         assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
@@ -1251,8 +1192,10 @@ mod tests {
             ..Default::default()
         };
 
+        let aggregator = Aggregator::new(config);
+
         assert!(matches!(
-            config
+            aggregator
                 .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
                 .unwrap_err()
                 .kind,
@@ -1272,9 +1215,7 @@ mod tests {
         let now = UnixTimestamp::now().as_secs();
         let rounded_now = UnixTimestamp::from_secs(now / 10 * 10);
         assert_eq!(
-            config
-                .get_bucket_timestamp(UnixTimestamp::from_secs(now), 0)
-                .unwrap(),
+            config.get_bucket_timestamp(UnixTimestamp::from_secs(now), 0),
             rounded_now
         );
     }
@@ -1293,7 +1234,6 @@ mod tests {
         assert_eq!(
             config
                 .get_bucket_timestamp(UnixTimestamp::from_secs(now), 20)
-                .unwrap()
                 .as_secs(),
             rounded_now + 10
         );
@@ -1313,7 +1253,6 @@ mod tests {
         assert_eq!(
             config
                 .get_bucket_timestamp(UnixTimestamp::from_secs(now), 23)
-                .unwrap()
                 .as_secs(),
             rounded_now + 10
         );

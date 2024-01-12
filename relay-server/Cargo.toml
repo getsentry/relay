@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.11.2"
+version = "23.12.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -50,6 +50,7 @@ bytes = { version = "1.4.0" }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = "2.3.3"
 flate2 = "1.0.19"
+fnv = "1.0.7"
 futures = { workspace = true }
 hash32 = { workspace = true }
 hashbrown = { workspace = true }
@@ -95,7 +96,7 @@ rmp-serde = "1.1.1"
 rust-embed = { version = "8.0.0", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-smallvec = { workspace = true, features = ["drain_filter"]  }
+smallvec = { workspace = true, features = ["drain_filter"] }
 sqlx = { version = "0.7.0", features = [
     "macros",
     "migrate",

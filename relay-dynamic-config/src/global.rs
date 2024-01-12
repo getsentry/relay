@@ -45,38 +45,6 @@ impl GlobalConfig {
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Options {
-    // Example:
-    // ```rs
-    // #[serde(default, rename = "relay.some-option.name")]
-    // pub some_option: Vec<u32>,
-    // ```
-    /// org IDs for which we'll allow using profiles dropped due to DS for function metrics.
-    /// This is only intended to be be used initially to limit the feature to sentry org.
-    /// Once we start to gradually rollout to other orgs this option can be deprecated
-    #[serde(
-        default,
-        rename = "profiling.profile_metrics.unsampled_profiles.allowed_org_ids"
-    )]
-    pub profile_metrics_allowed_org_ids: Vec<u32>,
-
-    /// org IDs for which we want to avoid using the unsampled profiles for function metrics.
-    /// This will let us selectively disable the behaviour for entire orgs that may have an
-    /// extremely high volume increase
-    #[serde(
-        default,
-        rename = "profiling.profile_metrics.unsampled_profiles.excluded_org_ids"
-    )]
-    pub profile_metrics_excluded_orgs_ids: Vec<u32>,
-
-    /// project IDs for which we want to avoid using the unsampled profiles for function metrics.
-    /// This will let us selectively disable the behaviour for project that may have an extremely
-    /// high volume increase
-    #[serde(
-        default,
-        rename = "profiling.profile_metrics.unsampled_profiles.excluded_project_ids"
-    )]
-    pub profile_metrics_excluded_project_ids: Vec<u32>,
-
     /// list of platform names for which we allow using unsampled profiles for the purpose
     /// of improving profile (function) metrics
     #[serde(
@@ -117,6 +85,7 @@ mod tests {
             }),
             options: Some(Options {
                 other: HashMap::from([("relay.unknown".to_owned(), Value::Bool(true))]),
+                ..Default::default()
             }),
         };
 

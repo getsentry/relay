@@ -1064,6 +1064,7 @@ mod tests {
             },
             "spans": [
                 {
+                    "op": "app.start.cold",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
@@ -1071,6 +1072,14 @@ mod tests {
                 },
                 {
                     "op": "ui.load.initial_display",
+                    "span_id": "bd429c44b67a3eb2",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976303.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "op": "app.start.cold",
+                    "description": "Cold Start",
                     "span_id": "bd429c44b67a3eb2",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
@@ -1109,6 +1118,79 @@ mod tests {
         let config = project.metric_extraction.ok().unwrap();
         let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
+    }
+
+    #[test]
+    fn test_extract_span_metrics_mobile_screen() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "sdk": {"name": "sentry.javascript.react-native"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "transaction": "gEt /api/:version/users/",
+            "contexts": {
+                "trace": {
+                    "op": "ui.load",
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4"
+                }
+            },
+            "spans": [
+                {
+                    "description": "GET http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "exclusive_time": 2000.0,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
+                    },
+                    "sentry_tags": {
+                        "action": "GET",
+                        "category": "http",
+                        "description": "GET http://domain.tld",
+                        "domain": "domain.tld",
+                        "group": "d9dc18637d441612",
+                        "mobile": "true",
+                        "op": "http.client",
+                        "transaction": "gEt /api/:version/users/",
+                        "transaction.method": "GET",
+                        "transaction.op": "ui.load"
+                    }
+                }
+            ]
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [
+                Feature::SpanMetricsExtraction,
+                Feature::SpanMetricsExtractionAllModules,
+            ]
+            .into_iter()
+            .collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+
+        // When transaction.op:ui.load and mobile:true, HTTP spans still get both
+        // exclusive_time metrics:
+        assert!(metrics
+            .iter()
+            .any(|b| b.name == "d:spans/exclusive_time@millisecond"));
+        assert!(metrics
+            .iter()
+            .any(|b| b.name == "d:spans/exclusive_time_light@millisecond"));
     }
 
     /// Helper function for span metric extraction tests.
@@ -1216,7 +1298,9 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            if metric.name == "c:spans/count_per_op@none" {
+            if metric.name == "c:spans/count_per_op@none"
+                || metric.name == "c:spans/count_per_segment@none"
+            {
                 continue;
             }
             if metric.name == "d:spans/exclusive_time_light@millisecond" {

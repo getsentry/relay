@@ -20,8 +20,6 @@ pub enum RelayGauges {
     ///
     /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
     BufferEnvelopesDiskCount,
-    /// The current count of the keys in the "in-memory" buffer.
-    BufferProjectsMemoryCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -31,7 +29,6 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
-            RelayGauges::BufferProjectsMemoryCount => "buffer.projects_mem_count",
         }
     }
 }
@@ -158,6 +155,15 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
+    UpstreamMetricsBodySize,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -188,6 +194,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }
@@ -243,8 +251,6 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
-    /// Total time in milliseconds an envelope spends in the Relay's on-disk buffer.
-    EnvelopeOnDiskBufferTime,
     /// Total time in milliseconds spent evicting outdated and unused projects happens.
     ProjectStateEvictionDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
@@ -331,6 +337,12 @@ pub enum RelayTimers {
     ReplayRecordingProcessing,
     /// Total time spent to send a request and receive the response from upstream.
     GlobalConfigRequestDuration,
+    /// Timing in milliseconds for processing a message in the internal CPU pool.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    ProcessMessageDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -353,7 +365,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
-            RelayTimers::EnvelopeOnDiskBufferTime => "envelope.on_disk_buffer_time",
             RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
@@ -366,6 +377,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
+            RelayTimers::ProcessMessageDuration => "processor.message.duration",
         }
     }
 }
@@ -406,6 +418,7 @@ pub enum RelayCounters {
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer reads back from disk.
     BufferEnvelopesRead,
+    ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:

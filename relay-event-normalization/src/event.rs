@@ -202,6 +202,13 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     // Check for required and non-empty values
     schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
+    normalize_timestamps(
+        event,
+        meta,
+        config.received_at,
+        config.max_secs_in_past,
+        config.max_secs_in_future,
+    )?; // Timestamps are core in the metrics extraction
     TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
     // Process security reports first to ensure all props.
@@ -245,13 +252,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     // Default required attributes, even if they have errors
     normalize_logentry(&mut event.logentry, meta)?;
     normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
-    normalize_timestamps(
-        event,
-        meta,
-        config.received_at,
-        config.max_secs_in_past,
-        config.max_secs_in_future,
-    )?; // Timestamps are core in the metrics extraction
     normalize_event_tags(event)?; // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
@@ -742,6 +742,11 @@ fn normalize_performance_score(
                         continue;
                     }
                     weight_total += component.weight;
+                }
+                if weight_total.abs() < f64::EPSILON {
+                    // All components are optional or have a weight of `0`. We cannot compute
+                    // component weights, so we bail.
+                    break;
                 }
                 for component in &profile.score_components {
                     // Optional measurements that are not present are given a weight of 0.
@@ -2320,5 +2325,113 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_weight_0() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.11}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "cls",
+                            "weight": 0,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+          },
+        }
+        "###);
+    }
+
+    /// Test that timestamp normalization updates a transaction's timestamps to
+    /// be acceptable, when both timestamps are similarly stale.
+    #[test]
+    fn test_accept_recent_transactions_with_stale_timestamps() {
+        let config = NormalizationConfig {
+            received_at: Some(Utc::now()),
+            max_secs_in_past: Some(2),
+            max_secs_in_future: Some(1),
+            ..Default::default()
+        };
+
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "transaction": "I have a stale timestamp, but I'm recent!",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        assert!(normalize_event(&mut event, &config).is_ok());
+    }
+
+    /// Test that transactions are rejected as invalid when timestamp normalization isn't enough.
+    ///
+    /// When the end timestamp is recent but the start timestamp is stale, timestamp normalization
+    /// will fix the timestamps based on the end timestamp. The start timestamp will be more recent,
+    /// but not recent enough for the transaction to be accepted. The transaction will be rejected.
+    #[test]
+    fn test_reject_stale_transactions_after_timestamp_normalization() {
+        let now = Utc::now();
+        let config = NormalizationConfig {
+            received_at: Some(now),
+            max_secs_in_past: Some(2),
+            max_secs_in_future: Some(1),
+            ..Default::default()
+        };
+
+        let json = format!(
+            r#"{{
+          "event_id": "52df9022835246eeb317dbd739ccd059",
+          "transaction": "clockdrift is not enough to accept me :(",
+          "start_timestamp": -62135811111,
+          "timestamp": {}
+        }}"#,
+            now.timestamp()
+        );
+        let mut event = Annotated::<Event>::from_json(json.as_str()).unwrap();
+
+        assert_eq!(
+            normalize_event(&mut event, &config)
+                .unwrap_err()
+                .to_string(),
+            "invalid transaction event: timestamp is too stale"
+        );
     }
 }
