@@ -15,7 +15,7 @@ use crate::REJECT_ALL_SECS;
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota
 /// metrics may not be in sync with the computer running this code.
-const GRACE: u64 = 60;
+pub(crate) const GRACE: u64 = 60;
 
 /// An error returned by `RedisRateLimiter`.
 #[derive(Debug, Error)]
@@ -64,7 +64,11 @@ pub struct RedisQuota<'a> {
 }
 
 impl<'a> RedisQuota<'a> {
-    fn new(quota: &'a Quota, scoping: ItemScoping<'a>, timestamp: UnixTimestamp) -> Option<Self> {
+    pub(crate) fn new(
+        quota: &'a Quota,
+        scoping: ItemScoping<'a>,
+        timestamp: UnixTimestamp,
+    ) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
         let prefix = quota.id.as_deref()?;
         let window = quota.window?;
@@ -89,7 +93,7 @@ impl<'a> RedisQuota<'a> {
     }
 
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
-    fn limit(&self) -> i64 {
+    pub fn limit(&self) -> i64 {
         self.limit
             // If it does not fit into i64, treat as unlimited:
             .and_then(|limit| limit.try_into().ok())
@@ -97,17 +101,30 @@ impl<'a> RedisQuota<'a> {
     }
 
     fn shift(&self) -> u64 {
-        self.scoping.organization_id % self.window
+        if self.quota.scope == QuotaScope::Global {
+            0
+        } else {
+            self.scoping.organization_id % self.window
+        }
     }
 
-    fn slot(&self) -> u64 {
+    /// Returns the current slot of the quota.
+    pub fn slot(&self) -> u64 {
         (self.timestamp.as_secs() - self.shift()) / self.window
     }
 
-    fn expiry(&self) -> UnixTimestamp {
+    /// Returns when the quota will expire.
+    pub fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
         UnixTimestamp::from_secs(next_start)
+    }
+
+    /// Returns when the key should expire in Redis.
+    ///
+    /// Like [`Self::expiry()`] but adds an additional grace period for the key.
+    pub fn key_expiry(&self) -> u64 {
+        self.expiry().as_secs() + GRACE
     }
 
     /// Returns the key of the quota.
@@ -158,7 +175,7 @@ pub struct RedisRateLimiter {
     pool: RedisPool,
     script: Arc<Script>,
     max_limit: Option<u64>,
-    counters: GlobalRateLimits,
+    global_rate_limits: GlobalRateLimits,
 }
 
 impl RedisRateLimiter {
@@ -168,7 +185,7 @@ impl RedisRateLimiter {
             pool,
             script: Arc::new(load_lua_script()),
             max_limit: None,
-            counters: GlobalRateLimits::default(),
+            global_rate_limits: GlobalRateLimits::default(),
         }
     }
 
@@ -222,15 +239,20 @@ impl RedisRateLimiter {
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
-                    match self.counters.is_rate_limited(&mut client, &quota, quantity) {
+                    match self
+                        .global_rate_limits
+                        .is_rate_limited(&mut client, &quota, quantity)
+                    {
                         Ok(true) => {
+                            let retry_after =
+                                self.retry_after((quota.expiry() - timestamp).as_secs());
                             rate_limits.add(RateLimit::from_quota(
                                 &quota,
-                                item_scoping.scoping,
-                                self.retry_after((quota.expiry() - timestamp).as_secs()),
+                                &item_scoping,
+                                retry_after,
                             ));
                         }
-                        Ok(false) => continue,
+                        Ok(false) => {}
                         Err(e) => relay_log::error!(
                             error = &e as &dyn std::error::Error,
                             "failed to check global rate limit"
@@ -245,7 +267,7 @@ impl RedisRateLimiter {
                     invocation.key(refund_key);
 
                     invocation.arg(quota.limit());
-                    invocation.arg(quota.expiry().as_secs() + GRACE);
+                    invocation.arg(quota.key_expiry());
                     invocation.arg(quantity);
                     invocation.arg(over_accept_once);
 
@@ -313,7 +335,7 @@ mod tests {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
-            counters: GlobalRateLimits::default(),
+            global_rate_limits: GlobalRateLimits::default(),
         }
     }
 
@@ -404,6 +426,53 @@ mod tests {
                     vec![RateLimit {
                         categories: DataCategories::new(),
                         scope: RateLimitScope::Organization(42),
+                        reason_code: Some(ReasonCode::new("get_lost")),
+                        retry_after: rate_limits[0].retry_after,
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
+            }
+        }
+    }
+
+    #[test]
+    fn test_simple_global_quota() {
+        let quotas = &[Quota {
+            id: Some(format!("test_simple_global_quota_{:?}", SystemTime::now())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Global,
+            scope_id: None,
+            limit: Some(5),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Global,
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                     }]
@@ -834,59 +903,5 @@ mod tests {
             invocation.invoke::<Vec<bool>>(&mut conn).unwrap(),
             vec![false]
         );
-    }
-
-    fn redis_quota_for_metric_buckets(window: u64, limit: u64) -> RedisQuota<'static> {
-        let quota = Quota {
-            id: Some("foo".to_owned()),
-            categories: DataCategories::new(),
-            scope: QuotaScope::Global,
-            scope_id: None,
-            window: Some(window),
-            limit: Some(limit),
-            reason_code: None,
-        };
-
-        let inner_scoping = Scoping {
-            organization_id: 69420,
-            project_id: ProjectId::new(42),
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            key_id: Some(4711),
-        };
-
-        let static_inner_scoping: &'static Scoping = Box::leak(Box::new(inner_scoping));
-        let static_quota: &'static Quota = Box::leak(Box::new(quota));
-
-        let scoping = ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: static_inner_scoping,
-        };
-
-        RedisQuota::new(static_quota, scoping, UnixTimestamp::now()).unwrap()
-    }
-
-    #[test]
-    fn test_global_ratelimit() {
-        let window = 10;
-        let limit = 200;
-
-        let redis_quota = redis_quota_for_metric_buckets(window, limit);
-        let counter = GlobalRateLimits::default();
-
-        let mut client = RedisPool::single("redis://127.0.0.1:6379", RedisConfigOptions::default())
-            .unwrap()
-            .client()
-            .unwrap();
-        let expected_ratelimit_result = [false, false, true, true].to_vec();
-
-        // The limit is 200, while we take 90 at a time. So the first two times we call, we'll
-        // still be under the limit. 90 < 200 -> 180 < 200 -> 270 > 200 -> 360 > 200.
-        for should_ratelimit in expected_ratelimit_result {
-            let is_ratelimited = counter
-                .is_rate_limited(&mut client, &redis_quota, 90)
-                .unwrap();
-
-            assert_eq!(should_ratelimit, is_ratelimited);
-        }
     }
 }
