@@ -4,7 +4,6 @@ from enum import IntEnum
 from sentry_relay._lowlevel import lib
 from sentry_relay.utils import decode_str, encode_str
 
-
 __all__ = ["DataCategory", "SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE"]
 
 
@@ -26,6 +25,7 @@ class DataCategory(IntEnum):
     MONITOR_SEAT = 13
     USER_REPORT_V2 = 14
     METRIC_BUCKET = 15
+    SPAN_INDEXED = 16
     UNKNOWN = -1
     # end generated
 

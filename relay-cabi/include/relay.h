@@ -77,7 +77,7 @@ enum RelayDataCategory {
   /**
    * Span
    *
-   * Used for spans processed independently of transactions.
+   * This is the category for spans from which we extracted metrics from.
    */
   RELAY_DATA_CATEGORY_SPAN = 12,
   /**
@@ -100,6 +100,12 @@ enum RelayDataCategory {
    * Metric buckets.
    */
   RELAY_DATA_CATEGORY_METRIC_BUCKET = 15,
+  /**
+   * SpanIndexed
+   *
+   * This is the category for spans we store in full.
+   */
+  RELAY_DATA_CATEGORY_SPAN_INDEXED = 16,
   /**
    * Any other data category not known by this Relay.
    */
