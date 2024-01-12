@@ -8,6 +8,7 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::actors::processor::ProcessingGroup;
 use crate::actors::test_store::{Capture, TestStore};
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -61,6 +62,7 @@ struct EnvelopeContext {
     slot: Option<SemaphorePermit>,
     partition_key: Option<u64>,
     done: bool,
+    group: ProcessingGroup,
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -93,6 +95,7 @@ impl ManagedEnvelope {
         slot: Option<SemaphorePermit>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -105,6 +108,7 @@ impl ManagedEnvelope {
                 slot,
                 partition_key: None,
                 done: false,
+                group,
             },
             outcome_aggregator,
             test_store,
@@ -117,7 +121,13 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        let mut envelope = Self::new_internal(envelope, None, outcome_aggregator, test_store);
+        let mut envelope = Self::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Ungrouped,
+        );
         envelope.context.done = true;
         envelope
     }
@@ -134,7 +144,13 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        Self::new_internal(envelope, None, outcome_aggregator, test_store)
+        Self::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Ungrouped,
+        )
     }
 
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
@@ -145,13 +161,19 @@ impl ManagedEnvelope {
         slot: SemaphorePermit,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
-        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store)
+        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store, group)
     }
 
     /// Returns a reference to the contained [`Envelope`].
     pub fn envelope(&self) -> &Envelope {
         self.envelope.as_ref()
+    }
+
+    /// Returns the [`ProcessingGroup`] where this envelope belongs to.
+    pub fn group(&self) -> ProcessingGroup {
+        self.context.group
     }
 
     /// Returns a mutable reference to the contained [`Envelope`].

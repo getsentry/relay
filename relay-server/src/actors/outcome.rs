@@ -29,7 +29,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
+use crate::actors::processor::{EnvelopeProcessor, SubmitClientReports};
 use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
@@ -610,17 +610,17 @@ struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
     flush_handle: SleepHandle,
-    envelope_manager: Addr<EnvelopeManager>,
+    envelope_processor: Addr<EnvelopeProcessor>,
 }
 
 impl ClientReportOutcomeProducer {
-    fn new(config: &Config, envelope_manager: Addr<EnvelopeManager>) -> Self {
+    fn new(config: &Config, envelope_processor: Addr<EnvelopeProcessor>) -> Self {
         Self {
             // Use same batch interval as outcome aggregator
             flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
             flush_handle: SleepHandle::idle(),
-            envelope_manager,
+            envelope_processor,
         }
     }
 
@@ -630,7 +630,7 @@ impl ClientReportOutcomeProducer {
 
         let unsent_reports = mem::take(&mut self.unsent_reports);
         for (scoping, client_reports) in unsent_reports.into_iter() {
-            self.envelope_manager.send(SendClientReports {
+            self.envelope_processor.send(SubmitClientReports {
                 client_reports,
                 scoping,
             });
@@ -912,7 +912,7 @@ impl OutcomeProducerService {
     pub fn create(
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_manager: Addr<EnvelopeManager>,
+        envelope_processor: Addr<EnvelopeProcessor>,
     ) -> anyhow::Result<Self> {
         let inner = match config.emit_outcomes() {
             #[cfg(feature = "processing")]
@@ -933,7 +933,7 @@ impl OutcomeProducerService {
                 relay_log::info!("Configured to emit outcomes as client reports");
                 ProducerInner::ClientReport(ClientReportOutcomeProducer::new(
                     &config,
-                    envelope_manager,
+                    envelope_processor,
                 ))
             }
             EmitOutcomes::None => {
