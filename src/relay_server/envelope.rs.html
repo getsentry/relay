@@ -2784,8 +2784,8 @@
 
         <span class="comment">// Relay does not read the envelope&#39;s headers before running initial validation and fully
         // relies on request headers at the moment. Technically, the envelope&#39;s meta is checked
-        // again once the event goes into the EnvelopeManager, but we want to be as accurate as
-        // possible in the endpoint already.
+        // again once the event goes through validation, but we want to be as accurate as possible
+        // in the endpoint already.
         </span><span class="kw">if </span>meta.origin().is_some() &amp;&amp; meta.origin() != request_meta.origin() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(EnvelopeError::HeaderMismatch(<span class="string">&quot;origin&quot;</span>));
         }

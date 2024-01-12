@@ -984,7 +984,7 @@
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendClientReports};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, SubmitClientReports};
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
@@ -1555,17 +1555,17 @@
     flush_interval: Duration,
     unsent_reports: BTreeMap&lt;Scoping, Vec&lt;ClientReport&gt;&gt;,
     flush_handle: SleepHandle,
-    envelope_manager: Addr&lt;EnvelopeManager&gt;,
+    envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
 }
 
 <span class="kw">impl </span>ClientReportOutcomeProducer {
-    <span class="kw">fn </span>new(config: <span class="kw-2">&amp;</span>Config, envelope_manager: Addr&lt;EnvelopeManager&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(config: <span class="kw-2">&amp;</span>Config, envelope_processor: Addr&lt;EnvelopeProcessor&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             <span class="comment">// Use same batch interval as outcome aggregator
             </span>flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
             flush_handle: SleepHandle::idle(),
-            envelope_manager,
+            envelope_processor,
         }
     }
 
@@ -1575,7 +1575,7 @@
 
         <span class="kw">let </span>unsent_reports = mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.unsent_reports);
         <span class="kw">for </span>(scoping, client_reports) <span class="kw">in </span>unsent_reports.into_iter() {
-            <span class="self">self</span>.envelope_manager.send(SendClientReports {
+            <span class="self">self</span>.envelope_processor.send(SubmitClientReports {
                 client_reports,
                 scoping,
             });
@@ -1857,7 +1857,7 @@
     <span class="kw">pub fn </span>create(
         config: Arc&lt;Config&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        envelope_manager: Addr&lt;EnvelopeManager&gt;,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>inner = <span class="kw">match </span>config.emit_outcomes() {
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -1878,7 +1878,7 @@
                 </span><span class="macro">relay_log::info!</span>(<span class="string">&quot;Configured to emit outcomes as client reports&quot;</span>);
                 ProducerInner::ClientReport(ClientReportOutcomeProducer::new(
                     <span class="kw-2">&amp;</span>config,
-                    envelope_manager,
+                    envelope_processor,
                 ))
             }
             EmitOutcomes::None =&gt; {

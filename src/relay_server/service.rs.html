@@ -310,24 +310,6 @@
 <a href="#310" id="310">310</a>
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -342,7 +324,6 @@
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, HealthCheckService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -380,7 +361,6 @@
     <span class="kw">pub </span>outcome_producer: Addr&lt;OutcomeProducer&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     <span class="kw">pub </span>processor: Addr&lt;EnvelopeProcessor&gt;,
-    <span class="kw">pub </span>envelope_manager: Addr&lt;EnvelopeManager&gt;,
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
     <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
@@ -438,13 +418,13 @@
 
         <span class="kw">let </span>buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
-        <span class="comment">// Create an address for the `EnvelopeManagerService`, which can be injected into the
-        // other services. This also solves the issue of circular dependencies with `EnvelopeProcessorService`.
-        </span><span class="kw">let </span>(envelope_manager, envelope_manager_rx) = channel(EnvelopeManagerService::name());
+        <span class="comment">// Create an address for the `EnvelopeProcessor`, which can be injected into the
+        // other services.
+        </span><span class="kw">let </span>(processor, processor_rx) = channel(EnvelopeProcessorService::name());
         <span class="kw">let </span>outcome_producer = OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
-            envelope_manager.clone(),
+            processor.clone(),
         )<span class="question-mark">?
         </span>.start_in(<span class="kw-2">&amp;</span>runtimes.outcome);
         <span class="kw">let </span>outcome_aggregator =
@@ -473,11 +453,10 @@
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let </span>processor = EnvelopeProcessorService::new(
+        EnvelopeProcessorService::new(
             config.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>redis_pool.clone(),
-            envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
@@ -487,26 +466,12 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>store.clone(),
         )
-        .start();
-
-        <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_manager_service = EnvelopeManagerService::new(
-            config.clone(),
-            processor.clone(),
-            project_cache.clone(),
-            test_store.clone(),
-            upstream_relay.clone(),
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>store.clone(),
-        );
-
-        envelope_manager_service.spawn_handler(envelope_manager_rx);
+        .spawn_handler(processor_rx);
 
         <span class="comment">// Keep all the services in one context.
         </span><span class="kw">let </span>project_cache_services = Services::new(
             aggregator.clone(),
             processor.clone(),
-            envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
             test_store.clone(),
@@ -544,7 +509,6 @@
             health_check,
             outcome_producer,
             outcome_aggregator,
-            envelope_manager,
             test_store,
             relay_cache,
             global_config,

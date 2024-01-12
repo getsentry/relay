@@ -137,6 +137,10 @@
 <a href="#137" id="137">137</a>
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -146,6 +150,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+<span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
 <span class="doccomment">/// Either a captured envelope or an error that occured during processing.
 </span><span class="kw">pub type </span>CapturedEnvelope = <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, String&gt;;
@@ -170,7 +175,10 @@
     }
 
     <span class="doccomment">/// Captures an accepted envelope.
-    </span><span class="kw">pub fn </span>accepted(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>accepted(<span class="kw-2">mut </span>managed: ManagedEnvelope) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>envelope = managed.take_envelope();
+        managed.accept();
+
         <span class="self">Self </span>{
             event_id: envelope.event_id(),
             capture: <span class="prelude-val">Ok</span>(envelope),
