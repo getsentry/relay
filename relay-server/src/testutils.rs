@@ -107,7 +107,6 @@ pub fn empty_envelope() -> Box<Envelope> {
 }
 
 pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
-    let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
     let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
@@ -119,7 +118,6 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         Arc::new(config),
         #[cfg(feature = "processing")]
         None,
-        envelope_manager,
         outcome_aggregator,
         project_cache,
         upstream_relay,

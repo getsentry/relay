@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::future::Future;
@@ -24,7 +25,7 @@ use relay_event_normalization::{
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
 use relay_event_schema::protocol::{
-    Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
+    ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
@@ -42,8 +43,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::project_cache::UpdateRateLimits,
-    crate::actors::store::Store,
+    crate::actors::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
@@ -52,13 +52,14 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
-use crate::actors::test_store::TestStore;
+use crate::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
+use crate::actors::test_store::{Capture, TestStore};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
-use crate::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::envelope::{
+    self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
+};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -581,21 +582,6 @@ pub struct ProcessMetricMeta {
     pub project_key: ProjectKey,
 }
 
-/// Applies HTTP content encoding to an envelope's payload.
-///
-/// This message is a workaround for a single-threaded upstream service.
-#[derive(Debug)]
-pub struct EncodeEnvelope {
-    request: SendEnvelope,
-}
-
-impl EncodeEnvelope {
-    /// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.
-    pub fn new(request: SendEnvelope) -> Self {
-        Self { request }
-    }
-}
-
 /// Metric buckets with additional project.
 #[derive(Debug)]
 pub struct ProjectMetrics {
@@ -611,10 +597,10 @@ pub struct EncodeMetrics {
     pub scopes: HashMap<Scoping, ProjectMetrics>,
 }
 
-/// Encodes metric meta into an envelope and sends it upstream.
+/// Encodes metric meta into an [`Envelope`] and sends it upstream.
 ///
-/// Upstream means directly into redis for processing relays
-/// and otherwise submitting the envelope with the envelope manager.
+/// At the moment, upstream means directly into Redis for processing relays
+/// and otherwise submitting the Envelope via HTTP to the [`UpstreamRelay`].
 #[derive(Debug)]
 pub struct EncodeMetricMeta {
     /// Scoping of the meta.
@@ -623,7 +609,22 @@ pub struct EncodeMetricMeta {
     pub meta: MetricMeta,
 }
 
-/// Applies rate limits to metrics buckets and forwards them to the envelope manager.
+/// Sends an envelope to the upstream or Kafka.
+#[derive(Debug)]
+pub struct SubmitEnvelope {
+    pub envelope: ManagedEnvelope,
+}
+
+/// Sends a client report to the upstream.
+#[derive(Debug)]
+pub struct SubmitClientReports {
+    /// The client report to be sent.
+    pub client_reports: Vec<ClientReport>,
+    /// Scoping information for the client report.
+    pub scoping: Scoping,
+}
+
+/// Applies rate limits to metrics buckets and forwards them to the [`Aggregator`].
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct RateLimitBuckets {
@@ -637,9 +638,10 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
     ProcessMetricMeta(Box<ProcessMetricMeta>),
-    EncodeEnvelope(Box<EncodeEnvelope>),
     EncodeMetrics(Box<EncodeMetrics>),
     EncodeMetricMeta(Box<EncodeMetricMeta>),
+    SubmitEnvelope(Box<SubmitEnvelope>),
+    SubmitClientReports(Box<SubmitClientReports>),
     #[cfg(feature = "processing")]
     RateLimitBuckets(RateLimitBuckets),
 }
@@ -652,9 +654,10 @@ impl EnvelopeProcessor {
             EnvelopeProcessor::ProcessMetrics(_) => "ProcessMetrics",
             EnvelopeProcessor::ProcessBatchedMetrics(_) => "ProcessBatchedMetrics",
             EnvelopeProcessor::ProcessMetricMeta(_) => "ProcessMetricMeta",
-            EnvelopeProcessor::EncodeEnvelope(_) => "EncodeEnvelope",
             EnvelopeProcessor::EncodeMetrics(_) => "EncodeMetrics",
             EnvelopeProcessor::EncodeMetricMeta(_) => "EncodeMetricMeta",
+            EnvelopeProcessor::SubmitEnvelope(_) => "SubmitEnvelope",
+            EnvelopeProcessor::SubmitClientReports(_) => "SubmitClientReports",
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(_) => "RateLimitBuckets",
         }
@@ -695,14 +698,6 @@ impl FromMessage<ProcessMetricMeta> for EnvelopeProcessor {
     }
 }
 
-impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
-    type Response = NoResponse;
-
-    fn from_message(message: EncodeEnvelope, _: ()) -> Self {
-        Self::EncodeEnvelope(Box::new(message))
-    }
-}
-
 impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
     type Response = NoResponse;
 
@@ -716,6 +711,22 @@ impl FromMessage<EncodeMetricMeta> for EnvelopeProcessor {
 
     fn from_message(message: EncodeMetricMeta, _: ()) -> Self {
         Self::EncodeMetricMeta(Box::new(message))
+    }
+}
+
+impl FromMessage<SubmitEnvelope> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: SubmitEnvelope, _: ()) -> Self {
+        Self::SubmitEnvelope(Box::new(message))
+    }
+}
+
+impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: SubmitClientReports, _: ()) -> Self {
+        Self::SubmitClientReports(Box::new(message))
     }
 }
 
@@ -740,7 +751,6 @@ struct InnerProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
     redis_pool: Option<RedisPool>,
-    envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
     #[cfg(feature = "processing")]
@@ -764,7 +774,6 @@ impl EnvelopeProcessorService {
     pub fn new(
         config: Arc<Config>,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
-        envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
@@ -789,7 +798,6 @@ impl EnvelopeProcessorService {
             rate_limiter: redis
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
-            envelope_manager,
             project_cache,
             outcome_aggregator,
             upstream_relay,
@@ -1442,10 +1450,8 @@ impl EnvelopeProcessorService {
         });
         match result {
             Ok(response) => {
-                if let Some(managed_envelope) = response.envelope {
-                    self.inner.envelope_manager.send(SubmitEnvelope {
-                        envelope: managed_envelope,
-                    })
+                if let Some(envelope) = response.envelope {
+                    self.handle_submit_envelope(SubmitEnvelope { envelope });
                 };
             }
             Err(error) => {
@@ -1611,6 +1617,85 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_submit_envelope(&self, message: SubmitEnvelope) {
+        let SubmitEnvelope { mut envelope } = message;
+
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled() {
+            if let Some(store_forwarder) = self.inner.store_forwarder.clone() {
+                relay_log::trace!("sending envelope to kafka");
+                store_forwarder.send(StoreEnvelope { envelope });
+                return;
+            }
+        }
+
+        // If we are in capture mode, we stash away the event instead of forwarding it.
+        if Capture::should_capture(&self.inner.config) {
+            relay_log::trace!("capturing envelope in memory");
+            self.inner.test_store.send(Capture::accepted(envelope));
+            return;
+        }
+
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.envelope_mut().set_sent_at(Utc::now());
+
+        relay_log::trace!("sending envelope to sentry endpoint");
+        let http_encoding = self.inner.config.http_encoding();
+        let result = envelope.envelope().to_vec().and_then(|v| {
+            encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
+        });
+
+        match result {
+            Ok(body) => {
+                self.inner.upstream_relay.send(SendRequest(SendEnvelope {
+                    envelope,
+                    body,
+                    http_encoding,
+                    project_cache: self.inner.project_cache.clone(),
+                }));
+            }
+            Err(error) => {
+                // Errors are only logged for what we consider an internal discard reason. These
+                // indicate errors in the infrastructure or implementation bugs.
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %envelope.scoping().project_key,
+                    "failed to serialize envelope payload"
+                );
+
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            }
+        }
+    }
+
+    fn handle_submit_client_reports(&self, message: SubmitClientReports) {
+        let SubmitClientReports {
+            client_reports,
+            scoping,
+        } = message;
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn::outbound(&scoping, upstream);
+
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        for client_report in client_reports {
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
+            envelope.add_item(item);
+        }
+
+        let envelope = ManagedEnvelope::standalone(
+            envelope,
+            self.inner.outcome_aggregator.clone(),
+            self.inner.test_store.clone(),
+        );
+        self.handle_submit_envelope(SubmitEnvelope { envelope });
+    }
+
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
@@ -1656,22 +1741,6 @@ impl EnvelopeProcessorService {
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
-        }
-    }
-
-    fn handle_encode_envelope(&self, message: EncodeEnvelope) {
-        let mut request = message.request;
-        match encode_payload(&request.envelope_body, request.http_encoding) {
-            Err(e) => {
-                request
-                    .response_sender
-                    .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
-                    .ok();
-            }
-            Ok(envelope_body) => {
-                request.envelope_body = envelope_body;
-                self.inner.upstream_relay.send(SendRequest(request));
-            }
         }
     }
 
@@ -1797,7 +1866,7 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON and pack in an envelope
-    ///  - submit the envelope to the envelope manager
+    ///  - submit the envelope to upstream or kafka depending on configuration
     ///
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
@@ -1856,10 +1925,7 @@ impl EnvelopeProcessorService {
                         histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                     );
 
-                    self.inner
-                        .envelope_manager
-                        .send(SubmitEnvelope { envelope });
-
+                    self.handle_submit_envelope(SubmitEnvelope { envelope });
                     num_batches += 1;
                 }
 
@@ -1989,15 +2055,13 @@ impl EnvelopeProcessorService {
         item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
+
         let envelope = ManagedEnvelope::standalone(
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
         );
-
-        self.inner
-            .envelope_manager
-            .send(SubmitEnvelope { envelope });
+        self.handle_submit_envelope(SubmitEnvelope { envelope });
     }
 
     #[cfg(feature = "processing")]
@@ -2027,9 +2091,10 @@ impl EnvelopeProcessorService {
                     self.handle_process_batched_metrics(*m)
                 }
                 EnvelopeProcessor::ProcessMetricMeta(m) => self.handle_process_metric_meta(*m),
-                EnvelopeProcessor::EncodeEnvelope(m) => self.handle_encode_envelope(*m),
                 EnvelopeProcessor::EncodeMetrics(m) => self.handle_encode_metrics(*m),
                 EnvelopeProcessor::EncodeMetricMeta(m) => self.handle_encode_metric_meta(*m),
+                EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
+                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
                 #[cfg(feature = "processing")]
                 EnvelopeProcessor::RateLimitBuckets(m) => self.handle_rate_limit_buckets(m),
             }
@@ -2096,6 +2161,86 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
     };
 
     Ok(envelope_body.into())
+}
+
+/// An upstream request that submits an envelope via HTTP.
+#[derive(Debug)]
+pub struct SendEnvelope {
+    envelope: ManagedEnvelope,
+    body: Bytes,
+    http_encoding: HttpEncoding,
+    project_cache: Addr<ProjectCache>,
+}
+
+impl UpstreamRequest for SendEnvelope {
+    fn method(&self) -> reqwest::Method {
+        reqwest::Method::POST
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        format!("/api/{}/envelope/", self.envelope.scoping().project_id).into()
+    }
+
+    fn route(&self) -> &'static str {
+        "envelope"
+    }
+
+    fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
+        let envelope_body = self.body.clone();
+        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+
+        let meta = &self.envelope.meta();
+        let shard = self.envelope.partition_key().map(|p| p.to_string());
+        builder
+            .content_encoding(self.http_encoding)
+            .header_opt("Origin", meta.origin().map(|url| url.as_str()))
+            .header_opt("User-Agent", meta.user_agent())
+            .header("X-Sentry-Auth", meta.auth_header())
+            .header("X-Forwarded-For", meta.forwarded_for())
+            .header("Content-Type", envelope::CONTENT_TYPE)
+            .header_opt("X-Sentry-Relay-Shard", shard)
+            .body(envelope_body);
+
+        Ok(())
+    }
+
+    fn respond(
+        self: Box<Self>,
+        result: Result<http::Response, UpstreamRequestError>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
+                Err(error) => Err(error),
+            };
+
+            match result {
+                Ok(()) => self.envelope.accept(),
+                Err(error) if error.is_received() => {
+                    let scoping = self.envelope.scoping();
+                    self.envelope.accept();
+
+                    if let UpstreamRequestError::RateLimited(limits) = error {
+                        self.project_cache.send(UpdateRateLimits::new(
+                            scoping.project_key,
+                            limits.scope(&scoping),
+                        ));
+                    }
+                }
+                Err(error) => {
+                    // Errors are only logged for what we consider an internal discard reason. These
+                    // indicate errors in the infrastructure or implementation bugs.
+                    let mut envelope = self.envelope;
+                    envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        tags.project_key = %envelope.scoping().project_key,
+                        "error sending envelope"
+                    );
+                }
+            }
+        })
+    }
 }
 
 /// Computes a stable partitioning key for sharded metric requests.
@@ -2221,7 +2366,7 @@ impl UpstreamRequest for SendMetricsRequest {
         reqwest::Method::POST
     }
 
-    fn path(&self) -> std::borrow::Cow<'_, str> {
+    fn path(&self) -> Cow<'_, str> {
         "/api/0/relays/metrics/".into()
     }
 

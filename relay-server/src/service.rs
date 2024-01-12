@@ -12,7 +12,6 @@ use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
-use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 use crate::actors::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
@@ -50,7 +49,6 @@ pub struct Registry {
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub processor: Addr<EnvelopeProcessor>,
-    pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
@@ -108,13 +106,13 @@ impl ServiceState {
 
         let buffer = Arc::new(BufferGuard::new(config.envelope_buffer_size()));
 
-        // Create an address for the `EnvelopeManagerService`, which can be injected into the
-        // other services. This also solves the issue of circular dependencies with `EnvelopeProcessorService`.
-        let (envelope_manager, envelope_manager_rx) = channel(EnvelopeManagerService::name());
+        // Create an address for the `EnvelopeProcessor`, which can be injected into the
+        // other services.
+        let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
         let outcome_producer = OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
-            envelope_manager.clone(),
+            processor.clone(),
         )?
         .start_in(&runtimes.outcome);
         let outcome_aggregator =
@@ -143,11 +141,10 @@ impl ServiceState {
             None => None,
         };
 
-        let processor = EnvelopeProcessorService::new(
+        EnvelopeProcessorService::new(
             config.clone(),
             #[cfg(feature = "processing")]
             redis_pool.clone(),
-            envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
@@ -157,26 +154,12 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             store.clone(),
         )
-        .start();
-
-        #[allow(unused_mut)]
-        let mut envelope_manager_service = EnvelopeManagerService::new(
-            config.clone(),
-            processor.clone(),
-            project_cache.clone(),
-            test_store.clone(),
-            upstream_relay.clone(),
-            #[cfg(feature = "processing")]
-            store.clone(),
-        );
-
-        envelope_manager_service.spawn_handler(envelope_manager_rx);
+        .spawn_handler(processor_rx);
 
         // Keep all the services in one context.
         let project_cache_services = Services::new(
             aggregator.clone(),
             processor.clone(),
-            envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
             test_store.clone(),
@@ -214,7 +197,6 @@ impl ServiceState {
             health_check,
             outcome_producer,
             outcome_aggregator,
-            envelope_manager,
             test_store,
             relay_cache,
             global_config,

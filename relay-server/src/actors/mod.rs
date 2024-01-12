@@ -10,10 +10,9 @@
 //!  - [`ProjectCache`](project_cache::ProjectCache): A cache that serves queries for project
 //!    configurations. Its requests are debounced and batched based on a configured interval (100ms
 //!    by default). Also, missing projects are cached for some time.
-//!  - [`EnvelopeManager`](envelopes::EnvelopeManager) and
-//!    [`EnvelopeProcessor`](processor::EnvelopeProcessor): Handle a queue of envelopes, verify
-//!    their projects, execute PII stripping and finally send the envelope to the upstream. The
-//!    processor is spawned in multiple synchronous worker threads.
+//!  - [`EnvelopeProcessor`](processor::EnvelopeProcessor): A worker pool for CPU-intensive tasks.
+//!    Most importantly, this implements envelope processing to verify their projects, execute PII
+//!    stripping and finally send the envelope to the upstream.
 //!  - [`UpstreamRelay`](upstream::UpstreamRelay): Abstraction for communication with the upstream
 //!    (either another Relay or Sentry). It manages an internal client connector to throttle
 //!    requests and ensures this relay is authenticated before sending queries (e.g. project config
@@ -28,7 +27,6 @@
 //! Controller::run(|| Server::start())
 //!     .expect("failed to start relay");
 //! ```
-pub mod envelopes;
 pub mod global_config;
 pub mod health_check;
 pub mod outcome;

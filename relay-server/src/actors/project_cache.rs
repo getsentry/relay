@@ -13,7 +13,6 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
@@ -427,7 +426,6 @@ struct UpdateProjectState {
 pub struct Services {
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
-    pub envelope_manager: Addr<EnvelopeManager>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub project_cache: Addr<ProjectCache>,
     pub test_store: Addr<TestStore>,
@@ -441,7 +439,6 @@ impl Services {
     pub fn new(
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
-        envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
@@ -451,7 +448,6 @@ impl Services {
         Self {
             aggregator,
             envelope_processor,
-            envelope_manager,
             outcome_aggregator,
             project_cache,
             test_store,
@@ -1093,7 +1089,6 @@ mod tests {
     fn mocked_services() -> Services {
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
-        let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
@@ -1103,7 +1098,6 @@ mod tests {
         Services {
             aggregator,
             envelope_processor,
-            envelope_manager,
             project_cache,
             outcome_aggregator,
             test_store,

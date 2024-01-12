@@ -4,6 +4,8 @@
 
 - This release requires Python 3.9 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.8.
 - Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
+- Normalize error and trace-ids. Values must be valid UUIDs. ([#2931](https://github.com/getsentry/relay/pull/2931))
+- Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
 
 ## 0.8.39
 

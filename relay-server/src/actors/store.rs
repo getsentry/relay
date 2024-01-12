@@ -2,6 +2,7 @@
 //! The service uses kafka topics to forward data to Sentry
 
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -19,16 +20,16 @@ use relay_metrics::{
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, NoResponse, Sender, Service};
-use serde::ser::Error;
-use serde::Serialize;
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
+use serde_json::Deserializer;
 use uuid::Uuid;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
 use crate::statsd::RelayCounters;
-use crate::utils::{self, ExtractionMode};
+use crate::utils::{self, ExtractionMode, ManagedEnvelope};
 
 /// The maximum number of individual session updates generated for each aggregate item.
 const MAX_EXPLODED_SESSIONS: usize = 100;
@@ -75,11 +76,9 @@ impl Producer {
 }
 
 /// Publishes an [`Envelope`] to the Sentry core application through Kafka topics.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct StoreEnvelope {
-    pub envelope: Box<Envelope>,
-    pub start_time: Instant,
-    pub scoping: Scoping,
+    pub envelope: ManagedEnvelope,
 }
 
 /// Publishes a list of [`Bucket`]s to the Sentry core application through Kafka topics.
@@ -94,17 +93,17 @@ pub struct StoreMetrics {
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
-    Envelope(StoreEnvelope, Sender<Result<(), StoreError>>),
+    Envelope(StoreEnvelope),
     Metrics(StoreMetrics),
 }
 
 impl Interface for Store {}
 
 impl FromMessage<StoreEnvelope> for Store {
-    type Response = AsyncResponse<Result<(), StoreError>>;
+    type Response = NoResponse;
 
-    fn from_message(message: StoreEnvelope, sender: Sender<Result<(), StoreError>>) -> Self {
-        Self::Envelope(message, sender)
+    fn from_message(message: StoreEnvelope, _: ()) -> Self {
+        Self::Envelope(message)
     }
 }
 
@@ -138,17 +137,38 @@ impl StoreService {
 
     fn handle_message(&self, message: Store) {
         match message {
-            Store::Envelope(message, sender) => sender.send(self.handle_store_envelope(message)),
+            Store::Envelope(message) => self.handle_store_envelope(message),
             Store::Metrics(message) => self.handle_store_metrics(message),
         }
     }
 
-    fn handle_store_envelope(&self, message: StoreEnvelope) -> Result<(), StoreError> {
+    fn handle_store_envelope(&self, message: StoreEnvelope) {
         let StoreEnvelope {
-            envelope,
-            start_time,
-            scoping,
+            envelope: mut managed,
         } = message;
+
+        let scoping = managed.scoping();
+        let envelope = managed.take_envelope();
+
+        match self.store_envelope(envelope, managed.start_time(), scoping) {
+            Ok(()) => managed.accept(),
+            Err(error) => {
+                managed.reject(Outcome::Invalid(DiscardReason::Internal));
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %scoping.project_key,
+                    "failed to store envelope"
+                );
+            }
+        }
+    }
+
+    fn store_envelope(
+        &self,
+        envelope: Box<Envelope>,
+        start_time: Instant,
+        scoping: Scoping,
+    ) -> Result<(), StoreError> {
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
@@ -243,7 +263,6 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     event_id,
-                    start_time,
                     retention,
                     item,
                 )?,
@@ -824,12 +843,12 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         event_id: Option<EventId>,
-        start_time: Instant,
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let payload = item.payload();
-        let span = match serde_json::from_slice(&payload) {
+        let d = &mut Deserializer::from_slice(&payload);
+        let mut span: SpanKafkaMessage = match serde_path_to_error::deserialize(d) {
             Ok(span) => span,
             Err(error) => {
                 relay_log::error!(
@@ -839,19 +858,14 @@ impl StoreService {
                 return Ok(());
             }
         };
-        let message = SpanKafkaMessage {
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            event_id,
-            organization_id,
-            project_id,
-            retention_days,
-            span,
-        };
-        self.produce(
-            KafkaTopic::Spans,
-            organization_id,
-            KafkaMessage::Span(message),
-        )?;
+
+        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.event_id = event_id;
+        span.project_id = project_id.value();
+        span.retention_days = retention_days;
+        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+
+        self.produce(KafkaTopic::Spans, organization_id, KafkaMessage::Span(span))?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -924,7 +938,7 @@ where
     T: serde::Serialize,
 {
     serde_json::to_value(t)
-        .map_err(|e| S::Error::custom(e.to_string()))?
+        .map_err(|e| serde::ser::Error::custom(e.to_string()))?
         .serialize(serializer)
 }
 
@@ -1136,24 +1150,54 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
-    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
-    start_time: u64,
+    #[serde(skip_serializing)]
+    start_timestamp: f64,
+    #[serde(rename(deserialize = "timestamp"), skip_serializing)]
+    end_timestamp: f64,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<&'a RawValue>,
+    #[serde(default)]
+    duration_ms: u32,
     /// The ID of the transaction event associated to this span, if any.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
-    /// The numeric ID of the organization.
-    organization_id: u64,
+    #[serde(rename(deserialize = "exclusive_time"))]
+    exclusive_time_ms: f64,
+    is_segment: bool,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<&'a RawValue>,
+    #[serde(
+        default,
+        rename = "_metrics_summary",
+        skip_serializing_if = "Option::is_none"
+    )]
+    metrics_summary: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    parent_span_id: Option<&'a str>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    profile_id: Option<&'a str>,
     /// The numeric ID of the project.
-    project_id: ProjectId,
+    #[serde(default)]
+    project_id: u64,
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    received: f64,
     /// Number of days until these data should be deleted.
+    #[serde(default)]
     retention_days: u16,
-    /// Fields from the original span payload.
-    /// See [`relay-event-schema::protocol::span::Span`] for schema.
-    ///
-    /// By using a [`RawValue`] here, we can embed the span's JSON without additional parsing.
-    span: &'a RawValue,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    segment_id: Option<&'a str>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sentry_tags: Option<&'a RawValue>,
+    span_id: &'a str,
+    #[serde(default)]
+    start_timestamp_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tags: Option<&'a RawValue>,
+    trace_id: &'a str,
 }
 
 /// An enum over all possible ingest messages.
