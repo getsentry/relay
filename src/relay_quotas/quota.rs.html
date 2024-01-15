@@ -804,6 +804,14 @@
 <a href="#804" id="804">804</a>
 <a href="#805" id="805">805</a>
 <a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -877,6 +885,7 @@
     <span class="doccomment">/// Returns the identifier of the given scope.
     </span><span class="kw">pub fn </span>scope_id(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: QuotaScope) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
         <span class="kw">match </span>scope {
+            QuotaScope::Global =&gt; <span class="prelude-val">None</span>,
             QuotaScope::Organization =&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.organization_id),
             QuotaScope::Project =&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.project_id.value()),
             QuotaScope::Key =&gt; <span class="self">self</span>.key_id,
@@ -940,6 +949,8 @@
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
 </span><span class="kw">pub enum </span>QuotaScope {
+    <span class="doccomment">/// Global scope, matches everything.
+    </span>Global,
     <span class="doccomment">/// The organization that this project belongs to.
     ///
     /// This is the top-level scope.
@@ -974,6 +985,7 @@
     <span class="doccomment">/// Returns the canonical name of this scope.
     </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Global =&gt; <span class="string">&quot;global&quot;</span>,
             <span class="self">Self</span>::Key =&gt; <span class="string">&quot;key&quot;</span>,
             <span class="self">Self</span>::Project =&gt; <span class="string">&quot;project&quot;</span>,
             <span class="self">Self</span>::Organization =&gt; <span class="string">&quot;organization&quot;</span>,
@@ -1100,6 +1112,10 @@
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; bool {
+        <span class="kw">if </span><span class="self">self</span>.scope == QuotaScope::Global {
+            <span class="kw">return </span><span class="bool-val">true</span>;
+        }
+
         <span class="comment">// Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.

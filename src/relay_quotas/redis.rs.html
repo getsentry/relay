@@ -798,7 +798,110 @@
 <a href="#798" id="798">798</a>
 <a href="#799" id="799">799</a>
 <a href="#800" id="800">800</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -807,6 +910,7 @@
 <span class="kw">use </span>relay_redis::{RedisError, RedisPool};
 <span class="kw">use </span>thiserror::Error;
 
+<span class="kw">use </span><span class="kw">crate</span>::global::GlobalRateLimits;
 <span class="kw">use </span><span class="kw">crate</span>::quota::{ItemScoping, Quota, QuotaScope};
 <span class="kw">use </span><span class="kw">crate</span>::rate_limit::{RateLimit, RateLimits, RetryAfter};
 <span class="kw">use </span><span class="kw">crate</span>::REJECT_ALL_SECS;
@@ -849,7 +953,7 @@
 
 <span class="doccomment">/// Reference to information required for tracking quotas in Redis.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The original quota.
     </span>quota: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Quota,
     <span class="doccomment">/// Scopes of the item being tracked.
@@ -863,7 +967,11 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; RedisQuota&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(quota: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Quota, scoping: ItemScoping&lt;<span class="lifetime">&#39;a</span>&gt;, timestamp: UnixTimestamp) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
+        quota: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Quota,
+        scoping: ItemScoping&lt;<span class="lifetime">&#39;a</span>&gt;,
+        timestamp: UnixTimestamp,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="comment">// These fields indicate that we *can* track this quota.
         </span><span class="kw">let </span>prefix = quota.id.as_deref()<span class="question-mark">?</span>;
         <span class="kw">let </span>window = quota.window<span class="question-mark">?</span>;
@@ -877,8 +985,18 @@
         })
     }
 
+    <span class="doccomment">/// Returns the window size of the quota.
+    </span><span class="kw">pub fn </span>window(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.window
+    }
+
+    <span class="doccomment">/// Returns the prefix of the quota.
+    </span><span class="kw">pub fn </span>prefix(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str {
+        <span class="self">self</span>.prefix
+    }
+
     <span class="doccomment">/// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
-    </span><span class="kw">fn </span>limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+    </span><span class="kw">pub fn </span>limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
         <span class="self">self</span>.limit
             <span class="comment">// If it does not fit into i64, treat as unlimited:
             </span>.and_then(|limit| limit.try_into().ok())
@@ -886,20 +1004,44 @@
     }
 
     <span class="kw">fn </span>shift(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="self">self</span>.scoping.organization_id % <span class="self">self</span>.window
+        <span class="kw">if </span><span class="self">self</span>.quota.scope == QuotaScope::Global {
+            <span class="number">0
+        </span>} <span class="kw">else </span>{
+            <span class="self">self</span>.scoping.organization_id % <span class="self">self</span>.window
+        }
     }
 
-    <span class="kw">fn </span>slot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+    <span class="doccomment">/// Returns the current slot of the quota.
+    </span><span class="kw">pub fn </span>slot(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         (<span class="self">self</span>.timestamp.as_secs() - <span class="self">self</span>.shift()) / <span class="self">self</span>.window
     }
 
-    <span class="kw">fn </span>expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UnixTimestamp {
+    <span class="doccomment">/// Returns when the quota will expire.
+    </span><span class="kw">pub fn </span>expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; UnixTimestamp {
         <span class="kw">let </span>next_slot = <span class="self">self</span>.slot() + <span class="number">1</span>;
         <span class="kw">let </span>next_start = next_slot * <span class="self">self</span>.window + <span class="self">self</span>.shift();
         UnixTimestamp::from_secs(next_start)
     }
 
-    <span class="kw">fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
+    <span class="doccomment">/// Returns when the key should expire in Redis.
+    ///
+    /// Like [`Self::expiry()`] but adds an additional grace period for the key.
+    </span><span class="kw">pub fn </span>key_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.expiry().as_secs() + GRACE
+    }
+
+    <span class="doccomment">/// Returns the key of the quota.
+    </span><span class="kw">pub fn </span>key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
+        <span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.quota.scope, QuotaScope::Global) {
+            <span class="comment">// Global quotas have their own key with the shard based on the quota name instead of
+            // the organization.
+            </span><span class="kw">return </span><span class="macro">format!</span>(
+                <span class="string">&quot;quota:global:{{{id}}}:{slot}&quot;</span>,
+                id = <span class="self">self</span>.prefix,
+                slot = <span class="self">self</span>.slot(),
+            );
+        }
+
         <span class="comment">// The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         </span><span class="kw">let </span>subscope = <span class="kw">match </span><span class="self">self</span>.quota.scope {
@@ -907,10 +1049,13 @@
             scope =&gt; <span class="self">self</span>.scoping.scope_id(scope),
         };
 
+        <span class="comment">// 0 is arbitrary, we just need to ensure global quotas from different orgs have the same key.
+        </span><span class="kw">let </span>org = <span class="self">self</span>.scoping.organization_id;
+
         <span class="macro">format!</span>(
             <span class="string">&quot;quota:{id}{{{org}}}{subscope}:{slot}&quot;</span>,
             id = <span class="self">self</span>.prefix,
-            org = <span class="self">self</span>.scoping.organization_id,
+            org = org,
             subscope = OptionalDisplay(subscope),
             slot = <span class="self">self</span>.slot(),
         )
@@ -935,11 +1080,11 @@
 /// attachments. For more information on quota parameters, see `QuotaConfig`.
 ///
 /// Requires the `redis` feature.
-</span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>RedisRateLimiter {
     pool: RedisPool,
     script: Arc&lt;Script&gt;,
     max_limit: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    global_limits: GlobalRateLimits,
 }
 
 <span class="kw">impl </span>RedisRateLimiter {
@@ -949,6 +1094,7 @@
             pool,
             script: Arc::new(load_lua_script()),
             max_limit: <span class="prelude-val">None</span>,
+            global_limits: GlobalRateLimits::default(),
         }
     }
 
@@ -985,6 +1131,7 @@
         quantity: usize,
         over_accept_once: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, RateLimitingError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::now();
         <span class="kw">let </span><span class="kw-2">mut </span>invocation = <span class="self">self</span>.script.prepare_invoke();
         <span class="kw">let </span><span class="kw-2">mut </span>tracked_quotas = Vec::new();
@@ -1000,19 +1147,31 @@
                 </span><span class="kw">let </span>retry_after = <span class="self">self</span>.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, <span class="kw-2">&amp;</span>item_scoping, retry_after));
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
-                <span class="comment">// Remaining quotas are expected to be trackable in Redis.
-                </span><span class="kw">let </span>key = quota.key();
-                <span class="kw">let </span>refund_key = get_refunded_quota_key(<span class="kw-2">&amp;</span>key);
+                <span class="kw">if </span>quota.scope == QuotaScope::Global {
+                    <span class="kw">let </span>is_rate_limited = <span class="self">self
+                        </span>.global_limits
+                        .is_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>quota, quantity)
+                        .map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
 
-                invocation.key(key);
-                invocation.key(refund_key);
+                    <span class="kw">if </span>is_rate_limited {
+                        <span class="kw">let </span>retry_after = <span class="self">self</span>.retry_after((quota.expiry() - timestamp).as_secs());
+                        rate_limits.add(RateLimit::from_quota(<span class="kw-2">&amp;</span>quota, <span class="kw-2">&amp;</span>item_scoping, retry_after));
+                    }
+                } <span class="kw">else </span>{
+                    <span class="kw">let </span>key = quota.key();
+                    <span class="comment">// Remaining quotas are expected to be trackable in Redis.
+                    </span><span class="kw">let </span>refund_key = get_refunded_quota_key(<span class="kw-2">&amp;</span>key);
 
-                invocation.arg(quota.limit());
-                invocation.arg(quota.expiry().as_secs() + GRACE);
-                invocation.arg(quantity);
-                invocation.arg(over_accept_once);
+                    invocation.key(key);
+                    invocation.key(refund_key);
 
-                tracked_quotas.push(quota);
+                    invocation.arg(quota.limit());
+                    invocation.arg(quota.key_expiry());
+                    invocation.arg(quantity);
+                    invocation.arg(over_accept_once);
+
+                    tracked_quotas.push(quota);
+                }
             } <span class="kw">else </span>{
                 <span class="comment">// This quota is neither a static reject-all, nor can it be tracked in Redis due to
                 // missing fields. We&#39;re skipping this for forward-compatibility.
@@ -1029,7 +1188,6 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(rate_limits);
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
         <span class="kw">let </span>rejections: Vec&lt;bool&gt; = invocation
             .invoke(<span class="kw-2">&amp;mut </span>client.connection().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>)
             .map_err(RedisError::Redis)
@@ -1076,6 +1234,7 @@
             pool: RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: <span class="prelude-val">None</span>,
+            global_limits: GlobalRateLimits::default(),
         }
     }
 
@@ -1132,7 +1291,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_simple_quota() {
         <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_simple_quota_{:?}&quot;</span>, SystemTime::now())),
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_simple_quota_{}&quot;</span>, uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: <span class="prelude-val">None</span>,
@@ -1177,9 +1336,56 @@
     }
 
     <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_simple_global_quota() {
+        <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_simple_global_quota_{}&quot;</span>, uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Global,
+            scope_id: <span class="prelude-val">None</span>,
+            limit: <span class="prelude-val">Some</span>(<span class="number">5</span>),
+            window: <span class="prelude-val">Some</span>(<span class="number">60</span>),
+            reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
+        }];
+
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: <span class="kw-2">&amp;</span>Scoping {
+                organization_id: <span class="number">42</span>,
+                project_id: ProjectId::new(<span class="number">43</span>),
+                project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
+                key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
+            },
+        };
+
+        <span class="kw">let </span>rate_limiter = build_rate_limiter();
+
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
+            <span class="kw">let </span>rate_limits: Vec&lt;RateLimit&gt; = rate_limiter
+                .is_rate_limited(quotas, scoping, <span class="number">1</span>, <span class="bool-val">false</span>)
+                .expect(<span class="string">&quot;rate limiting failed&quot;</span>)
+                .into_iter()
+                .collect();
+
+            <span class="kw">if </span>i &gt;= <span class="number">5 </span>{
+                <span class="macro">assert_eq!</span>(
+                    rate_limits,
+                    <span class="macro">vec!</span>[RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Global,
+                        reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;get_lost&quot;</span>)),
+                        retry_after: rate_limits[<span class="number">0</span>].retry_after,
+                    }]
+                );
+            } <span class="kw">else </span>{
+                <span class="macro">assert_eq!</span>(rate_limits, <span class="macro">vec!</span>[]);
+            }
+        }
+    }
+
+    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_quantity_0() {
         <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_0_{:?}&quot;</span>, SystemTime::now())),
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_0_{}&quot;</span>, uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: <span class="prelude-val">None</span>,
@@ -1228,7 +1434,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_quota_go_over() {
         <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quota_go_over{:?}&quot;</span>, SystemTime::now())),
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quota_go_over{}&quot;</span>, uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: <span class="prelude-val">None</span>,
@@ -1360,7 +1566,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_quota_with_quantity() {
         <span class="kw">let </span>quotas = <span class="kw-2">&amp;</span>[Quota {
-            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_quota_{:?}&quot;</span>, SystemTime::now())),
+            id: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;test_quantity_quota_{}&quot;</span>, uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: <span class="prelude-val">None</span>,
