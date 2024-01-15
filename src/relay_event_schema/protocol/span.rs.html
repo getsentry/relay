@@ -357,7 +357,6 @@
 <a href="#357" id="357">357</a>
 <a href="#358" id="358">358</a>
 <a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
@@ -457,24 +456,23 @@
 <span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>Event&gt; <span class="kw">for </span>Span {
     <span class="kw">fn </span>from(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>span = <span class="self">Self </span>{
-            _metrics_summary: event._metrics_summary.clone(),
             description: event.transaction.clone(),
             is_segment: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>).into(),
-            measurements: event.measurements.clone(),
             received: event.received.clone(),
             start_timestamp: event.start_timestamp.clone(),
             timestamp: event.timestamp.clone(),
+            _metrics_summary: event._metrics_summary.clone(),
             ..Default::default()
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;().cloned() {
             span.exclusive_time = trace_context.exclusive_time;
             span.op = trace_context.op;
+            span.span_id = trace_context.span_id;
             span.parent_span_id = trace_context.parent_span_id;
-            span.segment_id = trace_context.span_id.clone(); <span class="comment">// a transaction is a segment
-            </span>span.span_id = trace_context.span_id;
-            span.status = trace_context.status;
             span.trace_id = trace_context.trace_id;
+            span.segment_id = span.span_id.clone(); <span class="comment">// a transaction is a segment
+            </span>span.status = trace_context.status;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(profile_context) = event.context::&lt;ProfileContext&gt;() {
