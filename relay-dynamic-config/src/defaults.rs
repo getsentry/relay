@@ -47,7 +47,11 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    config.metrics.extend(span_metrics());
+    let is_extract_all = project_config
+        .features
+        .has(Feature::SpanMetricsExtractionAllModules);
+
+    config.metrics.extend(span_metrics(is_extract_all));
 
     config._span_metrics_extended = true;
     if config.version == 0 {
@@ -56,14 +60,22 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 }
 
 /// Metrics with tags applied as required.
-fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
+fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
+    let flagged_mobile_ops = {
+        let mut ops = MOBILE_OPS.to_vec();
+        if is_extract_all {
+            ops.extend(["contentprovider.load", "application.load", "activity.load"]);
+        }
+        ops
+    };
+
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
             | RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
-    let is_mobile_op = RuleCondition::glob("span.op", MOBILE_OPS);
+    let is_mobile_op = RuleCondition::glob("span.op", flagged_mobile_ops);
 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
@@ -84,7 +96,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             ],
         );
 
-    let is_mobile = is_mobile_sdk & (is_mobile_op.clone() | is_screen);
+    let is_mobile = is_mobile_sdk.clone() & (is_mobile_op.clone() | is_screen);
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
     let duration_condition = RuleCondition::negate(is_mobile_op.clone())
@@ -336,7 +348,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "c:spans/count_per_segment@none".into(),
             field: None,
-            condition: Some(is_mobile.clone() & duration_condition.clone()),
+            condition: Some(is_mobile_sdk.clone() & duration_condition.clone()),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
