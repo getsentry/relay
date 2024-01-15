@@ -268,6 +268,22 @@ mod tests {
     }
 
     #[test]
+    fn test_global_ratelimit_over_under() {
+        let limit = 10;
+
+        let quota = build_quota(10, limit);
+        let scoping = build_scoping();
+        let redis_quota = build_redis_quota(&quota, &scoping);
+
+        let pool = build_redis_pool();
+        let mut client = pool.client().unwrap();
+        let rl = GlobalRateLimits::default();
+
+        assert!(rl.is_rate_limited(&mut client, &redis_quota, 11).unwrap());
+        assert!(!rl.is_rate_limited(&mut client, &redis_quota, 10).unwrap());
+    }
+
+    #[test]
     fn test_multiple_global_ratelimit() {
         let limit = 91_337;
 
