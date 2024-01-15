@@ -137,12 +137,7 @@ impl<'a> RedisQuota<'a> {
             scope => self.scoping.scope_id(scope),
         };
 
-        // 0 is arbitrary, we just need to ensure global quotas from different orgs have the same key.
-        let org = if self.quota.scope == QuotaScope::Global {
-            0
-        } else {
-            self.scoping.organization_id
-        };
+        let org = self.scoping.organization_id;
 
         format!(
             "quota:{id}{{{org}}}{subscope}:{slot}",
@@ -383,7 +378,7 @@ mod tests {
     #[test]
     fn test_simple_quota() {
         let quotas = &[Quota {
-            id: Some(format!("test_simple_quota_{:?}", SystemTime::now())),
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -430,7 +425,7 @@ mod tests {
     #[test]
     fn test_simple_global_quota() {
         let quotas = &[Quota {
-            id: Some(format!("test_simple_global_quota_{:?}", SystemTime::now())),
+            id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Global,
             scope_id: None,
@@ -477,7 +472,7 @@ mod tests {
     #[test]
     fn test_quantity_0() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_0_{:?}", SystemTime::now())),
+            id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -526,7 +521,7 @@ mod tests {
     #[test]
     fn test_quota_go_over() {
         let quotas = &[Quota {
-            id: Some(format!("test_quota_go_over{:?}", SystemTime::now())),
+            id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -658,7 +653,7 @@ mod tests {
     #[test]
     fn test_quota_with_quantity() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_quota_{:?}", SystemTime::now())),
+            id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,

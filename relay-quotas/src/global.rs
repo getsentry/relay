@@ -7,7 +7,7 @@ use relay_redis::{PooledClient, RedisError};
 use crate::{QuotaScope, RedisQuota};
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
-const DEFAULT_BUDGET_PERCENTAGE: f32 = 0.01;
+const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
 fn load_global_lua_script() -> &'static Script {
     static SCRIPT: OnceLock<Script> = OnceLock::new();
@@ -104,19 +104,23 @@ impl<'a> KeyRef<'a> {
     fn new(quota: &'a RedisQuota<'a>) -> Vec<Self> {
         let mut keys = vec![];
 
+        let prefix = quota.prefix();
+        let window = quota.window();
+
         if quota.scope == QuotaScope::Global {
             let without_namespace = KeyRef {
-                prefix: quota.prefix(),
-                window: quota.window(),
+                prefix,
+                window,
                 namespace: None,
             };
+
             keys.push(without_namespace);
         }
 
         if let Some(namespace) = quota.namespace {
             let global_ns = KeyRef {
-                prefix: quota.prefix(),
-                window: quota.window(),
+                prefix,
+                window,
                 namespace: Some(namespace),
             };
 
@@ -178,7 +182,7 @@ impl GlobalRateLimit {
         // 2. The quota slot is (much) older than the currently stored slot.
         //    This means the system time changed, we reset to that older slot
         //    because we assume the system time will stay changed.
-        //    If the slot is not much older (+1), keep using the same slot,
+        //    If the slot is not much older (+1), keep using the same slot.
         if quota_slot > self.slot || quota_slot + 1 < self.slot {
             self.budget = 0;
             self.last_seen_redis_value = 0;
@@ -237,9 +241,9 @@ impl GlobalRateLimit {
 
     fn default_request_size(&self, quantity: u64, quota: &RedisQuota) -> u64 {
         match quota.limit {
-            Some(limit) => (limit as f32 * DEFAULT_BUDGET_PERCENTAGE) as u64,
-            // On average `DEFAULT_BUDGET_PERCENTAGE` calls go to Redis for infinite budget.
-            None => (quantity as f32 / DEFAULT_BUDGET_PERCENTAGE) as u64,
+            Some(limit) => (limit as f32 * DEFAULT_BUDGET_RATIO) as u64,
+            // On average `DEFAULT_BUDGET_RATIO` percent calls go to Redis for an infinite budget.
+            None => (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64,
         }
     }
 }
@@ -324,6 +328,22 @@ mod tests {
 
             assert_eq!(should_ratelimit, is_ratelimited);
         }
+    }
+
+    #[test]
+    fn test_global_ratelimit_over_under() {
+        let limit = 10;
+
+        let quota = build_quota(10, limit);
+        let scoping = build_scoping();
+        let redis_quota = build_redis_quota(&quota, &scoping);
+
+        let pool = build_redis_pool();
+        let mut client = pool.client().unwrap();
+        let rl = GlobalRateLimits::default();
+
+        assert!(rl.is_rate_limited(&mut client, &redis_quota, 11).unwrap());
+        assert!(!rl.is_rate_limited(&mut client, &redis_quota, 10).unwrap());
     }
 
     #[test]

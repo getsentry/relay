@@ -609,7 +609,7 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    /// nice
+    ///
     pub fn namespace(&self) -> Result<MetricNamespace, ParseMetricError> {
         MetricResourceIdentifier::parse(&self.name).map(|mri| mri.namespace)
     }

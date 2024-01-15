@@ -166,6 +166,7 @@ impl QuotaScope {
     /// Returns the quota scope corresponding to the given name.
     pub fn from_name(string: &str) -> Self {
         match string {
+            "global" => Self::Global,
             "organization" => Self::Organization,
             "project" => Self::Project,
             "key" => Self::Key,
