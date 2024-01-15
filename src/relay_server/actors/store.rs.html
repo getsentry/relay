@@ -1444,6 +1444,26 @@
 <a href="#1444" id="1444">1444</a>
 <a href="#1445" id="1445">1445</a>
 <a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1454,8 +1474,9 @@
 
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
-<span class="kw">use </span>relay_common::time::UnixTimestamp;
+<span class="kw">use </span>relay_common::time::{instant_to_date_time, UnixTimestamp};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{
     <span class="self">self</span>, EventId, SessionAggregates, SessionStatus, SessionUpdate,
@@ -1705,13 +1726,9 @@
                     retention,
                     item,
                 )<span class="question-mark">?</span>,
-                ItemType::Span =&gt; <span class="self">self</span>.produce_span(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    event_id,
-                    retention,
-                    item,
-                )<span class="question-mark">?</span>,
+                ItemType::Span =&gt; {
+                    <span class="self">self</span>.produce_span(scoping, start_time, event_id, retention, item)<span class="question-mark">?
+                </span>}
                 <span class="kw">_ </span>=&gt; {}
             }
         }
@@ -2286,8 +2303,8 @@
 
     <span class="kw">fn </span>produce_span(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization_id: u64,
-        project_id: ProjectId,
+        scoping: Scoping,
+        start_time: Instant,
         event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
@@ -2301,17 +2318,40 @@
                     error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                     <span class="string">&quot;failed to parse span&quot;
                 </span>);
+                <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::SpanIndexed,
+                    event_id: <span class="prelude-val">None</span>,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
+                    quantity: <span class="number">1</span>,
+                    remote_addr: <span class="prelude-val">None</span>,
+                    scoping,
+                    timestamp: instant_to_date_time(start_time),
+                });
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
         };
 
         span.duration_ms = ((span.end_timestamp - span.start_timestamp) * <span class="number">1e3</span>) <span class="kw">as </span>u32;
         span.event_id = event_id;
-        span.project_id = project_id.value();
+        span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp * <span class="number">1e3</span>) <span class="kw">as </span>u64;
 
-        <span class="self">self</span>.produce(KafkaTopic::Spans, organization_id, KafkaMessage::Span(span))<span class="question-mark">?</span>;
+        <span class="self">self</span>.produce(
+            KafkaTopic::Spans,
+            scoping.organization_id,
+            KafkaMessage::Span(span),
+        )<span class="question-mark">?</span>;
+
+        <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::SpanIndexed,
+            event_id: <span class="prelude-val">None</span>,
+            outcome: Outcome::Accepted,
+            quantity: <span class="number">1</span>,
+            remote_addr: <span class="prelude-val">None</span>,
+            scoping,
+            timestamp: instant_to_date_time(start_time),
+        });
 
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,

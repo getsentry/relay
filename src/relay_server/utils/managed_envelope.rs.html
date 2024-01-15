@@ -441,6 +441,10 @@
 <a href="#441" id="441">441</a>
 <a href="#442" id="442">442</a>
 <a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -453,7 +457,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessingGroup;
 <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{Capture, TestStore};
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeSummary, SemaphorePermit};
@@ -661,14 +665,18 @@
         <span class="kw">let </span>use_indexed = <span class="self">self</span>.use_index_category();
         <span class="self">self</span>.envelope.retain_items(|item| <span class="kw">match </span>f(item) {
             ItemAction::Keep =&gt; <span class="bool-val">true</span>,
+            ItemAction::DropSilently =&gt; <span class="bool-val">false</span>,
             ItemAction::Drop(outcome) =&gt; {
+                <span class="kw">let </span>use_indexed = <span class="kw">if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Span {
+                    item.metrics_extracted()
+                } <span class="kw">else </span>{
+                    use_indexed
+                };
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
-                }
-
+                };
                 <span class="bool-val">false
             </span>}
-            ItemAction::DropSilently =&gt; <span class="bool-val">false</span>,
         });
         <span class="kw">for </span>(outcome, category, quantity) <span class="kw">in </span>outcomes {
             <span class="self">self</span>.track_outcome(outcome, category, quantity);
@@ -696,7 +704,7 @@
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    </span><span class="kw">fn </span>track_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>, outcome: Outcome, category: DataCategory, quantity: usize) {
+    </span><span class="kw">pub fn </span>track_outcome(<span class="kw-2">&amp;</span><span class="self">self</span>, outcome: Outcome, category: DataCategory, quantity: usize) {
         <span class="self">self</span>.outcome_aggregator.send(TrackOutcome {
             timestamp: <span class="self">self</span>.received_at(),
             scoping: <span class="self">self</span>.context.scoping,

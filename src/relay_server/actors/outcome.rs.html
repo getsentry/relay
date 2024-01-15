@@ -953,6 +953,13 @@
 <a href="#953" id="953">953</a>
 <a href="#954" id="954">954</a>
 <a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1103,13 +1110,13 @@
 <span class="doccomment">/// Defines the possible outcomes from processing an event.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 </span><span class="kw">pub enum </span>Outcome {
-    <span class="comment">// /// The event has been accepted and handled completely.
-    // ///
-    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    // #[allow(dead_code)]
-    // Accepted,
-    </span><span class="doccomment">/// The event has been filtered due to a configured filter.
+    <span class="doccomment">/// The event has been accepted and handled completely.
+    ///
+    /// This is only emitted for items going from Relay to Snuba directly.
+    </span><span class="attr">#[allow(dead_code)]
+    </span>Accepted,
+
+    <span class="doccomment">/// The event has been filtered due to a configured filter.
     </span>Filtered(FilterStatKey),
 
     <span class="doccomment">/// The event has been filtered by a Sampling Rule
@@ -1138,6 +1145,7 @@
             Outcome::Invalid(<span class="kw">_</span>) =&gt; OutcomeId::INVALID,
             Outcome::Abuse =&gt; OutcomeId::ABUSE,
             Outcome::ClientDiscard(<span class="kw">_</span>) =&gt; OutcomeId::CLIENT_DISCARD,
+            Outcome::Accepted =&gt; OutcomeId::ACCEPTED,
         }
     }
 
@@ -1153,6 +1161,7 @@
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(<span class="kw-2">ref </span>discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason)),
             Outcome::Abuse =&gt; <span class="prelude-val">None</span>,
+            Outcome::Accepted =&gt; <span class="prelude-val">None</span>,
         }
     }
 
@@ -1184,6 +1193,7 @@
             Outcome::Invalid(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;invalid data ({reason})&quot;</span>),
             Outcome::Abuse =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;abuse limit reached&quot;</span>),
             Outcome::ClientDiscard(reason) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;discarded by client ({reason})&quot;</span>),
+            Outcome::Accepted =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;accepted&quot;</span>),
         }
     }
 }
@@ -1311,6 +1321,9 @@
 
     <span class="doccomment">/// (Relay) Profiling related discard reasons
     </span>Profiling(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
+
+    <span class="doccomment">/// (Relay) A span is not valid after normalization.
+    </span>InvalidSpan,
 }
 
 <span class="kw">impl </span>DiscardReason {
@@ -1353,6 +1366,7 @@
             DiscardReason::InvalidReplayEventPii =&gt; <span class="string">&quot;invalid_replay_pii_scrubber_failed&quot;</span>,
             DiscardReason::InvalidReplayRecordingEvent =&gt; <span class="string">&quot;invalid_replay_recording&quot;</span>,
             DiscardReason::Profiling(reason) =&gt; reason,
+            DiscardReason::InvalidSpan =&gt; <span class="string">&quot;invalid_span&quot;</span>,
         }
     }
 }
