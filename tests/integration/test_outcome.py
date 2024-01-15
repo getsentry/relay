@@ -1597,6 +1597,7 @@ def test_global_rate_limit(
 ):
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
+
     bucket_interval = 1  # second
     relay = relay_with_processing(
         {
@@ -1614,6 +1615,7 @@ def test_global_rate_limit(
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
+
     projectconfig["config"]["quotas"] = [
         {
             "id": "test_rate_limiting" + str(uuid.uuid4()),
