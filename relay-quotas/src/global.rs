@@ -392,7 +392,7 @@ mod tests {
         // Assert that each limiter got about an equal amount of rate limit quota.
         // This works because we are working with a rather big limit and small quantities.
         let diff = (total_counter_1 as f32 - total_counter_2 as f32).abs();
-        assert!(diff <= limit as f32 * DEFAULT_BUDGET_PERCENTAGE);
+        assert!(diff <= limit as f32 * DEFAULT_BUDGET_RATIO);
     }
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
         let rl = GlobalRateLimits::default();
 
         let quantity = 2;
-        let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_PERCENTAGE) as u64;
+        let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64;
         for _ in 0..redis_threshold + 10 {
             assert!(!rl
                 .is_rate_limited(&mut client, &redis_quota, quantity)

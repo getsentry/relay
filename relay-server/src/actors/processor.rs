@@ -1760,12 +1760,12 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let ns_by_buckets: HashMap<MetricNamespace, Vec<Bucket>> = buckets
+        let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
             .into_iter()
             .filter_map(|bucket| Some((bucket.namespace().ok()?, bucket)))
             .into_group_map();
 
-        ns_by_buckets
+        buckets_by_ns
             .into_iter()
             .filter_map(|(namespace, buckets)| {
                 let item_scoping = ItemScoping {
