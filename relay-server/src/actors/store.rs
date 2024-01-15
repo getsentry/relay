@@ -8,8 +8,9 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
+use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
-use relay_common::time::UnixTimestamp;
+use relay_common::time::{instant_to_date_time, UnixTimestamp};
 use relay_config::Config;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
@@ -259,13 +260,9 @@ impl StoreService {
                     retention,
                     item,
                 )?,
-                ItemType::Span => self.produce_span(
-                    scoping.organization_id,
-                    scoping.project_id,
-                    event_id,
-                    retention,
-                    item,
-                )?,
+                ItemType::Span => {
+                    self.produce_span(scoping, start_time, event_id, retention, item)?
+                }
                 _ => {}
             }
         }
@@ -840,8 +837,8 @@ impl StoreService {
 
     fn produce_span(
         &self,
-        organization_id: u64,
-        project_id: ProjectId,
+        scoping: Scoping,
+        start_time: Instant,
         event_id: Option<EventId>,
         retention_days: u16,
         item: &Item,
@@ -855,17 +852,40 @@ impl StoreService {
                     error = &error as &dyn std::error::Error,
                     "failed to parse span"
                 );
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::SpanIndexed,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidSpan),
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: instant_to_date_time(start_time),
+                });
                 return Ok(());
             }
         };
 
         span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
         span.event_id = event_id;
-        span.project_id = project_id.value();
+        span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
 
-        self.produce(KafkaTopic::Spans, organization_id, KafkaMessage::Span(span))?;
+        self.produce(
+            KafkaTopic::Spans,
+            scoping.organization_id,
+            KafkaMessage::Span(span),
+        )?;
+
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::SpanIndexed,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: instant_to_date_time(start_time),
+        });
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
