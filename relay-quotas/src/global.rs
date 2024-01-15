@@ -6,7 +6,7 @@ use relay_redis::{PooledClient, RedisError};
 use crate::RedisQuota;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
-const DEFAULT_BUDGET_PERCENTAGE: f32 = 0.01;
+const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 
 fn load_global_lua_script() -> &'static Script {
     static SCRIPT: OnceLock<Script> = OnceLock::new();
@@ -123,7 +123,7 @@ impl GlobalRateLimit {
         // 2. The quota slot is (much) older than the currently stored slot.
         //    This means the system time changed, we reset to that older slot
         //    because we assume the system time will stay changed.
-        //    If the slot is not much older (+1), keep using the same slot,
+        //    If the slot is not much older (+1), keep using the same slot.
         if quota_slot > self.slot || quota_slot + 1 < self.slot {
             self.budget = 0;
             self.last_seen_redis_value = 0;
@@ -180,9 +180,9 @@ impl GlobalRateLimit {
 
     fn default_request_size(&self, quantity: u64, quota: &RedisQuota) -> u64 {
         match quota.limit {
-            Some(limit) => (limit as f32 * DEFAULT_BUDGET_PERCENTAGE) as u64,
-            // On average `DEFAULT_BUDGET_PERCENTAGE` calls go to Redis for infinite budget.
-            None => (quantity as f32 / DEFAULT_BUDGET_PERCENTAGE) as u64,
+            Some(limit) => (limit as f32 * DEFAULT_BUDGET_RATIO) as u64,
+            // On average `DEFAULT_BUDGET_RATIO` percent calls go to Redis for an infinite budget.
+            None => (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64,
         }
     }
 }
@@ -313,7 +313,7 @@ mod tests {
         // Assert that each limiter got about an equal amount of rate limit quota.
         // This works because we are working with a rather big limit and small quantities.
         let diff = (total_counter_1 as f32 - total_counter_2 as f32).abs();
-        assert!(diff <= limit as f32 * DEFAULT_BUDGET_PERCENTAGE);
+        assert!(diff <= limit as f32 * DEFAULT_BUDGET_RATIO);
     }
 
     #[test]
@@ -359,7 +359,7 @@ mod tests {
         let rl = GlobalRateLimits::default();
 
         let quantity = 2;
-        let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_PERCENTAGE) as u64;
+        let redis_threshold = (quantity as f32 / DEFAULT_BUDGET_RATIO) as u64;
         for _ in 0..redis_threshold + 10 {
             assert!(!rl
                 .is_rate_limited(&mut client, &redis_quota, quantity)
