@@ -1287,7 +1287,7 @@ mod tests {
         Bucket {
             name: "d:transactions/foo".to_string(),
             width: 0,
-            value: BucketValue::counter(1.0),
+            value: BucketValue::counter(1.0).unwrap(),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }

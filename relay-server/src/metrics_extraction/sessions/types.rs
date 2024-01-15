@@ -95,7 +95,7 @@ impl From<SessionSessionTags> for BTreeMap<String, String> {
 }
 
 impl IntoMetric for SessionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Option<Bucket> {
         let name = self.to_string();
 
         let (value, tags) = match self {
@@ -107,7 +107,7 @@ impl IntoMetric for SessionMetric {
                 (BucketValue::set_from_display(distinct_id), tags.into())
             }
             SessionMetric::Session { counter, tags } => {
-                (BucketValue::Counter(counter), tags.into())
+                (BucketValue::counter(counter)?, tags.into())
             }
         };
 
@@ -118,13 +118,13 @@ impl IntoMetric for SessionMetric {
             unit: MetricUnit::None,
         };
 
-        Bucket {
+        Some(Bucket {
             timestamp,
             width: 0,
             name: mri.to_string(),
             value,
             tags,
-        }
+        })
     }
 }
 

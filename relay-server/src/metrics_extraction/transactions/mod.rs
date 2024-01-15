@@ -318,15 +318,15 @@ impl TransactionExtractor<'_> {
                     },
                 };
 
-                metrics.project_metrics.push(
-                    TransactionMetric::Measurement {
-                        name: name.to_string(),
-                        value,
-                        unit: measurement.unit.value().copied().unwrap_or_default(),
-                        tags: measurement_tags,
-                    }
-                    .into_metric(timestamp),
-                );
+                let transaction_metric = TransactionMetric::Measurement {
+                    name: name.to_string(),
+                    value,
+                    unit: measurement.unit.value().copied().unwrap_or_default(),
+                    tags: measurement_tags,
+                };
+                if let Some(metric) = transaction_metric.into_metric(timestamp) {
+                    metrics.project_metrics.push(metric);
+                }
             }
         }
 
@@ -350,28 +350,28 @@ impl TransactionExtractor<'_> {
                             Some(value) => *value,
                             None => continue,
                         };
-                        metrics.project_metrics.push(
-                            TransactionMetric::Breakdown {
-                                name: format!("{breakdown}.{measurement_name}"),
-                                value,
-                                tags: tags.clone(),
-                            }
-                            .into_metric(timestamp),
-                        );
+                        let transaction_metric = TransactionMetric::Breakdown {
+                            name: format!("{breakdown}.{measurement_name}"),
+                            value,
+                            tags: tags.clone(),
+                        };
+                        if let Some(metric) = transaction_metric.into_metric(timestamp) {
+                            metrics.project_metrics.push(metric);
+                        }
                     }
                 }
             }
         }
 
         // Internal usage counter
-        metrics.project_metrics.push(
-            TransactionMetric::Usage {
-                tags: UsageTags {
-                    has_profile: self.has_profile,
-                },
-            }
-            .into_metric(timestamp),
-        );
+        let transaction_metric = TransactionMetric::Usage {
+            tags: UsageTags {
+                has_profile: self.has_profile,
+            },
+        };
+        if let Some(metric) = transaction_metric.into_metric(timestamp) {
+            metrics.project_metrics.push(metric);
+        }
 
         // Duration
         let duration = relay_common::time::chrono_to_positive_millis(end - start);
@@ -381,27 +381,27 @@ impl TransactionExtractor<'_> {
             self.has_profile
         };
 
-        metrics.project_metrics.push(
-            TransactionMetric::Duration {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: TransactionDurationTags {
-                    has_profile,
-                    universal_tags: tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        );
+        let transaction_metric = TransactionMetric::Duration {
+            unit: DurationUnit::MilliSecond,
+            value: duration,
+            tags: TransactionDurationTags {
+                has_profile,
+                universal_tags: tags.clone(),
+            },
+        };
+        if let Some(metric) = transaction_metric.into_metric(timestamp) {
+            metrics.project_metrics.push(metric);
+        }
 
         // Lower cardinality duration
-        metrics.project_metrics.push(
-            TransactionMetric::DurationLight {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: light_tags,
-            }
-            .into_metric(timestamp),
-        );
+        let transaction_metric = TransactionMetric::DurationLight {
+            unit: DurationUnit::MilliSecond,
+            value: duration,
+            tags: light_tags,
+        };
+        if let Some(metric) = transaction_metric.into_metric(timestamp) {
+            metrics.project_metrics.push(metric);
+        }
 
         let root_counter_tags = {
             let mut universal_tags = CommonTags(BTreeMap::default());
@@ -420,19 +420,20 @@ impl TransactionExtractor<'_> {
             }
         };
         // Count the transaction towards the root
-        metrics.sampling_metrics.push(
-            TransactionMetric::CountPerRootProject {
-                tags: root_counter_tags,
-            }
-            .into_metric(timestamp),
-        );
+        let transaction_metric = TransactionMetric::CountPerRootProject {
+            tags: root_counter_tags,
+        };
+        if let Some(metric) = transaction_metric.into_metric(timestamp) {
+            metrics.sampling_metrics.push(metric);
+        }
 
         // User
         if let Some(user) = event.user.value() {
             if let Some(value) = normalize_utils::get_eventuser_tag(user) {
-                metrics
-                    .project_metrics
-                    .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
+                let transaction_metric = TransactionMetric::User { value, tags };
+                if let Some(metric) = transaction_metric.into_metric(timestamp) {
+                    metrics.project_metrics.push(metric);
+                }
             }
         }
 
@@ -1104,7 +1105,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        assert_eq!(duration_metric.value, BucketValue::distribution(59000.0));
+        assert_eq!(
+            duration_metric.value,
+            BucketValue::distribution(59000.0).unwrap()
+        );
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");

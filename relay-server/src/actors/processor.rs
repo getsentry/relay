@@ -2680,7 +2680,7 @@ mod tests {
                 tags,
             };
 
-            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
+            let metric: Bucket = measurement.into_metric(UnixTimestamp::now()).unwrap();
             metric.name.len() - unit.to_string().len() - name.len()
         };
         assert_eq!(

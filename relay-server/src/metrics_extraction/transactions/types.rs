@@ -54,7 +54,7 @@ pub enum TransactionMetric {
 }
 
 impl IntoMetric for TransactionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Option<Bucket> {
         let namespace = MetricNamespace::Transactions;
 
         let (name, value, unit, tags) = match self {
@@ -66,31 +66,31 @@ impl IntoMetric for TransactionMetric {
             ),
             Self::Duration { unit, value, tags } => (
                 Cow::Borrowed("duration"),
-                BucketValue::distribution(value),
+                BucketValue::distribution(value)?,
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
             Self::DurationLight { unit, value, tags } => (
                 Cow::Borrowed("duration_light"),
-                BucketValue::distribution(value),
+                BucketValue::distribution(value)?,
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
             Self::Usage { tags } => (
                 Cow::Borrowed("usage"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.0)?,
                 MetricUnit::None,
                 tags.into(),
             ),
             Self::CountPerRootProject { tags } => (
                 Cow::Borrowed("count_per_root_project"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.0)?,
                 MetricUnit::None,
                 tags.into(),
             ),
             Self::Breakdown { name, value, tags } => (
                 Cow::Owned(format!("breakdowns.{name}")),
-                BucketValue::distribution(value),
+                BucketValue::distribution(value)?,
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 tags.into(),
             ),
@@ -101,7 +101,7 @@ impl IntoMetric for TransactionMetric {
                 tags,
             } => (
                 Cow::Owned(format!("measurements.{name}")),
-                BucketValue::distribution(value),
+                BucketValue::distribution(value)?,
                 unit,
                 tags.into(),
             ),
@@ -114,13 +114,13 @@ impl IntoMetric for TransactionMetric {
             unit,
         };
 
-        Bucket {
+        Some(Bucket {
             timestamp,
             width: 0,
             name: mri.to_string(),
             value,
             tags,
-        }
+        })
     }
 }
 

@@ -457,7 +457,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.).unwrap(),
             tags: BTreeMap::new(),
         }
     }

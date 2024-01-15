@@ -65,7 +65,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         timestamp: UnixTimestamp::now(),
         width: 0,
         name: "c:transactions/foo@none".to_owned(),
-        value: BucketValue::counter(42.),
+        value: BucketValue::counter(42.).unwrap(),
         tags: BTreeMap::new(),
     };
 

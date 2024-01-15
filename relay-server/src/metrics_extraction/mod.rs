@@ -7,5 +7,5 @@ pub mod sessions;
 pub mod transactions;
 
 pub trait IntoMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket;
+    fn into_metric(self, timestamp: UnixTimestamp) -> Option<Bucket>;
 }

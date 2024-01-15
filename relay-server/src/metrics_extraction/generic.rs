@@ -131,12 +131,12 @@ fn read_metric_value(
         MetricType::Counter => BucketValue::counter(match field {
             Some(field) => instance.get_value(field)?.as_f64()?,
             None => 1.0,
-        }),
+        })?,
         MetricType::Distribution => {
-            BucketValue::distribution(instance.get_value(field?)?.as_f64()?)
+            BucketValue::distribution(instance.get_value(field?)?.as_f64()?)?
         }
         MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
-        MetricType::Gauge => BucketValue::gauge(instance.get_value(field?)?.as_f64()?),
+        MetricType::Gauge => BucketValue::gauge(instance.get_value(field?)?.as_f64()?)?,
     })
 }
 

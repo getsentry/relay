@@ -47,6 +47,12 @@ enum AggregateMetricsErrorKind {
     /// Internal error: Attempted to merge two metric buckets of different types.
     #[error("found incompatible metric types")]
     InvalidTypes,
+    /// The metric bucket consisted of invalid values.
+    ///
+    /// This occurs for counter metrics when the value is NaN or infinite, and for distribution
+    /// metrics when all values are NaN or infinite.
+    #[error("found invalid values (inf or NaN)")]
+    InvalidValues,
     /// A metric bucket had a too long string (metric name or a tag key/value).
     #[error("found invalid string: {0}")]
     InvalidStringLength(String),
@@ -726,10 +732,15 @@ impl Aggregator {
         bucket: Bucket,
         max_total_bucket_bytes: Option<usize>,
     ) -> Result<(), AggregateMetricsError> {
-        let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
+        // Normalize the bucket value, removing all non-finite floats. These would not roundtrip
+        // serialization and are considered invalid.
+        let Some(value) = bucket.value.validated() else {
+            return Err(AggregateMetricsErrorKind::InvalidValues.into());
+        };
+
         let key = BucketKey {
             project_key,
-            timestamp,
+            timestamp: self.get_bucket_timestamp(bucket.timestamp, bucket.width)?,
             metric_name: bucket.name,
             tags: bucket.tags,
         };
@@ -778,7 +789,7 @@ impl Aggregator {
                 let bucket_value = &mut entry.get_mut().value;
                 let cost_before = bucket_value.cost();
                 bucket_value
-                    .merge(bucket.value)
+                    .merge(value)
                     .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
                 let cost_after = bucket_value.cost();
                 added_cost = cost_after.saturating_sub(cost_before);
@@ -796,7 +807,6 @@ impl Aggregator {
                 );
 
                 let flush_at = self.config.get_flush_time(entry.key());
-                let value = bucket.value;
                 added_cost = entry.key().cost() + value.cost();
                 entry.insert(QueuedBucket::new(flush_at, value));
             }
@@ -887,7 +897,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.).unwrap(),
             tags: BTreeMap::new(),
         }
     }
@@ -901,7 +911,7 @@ mod tests {
         let bucket1 = some_bucket();
 
         let mut bucket2 = bucket1.clone();
-        bucket2.value = BucketValue::counter(43.);
+        bucket2.value = BucketValue::counter(43.).unwrap();
         aggregator.merge(project_key, bucket1, None).unwrap();
         aggregator.merge(project_key, bucket2, None).unwrap();
 
@@ -929,13 +939,28 @@ mod tests {
     }
 
     #[test]
+    fn test_aggregator_ignore_invalid() {
+        relay_test::setup();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut aggregator = Aggregator::new(test_config());
+
+        let mut bucket = some_bucket();
+        bucket.value = BucketValue::counter(f64::NAN).unwrap();
+        let error = aggregator.merge(project_key, bucket, None).unwrap_err();
+        assert_eq!(error.kind, AggregateMetricsErrorKind::InvalidValues);
+
+        assert!(aggregator.buckets.is_empty());
+    }
+
+    #[test]
     fn test_bucket_value_cost() {
         // When this test fails, it means that the cost model has changed.
         // Check dimensionality limits.
         let expected_bucket_value_size = 48;
         let expected_set_entry_size = 4;
 
-        let counter = BucketValue::Counter(123.0);
+        let counter = BucketValue::counter(123.0).unwrap();
         assert_eq!(counter.cost(), expected_bucket_value_size);
         let set = BucketValue::Set([1, 2, 3, 4, 5].into());
         assert_eq!(
@@ -1131,7 +1156,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo@none".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.).unwrap(),
             tags: BTreeMap::new(),
         };
         let bucket_key = BucketKey {
@@ -1144,10 +1169,14 @@ mod tests {
         for (metric_name, metric_value, expected_added_cost) in [
             (
                 "c:transactions/foo@none",
-                BucketValue::counter(42.),
+                BucketValue::counter(42.).unwrap(),
                 fixed_cost,
             ),
-            ("c:transactions/foo@none", BucketValue::counter(42.), 0), // counters have constant size
+            (
+                "c:transactions/foo@none",
+                BucketValue::counter(42.).unwrap(),
+                0,
+            ), // counters have constant size
             (
                 "s:transactions/foo@none",
                 BucketValue::set(123),
@@ -1157,17 +1186,29 @@ mod tests {
             ("s:transactions/foo@none", BucketValue::set(456), 4), // Different element in set -> +4
             (
                 "d:transactions/foo@none",
-                BucketValue::distribution(1.0),
+                BucketValue::distribution(1.0).unwrap(),
                 fixed_cost + 8,
             ), // New bucket + 1 element
-            ("d:transactions/foo@none", BucketValue::distribution(1.0), 8), // duplicate element
-            ("d:transactions/foo@none", BucketValue::distribution(2.0), 8), // 1 new element
+            (
+                "d:transactions/foo@none",
+                BucketValue::distribution(1.0).unwrap(),
+                8,
+            ), // duplicate element
+            (
+                "d:transactions/foo@none",
+                BucketValue::distribution(2.0).unwrap(),
+                8,
+            ), // 1 new element
             (
                 "g:transactions/foo@none",
-                BucketValue::gauge(0.3),
+                BucketValue::gauge(0.3).unwrap(),
                 fixed_cost,
             ), // New bucket
-            ("g:transactions/foo@none", BucketValue::gauge(0.2), 0), // gauge has constant size
+            (
+                "g:transactions/foo@none",
+                BucketValue::gauge(0.2).unwrap(),
+                0,
+            ), // gauge has constant size
         ] {
             let mut bucket = bucket.clone();
             bucket.value = metric_value;
@@ -1374,7 +1415,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.).unwrap(),
             tags: BTreeMap::new(),
         };
 
@@ -1404,7 +1445,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.).unwrap(),
             tags: BTreeMap::new(),
         };
 

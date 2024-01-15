@@ -51,80 +51,80 @@ pub fn extract_session_metrics<T: SessionLike>(
     // Always capture with "init" tag for the first session update of a session. This is used
     // for adoption and as baseline for crash rates.
     if session.total_count() > 0 {
-        target.push(
-            SessionMetric::Session {
-                counter: session.total_count() as f64,
-                tags: SessionSessionTags {
-                    status: "init".to_string(),
-                    common_tags: common_tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        );
+        let session_metric = SessionMetric::Session {
+            counter: session.total_count() as f64,
+            tags: SessionSessionTags {
+                status: "init".to_string(),
+                common_tags: common_tags.clone(),
+            },
+        };
+        if let Some(metric) = session_metric.into_metric(timestamp) {
+            target.push(metric);
+        }
     }
 
     // Mark the session as errored, which includes fatal sessions.
     if let Some(errors) = session.all_errors() {
-        target.push(match errors {
+        let session_metric = match errors {
             SessionErrored::Individual(session_id) => SessionMetric::Error {
                 session_id,
                 tags: common_tags.clone(),
-            }
-            .into_metric(timestamp),
-
+            },
             SessionErrored::Aggregated(count) => SessionMetric::Session {
                 counter: count as f64,
                 tags: SessionSessionTags {
                     status: "errored_preaggr".to_string(),
                     common_tags: common_tags.clone(),
                 },
-            }
-            .into_metric(timestamp),
-        });
+            },
+        };
+        if let Some(metric) = session_metric.into_metric(timestamp) {
+            target.push(metric);
+        }
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(
-                SessionMetric::User {
-                    distinct_id: distinct_id.clone(),
-                    tags: SessionUserTags {
-                        status: Some(SessionStatus::Errored),
-                        abnormal_mechanism: None,
-                        common_tags: common_tags.clone(),
-                    },
-                }
-                .into_metric(timestamp),
-            );
+            let session_metric = SessionMetric::User {
+                distinct_id: distinct_id.clone(),
+                tags: SessionUserTags {
+                    status: Some(SessionStatus::Errored),
+                    abnormal_mechanism: None,
+                    common_tags: common_tags.clone(),
+                },
+            };
+            if let Some(metric) = session_metric.into_metric(timestamp) {
+                target.push(metric);
+            }
         }
     } else if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
         // For session updates without errors, we collect the user without a session.status tag.
         // To get the number of healthy users (i.e. users without a single errored session), query
         // |users| - |users{session.status:errored}|
-        target.push(
-            SessionMetric::User {
-                distinct_id: distinct_id.clone(),
-                tags: SessionUserTags {
-                    status: None,
-                    abnormal_mechanism: None,
-                    common_tags: common_tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        )
+        let session_metric = SessionMetric::User {
+            distinct_id: distinct_id.clone(),
+            tags: SessionUserTags {
+                status: None,
+                abnormal_mechanism: None,
+                common_tags: common_tags.clone(),
+            },
+        };
+        if let Some(metric) = session_metric.into_metric(timestamp) {
+            target.push(metric);
+        }
     }
 
     // Record fatal sessions for crash rate computation. This is a strict subset of errored
     // sessions above.
     if session.abnormal_count() > 0 {
-        target.push(
-            SessionMetric::Session {
-                counter: session.abnormal_count() as f64,
-                tags: SessionSessionTags {
-                    status: "abnormal".to_string(),
-                    common_tags: common_tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        );
+        let session_metric = SessionMetric::Session {
+            counter: session.abnormal_count() as f64,
+            tags: SessionSessionTags {
+                status: "abnormal".to_string(),
+                common_tags: common_tags.clone(),
+            },
+        };
+        if let Some(metric) = session_metric.into_metric(timestamp) {
+            target.push(metric);
+        }
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
             let abnormal_mechanism = if extract_abnormal_mechanism
@@ -134,44 +134,44 @@ pub fn extract_session_metrics<T: SessionLike>(
             } else {
                 None
             };
-            target.push(
-                SessionMetric::User {
-                    distinct_id: distinct_id.clone(),
-                    tags: SessionUserTags {
-                        status: Some(SessionStatus::Abnormal),
-                        abnormal_mechanism,
-                        common_tags: common_tags.clone(),
-                    },
-                }
-                .into_metric(timestamp),
-            )
+            let session_metric = SessionMetric::User {
+                distinct_id: distinct_id.clone(),
+                tags: SessionUserTags {
+                    status: Some(SessionStatus::Abnormal),
+                    abnormal_mechanism,
+                    common_tags: common_tags.clone(),
+                },
+            };
+            if let Some(metric) = session_metric.into_metric(timestamp) {
+                target.push(metric);
+            }
         }
     }
 
     if session.crashed_count() > 0 {
-        target.push(
-            SessionMetric::Session {
-                counter: session.crashed_count() as f64,
-                tags: SessionSessionTags {
-                    status: "crashed".to_string(),
-                    common_tags: common_tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        );
+        let session_metric = SessionMetric::Session {
+            counter: session.crashed_count() as f64,
+            tags: SessionSessionTags {
+                status: "crashed".to_string(),
+                common_tags: common_tags.clone(),
+            },
+        };
+        if let Some(metric) = session_metric.into_metric(timestamp) {
+            target.push(metric);
+        }
 
         if let Some(distinct_id) = nil_to_none(session.distinct_id()) {
-            target.push(
-                SessionMetric::User {
-                    distinct_id: distinct_id.clone(),
-                    tags: SessionUserTags {
-                        status: Some(SessionStatus::Crashed),
-                        abnormal_mechanism: None,
-                        common_tags,
-                    },
-                }
-                .into_metric(timestamp),
-            );
+            let session_metric = SessionMetric::User {
+                distinct_id: distinct_id.clone(),
+                tags: SessionUserTags {
+                    status: Some(SessionStatus::Crashed),
+                    abnormal_mechanism: None,
+                    common_tags,
+                },
+            };
+            if let Some(metric) = session_metric.into_metric(timestamp) {
+                target.push(metric);
+            }
         }
     }
 }

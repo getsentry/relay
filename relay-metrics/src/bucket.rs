@@ -36,18 +36,26 @@ pub struct GaugeValue {
 
 impl GaugeValue {
     /// Creates a gauge snapshot from a single value.
-    pub fn single(value: GaugeType) -> Self {
-        Self {
+    pub fn single(value: GaugeType) -> Option<Self> {
+        if !value.is_finite() {
+            return None;
+        }
+
+        Some(Self {
             last: value,
             min: value,
             max: value,
             sum: value,
             count: 1,
-        }
+        })
     }
 
     /// Inserts a new value into the gauge.
     pub fn insert(&mut self, value: GaugeType) {
+        if !value.is_finite() {
+            return; // TODO: Silent? Or debug assert?
+        }
+
         self.last = value;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
@@ -57,6 +65,7 @@ impl GaugeValue {
 
     /// Merges two gauge snapshots.
     pub fn merge(&mut self, other: Self) {
+        // TODO: What about here?
         self.last = other.last;
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
@@ -71,6 +80,16 @@ impl GaugeValue {
         } else {
             0.0
         }
+    }
+
+    /// Returns `true` if this gauge contains valid values.
+    ///
+    /// A gauge is valid if all of its values are finite (not infinite or NaN).
+    pub fn is_valid(&self) -> bool {
+        self.last.is_finite()
+            && self.min.is_finite()
+            && self.max.is_finite()
+            && self.sum.is_finite()
     }
 }
 
@@ -263,13 +282,21 @@ pub enum BucketValue {
 
 impl BucketValue {
     /// Returns a bucket value representing a counter with the given value.
-    pub fn counter(value: CounterType) -> Self {
-        Self::Counter(value)
+    pub fn counter(value: CounterType) -> Option<Self> {
+        if value.is_finite() {
+            Some(Self::Counter(value))
+        } else {
+            None
+        }
     }
 
     /// Returns a bucket value representing a distribution with a single given value.
-    pub fn distribution(value: DistributionType) -> Self {
-        Self::Distribution(dist![value])
+    pub fn distribution(value: DistributionType) -> Option<Self> {
+        if value.is_finite() {
+            Some(Self::Distribution(dist![value]))
+        } else {
+            None
+        }
     }
 
     /// Returns a bucket value representing a set with a single given hash value.
@@ -288,8 +315,8 @@ impl BucketValue {
     }
 
     /// Returns a bucket value representing a gauge with a single given value.
-    pub fn gauge(value: GaugeType) -> Self {
-        Self::Gauge(GaugeValue::single(value))
+    pub fn gauge(value: GaugeType) -> Option<Self> {
+        GaugeValue::single(value).map(Self::Gauge)
     }
 
     /// Returns the type of this value.
@@ -349,13 +376,46 @@ impl BucketValue {
 
         Ok(())
     }
+
+    /// Returns a validated version of this bucket value.
+    ///
+    /// Returns `None` if the bucket does not contain any valid values. This is the case if:
+    /// - The counter value is not finite.
+    /// - The bucket contains an an empty distribution.
+    /// - The distribution contains only non-finite values. If some values are valid, only the
+    ///   invalid values are dropped.
+    pub fn validated(mut self) -> Option<Self> {
+        // NB: Keep this in sync with the parser implementation and the `BucketValue` constructors.
+        // The parser skips invalid values in-line for performance reasons.
+
+        match self {
+            Self::Counter(v) if !v.is_finite() => {
+                return None;
+            }
+            Self::Distribution(ref mut dist) => {
+                dist.retain(|v| v.is_finite());
+                if dist.is_empty() {
+                    return None;
+                }
+            }
+            Self::Gauge(g) if !g.is_valid() => {
+                return None;
+            }
+            _ => {}
+        }
+
+        Some(self)
+    }
 }
 
 /// Parses a list of counter values separated by colons and sums them up.
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
     for component in string.split(VALUE_SEPARATOR) {
-        sum += component.parse::<CounterType>().ok()?;
+        let value = component.parse::<CounterType>().ok()?;
+        if value.is_finite() {
+            sum += value;
+        }
     }
     Some(sum)
 }
@@ -364,7 +424,10 @@ fn parse_counter(string: &str) -> Option<CounterType> {
 fn parse_distribution(string: &str) -> Option<DistributionValue> {
     let mut dist = DistributionValue::default();
     for component in string.split(VALUE_SEPARATOR) {
-        dist.push(component.parse().ok()?);
+        let value = component.parse::<DistributionType>().ok()?;
+        if value.is_finite() {
+            dist.push(component.parse().ok()?);
+        }
     }
     Some(dist)
 }
@@ -389,17 +452,23 @@ fn parse_gauge(string: &str) -> Option<GaugeValue> {
     let mut components = string.split(VALUE_SEPARATOR);
 
     let last = components.next()?.parse().ok()?;
-    Some(if let Some(min) = components.next() {
-        GaugeValue {
+    if let Some(min) = components.next() {
+        let value = GaugeValue {
             last,
             min: min.parse().ok()?,
             max: components.next()?.parse().ok()?,
             sum: components.next()?.parse().ok()?,
             count: components.next()?.parse().ok()?,
+        };
+
+        if value.is_valid() {
+            Some(value)
+        } else {
+            None
         }
     } else {
         GaugeValue::single(last)
-    })
+    }
 }
 
 /// Parses tags in the format `tag1,tag2:value`.
@@ -826,8 +895,8 @@ mod tests {
 
     #[test]
     fn test_bucket_value_merge_gauge() {
-        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
-        value.merge(BucketValue::gauge(43.)).unwrap();
+        let mut value = BucketValue::Gauge(GaugeValue::single(42.).unwrap());
+        value.merge(BucketValue::gauge(43.).unwrap()).unwrap();
 
         assert_eq!(
             value,
@@ -1307,5 +1376,31 @@ mod tests {
 
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_validate_counter() {
+        assert_eq!(BucketValue::Counter(f64::INFINITY).validated(), None);
+        assert_eq!(BucketValue::Counter(f64::NEG_INFINITY).validated(), None);
+        assert_eq!(BucketValue::Counter(f64::NAN).validated(), None);
+    }
+
+    #[test]
+    fn test_validate_distribution() {
+        assert_eq!(
+            BucketValue::Distribution(dist![f64::INFINITY]).validated(),
+            None
+        );
+        assert_eq!(
+            BucketValue::Distribution(dist![f64::NEG_INFINITY]).validated(),
+            None
+        );
+        assert_eq!(BucketValue::Distribution(dist![f64::NAN]).validated(), None);
+
+        // Retain valid items
+        assert_eq!(
+            BucketValue::Distribution(dist![1.0, f64::NAN, 2.0]).validated(),
+            Some(BucketValue::Distribution(dist![1.0, 2.0]))
+        );
     }
 }
