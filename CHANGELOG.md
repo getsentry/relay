@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add a global throughput rate limiter for metric buckets. ([#2928](https://github.com/getsentry/relay/pull/2928))
 - Group db spans with repeating logical conditions together. ([#2929](https://github.com/getsentry/relay/pull/2929))
 
 **Bug Fixes**:
