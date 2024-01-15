@@ -1707,6 +1707,7 @@ impl EnvelopeProcessorService {
             let item_scoping = relay_quotas::ItemScoping {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
+                namespace: None,
             };
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
@@ -1744,28 +1745,55 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
-    fn rate_limit_batches(
+    fn rate_limit_buckets_by_namespace(
         &self,
         scoping: Scoping,
-        buckets: &[Bucket],
-        project_state: &ProjectState,
+        buckets: Vec<Bucket>,
+        quotas: &[relay_quotas::Quota],
         mode: ExtractionMode,
-    ) -> bool {
+    ) -> Vec<Bucket> {
+        use itertools::Itertools;
+        use relay_quotas::ItemScoping;
+
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return false;
+            return buckets;
         };
 
+        let ns_by_buckets: HashMap<MetricNamespace, Vec<Bucket>> = buckets
+            .into_iter()
+            .filter_map(|bucket| Some((bucket.namespace().ok()?, bucket)))
+            .into_group_map();
+
+        ns_by_buckets
+            .into_iter()
+            .filter_map(|(namespace, buckets)| {
+                let item_scoping = ItemScoping {
+                    category: DataCategory::MetricBucket,
+                    scoping: &scoping,
+                    namespace: Some(namespace),
+                };
+
+                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
+                    .then_some(buckets)
+            })
+            .flatten()
+            .collect()
+    }
+
+    /// Returns `true` if the batches should be rate limited.
+    #[cfg(feature = "processing")]
+    fn rate_limit_buckets(
+        &self,
+        item_scoping: relay_quotas::ItemScoping,
+        buckets: &[Bucket],
+        quotas: &[relay_quotas::Quota],
+        mode: ExtractionMode,
+        rate_limiter: &RedisRateLimiter,
+    ) -> bool {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
-
-        let quotas = &project_state.config.quotas;
-        let item_scoping = relay_quotas::ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: &scoping,
-        };
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
@@ -1780,26 +1808,26 @@ impl EnvelopeProcessorService {
                 utils::reject_metrics(
                     &self.inner.outcome_aggregator,
                     quantities,
-                    scoping,
+                    *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
                 );
 
-                self.inner
-                    .project_cache
-                    .send(UpdateRateLimits::new(scoping.project_key, limits));
+                self.inner.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
 
-                return true;
+                true
             }
-            Ok(_) => {} // not rate limited
+            Ok(_) => false, // not rate limited
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,
                     "failed to check redis rate limits"
                 );
+                false
             }
         }
-
-        false
     }
 
     /// Processes metric buckets and sends them to kafka.
@@ -1840,8 +1868,15 @@ impl EnvelopeProcessorService {
                 _ => ExtractionMode::Duration,
             };
 
-            if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
-                return;
+            let buckets = self.rate_limit_buckets_by_namespace(
+                scoping,
+                buckets,
+                &project_state.config.quotas,
+                mode,
+            );
+
+            if buckets.is_empty() {
+                continue;
             }
 
             let retention = project_state

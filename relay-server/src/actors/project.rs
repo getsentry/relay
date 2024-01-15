@@ -1123,6 +1123,7 @@ impl Project {
         let item_scoping = ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
+            namespace: None,
         };
 
         let limits = self
