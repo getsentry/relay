@@ -1613,6 +1613,81 @@ def test_profile_outcomes_rate_limited(
     assert outcomes == expected_outcomes, outcomes
 
 
+def test_global_rate_limit(
+    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
+):
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metric_bucket_limit = 9
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting" + str(uuid.uuid4()),
+            "scope": "global",
+            "categories": ["metric_bucket"],
+            "limit": metric_bucket_limit,
+            "window": 1000,
+            "reasonCode": "global rate limit hit",
+        }
+    ]
+
+    ts = datetime.utcnow().timestamp()
+
+    def send_buckets(n):
+        buckets = [
+            {
+                "org_id": 1,
+                "project_id": project_id,
+                "timestamp": ts,
+                "name": "d:transactions/measurements.lcp@millisecond",
+                "type": "d",
+                "value": [1.0],
+                "width": bucket_interval,
+                "tags": {"foo": str(i)},
+            }
+            for i in range(n)
+        ]
+
+        relay.send_metrics_buckets(project_id, buckets)
+        time.sleep(5)
+
+    def assert_metrics_outcomes(n_metrics, n_outcomes):
+        produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
+        outcomes = outcomes_consumer.get_outcomes()
+
+        assert len(produced_buckets) == n_metrics
+        assert len(outcomes) == n_outcomes
+
+        for outcome in outcomes:
+            assert outcome["reason"] == "global rate limit hit"
+
+    # Send the exact amount allowed
+    send_buckets(metric_bucket_limit)
+    assert_metrics_outcomes(metric_bucket_limit, 0)
+
+    # Send more once the limit is hit and make sure they are rejected.
+    for _ in range(2):
+        send_buckets(1)
+        assert_metrics_outcomes(0, 1)
+
+
 @pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
 def test_span_outcomes(
     mini_sentry,
