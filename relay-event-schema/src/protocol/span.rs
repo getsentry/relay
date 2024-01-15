@@ -111,7 +111,7 @@ impl From<&Event> for Span {
             span.exclusive_time = trace_context.exclusive_time;
             span.op = trace_context.op;
             span.parent_span_id = trace_context.parent_span_id;
-            span.segment_id = span.span_id.clone(); // a transaction is a segment
+            span.segment_id = trace_context.span_id.clone(); // a transaction is a segment
             span.span_id = trace_context.span_id;
             span.status = trace_context.status;
             span.trace_id = trace_context.trace_id;
