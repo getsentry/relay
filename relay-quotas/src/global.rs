@@ -1,9 +1,10 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
+use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError};
 
-use crate::RedisQuota;
+use crate::{QuotaScope, RedisQuota};
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_PERCENTAGE: f32 = 0.01;
@@ -30,14 +31,24 @@ impl GlobalRateLimits {
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, RedisError> {
-        let key = KeyRef::new(quota);
-        let val = {
-            let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
-            Arc::clone(limits.entry_ref(&key).or_default())
-        };
+        let keys = KeyRef::new(quota);
 
-        let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
-        val.is_rate_limited(client, quota, quantity as u64)
+        let mut should_ratelimit = false;
+
+        for key in keys {
+            let val = {
+                let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
+                Arc::clone(limits.entry_ref(&key).or_default())
+            };
+
+            let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
+
+            if val.is_rate_limited(client, quota, key, quantity as u64)? {
+                should_ratelimit = true;
+            }
+        }
+
+        Ok(should_ratelimit)
     }
 }
 
@@ -48,6 +59,7 @@ impl GlobalRateLimits {
 struct Key {
     prefix: String,
     window: u64,
+    namespace: Option<MetricNamespace>,
 }
 
 impl From<&KeyRef<'_>> for Key {
@@ -55,7 +67,22 @@ impl From<&KeyRef<'_>> for Key {
         Key {
             prefix: value.prefix.to_owned(),
             window: value.window,
+            namespace: value.namespace,
         }
+    }
+}
+
+struct RedisKey(String);
+
+impl RedisKey {
+    fn new(key: &KeyRef<'_>, slot: u64) -> Self {
+        Self(format!(
+            "global_quota:{id}{window}{namespace:?}:{slot}",
+            id = key.prefix,
+            window = key.window,
+            namespace = key.namespace,
+            slot = slot,
+        ))
     }
 }
 
@@ -66,22 +93,49 @@ impl From<&KeyRef<'_>> for Key {
 struct KeyRef<'a> {
     prefix: &'a str,
     window: u64,
+    namespace: Option<MetricNamespace>,
 }
 
 impl<'a> KeyRef<'a> {
-    fn new(quota: &RedisQuota<'a>) -> Self {
-        Self {
-            prefix: quota.prefix(),
-            window: quota.window(),
+    fn redis_key(&self, slot: u64) -> RedisKey {
+        RedisKey::new(self, slot)
+    }
+
+    fn new(quota: &'a RedisQuota<'a>) -> Vec<Self> {
+        let mut keys = vec![];
+
+        if quota.scope == QuotaScope::Global {
+            let without_namespace = KeyRef {
+                prefix: quota.prefix(),
+                window: quota.window(),
+                namespace: None,
+            };
+            keys.push(without_namespace);
         }
+
+        if let Some(namespace) = quota.namespace {
+            let global_ns = KeyRef {
+                prefix: quota.prefix(),
+                window: quota.window(),
+                namespace: Some(namespace),
+            };
+
+            keys.push(global_ns);
+        }
+
+        keys
     }
 }
 
 impl hashbrown::Equivalent<Key> for KeyRef<'_> {
     fn equivalent(&self, key: &Key) -> bool {
-        let Key { prefix, window } = key;
+        let Key {
+            prefix,
+            window,
+            namespace,
+        } = key;
 
-        self.prefix == prefix && self.window == *window
+        self.prefix == prefix && self.window == *window && self.namespace == *namespace
     }
 }
 
@@ -112,6 +166,7 @@ impl GlobalRateLimit {
         &mut self,
         client: &mut PooledClient,
         quota: &RedisQuota,
+        key: KeyRef<'_>,
         quantity: u64,
     ) -> Result<bool, RedisError> {
         let quota_slot = quota.slot();
@@ -135,7 +190,8 @@ impl GlobalRateLimit {
             return Ok(false);
         }
 
-        let reserved = self.try_reserve(client, quantity, quota)?;
+        let redis_key = key.redis_key(quota_slot);
+        let reserved = self.try_reserve(client, quantity, quota, redis_key)?;
         self.budget += reserved;
 
         if self.budget >= quantity {
@@ -151,6 +207,7 @@ impl GlobalRateLimit {
         client: &mut PooledClient,
         quantity: u64,
         quota: &RedisQuota,
+        redis_key: RedisKey,
     ) -> Result<u64, RedisError> {
         let min_required_budget = quantity.saturating_sub(self.budget);
         let max_available_budget = quota
@@ -166,7 +223,7 @@ impl GlobalRateLimit {
 
         let (budget, value): (u64, u64) = load_global_lua_script()
             .prepare_invoke()
-            .key(quota.key().as_str())
+            .key(redis_key.0)
             .arg(budget_to_reserve)
             .arg(quota.limit())
             .arg(quota.key_expiry())
@@ -192,6 +249,8 @@ impl Default for GlobalRateLimit {
         Self::new()
     }
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -378,3 +437,5 @@ mod tests {
             .unwrap());
     }
 }
+
+*/

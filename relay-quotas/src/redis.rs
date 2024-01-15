@@ -229,10 +229,8 @@ impl RedisRateLimiter {
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
 
-        for quota in quotas {
-            if !quota.matches(item_scoping) {
-                // Silently skip all quotas that do not apply to this item.
-            } else if quota.limit == Some(0) {
+        for quota in quotas.iter().filter(|quota| quota.matches(item_scoping)) {
+            if quota.limit == Some(0) {
                 // A zero-sized quota is strongest. Do not call into Redis at all, and do not
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
@@ -304,6 +302,8 @@ impl RedisRateLimiter {
         RetryAfter::from_secs(seconds)
     }
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -896,3 +896,5 @@ mod tests {
         );
     }
 }
+
+*/

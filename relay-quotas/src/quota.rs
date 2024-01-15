@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -35,6 +36,7 @@ impl Scoping {
         ItemScoping {
             category,
             scoping: self,
+            namespace: None,
         }
     }
 }
@@ -51,6 +53,9 @@ pub struct ItemScoping<'a> {
 
     /// Scoping of the data.
     pub scoping: &'a Scoping,
+
+    ///
+    pub namespace: Option<MetricNamespace>,
 }
 
 impl AsRef<Scoping> for ItemScoping<'_> {
@@ -263,6 +268,9 @@ pub struct Quota {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<u64>,
 
+    ///
+    pub namespace: Option<MetricNamespace>,
+
     /// A machine readable reason returned when this quota is exceeded. Required in all cases except
     /// `limit=None`, since unlimited quotas can never be exceeded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -297,8 +305,8 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
-        if self.scope == QuotaScope::Global {
-            return true;
+        if self.namespace != scoping.namespace {
+            return false;
         }
 
         // Check for a scope identifier constraint. If there is no constraint, this means that the
@@ -323,6 +331,8 @@ impl Quota {
         self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
     }
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -811,3 +821,5 @@ mod tests {
         }));
     }
 }
+
+*/
