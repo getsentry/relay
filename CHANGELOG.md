@@ -25,7 +25,6 @@
 - Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
 - Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
 - Create rate limited outcomes for cardinality limited metrics ([#2947](https://github.com/getsentry/relay/pull/2947))
-- Normalize and copy measurements on spans when appropriate. ([#2948](https://github.com/getsentry/relay/pull/2948))
 
 ## 23.12.1
 

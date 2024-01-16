@@ -97,24 +97,23 @@ pub struct Span {
 impl From<&Event> for Span {
     fn from(event: &Event) -> Self {
         let mut span = Self {
-            _metrics_summary: event._metrics_summary.clone(),
             description: event.transaction.clone(),
             is_segment: Some(true).into(),
             received: event.received.clone(),
             start_timestamp: event.start_timestamp.clone(),
             timestamp: event.timestamp.clone(),
-            measurements: event.measurements.clone(),
+            _metrics_summary: event._metrics_summary.clone(),
             ..Default::default()
         };
 
         if let Some(trace_context) = event.context::<TraceContext>().cloned() {
             span.exclusive_time = trace_context.exclusive_time;
             span.op = trace_context.op;
-            span.parent_span_id = trace_context.parent_span_id;
-            span.segment_id = trace_context.span_id.clone(); // a transaction is a segment
             span.span_id = trace_context.span_id;
-            span.status = trace_context.status;
+            span.parent_span_id = trace_context.parent_span_id;
             span.trace_id = trace_context.trace_id;
+            span.segment_id = span.span_id.clone(); // a transaction is a segment
+            span.status = trace_context.status;
         }
 
         if let Some(profile_context) = event.context::<ProfileContext>() {

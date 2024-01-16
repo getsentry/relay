@@ -20,7 +20,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, Timestamp, User,
+    Tags, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -261,7 +261,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-    normalize_measurements_from_event(
+    normalize_measurements(
         event,
         config.measurements.clone(),
         config.max_name_and_unit_len,
@@ -681,7 +681,7 @@ fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) 
 }
 
 /// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements_from_event(
+fn normalize_measurements(
     event: &mut Event,
     measurements_config: Option<DynamicMeasurementsConfig>,
     max_mri_len: Option<usize>,
@@ -690,38 +690,19 @@ fn normalize_measurements_from_event(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_measurements(
-            measurements,
-            meta,
-            measurements_config,
-            max_mri_len,
-            event.start_timestamp.0,
-            event.timestamp.0,
-        );
+        normalize_mobile_measurements(measurements);
+        normalize_units(measurements);
+        if let Some(measurements_config) = measurements_config {
+            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
+        }
+
+        let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
+            (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
+            _ => 0.0,
+        };
+
+        compute_measurements(duration_millis, measurements);
     }
-}
-
-/// Ensure only valid measurements are ingested.
-pub fn normalize_measurements(
-    measurements: &mut Measurements,
-    meta: &mut Meta,
-    measurements_config: Option<DynamicMeasurementsConfig>,
-    max_mri_len: Option<usize>,
-    start_timestamp: Option<Timestamp>,
-    end_timestamp: Option<Timestamp>,
-) {
-    normalize_mobile_measurements(measurements);
-    normalize_units(measurements);
-    if let Some(measurements_config) = measurements_config {
-        remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
-    }
-
-    let duration_millis = match (start_timestamp, end_timestamp) {
-        (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
-        _ => 0.0,
-    };
-
-    compute_measurements(duration_millis, measurements);
 }
 
 /// Computes performance score measurements.
@@ -1148,7 +1129,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements_from_event(&mut event, None, None);
+        normalize_measurements(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
@@ -1220,7 +1201,7 @@ mod tests {
         let dynamic_measurement_config =
             DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
 
-        normalize_measurements_from_event(&mut event, Some(dynamic_measurement_config), None);
+        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
