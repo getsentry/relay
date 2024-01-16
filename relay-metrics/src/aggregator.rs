@@ -529,7 +529,7 @@ impl Aggregator {
                 self.buckets.retain(|key, entry| {
                     if force || entry.elapsed() {
                         // Take the value and leave a placeholder behind. It'll be removed right after.
-                        let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                        let value = mem::replace(&mut entry.value, BucketValue::counter(0.into()));
                         cost_tracker.subtract_cost(key.project_key, key.cost());
                         cost_tracker.subtract_cost(key.project_key, value.cost());
 
@@ -887,7 +887,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
         }
     }
@@ -901,7 +901,7 @@ mod tests {
         let bucket1 = some_bucket();
 
         let mut bucket2 = bucket1.clone();
-        bucket2.value = BucketValue::counter(43.);
+        bucket2.value = BucketValue::counter(43.into());
         aggregator.merge(project_key, bucket1, None).unwrap();
         aggregator.merge(project_key, bucket2, None).unwrap();
 
@@ -935,7 +935,7 @@ mod tests {
         let expected_bucket_value_size = 48;
         let expected_set_entry_size = 4;
 
-        let counter = BucketValue::Counter(123.0);
+        let counter = BucketValue::Counter(123.into());
         assert_eq!(counter.cost(), expected_bucket_value_size);
         let set = BucketValue::Set([1, 2, 3, 4, 5].into());
         assert_eq!(
@@ -945,10 +945,10 @@ mod tests {
         let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
         assert_eq!(distribution.cost(), expected_bucket_value_size + 3 * 8);
         let gauge = BucketValue::Gauge(GaugeValue {
-            last: 43.,
-            min: 42.,
-            max: 43.,
-            sum: 85.,
+            last: 43.into(),
+            min: 42.into(),
+            max: 43.into(),
+            sum: 85.into(),
             count: 2,
         });
         assert_eq!(gauge.cost(), expected_bucket_value_size);
@@ -1131,7 +1131,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo@none".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
         };
         let bucket_key = BucketKey {
@@ -1144,10 +1144,14 @@ mod tests {
         for (metric_name, metric_value, expected_added_cost) in [
             (
                 "c:transactions/foo@none",
-                BucketValue::counter(42.),
+                BucketValue::counter(42.into()),
                 fixed_cost,
             ),
-            ("c:transactions/foo@none", BucketValue::counter(42.), 0), // counters have constant size
+            (
+                "c:transactions/foo@none",
+                BucketValue::counter(42.into()),
+                0,
+            ), // counters have constant size
             (
                 "s:transactions/foo@none",
                 BucketValue::set(123),
@@ -1157,17 +1161,25 @@ mod tests {
             ("s:transactions/foo@none", BucketValue::set(456), 4), // Different element in set -> +4
             (
                 "d:transactions/foo@none",
-                BucketValue::distribution(1.0),
+                BucketValue::distribution(1.into()),
                 fixed_cost + 8,
             ), // New bucket + 1 element
-            ("d:transactions/foo@none", BucketValue::distribution(1.0), 8), // duplicate element
-            ("d:transactions/foo@none", BucketValue::distribution(2.0), 8), // 1 new element
+            (
+                "d:transactions/foo@none",
+                BucketValue::distribution(1.into()),
+                8,
+            ), // duplicate element
+            (
+                "d:transactions/foo@none",
+                BucketValue::distribution(2.into()),
+                8,
+            ), // 1 new element
             (
                 "g:transactions/foo@none",
-                BucketValue::gauge(0.3),
+                BucketValue::gauge(3.into()),
                 fixed_cost,
             ), // New bucket
-            ("g:transactions/foo@none", BucketValue::gauge(0.2), 0), // gauge has constant size
+            ("g:transactions/foo@none", BucketValue::gauge(2.into()), 0), // gauge has constant size
         ] {
             let mut bucket = bucket.clone();
             bucket.value = metric_value;
@@ -1374,7 +1386,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
         };
 
@@ -1404,7 +1416,7 @@ mod tests {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
             name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
+            value: BucketValue::counter(42.into()),
             tags: BTreeMap::new(),
         };
 

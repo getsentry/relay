@@ -48,11 +48,14 @@ impl GaugeValue {
 
     /// Inserts a new value into the gauge.
     pub fn insert(&mut self, value: GaugeType) {
-        self.last = value;
-        self.min = self.min.min(value);
-        self.max = self.max.max(value);
-        self.sum += value;
-        self.count += 1;
+        if let Some(sum) = self.sum + value {
+            self.last = value;
+            self.min = self.min.min(value);
+            self.max = self.max.max(value);
+            self.sum = sum;
+            // self.sum += value;
+            self.count += 1;
+        }
     }
 
     /// Merges two gauge snapshots.
@@ -355,7 +358,7 @@ impl BucketValue {
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
     for component in string.split(VALUE_SEPARATOR) {
-        sum += component.parse::<CounterType>().ok()?;
+        sum = (sum + component.parse::<CounterType>().ok()?)?;
     }
     Some(sum)
 }
@@ -803,9 +806,9 @@ mod tests {
 
     #[test]
     fn test_bucket_value_merge_counter() {
-        let mut value = BucketValue::Counter(42.);
-        value.merge(BucketValue::Counter(43.)).unwrap();
-        assert_eq!(value, BucketValue::Counter(85.));
+        let mut value = BucketValue::Counter(42.into());
+        value.merge(BucketValue::Counter(43.into())).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.into()));
     }
 
     #[test]
@@ -826,16 +829,16 @@ mod tests {
 
     #[test]
     fn test_bucket_value_merge_gauge() {
-        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
-        value.merge(BucketValue::gauge(43.)).unwrap();
+        let mut value = BucketValue::Gauge(GaugeValue::single(42.into()));
+        value.merge(BucketValue::gauge(43.into())).unwrap();
 
         assert_eq!(
             value,
             BucketValue::Gauge(GaugeValue {
-                last: 43.,
-                min: 42.,
-                max: 43.,
-                sum: 85.,
+                last: 43.into(),
+                min: 42.into(),
+                max: 43.into(),
+                sum: 85.into(),
                 count: 2,
             })
         );
@@ -872,7 +875,7 @@ mod tests {
         let s = "transactions/foo:42:17:21|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.value, BucketValue::Counter(80.0));
+        assert_eq!(metric.value, BucketValue::Counter(80.into()));
     }
 
     #[test]
