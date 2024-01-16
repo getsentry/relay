@@ -157,11 +157,9 @@
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::mem;
 
-<span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingResult};
+<span class="kw">use </span>relay_event_schema::processor;
 <span class="kw">use </span>relay_event_schema::protocol::{Frame, RawStacktrace};
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Meta};
 <span class="kw">use </span>url::Url;
@@ -173,39 +171,37 @@
         || filename.starts_with(<span class="string">&quot;applewebdata:&quot;</span>)
 }
 
-<span class="kw">pub fn </span>process_stacktrace(stacktrace: <span class="kw-2">&amp;mut </span>RawStacktrace, _meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
+<span class="kw">pub fn </span>process_stacktrace(stacktrace: <span class="kw-2">&amp;mut </span>RawStacktrace, _meta: <span class="kw-2">&amp;mut </span>Meta) {
     <span class="comment">// This processing is only done for non raw frames (i.e. not for exception.raw_stacktrace).
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(frames) = stacktrace.frames.value_mut() {
         <span class="kw">for </span>frame <span class="kw">in </span>frames.iter_mut() {
-            processor::apply(frame, process_non_raw_frame)<span class="question-mark">?</span>;
+            process_non_raw_frame(frame);
         }
     }
-
-    <span class="prelude-val">Ok</span>(())
 }
+<span class="kw">pub fn </span>process_non_raw_frame(frame: <span class="kw-2">&amp;mut </span>Annotated&lt;Frame&gt;) {
+    <span class="kw">let _ </span>= processor::apply(frame, |frame, _meta| {
+        <span class="kw">if </span>frame.abs_path.value().is_empty() {
+            frame.abs_path = mem::replace(<span class="kw-2">&amp;mut </span>frame.filename, Annotated::empty());
+        }
 
-<span class="kw">pub fn </span>process_non_raw_frame(frame: <span class="kw-2">&amp;mut </span>Frame, _meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
-    <span class="kw">if </span>frame.abs_path.value().is_empty() {
-        frame.abs_path = mem::replace(<span class="kw-2">&amp;mut </span>frame.filename, Annotated::empty());
-    }
+        <span class="kw">if </span>frame.filename.value().is_empty() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(abs_path) = frame.abs_path.value_mut() {
+                frame.filename = Annotated::new(abs_path.clone());
 
-    <span class="kw">if </span>frame.filename.value().is_empty() {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(abs_path) = frame.abs_path.value_mut() {
-            frame.filename = Annotated::new(abs_path.clone());
+                <span class="kw">if </span>is_url(abs_path.as_str()) {
+                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(url) = Url::parse(abs_path.as_str()) {
+                        <span class="kw">let </span>path = url.path();
 
-            <span class="kw">if </span>is_url(abs_path.as_str()) {
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(url) = Url::parse(abs_path.as_str()) {
-                    <span class="kw">let </span>path = url.path();
-
-                    <span class="kw">if </span>!path.is_empty() &amp;&amp; path != <span class="string">&quot;/&quot; </span>{
-                        frame.filename = Annotated::new(path.into());
+                        <span class="kw">if </span>!path.is_empty() &amp;&amp; path != <span class="string">&quot;/&quot; </span>{
+                            frame.filename = Annotated::new(path.into());
+                        }
                     }
                 }
             }
         }
-    }
-
-    <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(())
+    });
 }
 
 <span class="attr">#[cfg(test)]
@@ -222,7 +218,7 @@
             ..Default::default()
         });
 
-        processor::apply(<span class="kw-2">&amp;mut </span>frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(<span class="kw-2">&amp;mut </span>frame);
         <span class="kw">let </span>frame = frame.value().unwrap();
 
         <span class="macro">assert_eq!</span>(frame.filename.value().unwrap().as_str(), <span class="string">&quot;/foo.js&quot;</span>);
@@ -241,7 +237,7 @@
             ..Default::default()
         });
 
-        processor::apply(<span class="kw-2">&amp;mut </span>frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(<span class="kw-2">&amp;mut </span>frame);
         <span class="kw">let </span>frame = frame.value().unwrap();
 
         <span class="macro">assert_eq!</span>(frame.filename.value().unwrap().as_str(), <span class="string">&quot;foo.js&quot;</span>);
@@ -259,7 +255,7 @@
             ..Default::default()
         });
 
-        processor::apply(<span class="kw-2">&amp;mut </span>frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(<span class="kw-2">&amp;mut </span>frame);
         <span class="kw">let </span>frame = frame.value().unwrap();
 
         <span class="macro">assert_eq!</span>(frame.filename.value().unwrap().as_str(), <span class="string">&quot;http://foo.com&quot;</span>);
@@ -277,7 +273,7 @@
             ..Default::default()
         });
 
-        processor::apply(<span class="kw-2">&amp;mut </span>frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(<span class="kw-2">&amp;mut </span>frame);
         <span class="kw">let </span>frame = frame.value().unwrap();
 
         <span class="macro">assert_eq!</span>(frame.filename.value().unwrap().as_str(), <span class="string">&quot;http://foo.com/&quot;</span>);
@@ -296,7 +292,7 @@
             ..Default::default()
         });
 
-        processor::apply(<span class="kw-2">&amp;mut </span>frame, process_non_raw_frame).unwrap();
+        process_non_raw_frame(<span class="kw-2">&amp;mut </span>frame);
         <span class="kw">let </span>frame = frame.value().unwrap();
 
         <span class="macro">assert_eq!</span>(frame.filename.value().unwrap().as_str(), <span class="string">&quot;/foo.js&quot;</span>);

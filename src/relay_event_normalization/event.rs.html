@@ -2433,8 +2433,6 @@
 <a href="#2433" id="2433">2433</a>
 <a href="#2434" id="2434">2434</a>
 <a href="#2435" id="2435">2435</a>
-<a href="#2436" id="2436">2436</a>
-<a href="#2437" id="2437">2437</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2457,7 +2455,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, TraceContext, User,
+    Tags, User,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -2637,7 +2635,7 @@
     transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
     <span class="comment">// Check for required and non-empty values
-    </span>schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+    </span><span class="kw">let _ </span>= schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
     normalize_timestamps(
         event,
@@ -2645,7 +2643,7 @@
         config.received_at,
         config.max_secs_in_past,
         config.max_secs_in_future,
-    )<span class="question-mark">?</span>; <span class="comment">// Timestamps are core in the metrics extraction
+    ); <span class="comment">// Timestamps are core in the metrics extraction
     </span>TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
     <span class="comment">// Process security reports first to ensure all props.
@@ -2669,34 +2667,34 @@
     }
 
     <span class="comment">// Validate the basic attributes we extract metrics from
-    </span>processor::apply(<span class="kw-2">&amp;mut </span>event.release, |release, meta| {
+    </span><span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.release, |release, meta| {
         <span class="kw">if </span><span class="kw">crate</span>::validate_release(release).is_ok() {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
             meta.add_error(ErrorKind::InvalidData);
             <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
         }
-    })<span class="question-mark">?</span>;
-    processor::apply(<span class="kw-2">&amp;mut </span>event.environment, |environment, meta| {
+    });
+    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.environment, |environment, meta| {
         <span class="kw">if </span><span class="kw">crate</span>::validate_environment(environment).is_ok() {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
             meta.add_error(ErrorKind::InvalidData);
             <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
         }
-    })<span class="question-mark">?</span>;
+    });
 
     <span class="comment">// Default required attributes, even if they have errors
-    </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta)<span class="question-mark">?</span>;
-    normalize_release_dist(event)<span class="question-mark">?</span>; <span class="comment">// dist is a tag extracted along with other metrics from transactions
-    </span>normalize_event_tags(event)<span class="question-mark">?</span>; <span class="comment">// Tags are added to every metric
+    </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta);
+    normalize_release_dist(event); <span class="comment">// dist is a tag extracted along with other metrics from transactions
+    </span>normalize_event_tags(event); <span class="comment">// Tags are added to every metric
 
     // TODO: Consider moving to store normalization
     </span><span class="kw">if </span>config.device_class_synthesis_config {
         normalize_device_class(event);
     }
-    normalize_stacktraces(event)<span class="question-mark">?</span>;
-    normalize_exceptions(event)<span class="question-mark">?</span>; <span class="comment">// Browser extension filters look at the stacktrace
+    normalize_stacktraces(event);
+    normalize_exceptions(event); <span class="comment">// Browser extension filters look at the stacktrace
     </span>normalize_user_agent(event, config.normalize_user_agent); <span class="comment">// Legacy browsers filter
     </span>normalize_measurements(
         event,
@@ -2706,12 +2704,13 @@
     </span>normalize_performance_score(event, config.performance_score);
     normalize_breakdowns(event, config.breakdowns_config); <span class="comment">// Breakdowns are part of the metric extraction too
 
-    </span>processor::apply(<span class="kw-2">&amp;mut </span>event.request, |request, <span class="kw">_</span>| {
-        request::normalize_request(request)
-    })<span class="question-mark">?</span>;
+    </span><span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.request, |request, <span class="kw">_</span>| {
+        request::normalize_request(request);
+        <span class="prelude-val">Ok</span>(())
+    });
 
     <span class="comment">// Some contexts need to be normalized before metrics extraction takes place.
-    </span>processor::apply(<span class="kw-2">&amp;mut </span>event.contexts, normalize_contexts)<span class="question-mark">?</span>;
+    </span>normalize_contexts(<span class="kw-2">&amp;mut </span>event.contexts);
 
     <span class="kw">if </span>config.normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="comment">// XXX(iker): span normalization runs in the store processor, but
@@ -2734,7 +2733,8 @@
 
     <span class="kw">if </span>config.enable_trimming {
         <span class="comment">// Trim large strings and databags down
-        </span>trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+        </span><span class="kw">let _ </span>=
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 
     <span class="prelude-val">Ok</span>(())
@@ -2864,17 +2864,19 @@
     }
 }
 
-<span class="kw">fn </span>normalize_logentry(logentry: <span class="kw-2">&amp;mut </span>Annotated&lt;LogEntry&gt;, _meta: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
-    processor::apply(logentry, <span class="kw">crate</span>::logentry::normalize_logentry)
+<span class="kw">fn </span>normalize_logentry(logentry: <span class="kw-2">&amp;mut </span>Annotated&lt;LogEntry&gt;, _meta: <span class="kw-2">&amp;mut </span>Meta) {
+    <span class="kw">let _ </span>= processor::apply(logentry, |logentry, meta| {
+        <span class="kw">crate</span>::logentry::normalize_logentry(logentry, meta)
+    });
 }
 
 <span class="doccomment">/// Ensures that the `release` and `dist` fields match up.
-</span><span class="kw">fn </span>normalize_release_dist(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
-    normalize_dist(<span class="kw-2">&amp;mut </span>event.dist)
+</span><span class="kw">fn </span>normalize_release_dist(event: <span class="kw-2">&amp;mut </span>Event) {
+    normalize_dist(<span class="kw-2">&amp;mut </span>event.dist);
 }
 
-<span class="kw">fn </span>normalize_dist(distribution: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; ProcessingResult {
-    processor::apply(distribution, |dist, meta| {
+<span class="kw">fn </span>normalize_dist(distribution: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) {
+    <span class="kw">let _ </span>= processor::apply(distribution, |dist, meta| {
         <span class="kw">let </span>trimmed = dist.trim();
         <span class="kw">if </span>trimmed.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::DeleteValueHard);
@@ -2885,7 +2887,7 @@
             <span class="kw-2">*</span>dist = trimmed.to_string();
         }
         <span class="prelude-val">Ok</span>(())
-    })
+    });
 }
 
 <span class="doccomment">/// Validates the timestamp range and sets a default value.
@@ -2895,13 +2897,13 @@
     received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
     max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
-) -&gt; ProcessingResult {
+) {
     <span class="kw">let </span>received_at = received_at.unwrap_or_else(Utc::now);
 
     <span class="kw">let </span><span class="kw-2">mut </span>sent_at = <span class="prelude-val">None</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>error_kind = ErrorKind::ClockDrift;
 
-    processor::apply(<span class="kw-2">&amp;mut </span>event.timestamp, |timestamp, _meta| {
+    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.timestamp, |timestamp, _meta| {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(secs) = max_secs_in_future {
             <span class="kw">if </span><span class="kw-2">*</span>timestamp &gt; received_at + Duration::seconds(secs) {
                 error_kind = ErrorKind::FutureTimestamp;
@@ -2919,11 +2921,11 @@
         }
 
         <span class="prelude-val">Ok</span>(())
-    })<span class="question-mark">?</span>;
+    });
 
-    ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+    <span class="kw">let _ </span>= ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
         .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+        .process_event(event, meta, ProcessingState::root());
 
     <span class="comment">// Apply this after clock drift correction, otherwise we will malform it.
     </span>event.received = Annotated::new(received_at.into());
@@ -2932,11 +2934,9 @@
         event.timestamp.set_value(<span class="prelude-val">Some</span>(received_at.into()));
     }
 
-    processor::apply(<span class="kw-2">&amp;mut </span>event.time_spent, |time_spent, <span class="kw">_</span>| {
+    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>event.time_spent, |time_spent, <span class="kw">_</span>| {
         validate_bounded_integer_field(<span class="kw-2">*</span>time_spent)
-    })<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(())
+    });
 }
 
 <span class="doccomment">/// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -2970,7 +2970,7 @@
 }
 
 <span class="doccomment">/// Removes internal tags and adds tags for well-known attributes.
-</span><span class="kw">fn </span>normalize_event_tags(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+</span><span class="kw">fn </span>normalize_event_tags(event: <span class="kw-2">&amp;mut </span>Event) {
     <span class="kw">let </span>tags = <span class="kw-2">&amp;mut </span>event.tags.value_mut().get_or_insert_with(Tags::default).<span class="number">0</span>;
     <span class="kw">let </span>environment = <span class="kw-2">&amp;mut </span>event.environment;
     <span class="kw">if </span>environment.is_empty() {
@@ -2998,7 +2998,7 @@
     });
 
     <span class="kw">for </span>tag <span class="kw">in </span>tags.iter_mut() {
-        processor::apply(tag, |tag, <span class="kw">_</span>| {
+        <span class="kw">let _ </span>= processor::apply(tag, |tag, <span class="kw">_</span>| {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = tag.key() {
                 <span class="kw">if </span>key.is_empty() {
                     tag.<span class="number">0 </span>= Annotated::from_error(Error::nonempty(), <span class="prelude-val">None</span>);
@@ -3016,7 +3016,7 @@
             }
 
             <span class="prelude-val">Ok</span>(())
-        })<span class="question-mark">?</span>;
+        });
     }
 
     <span class="kw">let </span>server_name = std::mem::take(<span class="kw-2">&amp;mut </span>event.server_name);
@@ -3030,8 +3030,6 @@
         <span class="kw">let </span>tag_name = <span class="string">&quot;site&quot;</span>.to_string();
         tags.insert(tag_name, site);
     }
-
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="comment">// Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high,
@@ -3051,32 +3049,35 @@
 <span class="doccomment">/// Process the last frame of the stacktrace of the first exception.
 ///
 /// No additional frames/stacktraces are normalized as they aren&#39;t required for metric extraction.
-</span><span class="kw">fn </span>normalize_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+</span><span class="kw">fn </span>normalize_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) {
     <span class="kw">match </span>event.exceptions.value_mut() {
-        <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
+        <span class="prelude-val">None </span>=&gt; (),
         <span class="prelude-val">Some</span>(exception) =&gt; <span class="kw">match </span>exception.values.value_mut() {
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">None </span>=&gt; (),
             <span class="prelude-val">Some</span>(exceptions) =&gt; <span class="kw">match </span>exceptions.first_mut() {
-                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
+                <span class="prelude-val">None </span>=&gt; (),
                 <span class="prelude-val">Some</span>(first) =&gt; normalize_last_stacktrace_frame(first),
             },
         },
-    }
+    };
 }
 
-<span class="kw">fn </span>normalize_last_stacktrace_frame(exception: <span class="kw-2">&amp;mut </span>Annotated&lt;Exception&gt;) -&gt; ProcessingResult {
-    processor::apply(exception, |e, <span class="kw">_</span>| {
+<span class="kw">fn </span>normalize_last_stacktrace_frame(exception: <span class="kw-2">&amp;mut </span>Annotated&lt;Exception&gt;) {
+    <span class="kw">let _ </span>= processor::apply(exception, |e, <span class="kw">_</span>| {
         processor::apply(<span class="kw-2">&amp;mut </span>e.stacktrace, |s, <span class="kw">_</span>| <span class="kw">match </span>s.frames.value_mut() {
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
             <span class="prelude-val">Some</span>(frames) =&gt; <span class="kw">match </span>frames.last_mut() {
                 <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
-                <span class="prelude-val">Some</span>(frame) =&gt; processor::apply(frame, stacktrace::process_non_raw_frame),
+                <span class="prelude-val">Some</span>(frame) =&gt; {
+                    stacktrace::process_non_raw_frame(frame);
+                    <span class="prelude-val">Ok</span>(())
+                }
             },
         })
-    })
+    });
 }
 
-<span class="kw">fn </span>normalize_exceptions(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+<span class="kw">fn </span>normalize_exceptions(event: <span class="kw-2">&amp;mut </span>Event) {
     <span class="kw">let </span>os_hint = mechanism::OsHint::from_event(event);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(exception_values) = event.exceptions.value_mut() {
@@ -3100,14 +3101,12 @@
             </span><span class="kw">for </span>exception <span class="kw">in </span>exceptions {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(exception) = exception.value_mut() {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(mechanism) = exception.mechanism.value_mut() {
-                        mechanism::normalize_mechanism(mechanism, os_hint)<span class="question-mark">?</span>;
+                        mechanism::normalize_mechanism(mechanism, os_hint);
                     }
                 }
             }
         }
     }
-
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>normalize_user_agent(_event: <span class="kw-2">&amp;mut </span>Event, normalize_user_agent: <span class="prelude-ty">Option</span>&lt;bool&gt;) {
@@ -3323,14 +3322,16 @@
 }
 
 <span class="doccomment">/// Normalizes incoming contexts for the downstream metric extraction.
-</span><span class="kw">fn </span>normalize_contexts(contexts: <span class="kw-2">&amp;mut </span>Contexts, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>Meta) -&gt; ProcessingResult {
-    <span class="kw">for </span>annotated <span class="kw">in </span><span class="kw-2">&amp;mut </span>contexts.<span class="number">0</span>.values_mut() {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(context))) = annotated.value_mut() {
-            normalize_trace_context(context)<span class="question-mark">?
-        </span>}
-    }
+</span><span class="kw">fn </span>normalize_contexts(contexts: <span class="kw-2">&amp;mut </span>Annotated&lt;Contexts&gt;) {
+    <span class="kw">let _ </span>= processor::apply(contexts, |contexts, _meta| {
+        <span class="kw">for </span>annotated <span class="kw">in </span><span class="kw-2">&amp;mut </span>contexts.<span class="number">0</span>.values_mut() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(context))) = annotated.value_mut() {
+                context.status.get_or_insert_with(|| SpanStatus::Unknown);
+            }
+        }
 
-    <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(())
+    });
 }
 
 <span class="doccomment">/// New SDKs do not send measurements when they exceed 180 seconds.
@@ -3369,11 +3370,6 @@
             .unit
             .set_value(<span class="prelude-val">Some</span>(stated_unit.or(default_unit).unwrap_or_default()))
     }
-}
-
-<span class="kw">fn </span>normalize_trace_context(context: <span class="kw-2">&amp;mut </span>TraceContext) -&gt; ProcessingResult {
-    context.status.get_or_insert_with(|| SpanStatus::Unknown);
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Remove measurements that do not conform to the given config.
@@ -3525,28 +3521,28 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_none() {
         <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::default();
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
         <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_empty() {
         <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot;&quot;</span>.to_string());
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
         <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_trim() {
         <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot; foo  &quot;</span>.to_string());
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
         <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">&quot;foo&quot;</span>.to_string()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_dist_whitespace() {
         <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot; &quot;</span>.to_owned());
-        normalize_dist(<span class="kw-2">&amp;mut </span>dist).unwrap();
+        normalize_dist(<span class="kw-2">&amp;mut </span>dist);
         <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
     }
 

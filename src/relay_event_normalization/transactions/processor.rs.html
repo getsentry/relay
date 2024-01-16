@@ -2137,16 +2137,6 @@
 <a href="#2137" id="2137">2137</a>
 <a href="#2138" id="2138">2138</a>
 <a href="#2139" id="2139">2139</a>
-<a href="#2140" id="2140">2140</a>
-<a href="#2141" id="2141">2141</a>
-<a href="#2142" id="2142">2142</a>
-<a href="#2143" id="2143">2143</a>
-<a href="#2144" id="2144">2144</a>
-<a href="#2145" id="2145">2145</a>
-<a href="#2146" id="2146">2146</a>
-<a href="#2147" id="2147">2147</a>
-<a href="#2148" id="2148">2148</a>
-<a href="#2149" id="2149">2149</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::Range;
 
@@ -2198,11 +2188,8 @@
     ///
     /// Note: we add `/` at the end of the transaction name if there isn&#39;t one, to make sure that
     /// patterns like `/&lt;something&gt;/*/**` where we have `**` at the end are a match.
-    </span><span class="kw">pub fn </span>apply_transaction_rename_rule(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        transaction: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
-    ) -&gt; ProcessingResult {
-        processor::apply(transaction, |transaction, meta| {
+    </span><span class="kw">pub fn </span>apply_transaction_rename_rule(<span class="kw-2">&amp;</span><span class="self">self</span>, transaction: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) {
+        <span class="kw">let _ </span>= processor::apply(transaction, |transaction, meta| {
             <span class="kw">let </span>result = <span class="self">self</span>.name_config.rules.iter().find_map(|rule| {
                 rule.match_and_apply(Cow::Borrowed(transaction))
                     .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
@@ -2224,9 +2211,7 @@
             }
 
             <span class="prelude-val">Ok</span>(())
-        })<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(())
+        });
     }
 
     <span class="doccomment">/// Returns `true` if the given transaction name should be treated as a URL.
@@ -2250,15 +2235,15 @@
         ) || (source.is_none() &amp;&amp; event.transaction.value().map_or(<span class="bool-val">false</span>, |t| t.contains(<span class="string">&#39;/&#39;</span>)))
     }
 
-    <span class="kw">fn </span>normalize_transaction_name(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+    <span class="kw">fn </span>normalize_transaction_name(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) {
         <span class="kw">if </span><span class="self">self</span>.treat_transaction_as_url(event) {
             <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
+            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction);
 
             <span class="comment">// Apply rules discovered by the transaction clusterer in sentry.
             </span><span class="kw">if </span>!<span class="self">self</span>.name_config.rules.is_empty() {
-                <span class="self">self</span>.apply_transaction_rename_rule(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
+                <span class="self">self</span>.apply_transaction_rename_rule(<span class="kw-2">&amp;mut </span>event.transaction);
             }
 
             <span class="comment">// Always mark URL transactions as sanitized, even if no modification were made by
@@ -2274,8 +2259,6 @@
                 .source
                 .set_value(<span class="prelude-val">Some</span>(TransactionSource::Sanitized));
         }
-
-        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>validate_transaction(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
@@ -2365,7 +2348,7 @@
         }
 
         set_default_transaction_source(event);
-        <span class="self">self</span>.normalize_transaction_name(event)<span class="question-mark">?</span>;
+        <span class="self">self</span>.normalize_transaction_name(event);
         <span class="self">self</span>.validate_transaction(event)<span class="question-mark">?</span>;
         end_all_spans(event)<span class="question-mark">?</span>;
 
@@ -2531,19 +2514,18 @@
 ///
 /// Replaces UUIDs, SHAs and numerical IDs in transaction names by placeholders.
 /// Returns `Ok(true)` if the name was changed.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_identifiers(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>TRANSACTION_NAME_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_identifiers(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) {
+    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>TRANSACTION_NAME_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>);
 }
 
 <span class="kw">fn </span>scrub_identifiers_with_regex(
     string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
     pattern: <span class="kw-2">&amp;</span>Lazy&lt;Regex&gt;,
     replacer: <span class="kw-2">&amp;</span>str,
-) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
+) {
     <span class="kw">let </span>capture_names = pattern.capture_names().flatten().collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-    <span class="kw">let </span><span class="kw-2">mut </span>did_change = <span class="bool-val">false</span>;
-    processor::apply(string, |trans, meta| {
+    <span class="kw">let _ </span>= processor::apply(string, |trans, meta| {
         <span class="kw">let </span><span class="kw-2">mut </span>caps = Vec::new();
         <span class="comment">// Collect all the remarks if anything matches.
         </span><span class="kw">for </span>captures <span class="kw">in </span>pattern.captures_iter(trans) {
@@ -2580,11 +2562,9 @@
         <span class="kw">if </span>!changed.is_empty() &amp;&amp; changed != <span class="string">&quot;*&quot; </span>{
             meta.set_original_value(<span class="prelude-val">Some</span>(trans.to_string()));
             <span class="kw-2">*</span>trans = changed;
-            did_change = <span class="bool-val">true</span>;
         }
         <span class="prelude-val">Ok</span>(())
-    })<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(did_change)
+    });
 }
 
 <span class="doccomment">/// Copies the event&#39;s end timestamp into the spans that don&#39;t have one.
@@ -4018,7 +3998,7 @@
         ];
         <span class="kw">let </span>replaced = should_be_replaced.map(|s| {
             <span class="kw">let </span><span class="kw-2">mut </span>s = Annotated::new(s.to_owned());
-            scrub_identifiers(<span class="kw-2">&amp;mut </span>s).unwrap();
+            scrub_identifiers(<span class="kw-2">&amp;mut </span>s);
             s.<span class="number">0</span>.unwrap()
         });
         <span class="macro">assert_eq!</span>(

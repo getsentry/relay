@@ -1026,9 +1026,7 @@
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingResult};
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction};
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Mechanism, OsContext};
 <span class="kw">use </span>relay_protocol::{Annotated, Error};
 
@@ -1619,19 +1617,19 @@
 }
 
 <span class="doccomment">/// Normalizes the exception mechanism in place.
-</span><span class="kw">pub fn </span>normalize_mechanism(mechanism: <span class="kw-2">&amp;mut </span>Mechanism, os_hint: <span class="prelude-ty">Option</span>&lt;OsHint&gt;) -&gt; ProcessingResult {
-    processor::apply(<span class="kw-2">&amp;mut </span>mechanism.help_link, |value, meta| {
+</span><span class="kw">pub fn </span>normalize_mechanism(mechanism: <span class="kw-2">&amp;mut </span>Mechanism, os_hint: <span class="prelude-ty">Option</span>&lt;OsHint&gt;) {
+    <span class="kw">let _ </span>= processor::apply(<span class="kw-2">&amp;mut </span>mechanism.help_link, |value, meta| {
         <span class="kw">if </span>value.starts_with(<span class="string">&quot;http://&quot;</span>) || value.starts_with(<span class="string">&quot;https://&quot;</span>) {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
             meta.add_error(Error::expected(<span class="string">&quot;http URL&quot;</span>));
             <span class="prelude-val">Err</span>(ProcessingAction::DeleteValueSoft)
         }
-    })<span class="question-mark">?</span>;
+    });
 
     <span class="kw">let </span>meta = <span class="kw">match </span>mechanism.meta.value_mut() {
         <span class="prelude-val">Some</span>(meta) =&gt; meta,
-        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return</span>,
     };
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(os_hint) = os_hint {
@@ -1673,8 +1671,6 @@
             }
         }
     }
-
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="attr">#[cfg(test)]
@@ -1694,7 +1690,7 @@
 
         <span class="kw">let </span>old_mechanism = mechanism.clone();
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>);
 
         <span class="macro">assert_eq!</span>(mechanism, old_mechanism);
     }
@@ -1713,7 +1709,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux)).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux));
 
         <span class="kw">let </span>errno = mechanism.meta.value().unwrap().errno.value().unwrap();
         <span class="macro">assert_eq!</span>(
@@ -1739,7 +1735,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux)).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux));
 
         <span class="kw">let </span>errno = mechanism.meta.value().unwrap().errno.value().unwrap();
         <span class="macro">assert_eq!</span>(
@@ -1765,7 +1761,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>errno = mechanism.meta.value().unwrap().errno.value().unwrap();
         <span class="macro">assert_eq!</span>(
@@ -1792,7 +1788,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Darwin)).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Darwin));
 
         <span class="kw">let </span>signal = mechanism.meta.value().unwrap().signal.value().unwrap();
         <span class="macro">assert_eq!</span>(
@@ -1820,7 +1816,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux)).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux));
 
         <span class="kw">let </span>signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -1850,7 +1846,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux)).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">Some</span>(OsHint::Linux));
 
         <span class="kw">let </span>signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -1880,7 +1876,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -1913,7 +1909,7 @@
         <span class="comment">// We do not need SDK information here because mach exceptions only
         // occur on Darwin
 
-        </span>normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>).unwrap();
+        </span>normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>mach_exception = mechanism
             .meta
@@ -1953,7 +1949,7 @@
         <span class="comment">// We do not need SDK information here because mach exceptions only
         // occur on Darwin
 
-        </span>normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>).unwrap();
+        </span>normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>mach_exception = mechanism
             .meta
@@ -1992,7 +1988,7 @@
         <span class="comment">// We do not need SDK information here because mach exceptions only
         // occur on Darwin
 
-        </span>normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>).unwrap();
+        </span>normalize_mechanism(<span class="kw-2">&amp;mut </span>mechanism, <span class="prelude-val">None</span>);
 
         <span class="kw">let </span>mach_exception = mechanism
             .meta
@@ -2020,7 +2016,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>good_mechanism, <span class="prelude-val">None</span>).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>good_mechanism, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(good_mechanism)), @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;generic&quot;,
@@ -2034,7 +2030,7 @@
             ..Default::default()
         };
 
-        normalize_mechanism(<span class="kw-2">&amp;mut </span>bad_mechanism, <span class="prelude-val">None</span>).unwrap();
+        normalize_mechanism(<span class="kw-2">&amp;mut </span>bad_mechanism, <span class="prelude-val">None</span>);
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(bad_mechanism)), @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;generic&quot;,
