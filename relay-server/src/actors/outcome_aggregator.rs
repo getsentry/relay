@@ -170,6 +170,7 @@ impl OutcomeAggregator {
                 Outcome::RateLimited(_)
                     | Outcome::Invalid(DiscardReason::ProjectId)
                     | Outcome::FilteredSampling(_)
+                    | Outcome::Accepted
             )
     }
 

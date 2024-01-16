@@ -8,7 +8,7 @@ use relay_statsd::metric;
 use serde::Deserialize;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{ProcessMetricMeta, ProcessMetrics};
+use crate::actors::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
 use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
@@ -286,43 +286,19 @@ fn queue_envelope(
         })
     }
 
-    // Take all NEL reports and split them up into the separate envelopes with 1 item per
-    // envelope.
-    for nel_envelope in envelope.split_all_by(|item| matches!(item.ty(), ItemType::Nel)) {
-        relay_log::trace!("queueing separate envelopes for NEL report");
-        let buffer_guard = state.buffer_guard();
-        let nel_envelope = buffer_guard
+    // Split off the envelopes by item type.
+    let envelopes = ProcessingGroup::split_envelope(*managed_envelope.take_envelope());
+    for (group, envelope) in envelopes {
+        let envelope = buffer_guard
             .enter(
-                nel_envelope,
+                envelope,
                 state.outcome_aggregator().clone(),
                 state.test_store().clone(),
+                group,
             )
             .map_err(BadStoreRequest::QueueFailed)?;
-        state
-            .project_cache()
-            .send(ValidateEnvelope::new(nel_envelope));
+        state.project_cache().send(ValidateEnvelope::new(envelope));
     }
-
-    // Split the envelope into event-related items and other items. This allows to fast-track:
-    //  1. Envelopes with only session items. They only require rate limiting.
-    //  2. Event envelope processing can bail out if the event is filtered or rate limited,
-    //     since all items depend on this event.
-    if let Some(event_envelope) = envelope.split_by(Item::requires_event) {
-        relay_log::trace!("queueing separate envelope for non-event items");
-
-        // The envelope has been split, so we need to fork the context.
-        let event_context = buffer_guard.enter(
-            event_envelope,
-            state.outcome_aggregator().clone(),
-            state.test_store().clone(),
-        )?;
-        state
-            .project_cache()
-            .send(ValidateEnvelope::new(event_context));
-    }
-
-    // Update the old context before continuing with the source envelope.
-    managed_envelope.update();
 
     if managed_envelope.envelope().is_empty() {
         // The envelope can be empty here if it contained only metrics items which were removed
@@ -356,6 +332,9 @@ pub async fn handle_envelope(
             envelope,
             state.outcome_aggregator().clone(),
             state.test_store().clone(),
+            // It's not clear at this point which group this envelope belongs to.
+            // The decission will be made while queueing in `queue_envelope` function.
+            ProcessingGroup::Ungrouped,
         )
         .map_err(BadStoreRequest::QueueFailed)?;
 

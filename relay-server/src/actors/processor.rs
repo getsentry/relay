@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::future::Future;
@@ -23,7 +24,9 @@ use relay_event_normalization::{
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
-use relay_event_schema::protocol::{Event, EventType, IpAddr, Metrics, NetworkReportError};
+use relay_event_schema::protocol::{
+    ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
+};
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, BucketView, BucketsView, MergeBuckets, MetricMeta, MetricNamespace};
@@ -35,12 +38,12 @@ use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEva
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
+use smallvec::{smallvec, SmallVec};
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::project_cache::UpdateRateLimits,
-    crate::actors::store::Store,
+    crate::actors::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
@@ -49,13 +52,14 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{AddMetricMeta, ProjectCache};
-use crate::actors::test_store::TestStore;
+use crate::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
+use crate::actors::test_store::{Capture, TestStore};
 use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
-use crate::envelope::{ContentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::envelope::{
+    self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
+};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -75,8 +79,157 @@ mod span;
 #[cfg(feature = "processing")]
 mod unreal;
 
+/// Creates the block only if used with `processing` feature.
+///
+/// Provided code block will be executed only if the provided config has `processing_enabled` set.
+macro_rules! if_processing {
+    ($config:expr, $if_true:block) => {
+        #[cfg(feature = "processing")] {
+            if $config.processing_enabled() $if_true
+        }
+    };
+}
+
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
+
+/// Describes the groups of the processable items.
+#[derive(Clone, Copy, Debug)]
+pub enum ProcessingGroup {
+    /// All the transaction related items.
+    ///
+    /// Includes transactions, related attachments, profiles.
+    Transaction,
+    /// All the items which require (have or create) events.
+    ///
+    /// This includes: errors, NEL, security reports, user and clients reports, some of the
+    /// attachments.
+    Error,
+    /// Session events.
+    Session,
+    /// Attachments which can be sent alone without any event attached to it in the current
+    /// envelope.
+    StandaloneAttachment,
+    UserReport,
+    Replay,
+    /// Crons.
+    CheckIn,
+    Span,
+    /// The unknow item types will be forwarded upstream (to processing Relay), where we will
+    /// decide what to do with it.
+    ForwardUnknown,
+    /// All the events in the envelope we failed to group.
+    Ungrouped,
+}
+
+impl ProcessingGroup {
+    /// Splits provided envelope into list of tuples of groups with associated envelopes.
+    pub fn split_envelope(mut envelope: Envelope) -> SmallVec<[(Self, Box<Envelope>); 3]> {
+        let headers = envelope.headers().clone();
+        let mut grouped_envelopes = smallvec![];
+
+        // Each NEL item *must* have a dedicated envelope.
+        let nel_envelopes = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Nel))
+            .into_iter()
+            .map(|item| {
+                let headers = headers.clone();
+                let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+                let mut envelope = Envelope::from_parts(headers, items);
+                envelope.set_event_id(EventId::new());
+                (ProcessingGroup::Error, envelope)
+            });
+        grouped_envelopes.extend(nel_envelopes);
+
+        // Extract all standalone attachments.
+        // Note: only if there is no items in the envelope which can create events.
+        if !envelope.items().any(Item::creates_event) {
+            let standalone_attachment_items = envelope.take_items_by(|item| {
+                matches!(item.ty(), &ItemType::Attachment | &ItemType::FormData)
+            });
+            if !standalone_attachment_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::StandaloneAttachment,
+                    Envelope::from_parts(headers.clone(), standalone_attachment_items),
+                ))
+            }
+        };
+
+        // Extract replays.
+        let replay_items = envelope.take_items_by(|item| {
+            matches!(
+                item.ty(),
+                &ItemType::ReplayEvent | &ItemType::ReplayRecording
+            )
+        });
+        if !replay_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Replay,
+                Envelope::from_parts(headers.clone(), replay_items),
+            ))
+        }
+
+        // Keep all the sessions together in one envelope.
+        let session_items = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Session | &ItemType::Sessions));
+        if !session_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Session,
+                Envelope::from_parts(headers.clone(), session_items),
+            ))
+        }
+
+        // Extract spans.
+        let span_items = envelope
+            .take_items_by(|item| matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan));
+        if !span_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Span,
+                Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        // Extract all the items which require an event into separate envelope.
+        let require_event_items = envelope.take_items_by(Item::requires_event);
+        if !require_event_items.is_empty() {
+            let group = if require_event_items
+                .iter()
+                .any(|item| matches!(item.ty(), &ItemType::Transaction | &ItemType::Profile))
+            {
+                ProcessingGroup::Transaction
+            } else {
+                ProcessingGroup::Error
+            };
+            grouped_envelopes.push((
+                group,
+                Envelope::from_parts(headers.clone(), require_event_items),
+            ))
+        }
+
+        // Get the rest of the envelopes, one per item.
+        let envelopes = envelope.items_mut().map(|item| {
+            let headers = headers.clone();
+            let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
+            let envelope = Envelope::from_parts(headers, items);
+            let item_type = item.ty();
+            let group = if matches!(item_type, &ItemType::CheckIn) {
+                ProcessingGroup::CheckIn
+            } else if matches!(item_type, &ItemType::UserReport | &ItemType::ClientReport) {
+                ProcessingGroup::UserReport
+            } else if matches!(item_type, &ItemType::Unknown(_)) {
+                ProcessingGroup::ForwardUnknown
+            } else {
+                // Cannot group this item type.
+                ProcessingGroup::Ungrouped
+            };
+
+            (group, envelope)
+        });
+        grouped_envelopes.extend(envelopes);
+
+        grouped_envelopes
+    }
+}
 
 /// An error returned when handling [`ProcessEnvelope`].
 #[derive(Debug, thiserror::Error)]
@@ -429,21 +582,6 @@ pub struct ProcessMetricMeta {
     pub project_key: ProjectKey,
 }
 
-/// Applies HTTP content encoding to an envelope's payload.
-///
-/// This message is a workaround for a single-threaded upstream service.
-#[derive(Debug)]
-pub struct EncodeEnvelope {
-    request: SendEnvelope,
-}
-
-impl EncodeEnvelope {
-    /// Creates a new `EncodeEnvelope` message from `SendEnvelope` request.
-    pub fn new(request: SendEnvelope) -> Self {
-        Self { request }
-    }
-}
-
 /// Metric buckets with additional project.
 #[derive(Debug)]
 pub struct ProjectMetrics {
@@ -459,10 +597,10 @@ pub struct EncodeMetrics {
     pub scopes: HashMap<Scoping, ProjectMetrics>,
 }
 
-/// Encodes metric meta into an envelope and sends it upstream.
+/// Encodes metric meta into an [`Envelope`] and sends it upstream.
 ///
-/// Upstream means directly into redis for processing relays
-/// and otherwise submitting the envelope with the envelope manager.
+/// At the moment, upstream means directly into Redis for processing relays
+/// and otherwise submitting the Envelope via HTTP to the [`UpstreamRelay`].
 #[derive(Debug)]
 pub struct EncodeMetricMeta {
     /// Scoping of the meta.
@@ -471,7 +609,22 @@ pub struct EncodeMetricMeta {
     pub meta: MetricMeta,
 }
 
-/// Applies rate limits to metrics buckets and forwards them to the envelope manager.
+/// Sends an envelope to the upstream or Kafka.
+#[derive(Debug)]
+pub struct SubmitEnvelope {
+    pub envelope: ManagedEnvelope,
+}
+
+/// Sends a client report to the upstream.
+#[derive(Debug)]
+pub struct SubmitClientReports {
+    /// The client report to be sent.
+    pub client_reports: Vec<ClientReport>,
+    /// Scoping information for the client report.
+    pub scoping: Scoping,
+}
+
+/// Applies rate limits to metrics buckets and forwards them to the [`Aggregator`].
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct RateLimitBuckets {
@@ -485,9 +638,10 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
     ProcessMetricMeta(Box<ProcessMetricMeta>),
-    EncodeEnvelope(Box<EncodeEnvelope>),
     EncodeMetrics(Box<EncodeMetrics>),
     EncodeMetricMeta(Box<EncodeMetricMeta>),
+    SubmitEnvelope(Box<SubmitEnvelope>),
+    SubmitClientReports(Box<SubmitClientReports>),
     #[cfg(feature = "processing")]
     RateLimitBuckets(RateLimitBuckets),
 }
@@ -500,9 +654,10 @@ impl EnvelopeProcessor {
             EnvelopeProcessor::ProcessMetrics(_) => "ProcessMetrics",
             EnvelopeProcessor::ProcessBatchedMetrics(_) => "ProcessBatchedMetrics",
             EnvelopeProcessor::ProcessMetricMeta(_) => "ProcessMetricMeta",
-            EnvelopeProcessor::EncodeEnvelope(_) => "EncodeEnvelope",
             EnvelopeProcessor::EncodeMetrics(_) => "EncodeMetrics",
             EnvelopeProcessor::EncodeMetricMeta(_) => "EncodeMetricMeta",
+            EnvelopeProcessor::SubmitEnvelope(_) => "SubmitEnvelope",
+            EnvelopeProcessor::SubmitClientReports(_) => "SubmitClientReports",
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitBuckets(_) => "RateLimitBuckets",
         }
@@ -543,14 +698,6 @@ impl FromMessage<ProcessMetricMeta> for EnvelopeProcessor {
     }
 }
 
-impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
-    type Response = NoResponse;
-
-    fn from_message(message: EncodeEnvelope, _: ()) -> Self {
-        Self::EncodeEnvelope(Box::new(message))
-    }
-}
-
 impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
     type Response = NoResponse;
 
@@ -564,6 +711,22 @@ impl FromMessage<EncodeMetricMeta> for EnvelopeProcessor {
 
     fn from_message(message: EncodeMetricMeta, _: ()) -> Self {
         Self::EncodeMetricMeta(Box::new(message))
+    }
+}
+
+impl FromMessage<SubmitEnvelope> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: SubmitEnvelope, _: ()) -> Self {
+        Self::SubmitEnvelope(Box::new(message))
+    }
+}
+
+impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: SubmitClientReports, _: ()) -> Self {
+        Self::SubmitClientReports(Box::new(message))
     }
 }
 
@@ -588,7 +751,6 @@ struct InnerProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
     redis_pool: Option<RedisPool>,
-    envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
     #[cfg(feature = "processing")]
@@ -612,7 +774,6 @@ impl EnvelopeProcessorService {
     pub fn new(
         config: Arc<Config>,
         #[cfg(feature = "processing")] redis: Option<RedisPool>,
-        envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
@@ -637,7 +798,6 @@ impl EnvelopeProcessorService {
             rate_limiter: redis
                 .clone()
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
-            envelope_manager,
             project_cache,
             outcome_aggregator,
             upstream_relay,
@@ -951,15 +1111,165 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        macro_rules! if_processing {
-            ($if_true:block) => {
-                #[cfg(feature = "processing")] {
-                    if self.inner.config.processing_enabled() $if_true
-                }
-            };
+    /// Processes the general errors, and the items which require or create the events.
+    fn process_errors(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // Events can also contain user reports.
+        report::process(
+            state,
+            &self.inner.config,
+            self.inner.outcome_aggregator.clone(),
+        );
+
+        if_processing!(self.inner.config, {
+            unreal::expand(state, &self.inner.config)?;
+        });
+
+        event::extract(state, &self.inner.config)?;
+
+        if_processing!(self.inner.config, {
+            unreal::process(state)?;
+            attachment::create_placeholders(state);
+        });
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        event::filter(state)?;
+        dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
         }
 
+        attachment::scrub(state);
+
+        Ok(())
+    }
+
+    /// Processes only transactions and transaction-related items.
+    fn process_transactions(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        profile::filter(state);
+        event::extract(state, &self.inner.config)?;
+        profile::transfer_id(state);
+
+        if_processing!(self.inner.config, {
+            attachment::create_placeholders(state);
+        });
+
+        event::finalize(state, &self.inner.config)?;
+        self.light_normalize_event(state)?;
+        dynamic_sampling::normalize(state);
+        event::filter(state)?;
+        dynamic_sampling::run(state, &self.inner.config);
+
+        // We avoid extracting metrics if we are not sampling the event while in non-processing
+        // relays, in order to synchronize rate limits on indexed and processed transactions.
+        if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+            self.extract_metrics(state)?;
+        }
+
+        dynamic_sampling::sample_envelope(state)?;
+
+        if_processing!(self.inner.config, {
+            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            self.enforce_quotas(state)?;
+            profile::process(state, &self.inner.config);
+        });
+
+        if state.has_event() {
+            event::scrub(state)?;
+            event::serialize(state)?;
+            if_processing!(self.inner.config, {
+                span::extract_from_event(state);
+            });
+        }
+
+        attachment::scrub(state);
+        Ok(())
+    }
+
+    /// Processes standalone attachments.
+    fn process_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+
+        attachment::scrub(state);
+        Ok(())
+    }
+
+    /// Processes user sessions.
+    fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        session::process(state, &self.inner.config);
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+        Ok(())
+    }
+
+    /// Processes user and client reports.
+    fn process_user_reports(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+
+        report::process(
+            state,
+            &self.inner.config,
+            self.inner.outcome_aggregator.clone(),
+        );
+
+        Ok(())
+    }
+
+    /// Processes replays.
+    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        replay::process(state, &self.inner.config)?;
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
+        Ok(())
+    }
+
+    /// Processes cron check-ins.
+    fn process_checkins(&self, _state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(_state)?;
+            self.process_check_ins(_state);
+        });
+        Ok(())
+    }
+
+    /// Processes spans.
+    fn process_spans(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        span::filter(state);
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+            span::process(state, self.inner.config.clone());
+        });
+        Ok(())
+    }
+
+    /// Legacy implementation of the `process_state` function, which is used for all
+    /// unknown [`ProcessingGroup`] variant.
+    ///
+    /// Note: this will be removed once we are confident in the new implementation and make sure
+    /// that all the groups properly covered.
+    fn process_state_legacy(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
         session::process(state, &self.inner.config);
         report::process(
             state,
@@ -975,14 +1285,14 @@ impl EnvelopeProcessorService {
             // This makes it possible to get in this code block while not really having an event in
             // the envelope.
 
-            if_processing!({
+            if_processing!(self.inner.config, {
                 unreal::expand(state, &self.inner.config)?;
             });
 
             event::extract(state, &self.inner.config)?;
             profile::transfer_id(state);
 
-            if_processing!({
+            if_processing!(self.inner.config, {
                 unreal::process(state)?;
                 attachment::create_placeholders(state);
             });
@@ -1001,12 +1311,12 @@ impl EnvelopeProcessorService {
 
             dynamic_sampling::sample_envelope(state)?;
 
-            if_processing!({
+            if_processing!(self.inner.config, {
                 event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
             });
         }
 
-        if_processing!({
+        if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
             self.process_check_ins(state);
@@ -1016,12 +1326,48 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             event::scrub(state)?;
             event::serialize(state)?;
-            if_processing!({
+            if_processing!(self.inner.config, {
                 span::extract_from_event(state);
             });
         }
 
         attachment::scrub(state);
+
+        Ok(())
+    }
+
+    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // Get the group from the managed envelope context, and if it's not set, try to guess it
+        // from the contents of the envelope.
+        let group = state.managed_envelope.group();
+
+        relay_log::trace!("Processing {group:?} group");
+
+        match group {
+            ProcessingGroup::Error => self.process_errors(state)?,
+            ProcessingGroup::Transaction => self.process_transactions(state)?,
+            ProcessingGroup::Session => self.process_sessions(state)?,
+            ProcessingGroup::StandaloneAttachment => self.process_attachments(state)?,
+            ProcessingGroup::UserReport => self.process_user_reports(state)?,
+            ProcessingGroup::Replay => self.process_replays(state)?,
+            ProcessingGroup::CheckIn => self.process_checkins(state)?,
+            ProcessingGroup::Span => self.process_spans(state)?,
+            // Fallback to the legacy process_state implementation for Ungrouped events.
+            ProcessingGroup::Ungrouped => {
+                relay_log::error!(
+                    tags.project = %state.project_id,
+                    items = ?state.envelope().items().next().map(Item::ty),
+                    "Could not identify the processing group based on the envelope's items"
+                );
+
+                // Call the legacy implementation of the `process_state` function.
+                self.process_state_legacy(state)?;
+            }
+            // Leave this group unchanged.
+            //
+            // This will later be forwarded to upstream.
+            ProcessingGroup::ForwardUnknown => (),
+        }
 
         Ok(())
     }
@@ -1102,13 +1448,10 @@ impl EnvelopeProcessorService {
         let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
         });
-
         match result {
             Ok(response) => {
-                if let Some(managed_envelope) = response.envelope {
-                    self.inner.envelope_manager.send(SubmitEnvelope {
-                        envelope: managed_envelope,
-                    })
+                if let Some(envelope) = response.envelope {
+                    self.handle_submit_envelope(SubmitEnvelope { envelope });
                 };
             }
             Err(error) => {
@@ -1274,6 +1617,85 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_submit_envelope(&self, message: SubmitEnvelope) {
+        let SubmitEnvelope { mut envelope } = message;
+
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled() {
+            if let Some(store_forwarder) = self.inner.store_forwarder.clone() {
+                relay_log::trace!("sending envelope to kafka");
+                store_forwarder.send(StoreEnvelope { envelope });
+                return;
+            }
+        }
+
+        // If we are in capture mode, we stash away the event instead of forwarding it.
+        if Capture::should_capture(&self.inner.config) {
+            relay_log::trace!("capturing envelope in memory");
+            self.inner.test_store.send(Capture::accepted(envelope));
+            return;
+        }
+
+        // Override the `sent_at` timestamp. Since the envelope went through basic
+        // normalization, all timestamps have been corrected. We propagate the new
+        // `sent_at` to allow the next Relay to double-check this timestamp and
+        // potentially apply correction again. This is done as close to sending as
+        // possible so that we avoid internal delays.
+        envelope.envelope_mut().set_sent_at(Utc::now());
+
+        relay_log::trace!("sending envelope to sentry endpoint");
+        let http_encoding = self.inner.config.http_encoding();
+        let result = envelope.envelope().to_vec().and_then(|v| {
+            encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
+        });
+
+        match result {
+            Ok(body) => {
+                self.inner.upstream_relay.send(SendRequest(SendEnvelope {
+                    envelope,
+                    body,
+                    http_encoding,
+                    project_cache: self.inner.project_cache.clone(),
+                }));
+            }
+            Err(error) => {
+                // Errors are only logged for what we consider an internal discard reason. These
+                // indicate errors in the infrastructure or implementation bugs.
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    tags.project_key = %envelope.scoping().project_key,
+                    "failed to serialize envelope payload"
+                );
+
+                envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+            }
+        }
+    }
+
+    fn handle_submit_client_reports(&self, message: SubmitClientReports) {
+        let SubmitClientReports {
+            client_reports,
+            scoping,
+        } = message;
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn::outbound(&scoping, upstream);
+
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        for client_report in client_reports {
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(ContentType::Json, client_report.serialize().unwrap()); // TODO: unwrap OK?
+            envelope.add_item(item);
+        }
+
+        let envelope = ManagedEnvelope::standalone(
+            envelope,
+            self.inner.outcome_aggregator.clone(),
+            self.inner.test_store.clone(),
+        );
+        self.handle_submit_envelope(SubmitEnvelope { envelope });
+    }
+
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
     fn handle_rate_limit_buckets(&self, message: RateLimitBuckets) {
@@ -1319,22 +1741,6 @@ impl EnvelopeProcessorService {
             self.inner
                 .aggregator
                 .send(MergeBuckets::new(project_key, buckets));
-        }
-    }
-
-    fn handle_encode_envelope(&self, message: EncodeEnvelope) {
-        let mut request = message.request;
-        match encode_payload(&request.envelope_body, request.http_encoding) {
-            Err(e) => {
-                request
-                    .response_sender
-                    .send(Err(SendEnvelopeError::BodyEncodingFailed(e)))
-                    .ok();
-            }
-            Ok(envelope_body) => {
-                request.envelope_body = envelope_body;
-                self.inner.upstream_relay.send(SendRequest(request));
-            }
         }
     }
 
@@ -1396,6 +1802,41 @@ impl EnvelopeProcessorService {
         false
     }
 
+    /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
+    #[cfg(feature = "processing")]
+    fn cardinality_limit_buckets(
+        &self,
+        scoping: Scoping,
+        buckets: Vec<Bucket>,
+        mode: ExtractionMode,
+    ) -> Vec<Bucket> {
+        let Some(ref limiter) = self.inner.cardinality_limiter else {
+            return buckets;
+        };
+
+        let limits = match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+            Ok(limits) => limits,
+            Err((buckets, error)) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "cardinality limiter failed"
+                );
+
+                return buckets;
+            }
+        };
+
+        // Log outcomes for rejected buckets.
+        utils::reject_metrics(
+            &self.inner.outcome_aggregator,
+            utils::extract_metric_quantities(limits.rejected(), mode),
+            scoping,
+            Outcome::CardinalityLimited,
+        );
+
+        limits.into_accepted()
+    }
+
     /// Processes metric buckets and sends them to kafka.
     ///
     /// This function runs the following steps:
@@ -1413,26 +1854,14 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
-            if project_state.has_feature(Feature::CardinalityLimiter) {
-                if let Some(ref limiter) = self.inner.cardinality_limiter {
-                    let org = scoping.organization_id;
-                    buckets = match limiter.check_cardinality_limits(org, buckets) {
-                        Ok(limits) => limits.into_accepted(),
-                        Err((buckets, error)) => {
-                            relay_log::error!(
-                                error = &error as &dyn std::error::Error,
-                                "cardinality limiter failed"
-                            );
-                            buckets
-                        }
-                    };
-                }
-            }
-
             let mode = match project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
                 _ => ExtractionMode::Duration,
             };
+
+            if project_state.has_feature(Feature::CardinalityLimiter) {
+                buckets = self.cardinality_limit_buckets(scoping, buckets, mode);
+            }
 
             if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
                 return;
@@ -1460,7 +1889,7 @@ impl EnvelopeProcessorService {
     ///  - partitioning
     ///  - batching by configured size limit
     ///  - serialize to JSON and pack in an envelope
-    ///  - submit the envelope to the envelope manager
+    ///  - submit the envelope to upstream or kafka depending on configuration
     ///
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
@@ -1519,10 +1948,7 @@ impl EnvelopeProcessorService {
                         histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                     );
 
-                    self.inner
-                        .envelope_manager
-                        .send(SubmitEnvelope { envelope });
-
+                    self.handle_submit_envelope(SubmitEnvelope { envelope });
                     num_batches += 1;
                 }
 
@@ -1652,15 +2078,13 @@ impl EnvelopeProcessorService {
         item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
+
         let envelope = ManagedEnvelope::standalone(
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
         );
-
-        self.inner
-            .envelope_manager
-            .send(SubmitEnvelope { envelope });
+        self.handle_submit_envelope(SubmitEnvelope { envelope });
     }
 
     #[cfg(feature = "processing")]
@@ -1690,9 +2114,10 @@ impl EnvelopeProcessorService {
                     self.handle_process_batched_metrics(*m)
                 }
                 EnvelopeProcessor::ProcessMetricMeta(m) => self.handle_process_metric_meta(*m),
-                EnvelopeProcessor::EncodeEnvelope(m) => self.handle_encode_envelope(*m),
                 EnvelopeProcessor::EncodeMetrics(m) => self.handle_encode_metrics(*m),
                 EnvelopeProcessor::EncodeMetricMeta(m) => self.handle_encode_metric_meta(*m),
+                EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
+                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
                 #[cfg(feature = "processing")]
                 EnvelopeProcessor::RateLimitBuckets(m) => self.handle_rate_limit_buckets(m),
             }
@@ -1759,6 +2184,86 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
     };
 
     Ok(envelope_body.into())
+}
+
+/// An upstream request that submits an envelope via HTTP.
+#[derive(Debug)]
+pub struct SendEnvelope {
+    envelope: ManagedEnvelope,
+    body: Bytes,
+    http_encoding: HttpEncoding,
+    project_cache: Addr<ProjectCache>,
+}
+
+impl UpstreamRequest for SendEnvelope {
+    fn method(&self) -> reqwest::Method {
+        reqwest::Method::POST
+    }
+
+    fn path(&self) -> Cow<'_, str> {
+        format!("/api/{}/envelope/", self.envelope.scoping().project_id).into()
+    }
+
+    fn route(&self) -> &'static str {
+        "envelope"
+    }
+
+    fn build(&mut self, builder: &mut http::RequestBuilder) -> Result<(), http::HttpError> {
+        let envelope_body = self.body.clone();
+        metric!(histogram(RelayHistograms::UpstreamEnvelopeBodySize) = envelope_body.len() as u64);
+
+        let meta = &self.envelope.meta();
+        let shard = self.envelope.partition_key().map(|p| p.to_string());
+        builder
+            .content_encoding(self.http_encoding)
+            .header_opt("Origin", meta.origin().map(|url| url.as_str()))
+            .header_opt("User-Agent", meta.user_agent())
+            .header("X-Sentry-Auth", meta.auth_header())
+            .header("X-Forwarded-For", meta.forwarded_for())
+            .header("Content-Type", envelope::CONTENT_TYPE)
+            .header_opt("X-Sentry-Relay-Shard", shard)
+            .body(envelope_body);
+
+        Ok(())
+    }
+
+    fn respond(
+        self: Box<Self>,
+        result: Result<http::Response, UpstreamRequestError>,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+        Box::pin(async move {
+            let result = match result {
+                Ok(mut response) => response.consume().await.map_err(UpstreamRequestError::Http),
+                Err(error) => Err(error),
+            };
+
+            match result {
+                Ok(()) => self.envelope.accept(),
+                Err(error) if error.is_received() => {
+                    let scoping = self.envelope.scoping();
+                    self.envelope.accept();
+
+                    if let UpstreamRequestError::RateLimited(limits) = error {
+                        self.project_cache.send(UpdateRateLimits::new(
+                            scoping.project_key,
+                            limits.scope(&scoping),
+                        ));
+                    }
+                }
+                Err(error) => {
+                    // Errors are only logged for what we consider an internal discard reason. These
+                    // indicate errors in the infrastructure or implementation bugs.
+                    let mut envelope = self.envelope;
+                    envelope.reject(Outcome::Invalid(DiscardReason::Internal));
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        tags.project_key = %envelope.scoping().project_key,
+                        "error sending envelope"
+                    );
+                }
+            }
+        })
+    }
 }
 
 /// Computes a stable partitioning key for sharded metric requests.
@@ -1884,7 +2389,7 @@ impl UpstreamRequest for SendMetricsRequest {
         reqwest::Method::POST
     }
 
-    fn path(&self) -> std::borrow::Cow<'_, str> {
+    fn path(&self) -> Cow<'_, str> {
         "/api/0/relays/metrics/".into()
     }
 
