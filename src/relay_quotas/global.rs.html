@@ -394,6 +394,11 @@
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 <span class="kw">use </span>relay_redis::redis::Script;
@@ -761,9 +766,14 @@
     </span><span class="kw">fn </span>test_global_ratelimit_infinite() {
         <span class="kw">let </span>limit = <span class="prelude-val">None</span>;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>quota = build_quota(<span class="number">10</span>, limit);
-        <span class="kw">let </span>scoping = build_scoping();
-        <span class="kw">let </span>redis_quota = build_redis_quota(<span class="kw-2">&amp;</span>quota, <span class="kw-2">&amp;</span>scoping);
+        <span class="kw">let </span>timestamp = UnixTimestamp::now();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>quota = build_quota(<span class="number">100</span>, limit);
+        <span class="kw">let </span>scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: <span class="kw-2">&amp;</span>build_scoping(),
+        };
+        <span class="kw">let </span>redis_quota = RedisQuota::new(<span class="kw-2">&amp;</span>quota, scoping, timestamp).unwrap();
 
         <span class="kw">let </span>pool = build_redis_pool();
         <span class="kw">let </span><span class="kw-2">mut </span>client = pool.client().unwrap();
@@ -783,7 +793,7 @@
         </span><span class="kw">let </span>rl = GlobalRateLimits::default();
 
         quota.limit = <span class="prelude-val">Some</span>(redis_threshold);
-        <span class="kw">let </span>redis_quota = build_redis_quota(<span class="kw-2">&amp;</span>quota, <span class="kw-2">&amp;</span>scoping);
+        <span class="kw">let </span>redis_quota = RedisQuota::new(<span class="kw-2">&amp;</span>quota, scoping, timestamp).unwrap();
 
         <span class="macro">assert!</span>(rl
             .is_rate_limited(<span class="kw-2">&amp;mut </span>client, <span class="kw-2">&amp;</span>redis_quota, quantity)
