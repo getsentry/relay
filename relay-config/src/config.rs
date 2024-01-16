@@ -517,7 +517,7 @@ impl Default for Metrics {
     }
 }
 
-/// Controls processing of metrics and metric metadata.
+/// Controls processing of Sentry metrics and metric metadata.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct SentryMetrics {
