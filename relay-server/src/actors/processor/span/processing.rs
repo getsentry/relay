@@ -9,7 +9,7 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
-    normalize_measurements_inner, DynamicMeasurementsConfig, MeasurementsConfig,
+    normalize_measurements, DynamicMeasurementsConfig, MeasurementsConfig,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Span;
@@ -295,7 +295,7 @@ fn normalize(
     };
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
-        normalize_measurements_inner(
+        normalize_measurements(
             measurement_values,
             meta,
             measurements,

@@ -261,7 +261,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_stacktraces(event)?;
     normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-    normalize_measurements(
+    normalize_measurements_from_event(
         event,
         config.measurements.clone(),
         config.max_name_and_unit_len,
@@ -680,7 +680,7 @@ fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) 
 }
 
 /// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(
+fn normalize_measurements_from_event(
     event: &mut Event,
     measurements_config: Option<DynamicMeasurementsConfig>,
     max_mri_len: Option<usize>,
@@ -689,7 +689,7 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_measurements_inner(
+        normalize_measurements(
             measurements,
             meta,
             measurements_config,
@@ -701,7 +701,7 @@ fn normalize_measurements(
 }
 
 /// Ensure only valid measurements are ingested.
-pub fn normalize_measurements_inner(
+pub fn normalize_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     measurements_config: Option<DynamicMeasurementsConfig>,
@@ -1150,7 +1150,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, None, None);
+        normalize_measurements_from_event(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
@@ -1222,7 +1222,7 @@ mod tests {
         let dynamic_measurement_config =
             DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
 
-        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
+        normalize_measurements_from_event(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
