@@ -1802,6 +1802,41 @@ impl EnvelopeProcessorService {
         false
     }
 
+    /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
+    #[cfg(feature = "processing")]
+    fn cardinality_limit_buckets(
+        &self,
+        scoping: Scoping,
+        buckets: Vec<Bucket>,
+        mode: ExtractionMode,
+    ) -> Vec<Bucket> {
+        let Some(ref limiter) = self.inner.cardinality_limiter else {
+            return buckets;
+        };
+
+        let limits = match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+            Ok(limits) => limits,
+            Err((buckets, error)) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "cardinality limiter failed"
+                );
+
+                return buckets;
+            }
+        };
+
+        // Log outcomes for rejected buckets.
+        utils::reject_metrics(
+            &self.inner.outcome_aggregator,
+            utils::extract_metric_quantities(limits.rejected(), mode),
+            scoping,
+            Outcome::CardinalityLimited,
+        );
+
+        limits.into_accepted()
+    }
+
     /// Processes metric buckets and sends them to kafka.
     ///
     /// This function runs the following steps:
@@ -1819,26 +1854,14 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
-            if project_state.has_feature(Feature::CardinalityLimiter) {
-                if let Some(ref limiter) = self.inner.cardinality_limiter {
-                    let org = scoping.organization_id;
-                    buckets = match limiter.check_cardinality_limits(org, buckets) {
-                        Ok(limits) => limits.into_accepted(),
-                        Err((buckets, error)) => {
-                            relay_log::error!(
-                                error = &error as &dyn std::error::Error,
-                                "cardinality limiter failed"
-                            );
-                            buckets
-                        }
-                    };
-                }
-            }
-
             let mode = match project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
                 _ => ExtractionMode::Duration,
             };
+
+            if project_state.has_feature(Feature::CardinalityLimiter) {
+                buckets = self.cardinality_limit_buckets(scoping, buckets, mode);
+            }
 
             if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
                 return;

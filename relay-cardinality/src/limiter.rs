@@ -1,6 +1,6 @@
 //! Relay Cardinality Limiter
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -123,9 +123,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
             );
 
             let rejections = match result {
-                Ok(rejections) => rejections
-                    .map(|rejection| rejection.id.0)
-                    .collect::<HashSet<usize>>(),
+                Ok(rejections) => rejections.map(|rejection| rejection.id.0).collect(),
                 Err(err) => return Err((items, err)),
             };
 
@@ -141,10 +139,15 @@ impl<T: Limiter> CardinalityLimiter<T> {
 #[derive(Debug)]
 pub struct CardinalityLimits<T> {
     source: Vec<T>,
-    rejections: HashSet<usize>,
+    rejections: BTreeSet<usize>,
 }
 
 impl<T> CardinalityLimits<T> {
+    /// Returns an iterator yielding only rejected items.
+    pub fn rejected(&self) -> impl Iterator<Item = &T> {
+        self.rejections.iter().filter_map(|&i| self.source.get(i))
+    }
+
     /// Consumes the result and returns an iterator over all accepted items.
     pub fn into_accepted(self) -> Vec<T> {
         if self.rejections.is_empty() {
@@ -200,22 +203,36 @@ mod tests {
 
     #[test]
     fn test_accepted() {
+        // Workaround for windows which requires an absurd amount of type annotations here.
+        fn assert_rejected(
+            limits: &CardinalityLimits<char>,
+            expected: impl IntoIterator<Item = char>,
+        ) {
+            assert_eq!(
+                limits.rejected().copied().collect::<Vec<char>>(),
+                expected.into_iter().collect::<Vec<char>>(),
+            );
+        }
+
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: HashSet::from([0, 1, 3]),
+            rejections: BTreeSet::from([0, 1, 3]),
         };
+        assert_rejected(&limits, ['a', 'b', 'd']);
         assert_eq!(limits.into_accepted(), vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: HashSet::from([]),
+            rejections: BTreeSet::from([]),
         };
+        assert_rejected(&limits, []);
         assert_eq!(limits.into_accepted(), vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: HashSet::from([0, 1, 2, 3, 4]),
+            rejections: BTreeSet::from([0, 1, 2, 3, 4]),
         };
+        assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
         assert!(limits.into_accepted().is_empty());
     }
 
