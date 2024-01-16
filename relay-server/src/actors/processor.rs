@@ -2444,6 +2444,7 @@ mod tests {
 
     /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
     /// also ratelimit the next batches in the same message automatically.
+    #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
         use relay_metrics::BucketValue;
