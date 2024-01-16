@@ -629,7 +629,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         meta: &mut Meta,
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        crate::stacktrace::process_stacktrace(&mut stacktrace.0, meta)?;
+        crate::stacktrace::process_stacktrace(&mut stacktrace.0, meta);
         Ok(())
     }
 

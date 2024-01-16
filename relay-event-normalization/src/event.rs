@@ -20,7 +20,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, Timestamp, TraceContext, User,
+    Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -200,7 +200,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
     // Check for required and non-empty values
-    schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+    let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
     normalize_timestamps(
         event,
@@ -208,7 +208,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         config.received_at,
         config.max_secs_in_past,
         config.max_secs_in_future,
-    )?; // Timestamps are core in the metrics extraction
+    ); // Timestamps are core in the metrics extraction
     TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
     // Process security reports first to ensure all props.
@@ -232,34 +232,34 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     }
 
     // Validate the basic attributes we extract metrics from
-    processor::apply(&mut event.release, |release, meta| {
+    let _ = processor::apply(&mut event.release, |release, meta| {
         if crate::validate_release(release).is_ok() {
             Ok(())
         } else {
             meta.add_error(ErrorKind::InvalidData);
             Err(ProcessingAction::DeleteValueSoft)
         }
-    })?;
-    processor::apply(&mut event.environment, |environment, meta| {
+    });
+    let _ = processor::apply(&mut event.environment, |environment, meta| {
         if crate::validate_environment(environment).is_ok() {
             Ok(())
         } else {
             meta.add_error(ErrorKind::InvalidData);
             Err(ProcessingAction::DeleteValueSoft)
         }
-    })?;
+    });
 
     // Default required attributes, even if they have errors
-    normalize_logentry(&mut event.logentry, meta)?;
-    normalize_release_dist(event)?; // dist is a tag extracted along with other metrics from transactions
-    normalize_event_tags(event)?; // Tags are added to every metric
+    normalize_logentry(&mut event.logentry, meta);
+    normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
+    normalize_event_tags(event); // Tags are added to every metric
 
     // TODO: Consider moving to store normalization
     if config.device_class_synthesis_config {
         normalize_device_class(event);
     }
-    normalize_stacktraces(event)?;
-    normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
+    normalize_stacktraces(event);
+    normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
     normalize_measurements_from_event(
         event,
@@ -269,12 +269,13 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_performance_score(event, config.performance_score);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
-    processor::apply(&mut event.request, |request, _| {
-        request::normalize_request(request)
-    })?;
+    let _ = processor::apply(&mut event.request, |request, _| {
+        request::normalize_request(request);
+        Ok(())
+    });
 
     // Some contexts need to be normalized before metrics extraction takes place.
-    processor::apply(&mut event.contexts, normalize_contexts)?;
+    normalize_contexts(&mut event.contexts);
 
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         // XXX(iker): span normalization runs in the store processor, but
@@ -297,7 +298,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     if config.enable_trimming {
         // Trim large strings and databags down
-        trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root())?;
+        let _ =
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 
     Ok(())
@@ -427,17 +429,19 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) -> ProcessingResult {
-    processor::apply(logentry, crate::logentry::normalize_logentry)
+fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
+    let _ = processor::apply(logentry, |logentry, meta| {
+        crate::logentry::normalize_logentry(logentry, meta)
+    });
 }
 
 /// Ensures that the `release` and `dist` fields match up.
-fn normalize_release_dist(event: &mut Event) -> ProcessingResult {
-    normalize_dist(&mut event.dist)
+fn normalize_release_dist(event: &mut Event) {
+    normalize_dist(&mut event.dist);
 }
 
-fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
-    processor::apply(distribution, |dist, meta| {
+fn normalize_dist(distribution: &mut Annotated<String>) {
+    let _ = processor::apply(distribution, |dist, meta| {
         let trimmed = dist.trim();
         if trimmed.is_empty() {
             return Err(ProcessingAction::DeleteValueHard);
@@ -448,7 +452,7 @@ fn normalize_dist(distribution: &mut Annotated<String>) -> ProcessingResult {
             *dist = trimmed.to_string();
         }
         Ok(())
-    })
+    });
 }
 
 /// Validates the timestamp range and sets a default value.
@@ -458,13 +462,13 @@ fn normalize_timestamps(
     received_at: Option<DateTime<Utc>>,
     max_secs_in_past: Option<i64>,
     max_secs_in_future: Option<i64>,
-) -> ProcessingResult {
+) {
     let received_at = received_at.unwrap_or_else(Utc::now);
 
     let mut sent_at = None;
     let mut error_kind = ErrorKind::ClockDrift;
 
-    processor::apply(&mut event.timestamp, |timestamp, _meta| {
+    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
         if let Some(secs) = max_secs_in_future {
             if *timestamp > received_at + Duration::seconds(secs) {
                 error_kind = ErrorKind::FutureTimestamp;
@@ -482,11 +486,11 @@ fn normalize_timestamps(
         }
 
         Ok(())
-    })?;
+    });
 
-    ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
         .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root())?;
+        .process_event(event, meta, ProcessingState::root());
 
     // Apply this after clock drift correction, otherwise we will malform it.
     event.received = Annotated::new(received_at.into());
@@ -495,11 +499,9 @@ fn normalize_timestamps(
         event.timestamp.set_value(Some(received_at.into()));
     }
 
-    processor::apply(&mut event.time_spent, |time_spent, _| {
+    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
         validate_bounded_integer_field(*time_spent)
-    })?;
-
-    Ok(())
+    });
 }
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -533,7 +535,7 @@ impl DedupCache {
 }
 
 /// Removes internal tags and adds tags for well-known attributes.
-fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
+fn normalize_event_tags(event: &mut Event) {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
     let environment = &mut event.environment;
     if environment.is_empty() {
@@ -561,7 +563,7 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
     });
 
     for tag in tags.iter_mut() {
-        processor::apply(tag, |tag, _| {
+        let _ = processor::apply(tag, |tag, _| {
             if let Some(key) = tag.key() {
                 if key.is_empty() {
                     tag.0 = Annotated::from_error(Error::nonempty(), None);
@@ -579,7 +581,7 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
             }
 
             Ok(())
-        })?;
+        });
     }
 
     let server_name = std::mem::take(&mut event.server_name);
@@ -593,8 +595,6 @@ fn normalize_event_tags(event: &mut Event) -> ProcessingResult {
         let tag_name = "site".to_string();
         tags.insert(tag_name, site);
     }
-
-    Ok(())
 }
 
 // Reads device specs (family, memory, cpu, etc) from context and sets the device.class tag to high,
@@ -614,32 +614,35 @@ fn normalize_device_class(event: &mut Event) {
 /// Process the last frame of the stacktrace of the first exception.
 ///
 /// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
-fn normalize_stacktraces(event: &mut Event) -> ProcessingResult {
+fn normalize_stacktraces(event: &mut Event) {
     match event.exceptions.value_mut() {
-        None => Ok(()),
+        None => (),
         Some(exception) => match exception.values.value_mut() {
-            None => Ok(()),
+            None => (),
             Some(exceptions) => match exceptions.first_mut() {
-                None => Ok(()),
+                None => (),
                 Some(first) => normalize_last_stacktrace_frame(first),
             },
         },
-    }
+    };
 }
 
-fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) -> ProcessingResult {
-    processor::apply(exception, |e, _| {
+fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
+    let _ = processor::apply(exception, |e, _| {
         processor::apply(&mut e.stacktrace, |s, _| match s.frames.value_mut() {
             None => Ok(()),
             Some(frames) => match frames.last_mut() {
                 None => Ok(()),
-                Some(frame) => processor::apply(frame, stacktrace::process_non_raw_frame),
+                Some(frame) => {
+                    stacktrace::process_non_raw_frame(frame);
+                    Ok(())
+                }
             },
         })
-    })
+    });
 }
 
-fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
+fn normalize_exceptions(event: &mut Event) {
     let os_hint = mechanism::OsHint::from_event(event);
 
     if let Some(exception_values) = event.exceptions.value_mut() {
@@ -663,14 +666,12 @@ fn normalize_exceptions(event: &mut Event) -> ProcessingResult {
             for exception in exceptions {
                 if let Some(exception) = exception.value_mut() {
                     if let Some(mechanism) = exception.mechanism.value_mut() {
-                        mechanism::normalize_mechanism(mechanism, os_hint)?;
+                        mechanism::normalize_mechanism(mechanism, os_hint);
                     }
                 }
             }
         }
     }
-
-    Ok(())
 }
 
 fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) {
@@ -905,14 +906,16 @@ fn normalize_app_start_spans(event: &mut Event) {
 }
 
 /// Normalizes incoming contexts for the downstream metric extraction.
-fn normalize_contexts(contexts: &mut Contexts, _: &mut Meta) -> ProcessingResult {
-    for annotated in &mut contexts.0.values_mut() {
-        if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
-            normalize_trace_context(context)?
+fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
+    let _ = processor::apply(contexts, |contexts, _meta| {
+        for annotated in &mut contexts.0.values_mut() {
+            if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
+                context.status.get_or_insert_with(|| SpanStatus::Unknown);
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    });
 }
 
 /// New SDKs do not send measurements when they exceed 180 seconds.
@@ -951,11 +954,6 @@ fn normalize_units(measurements: &mut Measurements) {
             .unit
             .set_value(Some(stated_unit.or(default_unit).unwrap_or_default()))
     }
-}
-
-fn normalize_trace_context(context: &mut TraceContext) -> ProcessingResult {
-    context.status.get_or_insert_with(|| SpanStatus::Unknown);
-    Ok(())
 }
 
 /// Remove measurements that do not conform to the given config.
@@ -1107,28 +1105,28 @@ mod tests {
     #[test]
     fn test_normalize_dist_none() {
         let mut dist = Annotated::default();
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_empty() {
         let mut dist = Annotated::new("".to_string());
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
     #[test]
     fn test_normalize_dist_trim() {
         let mut dist = Annotated::new(" foo  ".to_string());
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), Some(&"foo".to_string()));
     }
 
     #[test]
     fn test_normalize_dist_whitespace() {
         let mut dist = Annotated::new(" ".to_owned());
-        normalize_dist(&mut dist).unwrap();
+        normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
     }
 
