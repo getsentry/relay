@@ -207,7 +207,6 @@ mod tests {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 3]),
         };
-        dbg!(limits.rejected().collect::<Vec<_>>());
         assert!(limits.rejected().eq(['a', 'b', 'd'].iter()));
         assert_eq!(limits.into_accepted(), vec!['c', 'e']);
 
