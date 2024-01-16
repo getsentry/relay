@@ -8,9 +8,6 @@ use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
-use relay_event_normalization::{
-    normalize_measurements, DynamicMeasurementsConfig, MeasurementsConfig,
-};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Span;
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
@@ -30,24 +27,16 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
-    let transaction_aggregator_config =
-        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Transactions));
 
     let config = NormalizeSpanConfig {
         received_at: state.managed_envelope.received_at(),
-        transaction_range: transaction_aggregator_config.timestamp_range(),
+        transaction_range: AggregatorConfig::from(
+            config.aggregator_config_for(MetricNamespace::Transactions),
+        )
+        .timestamp_range(),
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
-        measurements: Some(DynamicMeasurementsConfig::new(
-            state.project_state.config().measurements.as_ref(),
-            state.global_config.measurements.as_ref(),
-        )),
-        max_name_and_unit_len: Some(
-            transaction_aggregator_config
-                .max_name_length
-                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
-        ),
     };
 
     state.managed_envelope.retain_items(|item| {
@@ -231,24 +220,13 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
 
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
-struct NormalizeSpanConfig<'a> {
+struct NormalizeSpanConfig {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
     /// Allowed time range for transactions.
     pub transaction_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
-    /// Configuration for measurement normalization in transaction events.
-    ///
-    /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
-    /// If at least one is provided, then normalization will truncate custom measurements
-    /// and add units of known built-in measurements.
-    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
-    /// The maximum length for names of custom measurements.
-    ///
-    /// Measurements with longer names are removed from the transaction event and replaced with a
-    /// metadata entry.
-    pub max_name_and_unit_len: Option<usize>,
 }
 
 /// Normalizes a standalone span.
@@ -264,8 +242,6 @@ fn normalize(
         received_at,
         transaction_range,
         max_tag_value_size,
-        measurements,
-        max_name_and_unit_len,
     } = config;
 
     // This follows the steps of `NormalizeProcessor::process_event`.
@@ -293,17 +269,6 @@ fn normalize(
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
-
-    if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
-        normalize_measurements(
-            measurement_values,
-            meta,
-            measurements,
-            max_name_and_unit_len,
-            span.start_timestamp.0,
-            span.timestamp.0,
-        );
-    }
 
     let is_segment = span.parent_span_id.is_empty();
     span.is_segment = Annotated::new(is_segment);
