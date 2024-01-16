@@ -11,12 +11,12 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, MetricSummary, NelContext, ReplayContext, Request, Stacktrace,
+    Frame, IpAddr, Level, MetricsSummary, NelContext, ReplayContext, Request, Stacktrace,
     TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType,
-    RuleCondition, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
+    Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -219,8 +219,8 @@ fn normalize_app_start_spans(event: &mut Event) {
 /// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
 /// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
 /// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
-fn normalize_metrics_summary_mris(metrics_summary: &mut Object<Array<MetricSummary>>) {
-    let normalized_metrics_summary: Object<Array<MetricSummary>> = mem::take(metrics_summary)
+fn normalize_metrics_summary_mris(metrics_summary: &mut MetricsSummary) {
+    let normalized_metrics_summary = mem::take(&mut metrics_summary.0)
         .into_iter()
         .filter_map(|(key, value)| {
             Some((
@@ -230,7 +230,7 @@ fn normalize_metrics_summary_mris(metrics_summary: &mut Object<Array<MetricSumma
         })
         .collect();
 
-    *metrics_summary = normalized_metrics_summary;
+    metrics_summary.0 = normalized_metrics_summary;
 }
 
 /// Normalizes all the metrics summaries across the event payload.
@@ -2437,6 +2437,7 @@ mod tests {
             "g:page_load@second".to_string(),
             Annotated::new(Default::default()),
         );
+        let metrics_summary = MetricsSummary(metrics_summary);
 
         let mut event = Annotated::new(Event {
             spans: Annotated::new(vec![Annotated::new(Span {
