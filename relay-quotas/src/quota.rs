@@ -71,6 +71,7 @@ impl ItemScoping<'_> {
     /// Returns the identifier of the given scope.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
+            QuotaScope::Global => None,
             QuotaScope::Organization => Some(self.organization_id),
             QuotaScope::Project => Some(self.project_id.value()),
             QuotaScope::Key => self.key_id,
@@ -134,6 +135,8 @@ pub type DataCategories = SmallVec<[DataCategory; 8]>;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
+    /// Global scope, matches everything.
+    Global,
     /// The organization that this project belongs to.
     ///
     /// This is the top-level scope.
@@ -168,6 +171,7 @@ impl QuotaScope {
     /// Returns the canonical name of this scope.
     pub fn name(self) -> &'static str {
         match self {
+            Self::Global => "global",
             Self::Key => "key",
             Self::Project => "project",
             Self::Organization => "organization",
@@ -294,6 +298,10 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
+        if self.scope == QuotaScope::Global {
+            return true;
+        }
+
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.

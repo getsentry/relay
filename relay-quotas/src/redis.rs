@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 
 use relay_common::time::UnixTimestamp;
@@ -7,6 +7,7 @@ use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool};
 use thiserror::Error;
 
+use crate::global::GlobalRateLimits;
 use crate::quota::{ItemScoping, Quota, QuotaScope};
 use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
 use crate::REJECT_ALL_SECS;
@@ -49,7 +50,7 @@ where
 
 /// Reference to information required for tracking quotas in Redis.
 #[derive(Debug)]
-struct RedisQuota<'a> {
+pub(crate) struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
     /// Scopes of the item being tracked.
@@ -63,7 +64,11 @@ struct RedisQuota<'a> {
 }
 
 impl<'a> RedisQuota<'a> {
-    fn new(quota: &'a Quota, scoping: ItemScoping<'a>, timestamp: UnixTimestamp) -> Option<Self> {
+    pub(crate) fn new(
+        quota: &'a Quota,
+        scoping: ItemScoping<'a>,
+        timestamp: UnixTimestamp,
+    ) -> Option<Self> {
         // These fields indicate that we *can* track this quota.
         let prefix = quota.id.as_deref()?;
         let window = quota.window?;
@@ -77,8 +82,18 @@ impl<'a> RedisQuota<'a> {
         })
     }
 
+    /// Returns the window size of the quota.
+    pub fn window(&self) -> u64 {
+        self.window
+    }
+
+    /// Returns the prefix of the quota.
+    pub fn prefix(&self) -> &'a str {
+        self.prefix
+    }
+
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
-    fn limit(&self) -> i64 {
+    pub fn limit(&self) -> i64 {
         self.limit
             // If it does not fit into i64, treat as unlimited:
             .and_then(|limit| limit.try_into().ok())
@@ -86,20 +101,44 @@ impl<'a> RedisQuota<'a> {
     }
 
     fn shift(&self) -> u64 {
-        self.scoping.organization_id % self.window
+        if self.quota.scope == QuotaScope::Global {
+            0
+        } else {
+            self.scoping.organization_id % self.window
+        }
     }
 
-    fn slot(&self) -> u64 {
+    /// Returns the current slot of the quota.
+    pub fn slot(&self) -> u64 {
         (self.timestamp.as_secs() - self.shift()) / self.window
     }
 
-    fn expiry(&self) -> UnixTimestamp {
+    /// Returns when the quota will expire.
+    pub fn expiry(&self) -> UnixTimestamp {
         let next_slot = self.slot() + 1;
         let next_start = next_slot * self.window + self.shift();
         UnixTimestamp::from_secs(next_start)
     }
 
-    fn key(&self) -> String {
+    /// Returns when the key should expire in Redis.
+    ///
+    /// Like [`Self::expiry()`] but adds an additional grace period for the key.
+    pub fn key_expiry(&self) -> u64 {
+        self.expiry().as_secs() + GRACE
+    }
+
+    /// Returns the key of the quota.
+    pub fn key(&self) -> String {
+        if matches!(self.quota.scope, QuotaScope::Global) {
+            // Global quotas have their own key with the shard based on the quota name instead of
+            // the organization.
+            return format!(
+                "quota:global:{{{id}}}:{slot}",
+                id = self.prefix,
+                slot = self.slot(),
+            );
+        }
+
         // The subscope id is only formatted into the key if the quota is not organization-scoped.
         // The organization id is always included.
         let subscope = match self.quota.scope {
@@ -107,10 +146,13 @@ impl<'a> RedisQuota<'a> {
             scope => self.scoping.scope_id(scope),
         };
 
+        // 0 is arbitrary, we just need to ensure global quotas from different orgs have the same key.
+        let org = self.scoping.organization_id;
+
         format!(
             "quota:{id}{{{org}}}{subscope}:{slot}",
             id = self.prefix,
-            org = self.scoping.organization_id,
+            org = org,
             subscope = OptionalDisplay(subscope),
             slot = self.slot(),
         )
@@ -135,11 +177,11 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// attachments. For more information on quota parameters, see `QuotaConfig`.
 ///
 /// Requires the `redis` feature.
-#[derive(Clone)]
 pub struct RedisRateLimiter {
     pool: RedisPool,
     script: Arc<Script>,
     max_limit: Option<u64>,
+    global_limits: GlobalRateLimits,
 }
 
 impl RedisRateLimiter {
@@ -149,6 +191,7 @@ impl RedisRateLimiter {
             pool,
             script: Arc::new(load_lua_script()),
             max_limit: None,
+            global_limits: GlobalRateLimits::default(),
         }
     }
 
@@ -185,6 +228,7 @@ impl RedisRateLimiter {
         quantity: usize,
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
+        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let timestamp = UnixTimestamp::now();
         let mut invocation = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
@@ -201,19 +245,31 @@ impl RedisRateLimiter {
                 let retry_after = self.retry_after(REJECT_ALL_SECS);
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
-                // Remaining quotas are expected to be trackable in Redis.
-                let key = quota.key();
-                let refund_key = get_refunded_quota_key(&key);
+                if quota.scope == QuotaScope::Global {
+                    let is_rate_limited = self
+                        .global_limits
+                        .is_rate_limited(&mut client, &quota, quantity)
+                        .map_err(RateLimitingError::Redis)?;
 
-                invocation.key(key);
-                invocation.key(refund_key);
+                    if is_rate_limited {
+                        let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
+                        rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
+                    }
+                } else {
+                    let key = quota.key();
+                    // Remaining quotas are expected to be trackable in Redis.
+                    let refund_key = get_refunded_quota_key(&key);
 
-                invocation.arg(quota.limit());
-                invocation.arg(quota.expiry().as_secs() + GRACE);
-                invocation.arg(quantity);
-                invocation.arg(over_accept_once);
+                    invocation.key(key);
+                    invocation.key(refund_key);
 
-                tracked_quotas.push(quota);
+                    invocation.arg(quota.limit());
+                    invocation.arg(quota.key_expiry());
+                    invocation.arg(quantity);
+                    invocation.arg(over_accept_once);
+
+                    tracked_quotas.push(quota);
+                }
             } else {
                 // This quota is neither a static reject-all, nor can it be tracked in Redis due to
                 // missing fields. We're skipping this for forward-compatibility.
@@ -230,7 +286,6 @@ impl RedisRateLimiter {
             return Ok(rate_limits);
         }
 
-        let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let rejections: Vec<bool> = invocation
             .invoke(&mut client.connection().map_err(RateLimitingError::Redis)?)
             .map_err(RedisError::Redis)
@@ -277,6 +332,7 @@ mod tests {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
+            global_limits: GlobalRateLimits::default(),
         }
     }
 
@@ -333,7 +389,7 @@ mod tests {
     #[test]
     fn test_simple_quota() {
         let quotas = &[Quota {
-            id: Some(format!("test_simple_quota_{:?}", SystemTime::now())),
+            id: Some(format!("test_simple_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -378,9 +434,56 @@ mod tests {
     }
 
     #[test]
+    fn test_simple_global_quota() {
+        let quotas = &[Quota {
+            id: Some(format!("test_simple_global_quota_{}", uuid::Uuid::new_v4())),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Global,
+            scope_id: None,
+            limit: Some(5),
+            window: Some(60),
+            reason_code: Some(ReasonCode::new("get_lost")),
+        }];
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 42,
+                project_id: ProjectId::new(43),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(44),
+            },
+        };
+
+        let rate_limiter = build_rate_limiter();
+
+        for i in 0..10 {
+            let rate_limits: Vec<RateLimit> = rate_limiter
+                .is_rate_limited(quotas, scoping, 1, false)
+                .expect("rate limiting failed")
+                .into_iter()
+                .collect();
+
+            if i >= 5 {
+                assert_eq!(
+                    rate_limits,
+                    vec![RateLimit {
+                        categories: DataCategories::new(),
+                        scope: RateLimitScope::Global,
+                        reason_code: Some(ReasonCode::new("get_lost")),
+                        retry_after: rate_limits[0].retry_after,
+                    }]
+                );
+            } else {
+                assert_eq!(rate_limits, vec![]);
+            }
+        }
+    }
+
+    #[test]
     fn test_quantity_0() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_0_{:?}", SystemTime::now())),
+            id: Some(format!("test_quantity_0_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -429,7 +532,7 @@ mod tests {
     #[test]
     fn test_quota_go_over() {
         let quotas = &[Quota {
-            id: Some(format!("test_quota_go_over{:?}", SystemTime::now())),
+            id: Some(format!("test_quota_go_over{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,
@@ -561,7 +664,7 @@ mod tests {
     #[test]
     fn test_quota_with_quantity() {
         let quotas = &[Quota {
-            id: Some(format!("test_quantity_quota_{:?}", SystemTime::now())),
+            id: Some(format!("test_quantity_quota_{}", uuid::Uuid::new_v4())),
             categories: DataCategories::new(),
             scope: QuotaScope::Organization,
             scope_id: None,

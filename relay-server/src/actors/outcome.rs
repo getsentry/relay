@@ -29,7 +29,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::envelopes::{EnvelopeManager, SendClientReports};
+use crate::actors::processor::{EnvelopeProcessor, SubmitClientReports};
 use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
@@ -148,12 +148,12 @@ impl FromMessage<Self> for TrackOutcome {
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    // /// The event has been accepted and handled completely.
-    // ///
-    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
-    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
-    // #[allow(dead_code)]
-    // Accepted,
+    /// The event has been accepted and handled completely.
+    ///
+    /// This is only emitted for items going from Relay to Snuba directly.
+    #[allow(dead_code)]
+    Accepted,
+
     /// The event has been filtered due to a configured filter.
     Filtered(FilterStatKey),
 
@@ -183,6 +183,7 @@ impl Outcome {
             Outcome::Invalid(_) => OutcomeId::INVALID,
             Outcome::Abuse => OutcomeId::ABUSE,
             Outcome::ClientDiscard(_) => OutcomeId::CLIENT_DISCARD,
+            Outcome::Accepted => OutcomeId::ACCEPTED,
         }
     }
 
@@ -198,6 +199,7 @@ impl Outcome {
                 .map(|code| Cow::Owned(code.as_str().into())),
             Outcome::ClientDiscard(ref discard_reason) => Some(Cow::Borrowed(discard_reason)),
             Outcome::Abuse => None,
+            Outcome::Accepted => None,
         }
     }
 
@@ -229,6 +231,7 @@ impl fmt::Display for Outcome {
             Outcome::Invalid(reason) => write!(f, "invalid data ({reason})"),
             Outcome::Abuse => write!(f, "abuse limit reached"),
             Outcome::ClientDiscard(reason) => write!(f, "discarded by client ({reason})"),
+            Outcome::Accepted => write!(f, "accepted"),
         }
     }
 }
@@ -356,6 +359,9 @@ pub enum DiscardReason {
 
     /// (Relay) Profiling related discard reasons
     Profiling(&'static str),
+
+    /// (Relay) A span is not valid after normalization.
+    InvalidSpan,
 }
 
 impl DiscardReason {
@@ -398,6 +404,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayEventPii => "invalid_replay_pii_scrubber_failed",
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::Profiling(reason) => reason,
+            DiscardReason::InvalidSpan => "invalid_span",
         }
     }
 }
@@ -600,17 +607,17 @@ struct ClientReportOutcomeProducer {
     flush_interval: Duration,
     unsent_reports: BTreeMap<Scoping, Vec<ClientReport>>,
     flush_handle: SleepHandle,
-    envelope_manager: Addr<EnvelopeManager>,
+    envelope_processor: Addr<EnvelopeProcessor>,
 }
 
 impl ClientReportOutcomeProducer {
-    fn new(config: &Config, envelope_manager: Addr<EnvelopeManager>) -> Self {
+    fn new(config: &Config, envelope_processor: Addr<EnvelopeProcessor>) -> Self {
         Self {
             // Use same batch interval as outcome aggregator
             flush_interval: Duration::from_secs(config.outcome_aggregator().flush_interval),
             unsent_reports: BTreeMap::new(),
             flush_handle: SleepHandle::idle(),
-            envelope_manager,
+            envelope_processor,
         }
     }
 
@@ -620,7 +627,7 @@ impl ClientReportOutcomeProducer {
 
         let unsent_reports = mem::take(&mut self.unsent_reports);
         for (scoping, client_reports) in unsent_reports.into_iter() {
-            self.envelope_manager.send(SendClientReports {
+            self.envelope_processor.send(SubmitClientReports {
                 client_reports,
                 scoping,
             });
@@ -902,7 +909,7 @@ impl OutcomeProducerService {
     pub fn create(
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_manager: Addr<EnvelopeManager>,
+        envelope_processor: Addr<EnvelopeProcessor>,
     ) -> anyhow::Result<Self> {
         let inner = match config.emit_outcomes() {
             #[cfg(feature = "processing")]
@@ -923,7 +930,7 @@ impl OutcomeProducerService {
                 relay_log::info!("Configured to emit outcomes as client reports");
                 ProducerInner::ClientReport(ClientReportOutcomeProducer::new(
                     &config,
-                    envelope_manager,
+                    envelope_processor,
                 ))
             }
             EmitOutcomes::None => {
