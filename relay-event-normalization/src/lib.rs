@@ -35,7 +35,7 @@ mod transactions;
 mod trimming;
 
 pub mod replay;
-pub use event::{normalize_event, NormalizationConfig};
+pub use event::{normalize_event, normalize_measurements_inner, NormalizationConfig};
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
