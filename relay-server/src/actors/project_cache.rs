@@ -1163,6 +1163,8 @@ mod tests {
 
     #[tokio::test]
     async fn always_spools() {
+        relay_log::init_test!();
+
         let num_permits = 5;
         let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
@@ -1209,7 +1211,7 @@ mod tests {
         ));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // We should be able to unspool once since we have 1 permit.
+        // We should be able to unspool 5 envelopes since we have 5 permits.
         let mut envelopes = vec![];
         while let Ok(envelope) = rx.try_recv() {
             envelopes.push(envelope)
