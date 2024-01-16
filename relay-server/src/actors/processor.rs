@@ -594,7 +594,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: HashMap<Scoping, ProjectMetrics>,
+    pub scopes: Vec<(Scoping, ProjectMetrics)>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -2450,7 +2450,7 @@ mod tests {
         use std::sync::atomic::Ordering::SeqCst;
 
         let message = {
-            let mut scopes = HashMap::<Scoping, ProjectMetrics>::new();
+            let mut scopes = Vec::<(Scoping, ProjectMetrics)>::new();
 
             let quota = Quota {
                 id: Some("testing".into()),
@@ -2470,7 +2470,7 @@ mod tests {
                 Arc::new(project_state)
             };
 
-            scopes.insert(
+            scopes.push((
                 Scoping {
                     organization_id: 1, // will be ratelimited
                     project_id: ProjectId::new(21),
@@ -2487,9 +2487,9 @@ mod tests {
                     }],
                     project_state: project_state.clone(),
                 },
-            );
+            ));
 
-            scopes.insert(
+            scopes.push((
                 Scoping {
                     organization_id: 0, // will not be ratelimited
                     project_id: ProjectId::new(21),
@@ -2506,7 +2506,7 @@ mod tests {
                     }],
                     project_state,
                 },
-            );
+            ));
 
             EncodeMetrics { scopes }
         };
