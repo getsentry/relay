@@ -4,10 +4,19 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object};
 
 use crate::processor::ProcessValue;
 
+pub type MetricSummaryMapping = Object<Array<MetricSummary>>;
+
 /// A collection of [`MetricSummary`] items keyed by the metric.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct MetricsSummary(pub Object<Array<MetricSummary>>);
+pub struct MetricsSummary(pub MetricSummaryMapping);
+
+impl MetricsSummary {
+    /// Combinator to modify the contained metric summaries.
+    pub fn update_value<F: FnOnce(MetricSummaryMapping) -> MetricSummaryMapping>(&mut self, f: F) {
+        self.0 = f(std::mem::take(&mut self.0));
+    }
+}
 
 /// The metric summary of a single metric that is emitted by the SDK.
 ///

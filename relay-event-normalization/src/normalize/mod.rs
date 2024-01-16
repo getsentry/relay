@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::mem;
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -11,7 +10,7 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, MetricsSummary, NelContext, ReplayContext, Request, Stacktrace,
+    Frame, IpAddr, Level, MetricSummaryMapping, NelContext, ReplayContext, Request, Stacktrace,
     TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
@@ -219,9 +218,8 @@ fn normalize_app_start_spans(event: &mut Event) {
 /// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
 /// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
 /// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
-fn normalize_metrics_summary_mris(metrics_summary: &mut MetricsSummary) {
-    metrics_summary.0 = mem::take(&mut metrics_summary.0)
-        .into_iter()
+fn normalize_metrics_summary_mris(m: MetricSummaryMapping) -> MetricSummaryMapping {
+    m.into_iter()
         .map(|(key, value)| match MetricResourceIdentifier::parse(&key) {
             Ok(mri) => (mri.to_string(), value),
             Err(err) => (
@@ -229,13 +227,13 @@ fn normalize_metrics_summary_mris(metrics_summary: &mut MetricsSummary) {
                 Annotated::from_error(Error::invalid(err), value.0.map(IntoValue::into_value)),
             ),
         })
-        .collect();
+        .collect()
 }
 
 /// Normalizes all the metrics summaries across the event payload.
 fn normalize_all_metrics_summaries(event: &mut Event) {
     if let Some(metrics_summary) = event._metrics_summary.value_mut().as_mut() {
-        normalize_metrics_summary_mris(metrics_summary)
+        metrics_summary.update_value(normalize_metrics_summary_mris);
     }
 
     let Some(spans) = event.spans.value_mut() else {
@@ -249,7 +247,7 @@ fn normalize_all_metrics_summaries(event: &mut Event) {
             .and_then(|span| span._metrics_summary.value_mut().as_mut());
 
         if let Some(ms) = metrics_summary {
-            normalize_metrics_summary_mris(ms)
+            ms.update_value(normalize_metrics_summary_mris);
         }
     }
 }
@@ -761,8 +759,8 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, MetricSummary, PairList,
-        RawStacktrace, Span, SpanId, TagEntry, Tags, TraceId, Values,
+        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, MetricSummary,
+        MetricsSummary, PairList, RawStacktrace, Span, SpanId, TagEntry, Tags, TraceId, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
