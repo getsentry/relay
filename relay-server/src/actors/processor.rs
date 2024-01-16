@@ -2447,7 +2447,6 @@ mod tests {
         use relay_metrics::BucketValue;
         use relay_quotas::{Quota, ReasonCode};
         use relay_test::mock_service;
-        use std::sync::Mutex;
 
         let message = {
             let mut scopes = Vec::<(Scoping, ProjectMetrics)>::new();
@@ -2504,21 +2503,19 @@ mod tests {
             EncodeMetrics { scopes }
         };
 
-        let org_ids = Arc::new(Mutex::new(vec![]));
-        let f = |org_ids: &mut Arc<Mutex<Vec<u64>>>, msg: Store| {
+        let f = |org_ids: &mut Vec<u64>, msg: Store| {
             let org_id = match msg {
                 Store::Metrics(x) => x.scoping.organization_id,
                 Store::Envelope(_) => panic!(),
             };
-            org_ids.lock().unwrap().push(org_id);
+            org_ids.push(org_id);
         };
 
-        let (store, handle) = mock_service("store_forwarder", org_ids.clone(), f);
+        let (store, handle) = mock_service("store_forwarder", vec![], f);
         create_test_processor(Default::default()).encode_metrics_processing(message, &store);
-        drop(store);
-        handle.await.unwrap();
 
-        let orgs_not_ratelimited = org_ids.lock().unwrap().clone();
+        drop(store);
+        let orgs_not_ratelimited = handle.await.unwrap();
 
         assert_eq!(orgs_not_ratelimited, vec![0]);
     }
