@@ -1,10 +1,6 @@
-use relay_base_schema::metrics::MetricResourceIdentifier;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{
-    Annotated, Array, Empty, FromValue, Getter, IntoValue, Map, Object, Val, Value,
-};
-use std::collections::BTreeMap;
+use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
@@ -12,6 +8,10 @@ use crate::protocol::{
     SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
+/// The metric summary of a single metric that is emitted by the SDK.
+///
+/// The summary contains specific aggregate values that the metric had during the span's lifetime. A single span can
+/// have the same metric emitted multiple times, which is the reason for aggregates being computed in each summary.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MetricSummary {

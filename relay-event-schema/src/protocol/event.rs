@@ -1,8 +1,6 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
-use relay_base_schema::metrics::MetricResourceIdentifier;
 use relay_common::time;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
