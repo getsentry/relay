@@ -15,8 +15,8 @@ use relay_event_schema::protocol::{
     TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
-    Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
+    RuleCondition, Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -220,17 +220,16 @@ fn normalize_app_start_spans(event: &mut Event) {
 /// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
 /// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
 fn normalize_metrics_summary_mris(metrics_summary: &mut MetricsSummary) {
-    let normalized_metrics_summary = mem::take(&mut metrics_summary.0)
+    metrics_summary.0 = mem::take(&mut metrics_summary.0)
         .into_iter()
-        .filter_map(|(key, value)| {
-            Some((
-                MetricResourceIdentifier::parse(&key).ok()?.to_string(),
-                value,
-            ))
+        .map(|(key, value)| match MetricResourceIdentifier::parse(&key) {
+            Ok(mri) => (mri.to_string(), value),
+            Err(err) => (
+                key,
+                Annotated::from_error(Error::invalid(err), value.0.map(IntoValue::into_value)),
+            ),
         })
         .collect();
-
-    metrics_summary.0 = normalized_metrics_summary;
 }
 
 /// Normalizes all the metrics summaries across the event payload.
@@ -2432,7 +2431,11 @@ mod tests {
             "c:custom/page_click@none".to_string(),
             Annotated::new(Default::default()),
         );
-        metrics_summary.insert("s:user@none".to_string(), Annotated::new(metric_summary));
+        metrics_summary.insert(
+            "s:user@none".to_string(),
+            Annotated::new(metric_summary.clone()),
+        );
+        metrics_summary.insert("invalid".to_string(), Annotated::new(metric_summary));
         metrics_summary.insert(
             "g:page_load@second".to_string(),
             Annotated::new(Default::default()),
@@ -2468,6 +2471,7 @@ mod tests {
                   }
                 ],
                 "g:custom/page_load@second": [],
+                "invalid": null,
                 "s:custom/user@none": [
                   {
                     "min": 1.0,
@@ -2496,6 +2500,7 @@ mod tests {
               }
             ],
             "g:custom/page_load@second": [],
+            "invalid": null,
             "s:custom/user@none": [
               {
                 "min": 1.0,
@@ -2507,6 +2512,62 @@ mod tests {
                 }
               }
             ]
+          },
+          "_meta": {
+            "_metrics_summary": {
+              "invalid": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "failed to parse metric"
+                      }
+                    ]
+                  ],
+                  "val": [
+                    {
+                      "count": 2,
+                      "max": 20.0,
+                      "min": 1.0,
+                      "sum": 21.0,
+                      "tags": {
+                        "transaction": "/hello"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "spans": {
+              "0": {
+                "_metrics_summary": {
+                  "invalid": {
+                    "": {
+                      "err": [
+                        [
+                          "invalid_data",
+                          {
+                            "reason": "failed to parse metric"
+                          }
+                        ]
+                      ],
+                      "val": [
+                        {
+                          "count": 2,
+                          "max": 20.0,
+                          "min": 1.0,
+                          "sum": 21.0,
+                          "tags": {
+                            "transaction": "/hello"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         "###);
