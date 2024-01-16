@@ -416,6 +416,41 @@
 <a href="#416" id="416">416</a>
 <a href="#417" id="417">417</a>
 <a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -426,6 +461,9 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::span::tag_extraction;
+<span class="kw">use </span>relay_event_normalization::{
+    normalize_measurements, DynamicMeasurementsConfig, MeasurementsConfig,
+};
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::Span;
 <span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
@@ -445,16 +483,24 @@
         ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
+    <span class="kw">let </span>transaction_aggregator_config =
+        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Transactions));
 
     <span class="kw">let </span>config = NormalizeSpanConfig {
         received_at: state.managed_envelope.received_at(),
-        transaction_range: AggregatorConfig::from(
-            config.aggregator_config_for(MetricNamespace::Transactions),
-        )
-        .timestamp_range(),
+        transaction_range: transaction_aggregator_config.timestamp_range(),
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
+        measurements: <span class="prelude-val">Some</span>(DynamicMeasurementsConfig::new(
+            state.project_state.config().measurements.as_ref(),
+            state.global_config.measurements.as_ref(),
+        )),
+        max_name_and_unit_len: <span class="prelude-val">Some</span>(
+            transaction_aggregator_config
+                .max_name_length
+                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+        ),
     };
 
     state.managed_envelope.retain_items(|item| {
@@ -638,13 +684,24 @@
 
 <span class="doccomment">/// Config needed to normalize a standalone span.
 </span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">struct </span>NormalizeSpanConfig {
+</span><span class="kw">struct </span>NormalizeSpanConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The time at which the event was received in this Relay.
     </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
     <span class="doccomment">/// Allowed time range for transactions.
     </span><span class="kw">pub </span>transaction_range: std::ops::Range&lt;UnixTimestamp&gt;,
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     </span><span class="kw">pub </span>max_tag_value_size: usize,
+    <span class="doccomment">/// Configuration for measurement normalization in transaction events.
+    ///
+    /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
+    </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&lt;<span class="lifetime">&#39;a</span>&gt;&gt;,
+    <span class="doccomment">/// The maximum length for names of custom measurements.
+    ///
+    /// Measurements with longer names are removed from the transaction event and replaced with a
+    /// metadata entry.
+    </span><span class="kw">pub </span>max_name_and_unit_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
 }
 
 <span class="doccomment">/// Normalizes a standalone span.
@@ -660,6 +717,8 @@
         received_at,
         transaction_range,
         max_tag_value_size,
+        measurements,
+        max_name_and_unit_len,
     } = config;
 
     <span class="comment">// This follows the steps of `NormalizeProcessor::process_event`.
@@ -687,6 +746,17 @@
     <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::NoEventPayload);
     };
+
+    <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>measurement_values), <span class="kw-2">ref mut </span>meta) = span.measurements {
+        normalize_measurements(
+            measurement_values,
+            meta,
+            measurements,
+            max_name_and_unit_len,
+            span.start_timestamp.<span class="number">0</span>,
+            span.timestamp.<span class="number">0</span>,
+        );
+    }
 
     <span class="kw">let </span>is_segment = span.parent_span_id.is_empty();
     span.is_segment = Annotated::new(is_segment);
