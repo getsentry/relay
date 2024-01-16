@@ -2,7 +2,7 @@ use std::fmt;
 use std::{borrow::Cow, error::Error};
 
 use crate::metrics::MetricUnit;
-use relay_protocol::{Annotated, ErrorKind, FromValue, Value};
+use relay_protocol::FromValue;
 use serde::{Deserialize, Serialize};
 
 /// The type of a [`MetricResourceIdentifier`], determining its aggregation and evaluation.
@@ -303,27 +303,6 @@ impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
             "{}:{}/{}@{}",
             self.ty, self.namespace, self.name, self.unit
         )
-    }
-}
-
-impl FromValue for MetricResourceIdentifier<'_> {
-    fn from_value(value: Annotated<Value>) -> Annotated<Self>
-    where
-        Self: Sized,
-    {
-        match String::from_value(value) {
-            Annotated(Some(value), mut meta) => match MetricResourceIdentifier::parse(&value) {
-                Ok(metric_resource_identifier) => {
-                    Annotated(Some(metric_resource_identifier.into_owned()), meta)
-                }
-                Err(_) => {
-                    meta.add_error(ErrorKind::InvalidData);
-                    meta.set_original_value(Some(value));
-                    Annotated(None, meta)
-                }
-            },
-            Annotated(None, meta) => Annotated(None, meta),
-        }
     }
 }
 
