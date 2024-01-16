@@ -203,31 +203,36 @@ mod tests {
 
     #[test]
     fn test_accepted() {
+        // Workaround for windows which requires an absurd amount of type annotations here.
+        fn assert_rejected(
+            limits: &CardinalityLimits<char>,
+            expected: impl IntoIterator<Item = char>,
+        ) {
+            assert_eq!(
+                limits.rejected().copied().collect::<Vec<char>>(),
+                expected.into_iter().collect::<Vec<char>>(),
+            );
+        }
+
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 3]),
         };
-        assert_eq!(
-            limits.rejected().copied().collect::<Vec<char>>(),
-            vec!['a', 'b', 'd']
-        );
+        assert_rejected(&limits, ['a', 'b', 'd']);
         assert_eq!(limits.into_accepted(), vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([]),
         };
-        assert_eq!(limits.rejected().copied().collect::<Vec<char>>(), vec![]);
+        assert_rejected(&limits, []);
         assert_eq!(limits.into_accepted(), vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 2, 3, 4]),
         };
-        assert_eq!(
-            limits.rejected().copied().collect::<Vec<char>>(),
-            vec!['a', 'b', 'c', 'd', 'e']
-        );
+        assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
         assert!(limits.into_accepted().is_empty());
     }
 
