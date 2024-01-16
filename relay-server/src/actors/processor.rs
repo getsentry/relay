@@ -2453,6 +2453,9 @@ mod tests {
         use relay_quotas::{Quota, ReasonCode};
         use relay_test::mock_service;
 
+        let rate_limited_org = 0;
+        let not_ratelimited_org = 1;
+
         let message = {
             let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
 
@@ -2460,7 +2463,7 @@ mod tests {
                 id: Some("testing".into()),
                 categories: vec![DataCategory::MetricBucket].into(),
                 scope: relay_quotas::QuotaScope::Organization,
-                scope_id: Some("0".into()), // we will ratelimit buckets with scope org-id == 1
+                scope_id: Some(rate_limited_org.to_string()), // we will ratelimit buckets with scope org-id == 1
                 limit: Some(0),
                 window: None,
                 reason_code: Some(ReasonCode::new("test")),
@@ -2491,7 +2494,7 @@ mod tests {
             };
 
             scopes.insert(
-                scoping_by_org_id(0), // should be ratelimited
+                scoping_by_org_id(rate_limited_org),
                 ProjectMetrics {
                     buckets: vec![bucket.clone()],
                     project_state: project_state.clone(),
@@ -2499,7 +2502,7 @@ mod tests {
             );
 
             scopes.insert(
-                scoping_by_org_id(1), // should not be ratelimited
+                scoping_by_org_id(not_ratelimited_org),
                 ProjectMetrics {
                     buckets: vec![bucket],
                     project_state,
@@ -2509,15 +2512,11 @@ mod tests {
             EncodeMetrics { scopes }
         };
 
-        for (i, key) in message.scopes.keys().enumerate() {
-            if i == 0 {
-                assert_eq!(key.organization_id, 0);
-            } else if i == 1 {
-                assert_eq!(key.organization_id, 1);
-            } else {
-                panic!("update this section if you add more elements");
-            }
-        }
+        // ensure the order of the map while iterating is as expected.
+        let mut iter = message.scopes.keys();
+        assert_eq!(iter.next().unwrap().organization_id, rate_limited_org);
+        assert_eq!(iter.next().unwrap().organization_id, not_ratelimited_org);
+        assert!(iter.next().is_none());
 
         let config = {
             let config_json = serde_json::json!({
