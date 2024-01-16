@@ -2,7 +2,6 @@ use std::fmt;
 use std::{borrow::Cow, error::Error};
 
 use crate::metrics::MetricUnit;
-use relay_protocol::FromValue;
 use serde::{Deserialize, Serialize};
 
 /// The type of a [`MetricResourceIdentifier`], determining its aggregation and evaluation.
