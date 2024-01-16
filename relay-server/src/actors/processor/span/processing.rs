@@ -23,6 +23,33 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::utils::ItemAction;
 
+fn get_normalize_span_config<'a>(
+    config: Arc<Config>,
+    received_at: DateTime<Utc>,
+    global_measurements_config: Option<&'a MeasurementsConfig>,
+    project_measurements_config: Option<&'a MeasurementsConfig>,
+) -> NormalizeSpanConfig<'a> {
+    let transaction_aggregator_config =
+        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Transactions));
+
+    NormalizeSpanConfig {
+        received_at,
+        transaction_range: transaction_aggregator_config.timestamp_range(),
+        max_tag_value_size: config
+            .aggregator_config_for(MetricNamespace::Spans)
+            .max_tag_value_length,
+        measurements: Some(DynamicMeasurementsConfig::new(
+            project_measurements_config,
+            global_measurements_config,
+        )),
+        max_name_and_unit_len: Some(
+            transaction_aggregator_config
+                .max_name_length
+                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+        ),
+    }
+}
+
 pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -30,25 +57,12 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
-    let transaction_aggregator_config =
-        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Transactions));
-
-    let config = NormalizeSpanConfig {
-        received_at: state.managed_envelope.received_at(),
-        transaction_range: transaction_aggregator_config.timestamp_range(),
-        max_tag_value_size: config
-            .aggregator_config_for(MetricNamespace::Spans)
-            .max_tag_value_length,
-        measurements: Some(DynamicMeasurementsConfig::new(
-            state.project_state.config().measurements.as_ref(),
-            state.global_config.measurements.as_ref(),
-        )),
-        max_name_and_unit_len: Some(
-            transaction_aggregator_config
-                .max_name_length
-                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
-        ),
-    };
+    let normalize_span_config = get_normalize_span_config(
+        config,
+        state.managed_envelope.received_at(),
+        state.global_config.measurements.as_ref(),
+        state.project_state.config().measurements.as_ref(),
+    );
 
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
@@ -72,7 +86,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             _ => return ItemAction::Keep,
         };
 
-        if let Err(e) = normalize(&mut annotated_span, config.clone()) {
+        if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
@@ -130,14 +144,21 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
+pub fn extract_from_event(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
     };
 
+    let normalize_span_config = get_normalize_span_config(
+        config,
+        state.managed_envelope.received_at(),
+        state.global_config.measurements.as_ref(),
+        state.project_state.config().measurements.as_ref(),
+    );
+
     let mut add_span = |span: Annotated<Span>| {
-        let span = match validate(span) {
+        let mut span = match validate(span) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!("Invalid span: {e}");
@@ -149,6 +170,16 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
                 return;
             }
         };
+
+        if let Err(e) = normalize(&mut span, normalize_span_config.clone()) {
+            relay_log::debug!("failed to normalize span: {}", e);
+            state.managed_envelope.track_outcome(
+                Outcome::Invalid(DiscardReason::Internal),
+                relay_quotas::DataCategory::SpanIndexed,
+                1,
+            );
+        };
+
         let span = match span.to_json() {
             Ok(span) => span,
             Err(e) => {
