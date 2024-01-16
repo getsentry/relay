@@ -88,6 +88,14 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+
+    ///
+    pub deny_metrics: Vec<DenyMetricStuff>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DenyMetricStuff {
+    glob: String,
 }
 
 impl ProjectConfig {
