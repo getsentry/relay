@@ -594,7 +594,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: Vec<(Scoping, ProjectMetrics)>,
+    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -2081,6 +2081,11 @@ impl EnvelopeProcessorService {
         }
     }
 
+    #[cfg(all(test, feature = "processing"))]
+    fn redis_rate_limiter_enabled(&self) -> bool {
+        self.inner.rate_limiter.is_some()
+    }
+
     fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
         metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
@@ -2449,13 +2454,13 @@ mod tests {
         use relay_test::mock_service;
 
         let message = {
-            let mut scopes = Vec::<(Scoping, ProjectMetrics)>::new();
+            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
 
             let quota = Quota {
                 id: Some("testing".into()),
                 categories: vec![DataCategory::MetricBucket].into(),
                 scope: relay_quotas::QuotaScope::Organization,
-                scope_id: Some("1".into()), // we will ratelimit buckets with scope org-id == 1
+                scope_id: Some("0".into()), // we will ratelimit buckets with scope org-id == 1
                 limit: Some(0),
                 window: None,
                 reason_code: Some(ReasonCode::new("test")),
@@ -2479,45 +2484,75 @@ mod tests {
             let project_state = {
                 let mut config = ProjectConfig::default();
                 config.quotas.push(quota);
+
                 let mut project_state = ProjectState::allowed();
                 project_state.config = config;
                 Arc::new(project_state)
             };
 
-            scopes.push((
-                scoping_by_org_id(1), // should be ratelimited
+            scopes.insert(
+                scoping_by_org_id(0), // should be ratelimited
                 ProjectMetrics {
                     buckets: vec![bucket.clone()],
                     project_state: project_state.clone(),
                 },
-            ));
+            );
 
-            scopes.push((
-                scoping_by_org_id(0), // should not be ratelimited
+            scopes.insert(
+                scoping_by_org_id(1), // should not be ratelimited
                 ProjectMetrics {
                     buckets: vec![bucket],
                     project_state,
                 },
-            ));
+            );
 
             EncodeMetrics { scopes }
         };
 
-        let f = |org_ids: &mut Vec<u64>, msg: Store| {
-            let org_id = match msg {
-                Store::Metrics(x) => x.scoping.organization_id,
-                Store::Envelope(_) => panic!(),
-            };
-            org_ids.push(org_id);
+        for (i, key) in message.scopes.keys().enumerate() {
+            if i == 0 {
+                assert_eq!(key.organization_id, 0);
+            } else if i == 1 {
+                assert_eq!(key.organization_id, 1);
+            } else {
+                panic!("update this section if you add more elements");
+            }
+        }
+
+        let config = {
+            let config_json = serde_json::json!({
+                "processing": {
+                    "enabled": true,
+                    "kafka_config": [],
+                    "redis": {
+                        "server": "redis://127.0.0.1:6379"
+                    }
+                }
+            });
+            Config::from_json_value(config_json).unwrap()
         };
 
-        let (store, handle) = mock_service("store_forwarder", vec![], f);
-        create_test_processor(Default::default()).encode_metrics_processing(message, &store);
+        let (store, handle) = {
+            let f = |org_ids: &mut Vec<u64>, msg: Store| {
+                let org_id = match msg {
+                    Store::Metrics(x) => x.scoping.organization_id,
+                    Store::Envelope(_) => panic!(),
+                };
+                org_ids.push(org_id);
+            };
+
+            mock_service("store_forwarder", vec![], f)
+        };
+
+        let processor = create_test_processor(config);
+        assert!(processor.redis_rate_limiter_enabled());
+
+        processor.encode_metrics_processing(message, &store);
 
         drop(store);
         let orgs_not_ratelimited = handle.await.unwrap();
 
-        assert_eq!(orgs_not_ratelimited, vec![0]);
+        assert_eq!(orgs_not_ratelimited, vec![1]);
     }
 
     #[tokio::test]
