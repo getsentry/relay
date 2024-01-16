@@ -2417,7 +2417,6 @@ impl UpstreamRequest for SendMetricsRequest {
 mod tests {
     use std::collections::BTreeMap;
     use std::env;
-    use std::sync::atomic::AtomicUsize;
 
     use chrono::{DateTime, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
@@ -2428,8 +2427,6 @@ mod tests {
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_quotas::{Quota, ReasonCode};
-    use relay_test::mock_service;
     use similar_asserts::assert_eq;
 
     use crate::extractors::RequestMeta;
@@ -2448,6 +2445,9 @@ mod tests {
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
         use relay_metrics::BucketValue;
+        use relay_quotas::{Quota, ReasonCode};
+        use relay_test::mock_service;
+        use std::sync::atomic::AtomicUsize;
         use std::sync::atomic::Ordering::SeqCst;
 
         let message = {
