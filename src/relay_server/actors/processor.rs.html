@@ -2689,6 +2689,29 @@
 <a href="#2689" id="2689">2689</a>
 <a href="#2690" id="2690">2690</a>
 <a href="#2691" id="2691">2691</a>
+<a href="#2692" id="2692">2692</a>
+<a href="#2693" id="2693">2693</a>
+<a href="#2694" id="2694">2694</a>
+<a href="#2695" id="2695">2695</a>
+<a href="#2696" id="2696">2696</a>
+<a href="#2697" id="2697">2697</a>
+<a href="#2698" id="2698">2698</a>
+<a href="#2699" id="2699">2699</a>
+<a href="#2700" id="2700">2700</a>
+<a href="#2701" id="2701">2701</a>
+<a href="#2702" id="2702">2702</a>
+<a href="#2703" id="2703">2703</a>
+<a href="#2704" id="2704">2704</a>
+<a href="#2705" id="2705">2705</a>
+<a href="#2706" id="2706">2706</a>
+<a href="#2707" id="2707">2707</a>
+<a href="#2708" id="2708">2708</a>
+<a href="#2709" id="2709">2709</a>
+<a href="#2710" id="2710">2710</a>
+<a href="#2711" id="2711">2711</a>
+<a href="#2712" id="2712">2712</a>
+<a href="#2713" id="2713">2713</a>
+<a href="#2714" id="2714">2714</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4493,6 +4516,41 @@
         <span class="bool-val">false
     </span>}
 
+    <span class="doccomment">/// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>cardinality_limit_buckets(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        scoping: Scoping,
+        buckets: Vec&lt;Bucket&gt;,
+        mode: ExtractionMode,
+    ) -&gt; Vec&lt;Bucket&gt; {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>limiter) = <span class="self">self</span>.inner.cardinality_limiter <span class="kw">else </span>{
+            <span class="kw">return </span>buckets;
+        };
+
+        <span class="kw">let </span>limits = <span class="kw">match </span>limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+            <span class="prelude-val">Ok</span>(limits) =&gt; limits,
+            <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                    <span class="string">&quot;cardinality limiter failed&quot;
+                </span>);
+
+                <span class="kw">return </span>buckets;
+            }
+        };
+
+        <span class="comment">// Log outcomes for rejected buckets.
+        </span>utils::reject_metrics(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.outcome_aggregator,
+            utils::extract_metric_quantities(limits.rejected(), mode),
+            scoping,
+            Outcome::CardinalityLimited,
+        );
+
+        limits.into_accepted()
+    }
+
     <span class="doccomment">/// Processes metric buckets and sends them to kafka.
     ///
     /// This function runs the following steps:
@@ -4510,26 +4568,14 @@
                 project_state,
             } = message;
 
-            <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>limiter) = <span class="self">self</span>.inner.cardinality_limiter {
-                    <span class="kw">let </span>org = scoping.organization_id;
-                    buckets = <span class="kw">match </span>limiter.check_cardinality_limits(org, buckets) {
-                        <span class="prelude-val">Ok</span>(limits) =&gt; limits.into_accepted(),
-                        <span class="prelude-val">Err</span>((buckets, error)) =&gt; {
-                            <span class="macro">relay_log::error!</span>(
-                                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                                <span class="string">&quot;cardinality limiter failed&quot;
-                            </span>);
-                            buckets
-                        }
-                    };
-                }
-            }
-
             <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
                 <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
                 <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
             };
+
+            <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
+                buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, buckets, mode);
+            }
 
             <span class="kw">if </span><span class="self">self</span>.rate_limit_batches(scoping, <span class="kw-2">&amp;</span>buckets, <span class="kw-2">&amp;</span>project_state, mode) {
                 <span class="kw">return</span>;

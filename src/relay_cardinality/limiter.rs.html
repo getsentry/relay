@@ -345,9 +345,26 @@
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
-</span><span class="kw">use </span>std::collections::HashSet;
+</span><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::fmt::{Debug, Display};
 <span class="kw">use </span>std::hash::Hash;
 
@@ -470,9 +487,7 @@
             );
 
             <span class="kw">let </span>rejections = <span class="kw">match </span>result {
-                <span class="prelude-val">Ok</span>(rejections) =&gt; rejections
-                    .map(|rejection| rejection.id.<span class="number">0</span>)
-                    .collect::&lt;HashSet&lt;usize&gt;&gt;(),
+                <span class="prelude-val">Ok</span>(rejections) =&gt; rejections.map(|rejection| rejection.id.<span class="number">0</span>).collect(),
                 <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>((items, err)),
             };
 
@@ -488,10 +503,15 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>CardinalityLimits&lt;T&gt; {
     source: Vec&lt;T&gt;,
-    rejections: HashSet&lt;usize&gt;,
+    rejections: BTreeSet&lt;usize&gt;,
 }
 
 <span class="kw">impl</span>&lt;T&gt; CardinalityLimits&lt;T&gt; {
+    <span class="doccomment">/// Returns an iterator yielding only rejected items.
+    </span><span class="kw">pub fn </span>rejected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>T&gt; {
+        <span class="self">self</span>.rejections.iter().filter_map(|<span class="kw-2">&amp;</span>i| <span class="self">self</span>.source.get(i))
+    }
+
     <span class="doccomment">/// Consumes the result and returns an iterator over all accepted items.
     </span><span class="kw">pub fn </span>into_accepted(<span class="self">self</span>) -&gt; Vec&lt;T&gt; {
         <span class="kw">if </span><span class="self">self</span>.rejections.is_empty() {
@@ -547,22 +567,36 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_accepted() {
+        <span class="comment">// Workaround for windows which requires an absurd amount of type annotations here.
+        </span><span class="kw">fn </span>assert_rejected(
+            limits: <span class="kw-2">&amp;</span>CardinalityLimits&lt;char&gt;,
+            expected: <span class="kw">impl </span>IntoIterator&lt;Item = char&gt;,
+        ) {
+            <span class="macro">assert_eq!</span>(
+                limits.rejected().copied().collect::&lt;Vec&lt;char&gt;&gt;(),
+                expected.into_iter().collect::&lt;Vec&lt;char&gt;&gt;(),
+            );
+        }
+
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>],
-            rejections: HashSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]),
+            rejections: BTreeSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]),
         };
+        assert_rejected(<span class="kw-2">&amp;</span>limits, [<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;d&#39;</span>]);
         <span class="macro">assert_eq!</span>(limits.into_accepted(), <span class="macro">vec!</span>[<span class="string">&#39;c&#39;</span>, <span class="string">&#39;e&#39;</span>]);
 
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>],
-            rejections: HashSet::from([]),
+            rejections: BTreeSet::from([]),
         };
+        assert_rejected(<span class="kw-2">&amp;</span>limits, []);
         <span class="macro">assert_eq!</span>(limits.into_accepted(), <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>]);
 
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>],
-            rejections: HashSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]),
+            rejections: BTreeSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]),
         };
+        assert_rejected(<span class="kw-2">&amp;</span>limits, [<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>]);
         <span class="macro">assert!</span>(limits.into_accepted().is_empty());
     }
 
