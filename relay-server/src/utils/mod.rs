@@ -1,6 +1,7 @@
 mod api;
 mod buffer;
 mod dynamic_sampling;
+mod finite_json;
 mod garbage;
 mod managed_envelope;
 mod metrics_rate_limits;
@@ -21,6 +22,7 @@ mod unreal;
 pub use self::api::*;
 pub use self::buffer::*;
 pub use self::dynamic_sampling::*;
+pub use self::finite_json::*;
 pub use self::garbage::*;
 pub use self::managed_envelope::*;
 pub use self::metrics_rate_limits::*;

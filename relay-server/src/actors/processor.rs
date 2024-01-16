@@ -2323,7 +2323,7 @@ impl<'a> Partition<'a> {
         }
 
         let buckets = &self.views;
-        let payload = serde_json::to_vec(&Wrapper { buckets }).unwrap().into();
+        let payload = utils::to_json_vec(&Wrapper { buckets }).unwrap().into();
         let quantities = self.quantities.clone();
 
         self.views.clear();

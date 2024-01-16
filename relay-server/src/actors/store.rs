@@ -1308,7 +1308,7 @@ impl Message for KafkaMessage<'_> {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::Metric { message, .. } => {
-                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+                utils::to_json_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
