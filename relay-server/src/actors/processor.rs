@@ -2447,8 +2447,7 @@ mod tests {
         use relay_metrics::BucketValue;
         use relay_quotas::{Quota, ReasonCode};
         use relay_test::mock_service;
-        use std::sync::atomic::AtomicUsize;
-        use std::sync::atomic::Ordering::SeqCst;
+        use std::sync::Mutex;
 
         let message = {
             let mut scopes = Vec::<(Scoping, ProjectMetrics)>::new();
@@ -2463,6 +2462,21 @@ mod tests {
                 reason_code: Some(ReasonCode::new("test")),
             };
 
+            let bucket = Bucket {
+                name: "d:transactions/bar".to_string(),
+                value: BucketValue::Counter(1.0),
+                timestamp: UnixTimestamp::now(),
+                tags: Default::default(),
+                width: 10,
+            };
+
+            let scoping_by_org_id = |org_id: u64| Scoping {
+                organization_id: org_id,
+                project_id: ProjectId::new(21),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(17),
+            };
+
             let project_state = {
                 let mut x = ProjectConfig::default();
                 x.quotas.push(quota);
@@ -2472,39 +2486,17 @@ mod tests {
             };
 
             scopes.push((
-                Scoping {
-                    organization_id: 1, // will be ratelimited
-                    project_id: ProjectId::new(21),
-                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                    key_id: Some(17),
-                },
+                scoping_by_org_id(1), // should be ratelimited
                 ProjectMetrics {
-                    buckets: vec![Bucket {
-                        name: "d:transactions/foo".to_string(),
-                        value: BucketValue::Counter(1.0),
-                        timestamp: UnixTimestamp::now(),
-                        tags: Default::default(),
-                        width: 10,
-                    }],
+                    buckets: vec![bucket.clone()],
                     project_state: project_state.clone(),
                 },
             ));
 
             scopes.push((
-                Scoping {
-                    organization_id: 0, // will not be ratelimited
-                    project_id: ProjectId::new(21),
-                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                    key_id: Some(17),
-                },
+                scoping_by_org_id(0), // should not be ratelimited
                 ProjectMetrics {
-                    buckets: vec![Bucket {
-                        name: "d:transactions/bar".to_string(),
-                        value: BucketValue::Counter(1.0),
-                        timestamp: UnixTimestamp::now(),
-                        tags: Default::default(),
-                        width: 10,
-                    }],
+                    buckets: vec![bucket],
                     project_state,
                 },
             ));
@@ -2512,19 +2504,23 @@ mod tests {
             EncodeMetrics { scopes }
         };
 
-        let received_batches = Arc::new(AtomicUsize::new(0));
-        let f = |x: &mut Arc<AtomicUsize>, _: Store| {
-            x.fetch_add(1, SeqCst); // counts the number of not-ratelimited batches.
+        let org_ids = Arc::new(Mutex::new(vec![]));
+        let f = |org_ids: &mut Arc<Mutex<Vec<u64>>>, msg: Store| {
+            let org_id = match msg {
+                Store::Metrics(x) => x.scoping.organization_id,
+                Store::Envelope(_) => panic!(),
+            };
+            org_ids.lock().unwrap().push(org_id);
         };
 
-        let (store, handle) = mock_service("store_forwarder", received_batches.clone(), f);
+        let (store, handle) = mock_service("store_forwarder", org_ids.clone(), f);
         create_test_processor(Default::default()).encode_metrics_processing(message, &store);
         drop(store);
         handle.await.unwrap();
 
-        let received_batches = received_batches.load(SeqCst);
+        let orgs_not_ratelimited = org_ids.lock().unwrap().clone();
 
-        assert_eq!(received_batches, 1);
+        assert_eq!(orgs_not_ratelimited, vec![0]);
     }
 
     #[tokio::test]
