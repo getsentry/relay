@@ -207,21 +207,27 @@ mod tests {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 3]),
         };
-        assert!(limits.rejected().eq(['a', 'b', 'd'].iter()));
+        assert_eq!(
+            limits.rejected().copied().collect::<Vec<_>>(),
+            vec!['a', 'b', 'd']
+        );
         assert_eq!(limits.into_accepted(), vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([]),
         };
-        assert!(limits.rejected().eq([].iter()));
+        assert_eq!(limits.rejected().copied().collect::<Vec<_>>(), vec![]);
         assert_eq!(limits.into_accepted(), vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 2, 3, 4]),
         };
-        assert!(limits.rejected().eq(['a', 'b', 'c', 'd', 'e'].iter()));
+        assert_eq!(
+            limits.rejected().copied().collect::<Vec<_>>(),
+            vec!['a', 'b', 'c', 'd', 'e']
+        );
         assert!(limits.into_accepted().is_empty());
     }
 
