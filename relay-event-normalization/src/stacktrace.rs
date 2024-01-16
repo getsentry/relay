@@ -21,7 +21,7 @@ pub fn process_stacktrace(stacktrace: &mut RawStacktrace, _meta: &mut Meta) {
     }
 }
 pub fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
-    processor::apply(frame, |frame, _meta| {
+    let _ = processor::apply(frame, |frame, _meta| {
         if frame.abs_path.value().is_empty() {
             frame.abs_path = mem::replace(&mut frame.filename, Annotated::empty());
         }
@@ -42,8 +42,7 @@ pub fn process_non_raw_frame(frame: &mut Annotated<Frame>) {
             }
         }
         Ok(())
-    })
-    .ok();
+    });
 }
 
 #[cfg(test)]

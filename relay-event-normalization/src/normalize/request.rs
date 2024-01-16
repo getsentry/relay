@@ -193,7 +193,7 @@ fn normalize_cookies(request: &mut Request) {
 /// - The `Content-Type` header is parsed and put into the `inferred_content_type` field.
 /// - The `Cookie` header is parsed and put into the `cookies` field.
 pub fn normalize_request(request: &mut Request) {
-    processor::apply(&mut request.method, normalize_method).ok();
+    let _ = processor::apply(&mut request.method, normalize_method);
     normalize_url(request);
     normalize_data(request);
     normalize_cookies(request);

@@ -200,9 +200,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
     // Check for required and non-empty values
-    schema::SchemaProcessor
-        .process_event(event, meta, ProcessingState::root())
-        .ok();
+    let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
     normalize_timestamps(
         event,
@@ -234,24 +232,22 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     }
 
     // Validate the basic attributes we extract metrics from
-    processor::apply(&mut event.release, |release, meta| {
+    let _ = processor::apply(&mut event.release, |release, meta| {
         if crate::validate_release(release).is_ok() {
             Ok(())
         } else {
             meta.add_error(ErrorKind::InvalidData);
             Err(ProcessingAction::DeleteValueSoft)
         }
-    })
-    .ok();
-    processor::apply(&mut event.environment, |environment, meta| {
+    });
+    let _ = processor::apply(&mut event.environment, |environment, meta| {
         if crate::validate_environment(environment).is_ok() {
             Ok(())
         } else {
             meta.add_error(ErrorKind::InvalidData);
             Err(ProcessingAction::DeleteValueSoft)
         }
-    })
-    .ok();
+    });
 
     // Default required attributes, even if they have errors
     normalize_logentry(&mut event.logentry, meta);
@@ -273,11 +269,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_performance_score(event, config.performance_score);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
-    processor::apply(&mut event.request, |request, _| {
+    let _ = processor::apply(&mut event.request, |request, _| {
         request::normalize_request(request);
         Ok(())
-    })
-    .ok();
+    });
 
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
@@ -303,9 +298,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     if config.enable_trimming {
         // Trim large strings and databags down
-        trimming::TrimmingProcessor::new()
-            .process_event(event, meta, ProcessingState::root())
-            .ok();
+        let _ =
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 
     Ok(())
@@ -436,10 +430,9 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
 }
 
 fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
-    processor::apply(logentry, |logentry, meta| {
+    let _ = processor::apply(logentry, |logentry, meta| {
         crate::logentry::normalize_logentry(logentry, meta)
-    })
-    .ok();
+    });
 }
 
 /// Ensures that the `release` and `dist` fields match up.
@@ -448,7 +441,7 @@ fn normalize_release_dist(event: &mut Event) {
 }
 
 fn normalize_dist(distribution: &mut Annotated<String>) {
-    processor::apply(distribution, |dist, meta| {
+    let _ = processor::apply(distribution, |dist, meta| {
         let trimmed = dist.trim();
         if trimmed.is_empty() {
             return Err(ProcessingAction::DeleteValueHard);
@@ -459,8 +452,7 @@ fn normalize_dist(distribution: &mut Annotated<String>) {
             *dist = trimmed.to_string();
         }
         Ok(())
-    })
-    .ok();
+    });
 }
 
 /// Validates the timestamp range and sets a default value.
@@ -476,7 +468,7 @@ fn normalize_timestamps(
     let mut sent_at = None;
     let mut error_kind = ErrorKind::ClockDrift;
 
-    processor::apply(&mut event.timestamp, |timestamp, _meta| {
+    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
         if let Some(secs) = max_secs_in_future {
             if *timestamp > received_at + Duration::seconds(secs) {
                 error_kind = ErrorKind::FutureTimestamp;
@@ -494,13 +486,11 @@ fn normalize_timestamps(
         }
 
         Ok(())
-    })
-    .ok();
+    });
 
-    ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
+    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
         .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root())
-        .ok();
+        .process_event(event, meta, ProcessingState::root());
 
     // Apply this after clock drift correction, otherwise we will malform it.
     event.received = Annotated::new(received_at.into());
@@ -509,10 +499,9 @@ fn normalize_timestamps(
         event.timestamp.set_value(Some(received_at.into()));
     }
 
-    processor::apply(&mut event.time_spent, |time_spent, _| {
+    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
         validate_bounded_integer_field(*time_spent)
-    })
-    .ok();
+    });
 }
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -574,7 +563,7 @@ fn normalize_event_tags(event: &mut Event) {
     });
 
     for tag in tags.iter_mut() {
-        processor::apply(tag, |tag, _| {
+        let _ = processor::apply(tag, |tag, _| {
             if let Some(key) = tag.key() {
                 if key.is_empty() {
                     tag.0 = Annotated::from_error(Error::nonempty(), None);
@@ -592,8 +581,7 @@ fn normalize_event_tags(event: &mut Event) {
             }
 
             Ok(())
-        })
-        .ok();
+        });
     }
 
     let server_name = std::mem::take(&mut event.server_name);
@@ -640,7 +628,7 @@ fn normalize_stacktraces(event: &mut Event) {
 }
 
 fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
-    processor::apply(exception, |e, _| {
+    let _ = processor::apply(exception, |e, _| {
         processor::apply(&mut e.stacktrace, |s, _| match s.frames.value_mut() {
             None => Ok(()),
             Some(frames) => match frames.last_mut() {
@@ -651,8 +639,7 @@ fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
                 }
             },
         })
-    })
-    .ok();
+    });
 }
 
 fn normalize_exceptions(event: &mut Event) {
@@ -901,7 +888,7 @@ fn normalize_app_start_spans(event: &mut Event) {
 
 /// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
-    processor::apply(contexts, |contexts, _meta| {
+    let _ = processor::apply(contexts, |contexts, _meta| {
         for annotated in &mut contexts.0.values_mut() {
             if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
                 context.status.get_or_insert_with(|| SpanStatus::Unknown);
@@ -909,8 +896,7 @@ fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
         }
 
         Ok(())
-    })
-    .ok();
+    });
 }
 
 /// New SDKs do not send measurements when they exceed 180 seconds.

@@ -50,7 +50,7 @@ impl<'r> TransactionsProcessor<'r> {
     /// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
     /// patterns like `/<something>/*/**` where we have `**` at the end are a match.
     pub fn apply_transaction_rename_rule(&self, transaction: &mut Annotated<String>) {
-        processor::apply(transaction, |transaction, meta| {
+        let _ = processor::apply(transaction, |transaction, meta| {
             let result = self.name_config.rules.iter().find_map(|rule| {
                 rule.match_and_apply(Cow::Borrowed(transaction))
                     .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
@@ -72,8 +72,7 @@ impl<'r> TransactionsProcessor<'r> {
             }
 
             Ok(())
-        })
-        .ok();
+        });
     }
 
     /// Returns `true` if the given transaction name should be treated as a URL.
@@ -387,7 +386,7 @@ fn scrub_identifiers_with_regex(
 ) {
     let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
 
-    processor::apply(string, |trans, meta| {
+    let _ = processor::apply(string, |trans, meta| {
         let mut caps = Vec::new();
         // Collect all the remarks if anything matches.
         for captures in pattern.captures_iter(trans) {
@@ -426,8 +425,7 @@ fn scrub_identifiers_with_regex(
             *trans = changed;
         }
         Ok(())
-    })
-    .ok();
+    });
 }
 
 /// Copies the event's end timestamp into the spans that don't have one.
