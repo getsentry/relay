@@ -770,7 +770,6 @@ mod tests {
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
-    use sqlparser::ast::IndexType::BTree;
     use std::collections::BTreeMap;
     use uuid::Uuid;
 
