@@ -240,7 +240,7 @@ struct NormalizeSpanConfig<'a> {
     pub max_tag_value_size: usize,
     /// Configuration for measurement normalization in transaction events.
     ///
-    /// Has an optional [`crate::MeasurementsConfig`] from both the project and the global level.
+    /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
     pub measurements: Option<DynamicMeasurementsConfig<'a>>,
