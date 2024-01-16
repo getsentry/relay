@@ -10,7 +10,7 @@ use relay_system::Addr;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::processor::ProcessingGroup;
 use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
@@ -218,14 +218,18 @@ impl ManagedEnvelope {
         let use_indexed = self.use_index_category();
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
+            ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
+                let use_indexed = if item.ty() == &ItemType::Span {
+                    item.metrics_extracted()
+                } else {
+                    use_indexed
+                };
                 if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
-                }
-
+                };
                 false
             }
-            ItemAction::DropSilently => false,
         });
         for (outcome, category, quantity) in outcomes {
             self.track_outcome(outcome, category, quantity);
@@ -253,7 +257,7 @@ impl ManagedEnvelope {
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         self.outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at(),
             scoping: self.context.scoping,

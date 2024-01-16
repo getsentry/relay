@@ -1,10 +1,9 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
+use crate::{QuotaScope, RedisQuota};
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError};
-
-use crate::{QuotaScope, RedisQuota};
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
