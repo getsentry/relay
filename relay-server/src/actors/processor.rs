@@ -1935,6 +1935,7 @@ impl UpstreamRequest for SendMetricsRequest {
 mod tests {
     use std::collections::BTreeMap;
     use std::env;
+    use std::sync::atomic::AtomicUsize;
 
     use chrono::{DateTime, Utc};
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
@@ -1945,6 +1946,8 @@ mod tests {
     };
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
+    use relay_quotas::{Quota, ReasonCode};
+    use relay_test::mock_service;
     use similar_asserts::assert_eq;
 
     use crate::extractors::RequestMeta;
@@ -1956,6 +1959,90 @@ mod tests {
     use crate::testutils::{self, create_test_processor};
 
     use super::*;
+
+    /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
+    /// also ratelimit the next batches in the same message automatically.
+    #[tokio::test]
+    async fn test_ratelimit_per_batch() {
+        use relay_metrics::BucketValue;
+        use std::sync::atomic::Ordering::SeqCst;
+
+        let message = {
+            let mut scopes = HashMap::<Scoping, ProjectMetrics>::new();
+
+            let quota = Quota {
+                id: Some("testing".into()),
+                categories: vec![DataCategory::MetricBucket].into(),
+                scope: relay_quotas::QuotaScope::Organization,
+                scope_id: Some("1".into()), // we will ratelimit buckets with scope org-id == 1
+                limit: Some(0),
+                window: None,
+                reason_code: Some(ReasonCode::new("test")),
+            };
+
+            let project_state = {
+                let mut x = ProjectConfig::default();
+                x.quotas.push(quota);
+                let mut project_state = ProjectState::allowed();
+                project_state.config = x;
+                Arc::new(project_state)
+            };
+
+            scopes.insert(
+                Scoping {
+                    organization_id: 1, // will be ratelimited
+                    project_id: ProjectId::new(21),
+                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                    key_id: Some(17),
+                },
+                ProjectMetrics {
+                    buckets: vec![Bucket {
+                        name: "d:transactions/foo".to_string(),
+                        value: BucketValue::Counter(1.0),
+                        timestamp: UnixTimestamp::now(),
+                        tags: Default::default(),
+                        width: 10,
+                    }],
+                    project_state: project_state.clone(),
+                },
+            );
+
+            scopes.insert(
+                Scoping {
+                    organization_id: 0, // will not be ratelimited
+                    project_id: ProjectId::new(21),
+                    project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                    key_id: Some(17),
+                },
+                ProjectMetrics {
+                    buckets: vec![Bucket {
+                        name: "d:transactions/bar".to_string(),
+                        value: BucketValue::Counter(1.0),
+                        timestamp: UnixTimestamp::now(),
+                        tags: Default::default(),
+                        width: 10,
+                    }],
+                    project_state,
+                },
+            );
+
+            EncodeMetrics { scopes }
+        };
+
+        let received_batches = Arc::new(AtomicUsize::new(0));
+        let f = |x: &mut Arc<AtomicUsize>, _: Store| {
+            x.fetch_add(1, SeqCst); // counts the number of not-ratelimited batches.
+        };
+
+        let (store, handle) = mock_service("store_forwarder", received_batches.clone(), f);
+        create_test_processor(Default::default()).encode_metrics_processing(message, &store);
+        drop(store);
+        handle.await.unwrap();
+
+        let received_batches = received_batches.load(SeqCst);
+
+        assert_eq!(received_batches, 1);
+    }
 
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {

@@ -192,6 +192,7 @@ impl RedisRateLimiter {
 
         for quota in quotas {
             if !quota.matches(item_scoping) {
+                dbg!("skipping");
                 // Silently skip all quotas that do not apply to this item.
             } else if quota.limit == Some(0) {
                 // A zero-sized quota is strongest. Do not call into Redis at all, and do not

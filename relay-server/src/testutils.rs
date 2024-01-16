@@ -113,10 +113,18 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
+    #[cfg(feature = "processing")]
+    let redis = {
+        let url = std::env::var("RELAY_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+
+        relay_redis::RedisPool::single(&url, relay_redis::RedisConfigOptions::default()).unwrap()
+    };
+
     EnvelopeProcessorService::new(
         Arc::new(config),
         #[cfg(feature = "processing")]
-        None,
+        Some(redis),
         envelope_manager,
         outcome_aggregator,
         project_cache,
