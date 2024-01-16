@@ -1,12 +1,35 @@
+use relay_base_schema::metrics::MetricResourceIdentifier;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
+use relay_protocol::{
+    Annotated, Array, Empty, FromValue, Getter, IntoValue, Map, Object, Val, Value,
+};
+use std::collections::BTreeMap;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
     Event, EventId, JsonLenientString, Measurements, OperationType, OriginType, ProfileContext,
     SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
 };
+
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct MetricSummary {
+    /// Minimum value of the metric.
+    pub min: Annotated<f64>,
+
+    /// Maximum value of the metric.
+    pub max: Annotated<f64>,
+
+    /// Sum of all metric values.
+    pub sum: Annotated<f64>,
+
+    /// Count of all metric values.
+    pub count: Annotated<u64>,
+
+    /// Tags of the metric.
+    pub tags: Annotated<Object<String>>,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -86,7 +109,7 @@ pub struct Span {
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
     #[metastructure(skip_serialization = "empty")]
-    pub _metrics_summary: Annotated<Value>,
+    pub _metrics_summary: Annotated<Object<Array<MetricSummary>>>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -306,37 +329,19 @@ mod tests {
             sentry_tags: ~,
             received: ~,
             measurements: ~,
-            _metrics_summary: Object(
-                {
-                    "some_metric": Array(
-                        [
-                            Object(
-                                {
-                                    "count": I64(
-                                        2,
-                                    ),
-                                    "max": F64(
-                                        2.0,
-                                    ),
-                                    "min": F64(
-                                        1.0,
-                                    ),
-                                    "sum": F64(
-                                        3.0,
-                                    ),
-                                    "tags": Object(
-                                        {
-                                            "environment": String(
-                                                "test",
-                                            ),
-                                        },
-                                    ),
-                                },
-                            ),
-                        ],
-                    ),
-                },
-            ),
+            _metrics_summary: {
+                "some_metric": [
+                    MetricSummary {
+                        min: 1.0,
+                        max: 2.0,
+                        sum: 3.0,
+                        count: 2,
+                        tags: {
+                            "environment": "test",
+                        },
+                    },
+                ],
+            },
             other: {},
         }
         "###);

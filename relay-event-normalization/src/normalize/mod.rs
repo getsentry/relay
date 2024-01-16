@@ -11,12 +11,12 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, NelContext, ReplayContext, Request, Stacktrace, TraceContext, User,
-    VALID_PLATFORMS,
+    Frame, IpAddr, Level, MetricSummary, NelContext, ReplayContext, Request, Stacktrace,
+    TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
-    Value,
+    Annotated, Array, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType,
+    RuleCondition, Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -219,12 +219,8 @@ fn normalize_app_start_spans(event: &mut Event) {
 /// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
 /// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
 /// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
-fn normalize_metrics_summary_mris(value: &mut Value) {
-    let Value::Object(metrics) = value else {
-        return;
-    };
-
-    let metrics = mem::take(metrics)
+fn normalize_metrics_summary_mris(metrics_summary: &mut Object<Array<MetricSummary>>) {
+    let normalized_metrics_summary: Object<Array<MetricSummary>> = mem::take(metrics_summary)
         .into_iter()
         .filter_map(|(key, value)| {
             Some((
@@ -234,7 +230,7 @@ fn normalize_metrics_summary_mris(value: &mut Value) {
         })
         .collect();
 
-    *value = Value::Object(metrics);
+    *metrics_summary = normalized_metrics_summary;
 }
 
 /// Normalizes all the metrics summaries across the event payload.
@@ -766,14 +762,15 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
-        Span, SpanId, TagEntry, Tags, TraceId, Values,
+        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, MetricSummary, PairList,
+        RawStacktrace, Span, SpanId, TagEntry, Tags, TraceId, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
+    use sqlparser::ast::IndexType::BTree;
     use std::collections::BTreeMap;
     use uuid::Uuid;
 
@@ -2413,31 +2410,42 @@ mod tests {
 
     #[test]
     fn test_normalize_metrics_summary_metric_identifiers() {
+        let mut metric_tags = BTreeMap::new();
+        metric_tags.insert(
+            "transaction".to_string(),
+            Annotated::new("/hello".to_string()),
+        );
+
+        let metric_summary = vec![Annotated::new(MetricSummary {
+            min: Annotated::new(1.0),
+            max: Annotated::new(20.0),
+            sum: Annotated::new(21.0),
+            count: Annotated::new(2),
+            tags: Annotated::new(metric_tags),
+        })];
+
         let mut metrics_summary = BTreeMap::new();
         metrics_summary.insert(
             "d:page_duration@millisecond".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
+            Annotated::new(metric_summary.clone()),
         );
         metrics_summary.insert(
             "c:custom/page_click@none".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
+            Annotated::new(Default::default()),
         );
-        metrics_summary.insert(
-            "s:user@none".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
-        );
+        metrics_summary.insert("s:user@none".to_string(), Annotated::new(metric_summary));
         metrics_summary.insert(
             "g:page_load@second".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
+            Annotated::new(Default::default()),
         );
 
         let mut event = Annotated::new(Event {
             spans: Annotated::new(vec![Annotated::new(Span {
                 op: Annotated::new("my_span".to_owned()),
-                _metrics_summary: Annotated::new(Value::Object(metrics_summary.clone())),
+                _metrics_summary: Annotated::new(metrics_summary.clone()),
                 ..Default::default()
             })]),
-            _metrics_summary: Annotated::new(Value::Object(metrics_summary)),
+            _metrics_summary: Annotated::new(metrics_summary),
             ..Default::default()
         });
         normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
@@ -2448,17 +2456,57 @@ mod tests {
               "op": "my_span",
               "_metrics_summary": {
                 "c:custom/page_click@none": [],
-                "d:custom/page_duration@millisecond": [],
+                "d:custom/page_duration@millisecond": [
+                  {
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
+                    }
+                  }
+                ],
                 "g:custom/page_load@second": [],
-                "s:custom/user@none": []
+                "s:custom/user@none": [
+                  {
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
+                    }
+                  }
+                ]
               }
             }
           ],
           "_metrics_summary": {
             "c:custom/page_click@none": [],
-            "d:custom/page_duration@millisecond": [],
+            "d:custom/page_duration@millisecond": [
+              {
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
+                }
+              }
+            ],
             "g:custom/page_load@second": [],
-            "s:custom/user@none": []
+            "s:custom/user@none": [
+              {
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
+                }
+              }
+            ]
           }
         }
         "###);
