@@ -583,7 +583,7 @@ pub struct ProcessMetricMeta {
 }
 
 /// Metric buckets with additional project.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
@@ -2495,21 +2495,13 @@ mod tests {
                 Arc::new(project_state)
             };
 
-            scopes.insert(
-                scoping_by_org_id(rate_limited_org),
-                ProjectMetrics {
-                    buckets: vec![bucket.clone()],
-                    project_state: project_state.clone(),
-                },
-            );
+            let project_metrics = ProjectMetrics {
+                buckets: vec![bucket],
+                project_state,
+            };
 
-            scopes.insert(
-                scoping_by_org_id(not_ratelimited_org),
-                ProjectMetrics {
-                    buckets: vec![bucket],
-                    project_state,
-                },
-            );
+            scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
+            scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
 
             EncodeMetrics { scopes }
         };
