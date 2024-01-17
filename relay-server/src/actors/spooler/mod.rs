@@ -742,7 +742,7 @@ impl BufferState {
                             buffer,
                         );
                         relay_log::trace!(
-                            "Transition to memory spool (disk fits to memory): # of envelopes = {}",
+                            "Transition to memory spool: # of envelopes = {}",
                             ram.envelope_count
                         );
 
@@ -756,14 +756,6 @@ impl BufferState {
 
                         Self::Disk(disk)
                     }
-                }
-            }
-            Self::Disk(disk) if disk.is_empty().await.unwrap_or_default() => {
-                relay_log::trace!("Transition to memory spool (disk is empty)",);
-
-                Self::MemoryFileStandby {
-                    ram: InMemory::new(config.spool_envelopes_max_memory_size()),
-                    disk,
                 }
             }
             Self::Memory(_) | Self::MemoryFileStandby { .. } | Self::Disk(_) => self,
