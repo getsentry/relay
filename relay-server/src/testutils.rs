@@ -10,6 +10,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
 
+use crate::actors::global_config::GlobalConfigHandle;
 use crate::actors::outcome::TrackOutcome;
 use crate::actors::processor::EnvelopeProcessorService;
 use crate::actors::project::ProjectState;
@@ -122,6 +123,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
 
     EnvelopeProcessorService::new(
         Arc::new(config),
+        GlobalConfigHandle::fixed(Default::default()),
         #[cfg(feature = "processing")]
         redis,
         outcome_aggregator,
