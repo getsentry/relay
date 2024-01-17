@@ -32,7 +32,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::path::Path;
-use std::pin::Pin;
+use std::pin::pin;
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
@@ -59,10 +59,16 @@ use crate::utils::{BufferGuard, ManagedEnvelope};
 
 mod sql;
 
-/// The predifined batch size for the SQL queries, when fetching anything from the on-disk spool.
-static BATCH_SIZE: i64 = 200;
+/// The predefined batch size for the SQL queries, when fetching anything from the on-disk spool.
+const BATCH_SIZE: i64 = 200;
 
-/// The set of errors which can happend while working the the buffer.
+/// The low memory watermark for spool.
+///
+/// This number is used to calculate how much memory should be taken by the on-disk spool if all
+/// the spooled envelopes will be moved to in-memory buffer.
+const LOW_SPOOL_MEMORY_WATERMARCK: f64 = 0.3;
+
+/// The set of errors which can happened while working the buffer.
 #[derive(Debug, thiserror::Error)]
 pub enum BufferError {
     #[error("failed to move envelope from disk to memory")]
@@ -452,6 +458,11 @@ impl OnDisk {
         Ok((queue_key, envelopes?))
     }
 
+    /// Returns the size of the batch to unspool.
+    fn unspool_batch(&self) -> i64 {
+        BATCH_SIZE.min(self.buffer_guard.available() as i64)
+    }
+
     /// Tries to delete the envelopes from the persistent buffer in batches,
     /// extract and convert them to managed envelopes and send back into
     /// processing pipeline.
@@ -482,19 +493,19 @@ impl OnDisk {
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
-            let mut envelopes =
-                sql::delete_and_fetch(key, BATCH_SIZE.min(self.buffer_guard.available() as i64))
-                    .fetch(&self.db)
-                    .peekable();
+            let envelopes = sql::delete_and_fetch(key, self.unspool_batch())
+                .fetch(&self.db)
+                .peekable();
+            let mut envelopes = pin!(envelopes);
             relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
 
             // Stream is empty, we can break the loop, since we read everything by now.
-            if Pin::new(&mut envelopes).peek().await.is_none() {
+            if envelopes.as_mut().peek().await.is_none() {
                 return Ok(());
             }
 
             let mut count: i64 = 0;
-            while let Some(envelope) = envelopes.next().await {
+            while let Some(envelope) = envelopes.as_mut().next().await {
                 count += 1;
                 let envelope = match envelope {
                     Ok(envelope) => envelope,
@@ -535,19 +546,25 @@ impl OnDisk {
         let mut result: BTreeMap<QueueKey, Vec<ManagedEnvelope>> = BTreeMap::new();
 
         loop {
-            let mut envelopes =
-                sql::delete_and_fetch_all(BATCH_SIZE.min(self.buffer_guard.available() as i64))
-                    .fetch(&self.db)
-                    .peekable();
+            // On each iteration make sure we are still below the lower limit of available
+            // guard permits.
+            //
+            // Note: This is not an error, so we just return an empty container.
+            if !self.buffer_guard.is_below_low_watermark() {
+                return Ok(Default::default());
+            }
+            let envelopes = sql::delete_and_fetch_all(self.unspool_batch())
+                .fetch(&self.db)
+                .peekable();
+            let mut envelopes = pin!(envelopes);
             relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
-
             // Stream is empty, we can break the loop, since we read everything by now.
-            if Pin::new(&mut envelopes).peek().await.is_none() {
+            if envelopes.as_mut().peek().await.is_none() {
                 break;
             }
 
             let mut count: i64 = 0;
-            while let Some(envelope) = envelopes.next().await {
+            while let Some(envelope) = envelopes.as_mut().next().await {
                 count += 1;
                 let envelope = match envelope {
                     Ok(envelope) => envelope,
@@ -558,8 +575,7 @@ impl OnDisk {
                             error = &err as &dyn Error,
                             "failed to read the buffer stream from the disk",
                         );
-                        self.track_count(-count);
-                        return Err(BufferError::FetchFailed(err));
+                        continue;
                     }
                 };
 
@@ -594,7 +610,7 @@ impl OnDisk {
     ) {
         let mut unused_keys = BTreeSet::new();
         while let Some(key) = keys.pop() {
-            // If the error with a key is returned we must save it for the next iterration.
+            // If the error with a key is returned we must save it for the next iteration.
             if let Err(key) = self.delete_and_fetch(key, &sender, services).await {
                 unused_keys.insert(key);
             };
@@ -768,7 +784,7 @@ impl BufferState {
     /// * fit into memory and take not more than 30% of the configured space
     /// * the used buffer guards also must be under the low watermark.
     async fn is_below_low_mem_watermark(config: &Config, disk: &OnDisk) -> bool {
-        ((config.spool_envelopes_max_memory_size() as f64 * 0.3) as i64)
+        ((config.spool_envelopes_max_memory_size() as f64 * LOW_SPOOL_MEMORY_WATERMARCK) as i64)
             > disk.estimate_spool_size().await.unwrap_or(i64::MAX)
             && disk.buffer_guard.is_below_low_watermark()
     }
