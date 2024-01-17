@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_common::glob3::GlobPatterns;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
@@ -579,19 +580,25 @@ impl Project {
         }
     }
 
-    /// Remove metric buckets that are not allowed to be ingested.
-    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
-        let Some(state) = &self.state_value() else {
-            return;
-        };
+    fn apply_metrics_deny_list(deny_list: &GlobPatterns, metrics: &mut Vec<Bucket>) {
+        metrics.retain(|metric| {
+            if deny_list.is_match(&metric.name) {
+                relay_log::trace!(mri = metric.name, "dropping metrics due to denylist");
+                false
+            } else {
+                true
+            }
+        })
+    }
 
+    fn filter_disabled_namespace(state: &ProjectState, metrics: &mut Vec<Bucket>) {
         metrics.retain(|metric| {
             let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
                 relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
                 return false;
             };
 
-            let mut verdict = match mri.namespace {
+            let verdict = match mri.namespace {
                 MetricNamespace::Sessions => true,
                 MetricNamespace::Transactions => true,
                 MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
@@ -601,13 +608,20 @@ impl Project {
 
             if verdict {
                 relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
-            } else if state.config.deny_metrics.is_match(&metric.name) {
-                relay_log::trace!(mri = metric.name, "dropping metric due to denylist");
-                verdict = false;
             }
 
             verdict
         });
+    }
+
+    /// Remove metric buckets that are not allowed to be ingested.
+    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
+        let Some(state) = &self.state_value() else {
+            return;
+        };
+
+        Self::apply_metrics_deny_list(&state.config.deny_metrics, metrics);
+        Self::filter_disabled_namespace(state, metrics);
     }
 
     fn rate_limit_and_merge_buckets(
