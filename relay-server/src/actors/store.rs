@@ -711,11 +711,11 @@ impl StoreService {
                 "sampled".to_string(),
                 item.get_header("sampled")
                     .and_then(Value::as_bool)
-                    .and_then(|sv| -> Option<String> {
+                    .map(|sv| -> String {
                         if sv {
-                            Some("true".to_string())
+                            "true".to_string()
                         } else {
-                            Some("false".to_string())
+                            "false".to_string()
                         }
                     })
                     .unwrap_or("true".to_string()),
