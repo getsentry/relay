@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
+
 ## 0.8.41
 
 - This release requires Python 3.9 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.8.
