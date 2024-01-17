@@ -341,30 +341,14 @@
 <a href="#341" id="341">341</a>
 <a href="#342" id="342">342</a>
 <a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    Event, EventId, JsonLenientString, Measurements, OperationType, OriginType, ProfileContext,
-    SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
+    Event, EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType,
+    ProfileContext, SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -445,7 +429,7 @@
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
-    </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;MetricsSummary&gt;,
 
     <span class="comment">// TODO remove retain when the api stabilizes
     </span><span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -665,35 +649,19 @@
             sentry_tags: ~,
             received: ~,
             measurements: ~,
-            _metrics_summary: Object(
+            _metrics_summary: MetricsSummary(
                 {
-                    &quot;some_metric&quot;: Array(
-                        [
-                            Object(
-                                {
-                                    &quot;count&quot;: I64(
-                                        2,
-                                    ),
-                                    &quot;max&quot;: F64(
-                                        2.0,
-                                    ),
-                                    &quot;min&quot;: F64(
-                                        1.0,
-                                    ),
-                                    &quot;sum&quot;: F64(
-                                        3.0,
-                                    ),
-                                    &quot;tags&quot;: Object(
-                                        {
-                                            &quot;environment&quot;: String(
-                                                &quot;test&quot;,
-                                            ),
-                                        },
-                                    ),
-                                },
-                            ),
-                        ],
-                    ),
+                    &quot;some_metric&quot;: [
+                        MetricSummary {
+                            min: 1.0,
+                            max: 2.0,
+                            sum: 3.0,
+                            count: 2,
+                            tags: {
+                                &quot;environment&quot;: &quot;test&quot;,
+                            },
+                        },
+                    ],
                 },
             ),
             other: {},

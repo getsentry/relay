@@ -70,6 +70,8 @@
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements the sentry event protocol.
 
 </span><span class="kw">mod </span>base;
@@ -88,6 +90,7 @@
 <span class="kw">mod </span>measurements;
 <span class="kw">mod </span>mechanism;
 <span class="kw">mod </span>metrics;
+<span class="kw">mod </span>metrics_summary;
 <span class="kw">mod </span>nel;
 <span class="kw">mod </span>relay_info;
 <span class="kw">mod </span>replay;
@@ -125,6 +128,7 @@
 <span class="kw">pub use </span><span class="self">self</span>::measurements::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::mechanism::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::metrics::<span class="kw-2">*</span>;
+<span class="kw">pub use </span><span class="self">self</span>::metrics_summary::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::nel::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::relay_info::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::replay::<span class="kw-2">*</span>;

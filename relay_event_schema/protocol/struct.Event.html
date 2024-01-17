@@ -47,7 +47,7 @@
     pub breakdowns: Annotated&lt;<a class="struct" href="struct.Breakdowns.html" title="struct relay_event_schema::protocol::Breakdowns">Breakdowns</a>&gt;,
     pub scraping_attempts: Annotated&lt;Value&gt;,
     pub _metrics: Annotated&lt;<a class="struct" href="struct.Metrics.html" title="struct relay_event_schema::protocol::Metrics">Metrics</a>&gt;,
-    pub _metrics_summary: Annotated&lt;Value&gt;,
+    pub _metrics_summary: Annotated&lt;<a class="struct" href="struct.MetricsSummary.html" title="struct relay_event_schema::protocol::MetricsSummary">MetricsSummary</a>&gt;,
     pub other: Object&lt;Value&gt;,
 </details>}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The sentry v7 event structure.</p>
 </div></details><h2 id="fields" class="fields small-section-header">Fields<a href="#fields" class="anchor">§</a></h2><span id="structfield.id" class="structfield small-section-header"><a href="#structfield.id" class="anchor field">§</a><code>id: Annotated&lt;<a class="struct" href="struct.EventId.html" title="struct relay_event_schema::protocol::EventId">EventId</a>&gt;</code></span><div class="docblock"><p>Unique identifier of this event.</p>
@@ -187,7 +187,7 @@ values such as Largest Contentful Paint (LCP).</p>
 This field is populated by sentry.</p>
 </div><span id="structfield._metrics" class="structfield small-section-header"><a href="#structfield._metrics" class="anchor field">§</a><code>_metrics: Annotated&lt;<a class="struct" href="struct.Metrics.html" title="struct relay_event_schema::protocol::Metrics">Metrics</a>&gt;</code></span><div class="docblock"><p>Internal ingestion and processing metrics.</p>
 <p>This value should not be ingested and will be overwritten by the store normalizer.</p>
-</div><span id="structfield._metrics_summary" class="structfield small-section-header"><a href="#structfield._metrics_summary" class="anchor field">§</a><code>_metrics_summary: Annotated&lt;Value&gt;</code></span><div class="docblock"><p>Temporary protocol support for metric summaries.</p>
+</div><span id="structfield._metrics_summary" class="structfield small-section-header"><a href="#structfield._metrics_summary" class="anchor field">§</a><code>_metrics_summary: Annotated&lt;<a class="struct" href="struct.MetricsSummary.html" title="struct relay_event_schema::protocol::MetricsSummary">MetricsSummary</a>&gt;</code></span><div class="docblock"><p>Temporary protocol support for metric summaries.</p>
 <p>This shall move to a stable location once we have stabilized the
 interface.  This is intentionally not typed today.</p>
 </div><span id="structfield.other" class="structfield small-section-header"><a href="#structfield.other" class="anchor field">§</a><code>other: Object&lt;Value&gt;</code></span><div class="docblock"><p>Additional arbitrary fields for forwards compatibility.</p>

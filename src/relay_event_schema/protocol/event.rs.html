@@ -1272,9 +1272,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, ProfileContext, RelayInfo,
-    Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
-    TraceContext, TransactionInfo, User, Values,
+    LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary, OsContext,
+    ProfileContext, RelayInfo, Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo,
+    Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
@@ -1754,7 +1754,7 @@
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
     </span><span class="attr">#[metastructure(omit_from_schema)]
-    </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;Value&gt;,
+    </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;MetricsSummary&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;true&quot;</span>)]
