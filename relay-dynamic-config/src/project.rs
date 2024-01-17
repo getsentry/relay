@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use relay_auth::PublicKey;
 use relay_base_schema::spans::SpanAttribute;
+use relay_common::glob3::GlobPatterns;
 use relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
@@ -88,9 +89,10 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
-
+    /// Metrics with matching names should be dropped.
     ///
-    pub deny_metrics: Vec<DenyMetricStuff>,
+    /// Deserialized from Vec<String>.
+    pub deny_metrics: GlobPatterns,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +138,7 @@ impl Default for ProjectConfig {
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
+            deny_metrics: GlobPatterns::default(),
         }
     }
 }

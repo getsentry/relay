@@ -591,7 +591,7 @@ impl Project {
                 return false;
             };
 
-            let verdict = match mri.namespace {
+            let mut verdict = match mri.namespace {
                 MetricNamespace::Sessions => true,
                 MetricNamespace::Transactions => true,
                 MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
@@ -599,8 +599,11 @@ impl Project {
                 MetricNamespace::Unsupported => false,
             };
 
-            if !verdict {
+            if verdict {
                 relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
+            } else if state.config.deny_metrics.is_match(&metric.name) {
+                relay_log::trace!(mri = metric.name, "dropping metric due to denylist");
+                verdict = false;
             }
 
             verdict
