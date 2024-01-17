@@ -351,7 +351,7 @@ impl BucketValue {
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
     for component in string.split(VALUE_SEPARATOR) {
-        sum = (sum + component.parse::<CounterType>().ok()?)?;
+        sum = sum.saturating_add(component.parse().ok()?);
     }
     Some(sum)
 }
