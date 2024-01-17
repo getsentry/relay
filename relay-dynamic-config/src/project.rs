@@ -95,11 +95,6 @@ pub struct ProjectConfig {
     pub deny_metrics: GlobPatterns,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DenyMetricStuff {
-    glob: String,
-}
-
 impl ProjectConfig {
     /// Validates fields in this project config and removes values that are partially invalid.
     pub fn sanitize(&mut self) {
