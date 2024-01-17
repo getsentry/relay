@@ -66,7 +66,7 @@ const BATCH_SIZE: i64 = 200;
 ///
 /// This number is used to calculate how much memory should be taken by the on-disk spool if all
 /// the spooled envelopes will be moved to in-memory buffer.
-const LOW_SPOOL_MEMORY_WATERMARCK: f64 = 0.3;
+const LOW_SPOOL_MEMORY_WATERMARK: f64 = 0.3;
 
 /// The set of errors which can happened while working the buffer.
 #[derive(Debug, thiserror::Error)]
@@ -784,7 +784,7 @@ impl BufferState {
     /// * fit into memory and take not more than 30% of the configured space
     /// * the used buffer guards also must be under the low watermark.
     async fn is_below_low_mem_watermark(config: &Config, disk: &OnDisk) -> bool {
-        ((config.spool_envelopes_max_memory_size() as f64 * LOW_SPOOL_MEMORY_WATERMARCK) as i64)
+        ((config.spool_envelopes_max_memory_size() as f64 * LOW_SPOOL_MEMORY_WATERMARK) as i64)
             > disk.estimate_spool_size().await.unwrap_or(i64::MAX)
             && disk.buffer_guard.is_below_low_watermark()
     }
