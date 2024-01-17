@@ -2455,38 +2455,21 @@ mod tests {
     #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
-        let rate_limited_org = 0;
-        let not_ratelimited_org = 1;
+        let rate_limited_org = 1;
+        let not_ratelimited_org = 2;
 
         let message = {
-            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
-
-            let quota = Quota {
-                id: Some("testing".into()),
-                categories: vec![DataCategory::MetricBucket].into(),
-                scope: relay_quotas::QuotaScope::Organization,
-                scope_id: Some(rate_limited_org.to_string()), // we will ratelimit buckets with scope org-id == 1
-                limit: Some(0),
-                window: None,
-                reason_code: Some(ReasonCode::new("test")),
-            };
-
-            let bucket = Bucket {
-                name: "d:transactions/bar".to_string(),
-                value: BucketValue::Counter(1.0),
-                timestamp: UnixTimestamp::now(),
-                tags: Default::default(),
-                width: 10,
-            };
-
-            let scoping_by_org_id = |org_id: u64| Scoping {
-                organization_id: org_id,
-                project_id: ProjectId::new(21),
-                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                key_id: Some(17),
-            };
-
             let project_state = {
+                let quota = Quota {
+                    id: Some("testing".into()),
+                    categories: vec![DataCategory::MetricBucket].into(),
+                    scope: relay_quotas::QuotaScope::Organization,
+                    scope_id: Some(rate_limited_org.to_string()),
+                    limit: Some(0),
+                    window: None,
+                    reason_code: Some(ReasonCode::new("test")),
+                };
+
                 let mut config = ProjectConfig::default();
                 config.quotas.push(quota);
 
@@ -2496,10 +2479,24 @@ mod tests {
             };
 
             let project_metrics = ProjectMetrics {
-                buckets: vec![bucket],
+                buckets: vec![Bucket {
+                    name: "d:transactions/bar".to_string(),
+                    value: BucketValue::Counter(1.0),
+                    timestamp: UnixTimestamp::now(),
+                    tags: Default::default(),
+                    width: 10,
+                }],
                 project_state,
             };
 
+            let scoping_by_org_id = |org_id: u64| Scoping {
+                organization_id: org_id,
+                project_id: ProjectId::new(21),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(17),
+            };
+
+            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
             scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
             scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
 
@@ -2529,7 +2526,7 @@ mod tests {
             let f = |org_ids: &mut Vec<u64>, msg: Store| {
                 let org_id = match msg {
                     Store::Metrics(x) => x.scoping.organization_id,
-                    Store::Envelope(_) => panic!(),
+                    Store::Envelope(_) => panic!("received envelope when expecting only metrics"),
                 };
                 org_ids.push(org_id);
             };
