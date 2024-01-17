@@ -566,10 +566,6 @@
 <a href="#566" id="566">566</a>
 <a href="#567" id="567">567</a>
 <a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -907,7 +903,6 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -957,7 +952,6 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -1015,7 +1009,6 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -1052,7 +1045,6 @@
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();

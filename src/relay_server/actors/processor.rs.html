@@ -2711,7 +2711,6 @@
 <a href="#2711" id="2711">2711</a>
 <a href="#2712" id="2712">2712</a>
 <a href="#2713" id="2713">2713</a>
-<a href="#2714" id="2714">2714</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2731,7 +2730,7 @@
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
-<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
+<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{
     normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
     NormalizationConfig, TransactionNameConfig,
@@ -2766,6 +2765,7 @@
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
+<span class="kw">use </span><span class="kw">crate</span>::actors::global_config::GlobalConfigHandle;
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
@@ -3161,9 +3161,6 @@
 
     <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
     </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">&#39;a</span>&gt;,
-
-    <span class="doccomment">/// Global config used for envelope processing.
-    </span>global_config: Arc&lt;GlobalConfig&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ProcessEnvelopeState&lt;<span class="lifetime">&#39;a</span>&gt; {
@@ -3245,7 +3242,6 @@
     <span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
     <span class="kw">pub </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
     <span class="kw">pub </span>reservoir_counters: ReservoirCounters,
-    <span class="kw">pub </span>global_config: Arc&lt;GlobalConfig&gt;,
 }
 
 <span class="doccomment">/// Parses a list of metrics or metric buckets and pushes them to the project&#39;s aggregator.
@@ -3463,6 +3459,7 @@
 
 <span class="kw">struct </span>InnerProcessor {
     config: Arc&lt;Config&gt;,
+    global_config: GlobalConfigHandle,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>redis_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
@@ -3487,6 +3484,7 @@
     </span><span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
+        global_config: GlobalConfigHandle,
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
@@ -3506,6 +3504,7 @@
         });
 
         <span class="kw">let </span>inner = InnerProcessor {
+            global_config,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>redis_pool: redis.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -3586,7 +3585,6 @@
             project_state,
             sampling_project_state,
             reservoir_counters,
-            global_config,
         } = message;
 
         <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
@@ -3641,7 +3639,6 @@
             managed_envelope,
             profile_id: <span class="prelude-val">None</span>,
             reservoir,
-            global_config,
         })
     }
 
@@ -3771,6 +3768,8 @@
             .config
             .aggregator_config_for(MetricNamespace::Transactions);
 
+        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
             <span class="kw">let </span>config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -3813,7 +3812,7 @@
                 enable_trimming: <span class="bool-val">true</span>,
                 measurements: <span class="prelude-val">Some</span>(DynamicMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
-                    state.global_config.measurements.as_ref(),
+                    global_config.measurements.as_ref(),
                 )),
             };
 
@@ -5228,7 +5227,6 @@
             project_state: Arc::new(project_state),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();

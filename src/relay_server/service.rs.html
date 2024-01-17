@@ -310,6 +310,8 @@
 <a href="#310" id="310">310</a>
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -430,11 +432,12 @@
         <span class="kw">let </span>outcome_aggregator =
             OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start_in(<span class="kw-2">&amp;</span>runtimes.outcome);
 
+        <span class="kw">let </span>global_config = GlobalConfigService::new(config.clone(), upstream_relay.clone());
+        <span class="kw">let </span>global_config_handle = global_config.handle();
         <span class="comment">// The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        </span><span class="kw">let </span>global_config =
-            GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
+        </span><span class="kw">let </span>global_config = global_config.start();
 
         <span class="kw">let </span>(project_cache, project_cache_rx) = channel(ProjectCacheService::name());
 
@@ -455,6 +458,7 @@
 
         EnvelopeProcessorService::new(
             config.clone(),
+            global_config_handle,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>redis_pool.clone(),
             outcome_aggregator.clone(),
