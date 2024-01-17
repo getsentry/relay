@@ -2565,7 +2565,7 @@ mod tests {
         drop(store);
         let orgs_not_ratelimited = handle.await.unwrap();
 
-        assert_eq!(orgs_not_ratelimited, vec![1]);
+        assert_eq!(orgs_not_ratelimited, vec![not_ratelimited_org]);
     }
 
     #[tokio::test]
