@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// A finite 64-bit floating point type.
 ///
 /// This is a restricted version of [`f64`] that does not allow NaN or infinity.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Copy, Default, PartialEq, Deserialize, Serialize)]
 #[serde(try_from = "f64")]
 #[repr(transparent)]
 pub struct FiniteF64(f64);
@@ -104,6 +104,12 @@ impl Hash for FiniteF64 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Safety: NaN and infinity cannot be constructed from a finite f64.
         self.0.to_bits().hash(state)
+    }
+}
+
+impl fmt::Debug for FiniteF64 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
