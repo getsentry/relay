@@ -8,6 +8,7 @@
 
 #[cfg(feature = "redis")]
 mod cache;
+mod config;
 mod error;
 pub mod limiter;
 #[cfg(feature = "redis")]
@@ -17,10 +18,13 @@ mod statsd;
 mod utils;
 mod window;
 
+// TODO
+mod scope;
+pub use scope::*;
+
+pub use self::config::*;
 pub use self::error::*;
-pub use self::limiter::{
-    CardinalityItem, CardinalityLimits, CardinalityScope, Config as CardinalityLimiterConfig,
-};
+pub use self::limiter::{CardinalityItem, CardinalityLimits};
 #[cfg(feature = "redis")]
 pub use self::redis::RedisSetLimiter;
 pub use self::window::SlidingWindow;

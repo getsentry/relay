@@ -4,7 +4,7 @@ use std::iter::FusedIterator;
 use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
-use relay_cardinality::CardinalityItem;
+use relay_cardinality::{CardinalityItem, CardinalityScope};
 use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -706,9 +706,7 @@ impl Bucket {
 }
 
 impl CardinalityItem for Bucket {
-    type Scope = MetricNamespace;
-
-    fn to_scope(&self) -> Option<Self::Scope> {
+    fn namespace(&self) -> Option<MetricNamespace> {
         let mri = match MetricResourceIdentifier::parse(&self.name) {
             Err(error) => {
                 relay_log::debug!(

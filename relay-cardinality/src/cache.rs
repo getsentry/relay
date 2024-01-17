@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::OrganizationId;
+use crate::{FooScope, OrganizationId};
 
 /// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
 /// this hash.
@@ -28,32 +28,16 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheRead`] must be dropped.
-    pub fn read(
-        &self,
-        organization_id: OrganizationId,
-        window: u64,
-        limit: usize,
-    ) -> CacheRead<'_> {
+    pub fn read(&self, timestamp: u64) -> CacheRead<'_> {
         let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
-
-        // If the window does not match, we can already release the lock.
-        if window != inner.current_window {
-            return CacheRead::noop();
-        }
-
-        CacheRead::new(inner, organization_id, limit)
+        CacheRead::new(inner, timestamp)
     }
 
     /// Acquires a write lock from the cache and returns an update handle.
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    pub fn update<'a>(
-        &'a self,
-        organization_id: OrganizationId,
-        item_scope: &'a str,
-        window: u64,
-    ) -> CacheUpdate<'a> {
+    pub fn update<'a>(&'a self, scope: FooScope, window: u64) -> CacheUpdate<'a> {
         let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
 
         // If the window is older don't do anything and give up the lock early.
@@ -67,11 +51,7 @@ impl Cache {
             inner.cache.clear();
         }
 
-        let key = KeyRef {
-            organization_id,
-            item_scope,
-        };
-        CacheUpdate::new(inner, key)
+        CacheUpdate::new(inner, scope)
     }
 }
 
@@ -85,23 +65,14 @@ enum CacheReadInner<'a> {
     Noop,
     Cache {
         inner: RwLockReadGuard<'a, Inner>,
-        organization_id: OrganizationId,
-        limit: usize,
+        timestamp: u64,
     },
 }
 
 impl<'a> CacheRead<'a> {
     /// Creates a new [`CacheRead`] which reads from the cache.
-    fn new(
-        inner: RwLockReadGuard<'a, Inner>,
-        organization_id: OrganizationId,
-        limit: usize,
-    ) -> Self {
-        Self(CacheReadInner::Cache {
-            inner,
-            organization_id,
-            limit,
-        })
+    fn new(inner: RwLockReadGuard<'a, Inner>, timestamp: u64) -> Self {
+        Self(CacheReadInner::Cache { inner, timestamp })
     }
 
     /// Creates a new noop [`CacheRead`] which does not require a lock.
@@ -109,20 +80,13 @@ impl<'a> CacheRead<'a> {
         Self(CacheReadInner::Noop)
     }
 
-    pub fn check(&self, item_scope: &str, hash: u32) -> CacheOutcome {
+    pub fn check(&self, scope: FooScope, hash: u32, limit: u64) -> CacheOutcome {
         match &self.0 {
             CacheReadInner::Noop => CacheOutcome::Unknown,
-            CacheReadInner::Cache {
-                inner,
-                organization_id,
-                limit,
-            } => inner
+            CacheReadInner::Cache { inner, timestamp } => inner
                 .cache
-                .get(&KeyRef {
-                    organization_id: *organization_id,
-                    item_scope,
-                })
-                .map_or(CacheOutcome::Unknown, |s| s.check(hash, *limit)),
+                .get(&scope)
+                .map_or(CacheOutcome::Unknown, |s| s.check(hash, limit)),
         }
     }
 }
@@ -137,13 +101,13 @@ enum CacheUpdateInner<'a> {
     Noop,
     Cache {
         inner: RwLockWriteGuard<'a, Inner>,
-        key: KeyRef<'a>,
+        key: FooScope,
     },
 }
 
 impl<'a> CacheUpdate<'a> {
     /// Creates a new [`CacheUpdate`] which operates on the passed cache.
-    fn new(inner: RwLockWriteGuard<'a, Inner>, key: KeyRef<'a>) -> Self {
+    fn new(inner: RwLockWriteGuard<'a, Inner>, key: FooScope) -> Self {
         Self(CacheUpdateInner::Cache { inner, key })
     }
 
@@ -156,7 +120,7 @@ impl<'a> CacheUpdate<'a> {
     /// item as accepted.
     pub fn accept(&mut self, hash: u32) {
         if let CacheUpdateInner::Cache { inner, key } = &mut self.0 {
-            inner.cache.entry_ref(key).or_default().insert(hash);
+            inner.cache.entry(*key).or_default().insert(hash);
         }
     }
 }
@@ -164,7 +128,7 @@ impl<'a> CacheUpdate<'a> {
 /// Critical section of the [`Cache`].
 #[derive(Debug, Default)]
 struct Inner {
-    cache: hashbrown::HashMap<Key, ScopedCache>,
+    cache: hashbrown::HashMap<FooScope, ScopedCache>,
     current_window: u64,
 }
 
@@ -176,11 +140,11 @@ struct ScopedCache(
 );
 
 impl ScopedCache {
-    fn check(&self, hash: u32, limit: usize) -> CacheOutcome {
+    fn check(&self, hash: u32, limit: u64) -> CacheOutcome {
         if self.0.contains(&hash) {
             // Local cache copy contains the hash -> accept it straight away
             CacheOutcome::Accepted
-        } else if self.0.len() >= limit {
+        } else if self.0.len() as u64 >= limit {
             // We have more or the same amount of items in the local cache as the cardinality
             // limit -> this new item/hash is rejected.
             CacheOutcome::Rejected
@@ -192,60 +156,5 @@ impl ScopedCache {
 
     fn insert(&mut self, hash: u32) {
         self.0.insert(hash);
-    }
-}
-
-/// Key/scoping for the cardinality cache.
-#[derive(Debug, PartialEq, Eq)]
-struct Key {
-    organization_id: OrganizationId,
-    item_scope: String,
-}
-
-impl Hash for Key {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        KeyRef {
-            organization_id: self.organization_id,
-            item_scope: &self.item_scope,
-        }
-        .hash(state)
-    }
-}
-
-impl hashbrown::Equivalent<KeyRef<'_>> for Key {
-    fn equivalent(&self, key: &KeyRef<'_>) -> bool {
-        let KeyRef {
-            organization_id,
-            item_scope,
-        } = key;
-
-        self.organization_id == *organization_id && &self.item_scope == item_scope
-    }
-}
-
-impl From<&KeyRef<'_>> for Key {
-    fn from(value: &KeyRef<'_>) -> Self {
-        Self {
-            organization_id: value.organization_id,
-            item_scope: value.item_scope.to_owned(),
-        }
-    }
-}
-
-/// A borrowed [`Key`].
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct KeyRef<'a> {
-    organization_id: OrganizationId,
-    item_scope: &'a str,
-}
-
-impl hashbrown::Equivalent<Key> for KeyRef<'_> {
-    fn equivalent(&self, key: &Key) -> bool {
-        let Key {
-            organization_id,
-            item_scope,
-        } = key;
-
-        self.organization_id == *organization_id && self.item_scope == item_scope
     }
 }

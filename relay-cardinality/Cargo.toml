@@ -16,9 +16,11 @@ redis = ["relay-redis/impl"]
 
 [dependencies]
 hashbrown = { workspace = true }
+relay-base-schema = { path = "../relay-base-schema" }
 relay-log = { path = "../relay-log" }
 relay-redis = { path = "../relay-redis" }
 relay-statsd = { path = "../relay-statsd" }
+serde = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
