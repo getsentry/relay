@@ -553,10 +553,12 @@ impl Project {
     ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
     fn rate_limit_metrics(
         &self,
+        project_state: &ProjectState,
         mut metrics: Vec<Bucket>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Vec<Bucket> {
-        self.filter_metrics(&mut metrics);
+        Self::filter_metrics(project_state, &mut metrics);
+
         if metrics.is_empty() {
             return metrics;
         }
@@ -580,11 +582,7 @@ impl Project {
     }
 
     /// Remove metric buckets that are not allowed to be ingested.
-    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
-        let Some(state) = &self.state_value() else {
-            return;
-        };
-
+    fn filter_metrics(state: &ProjectState, metrics: &mut Vec<Bucket>) {
         metrics.retain(|metric| {
             let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
                 relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
@@ -631,7 +629,7 @@ impl Project {
 
         // Re-run feature flag checks since the project might not have been loaded when the buckets
         // were initially ingested, or feature flags have changed in the meanwhile.
-        self.filter_metrics(&mut buckets);
+        Self::filter_metrics(&project_state, &mut buckets);
         if buckets.is_empty() {
             return;
         }
@@ -682,14 +680,16 @@ impl Project {
         buckets: Vec<Bucket>,
     ) {
         if self.metrics_allowed() {
-            let buckets = self.rate_limit_metrics(buckets, outcome_aggregator.clone());
+            match &mut self.state {
+                State::Cached(state) => {
+                    let state = state.clone();
 
-            if !buckets.is_empty() {
-                match &mut self.state {
-                    State::Cached(state) => {
+                    let buckets =
+                        self.rate_limit_metrics(&state, buckets, outcome_aggregator.clone());
+
+                    if !buckets.is_empty() {
                         // We can send metrics straight to the aggregator.
                         relay_log::debug!("sending metrics straight to aggregator");
-                        let state = state.clone();
 
                         self.rate_limit_and_merge_buckets(
                             state,
@@ -699,11 +699,11 @@ impl Project {
                             outcome_aggregator,
                         );
                     }
-                    State::Pending(inner_agg) => {
-                        // We need to queue the metrics in a temporary aggregator until the project state becomes available.
-                        relay_log::debug!("sending metrics to metrics-buffer");
-                        inner_agg.merge_all(self.project_key, buckets, None);
-                    }
+                }
+                State::Pending(inner_agg) => {
+                    // We need to queue the metrics in a temporary aggregator until the project state becomes available.
+                    relay_log::debug!("sending metrics to metrics-buffer");
+                    inner_agg.merge_all(self.project_key, buckets, None);
                 }
             }
         } else {
@@ -1297,7 +1297,11 @@ mod tests {
     async fn test_rate_limit_incoming_metrics() {
         let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(None);
-        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
+        let metrics = project.rate_limit_metrics(
+            &project.state_value().unwrap(),
+            vec![create_transaction_metric()],
+            addr,
+        );
 
         assert!(metrics.len() == 1);
     }
@@ -1379,7 +1383,11 @@ mod tests {
            }]
         })));
 
-        let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
+        let metrics = project.rate_limit_metrics(
+            &project.state_value().unwrap(),
+            vec![create_transaction_metric()],
+            addr,
+        );
 
         assert!(metrics.is_empty());
     }
@@ -1398,7 +1406,11 @@ mod tests {
     async fn test_rate_limit_incoming_buckets() {
         let (addr, _) = mock_service("track-outcome", (), |&mut (), _| {});
         let project = create_project(None);
-        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
+        let metrics = project.rate_limit_metrics(
+            &project.state_value().unwrap(),
+            vec![create_transaction_bucket()],
+            addr,
+        );
 
         assert!(metrics.len() == 1);
     }
@@ -1416,7 +1428,11 @@ mod tests {
            }]
         })));
 
-        let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
+        let metrics = project.rate_limit_metrics(
+            &project.state_value().unwrap(),
+            vec![create_transaction_bucket()],
+            addr,
+        );
 
         assert!(metrics.is_empty());
     }
