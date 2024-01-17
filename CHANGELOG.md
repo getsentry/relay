@@ -6,6 +6,10 @@
 
 - Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
 
+**Features**:
+
+- Add possiblity to block metrics with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954))
+
 ## 24.1.0
 
 **Features**:
