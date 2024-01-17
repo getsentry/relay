@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
+use relay_metrics::Bucket;
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,11 @@ pub struct Metrics {
 }
 
 impl Metrics {
+    /// Filters metrics based on the metric name.
+    pub fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
+        metrics.retain(|bucket| !self.denied_names.is_match(&bucket.name));
+    }
+
     /// Creates a new instance of [`Metrics`].
     pub fn new(patterns: Vec<String>) -> Self {
         Self {

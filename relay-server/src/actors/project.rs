@@ -594,14 +594,7 @@ impl Project {
             return;
         };
 
-        buckets.retain(|bucket| {
-            if metrics.denied_names.is_match(&bucket.name) {
-                relay_log::trace!(mri = bucket.name, "dropping metrics due to denylist");
-                false
-            } else {
-                true
-            }
-        })
+        metrics.filter_metrics(buckets);
     }
 
     fn filter_disabled_namespace(state: &ProjectState, metrics: &mut Vec<Bucket>) {
