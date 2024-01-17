@@ -1087,6 +1087,9 @@
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
 <a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
@@ -1818,16 +1821,19 @@
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">3</span>);
         <span class="macro">assert_eq!</span>(
             view.value(),
-            BucketViewValue::Distribution(<span class="kw-2">&amp;</span>[<span class="number">1.0</span>, <span class="number">2.0</span>, <span class="number">3.0</span>])
+            BucketViewValue::Distribution(<span class="kw-2">&amp;</span>[<span class="number">1</span>.into(), <span class="number">2</span>.into(), <span class="number">3</span>.into()])
         );
         <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">1</span>..<span class="number">3</span>).unwrap();
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(view.value(), BucketViewValue::Distribution(<span class="kw-2">&amp;</span>[<span class="number">2.0</span>, <span class="number">3.0</span>]));
+        <span class="macro">assert_eq!</span>(
+            view.value(),
+            BucketViewValue::Distribution(<span class="kw-2">&amp;</span>[<span class="number">2</span>.into(), <span class="number">3</span>.into()])
+        );
         <span class="kw">let </span>view = BucketView::new(<span class="kw-2">&amp;</span>bucket).select(<span class="number">1</span>..<span class="number">5</span>).unwrap();
         <span class="macro">assert_eq!</span>(view.len(), <span class="number">4</span>);
         <span class="macro">assert_eq!</span>(
             view.value(),
-            BucketViewValue::Distribution(<span class="kw-2">&amp;</span>[<span class="number">2.0</span>, <span class="number">3.0</span>, <span class="number">5.0</span>, <span class="number">5.0</span>])
+            BucketViewValue::Distribution(<span class="kw-2">&amp;</span>[<span class="number">2</span>.into(), <span class="number">3</span>.into(), <span class="number">5</span>.into(), <span class="number">5</span>.into()])
         );
     }
 
@@ -1875,10 +1881,10 @@
         <span class="macro">assert_eq!</span>(
             view.value(),
             BucketViewValue::Gauge(GaugeValue {
-                last: <span class="number">25.0</span>,
-                min: <span class="number">17.0</span>,
-                max: <span class="number">42.0</span>,
-                sum: <span class="number">220.0</span>,
+                last: <span class="number">25</span>.into(),
+                min: <span class="number">17</span>.into(),
+                max: <span class="number">42</span>.into(),
+                sum: <span class="number">220</span>.into(),
                 count: <span class="number">85
             </span>})
         );

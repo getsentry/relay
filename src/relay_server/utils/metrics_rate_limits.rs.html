@@ -581,7 +581,7 @@
 
     <span class="kw">let </span>usage = <span class="macro">matches!</span>(mode, ExtractionMode::Usage);
     <span class="kw">let </span>count = <span class="kw">match </span>metric.value() {
-        BucketViewValue::Counter(c) <span class="kw">if </span>usage &amp;&amp; mri.name == <span class="string">&quot;usage&quot; </span>=&gt; c <span class="kw">as </span>usize,
+        BucketViewValue::Counter(c) <span class="kw">if </span>usage &amp;&amp; mri.name == <span class="string">&quot;usage&quot; </span>=&gt; c.to_f64() <span class="kw">as </span>usize,
         BucketViewValue::Distribution(d) <span class="kw">if </span>!usage &amp;&amp; mri.name == <span class="string">&quot;duration&quot; </span>=&gt; d.len(),
         <span class="kw">_ </span>=&gt; <span class="number">0</span>,
     };
@@ -865,7 +865,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: Default::default(),
-                value: BucketValue::distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -873,7 +873,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: BucketValue::distribution(<span class="number">456.0</span>),
+                value: BucketValue::distribution(<span class="number">456</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction without profile
@@ -881,7 +881,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
                 tags: Default::default(),
-                value: BucketValue::counter(<span class="number">1.0</span>),
+                value: BucketValue::counter(<span class="number">1</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -889,7 +889,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: BucketValue::counter(<span class="number">1.0</span>),
+                value: BucketValue::counter(<span class="number">1</span>.into()),
             },
             Bucket {
                 <span class="comment">// unrelated metric
@@ -897,7 +897,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;something_else&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: BucketValue::distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
         ];
         <span class="kw">let </span>quotas = <span class="macro">vec!</span>[Quota {
@@ -953,7 +953,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: Default::default(),
-                value: BucketValue::distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -961,7 +961,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: BucketValue::distribution(<span class="number">456.0</span>),
+                value: BucketValue::distribution(<span class="number">456</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction without profile
@@ -969,7 +969,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
                 tags: Default::default(),
-                value: BucketValue::counter(<span class="number">1.0</span>),
+                value: BucketValue::counter(<span class="number">1</span>.into()),
             },
             Bucket {
                 <span class="comment">// transaction with profile
@@ -977,7 +977,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: BucketValue::counter(<span class="number">1.0</span>),
+                value: BucketValue::counter(<span class="number">1</span>.into()),
             },
             Bucket {
                 <span class="comment">// unrelated metric
@@ -985,7 +985,7 @@
                 width: <span class="number">0</span>,
                 name: <span class="string">&quot;something_else&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: BucketValue::distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123</span>.into()),
             },
         ];
         <span class="kw">let </span>quotas = <span class="macro">vec!</span>[Quota {

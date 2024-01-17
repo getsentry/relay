@@ -52,6 +52,8 @@
 <a href="#52" id="52">52</a>
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
 
 <span class="kw">use </span>hash32::{FnvHasher, Hasher <span class="kw">as _</span>};
@@ -64,17 +66,19 @@
 <span class="attr">#[doc(inline)]
 </span><span class="kw">pub use </span>relay_common::time::UnixTimestamp;
 
+<span class="kw">use </span><span class="kw">crate</span>::FiniteF64;
+
 <span class="doccomment">/// Type used for Counter metric
-</span><span class="kw">pub type </span>CounterType = f64;
+</span><span class="kw">pub type </span>CounterType = FiniteF64;
 
 <span class="doccomment">/// Type of distribution entries
-</span><span class="kw">pub type </span>DistributionType = f64;
+</span><span class="kw">pub type </span>DistributionType = FiniteF64;
 
 <span class="doccomment">/// Type used for set elements in Set metric
 </span><span class="kw">pub type </span>SetType = u32;
 
 <span class="doccomment">/// Type used for Gauge entries
-</span><span class="kw">pub type </span>GaugeType = f64;
+</span><span class="kw">pub type </span>GaugeType = FiniteF64;
 
 <span class="doccomment">/// Validates a tag key.
 ///

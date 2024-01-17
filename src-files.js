@@ -23,7 +23,7 @@ var srcIndex = JSON.parse('{\
 "relay_jsonschema_derive":["",[],["lib.rs"]],\
 "relay_kafka":["",[["producer",[],["mod.rs","schemas.rs","utils.rs"]]],["config.rs","lib.rs","statsd.rs"]],\
 "relay_log":["",[],["dashboard.rs","lib.rs","setup.rs","test.rs","utils.rs"]],\
-"relay_metrics":["",[["meta",[],["aggregator.rs","mod.rs","protocol.rs","redis.rs"]]],["aggregator.rs","aggregatorservice.rs","bucket.rs","lib.rs","protocol.rs","router.rs","statsd.rs","view.rs"]],\
+"relay_metrics":["",[["meta",[],["aggregator.rs","mod.rs","protocol.rs","redis.rs"]]],["aggregator.rs","aggregatorservice.rs","bucket.rs","finite.rs","lib.rs","protocol.rs","router.rs","statsd.rs","view.rs"]],\
 "relay_monitors":["",[],["lib.rs"]],\
 "relay_pii":["",[],["attachments.rs","builtin.rs","compiledconfig.rs","config.rs","convert.rs","generate_selectors.rs","legacy.rs","lib.rs","minidumps.rs","processor.rs","redactions.rs","regexes.rs","selector.rs","utils.rs"]],\
 "relay_profiling":["",[],["android.rs","error.rs","extract_from_transaction.rs","lib.rs","measurements.rs","native_debug_image.rs","outcomes.rs","sample.rs","transaction_metadata.rs","utils.rs"]],\

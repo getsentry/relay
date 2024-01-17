@@ -1309,6 +1309,7 @@
 <a href="#1309" id="1309">1309</a>
 <a href="#1310" id="1310">1310</a>
 <a href="#1311" id="1311">1311</a>
+<a href="#1312" id="1312">1312</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::iter::FusedIterator;
@@ -1324,7 +1325,7 @@
     <span class="self">self</span>, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
     MetricType, SetType,
 };
-<span class="kw">use crate</span>::{MetricNamespace, ParseMetricError};
+<span class="kw">use crate</span>::{FiniteF64, MetricNamespace, ParseMetricError};
 
 <span class="kw">const </span>VALUE_SEPARATOR: char = <span class="string">&#39;:&#39;</span>;
 
@@ -1362,7 +1363,7 @@
         <span class="self">self</span>.last = value;
         <span class="self">self</span>.min = <span class="self">self</span>.min.min(value);
         <span class="self">self</span>.max = <span class="self">self</span>.max.max(value);
-        <span class="self">self</span>.sum += value;
+        <span class="self">self</span>.sum = <span class="self">self</span>.sum.saturating_add(value);
         <span class="self">self</span>.count += <span class="number">1</span>;
     }
 
@@ -1371,18 +1372,14 @@
         <span class="self">self</span>.last = other.last;
         <span class="self">self</span>.min = <span class="self">self</span>.min.min(other.min);
         <span class="self">self</span>.max = <span class="self">self</span>.max.max(other.max);
-        <span class="self">self</span>.sum += other.sum;
+        <span class="self">self</span>.sum = <span class="self">self</span>.sum.saturating_add(other.sum);
         <span class="self">self</span>.count += other.count;
     }
 
     <span class="doccomment">/// Returns the average of all values reported in this bucket.
-    </span><span class="kw">pub fn </span>avg(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GaugeType {
-        <span class="kw">if </span><span class="self">self</span>.count &gt; <span class="number">0 </span>{
-            <span class="self">self</span>.sum / (<span class="self">self</span>.count <span class="kw">as </span>GaugeType)
-        } <span class="kw">else </span>{
-            <span class="number">0.0
-        </span>}
-    }
+    </span><span class="kw">pub fn </span>avg(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;GaugeType&gt; {
+        <span class="self">self</span>.sum / FiniteF64::new(<span class="self">self</span>.count <span class="kw">as </span>f64)<span class="question-mark">?
+    </span>}
 }
 
 <span class="doccomment">/// A distribution of values within a [`Bucket`].
@@ -1396,9 +1393,9 @@
 /// ```
 /// use relay_metrics::dist;
 ///
-/// let mut dist = dist![1.0, 1.0, 1.0, 2.0];
-/// dist.push(5.0);
-/// dist.extend(std::iter::repeat(3.0).take(7));
+/// let mut dist = dist![1, 1, 1, 2];
+/// dist.push(5.into());
+/// dist.extend(std::iter::repeat(3.into()).take(7));
 /// ```
 ///
 /// Logically, this distribution is equivalent to this visualization:
@@ -1428,12 +1425,12 @@
 /// # Example
 ///
 /// ```
-/// let dist = relay_metrics::dist![1.0, 2.0];
+/// let dist = relay_metrics::dist![1, 2];
 /// ```
 </span><span class="attr">#[macro_export]
 </span><span class="macro">macro_rules! </span>dist {
     ($(<span class="macro-nonterminal">$x</span>:expr),<span class="kw-2">*</span>$(,)<span class="kw-2">*</span>) =&gt; {
-        <span class="macro-nonterminal">$</span><span class="macro">crate::_smallvec!</span>($(<span class="macro-nonterminal">$x</span>),<span class="kw-2">*</span>) <span class="kw">as </span><span class="macro-nonterminal">$crate::DistributionValue
+        <span class="macro-nonterminal">$</span><span class="macro">crate::_smallvec!</span>($(<span class="macro-nonterminal">$crate::DistributionType::from</span>(<span class="macro-nonterminal">$x</span>)),<span class="kw-2">*</span>) <span class="kw">as </span><span class="macro-nonterminal">$crate::DistributionValue
     </span>};
 }
 
@@ -1651,7 +1648,7 @@
     /// values are of the same variant. Otherwise, this returns `Err(other)`.
     </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>&gt; {
         <span class="kw">match </span>(<span class="self">self</span>, other) {
-            (<span class="self">Self</span>::Counter(slf), <span class="self">Self</span>::Counter(other)) =&gt; <span class="kw-2">*</span>slf += other,
+            (<span class="self">Self</span>::Counter(slf), <span class="self">Self</span>::Counter(other)) =&gt; <span class="kw-2">*</span>slf = slf.saturating_add(other),
             (<span class="self">Self</span>::Distribution(slf), <span class="self">Self</span>::Distribution(other)) =&gt; slf.extend_from_slice(<span class="kw-2">&amp;</span>other),
             (<span class="self">Self</span>::Set(slf), <span class="self">Self</span>::Set(other)) =&gt; slf.extend(other),
             (<span class="self">Self</span>::Gauge(slf), <span class="self">Self</span>::Gauge(other)) =&gt; slf.merge(other),
@@ -1666,7 +1663,7 @@
 </span><span class="kw">fn </span>parse_counter(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;CounterType&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>sum = CounterType::default();
     <span class="kw">for </span>component <span class="kw">in </span>string.split(VALUE_SEPARATOR) {
-        sum += component.parse::&lt;CounterType&gt;().ok()<span class="question-mark">?</span>;
+        sum = sum.saturating_add(component.parse().ok()<span class="question-mark">?</span>);
     }
     <span class="prelude-val">Some</span>(sum)
 }
@@ -2114,18 +2111,16 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_value_merge_counter() {
-        <span class="kw">let </span><span class="kw-2">mut </span>value = BucketValue::Counter(<span class="number">42.</span>);
-        value.merge(BucketValue::Counter(<span class="number">43.</span>)).unwrap();
-        <span class="macro">assert_eq!</span>(value, BucketValue::Counter(<span class="number">85.</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>value = BucketValue::Counter(<span class="number">42</span>.into());
+        value.merge(BucketValue::Counter(<span class="number">43</span>.into())).unwrap();
+        <span class="macro">assert_eq!</span>(value, BucketValue::Counter(<span class="number">85</span>.into()));
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_value_merge_distribution() {
-        <span class="kw">let </span><span class="kw-2">mut </span>value = BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>]);
-        value
-            .merge(BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">2.</span>, <span class="number">4.</span>]))
-            .unwrap();
-        <span class="macro">assert_eq!</span>(value, BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>, <span class="number">2.</span>, <span class="number">4.</span>]));
+        <span class="kw">let </span><span class="kw-2">mut </span>value = BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>]);
+        value.merge(BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">2</span>, <span class="number">4</span>])).unwrap();
+        <span class="macro">assert_eq!</span>(value, BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">4</span>]));
     }
 
     <span class="attr">#[test]
@@ -2137,16 +2132,16 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_value_merge_gauge() {
-        <span class="kw">let </span><span class="kw-2">mut </span>value = BucketValue::Gauge(GaugeValue::single(<span class="number">42.</span>));
-        value.merge(BucketValue::gauge(<span class="number">43.</span>)).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>value = BucketValue::Gauge(GaugeValue::single(<span class="number">42</span>.into()));
+        value.merge(BucketValue::gauge(<span class="number">43</span>.into())).unwrap();
 
         <span class="macro">assert_eq!</span>(
             value,
             BucketValue::Gauge(GaugeValue {
-                last: <span class="number">43.</span>,
-                min: <span class="number">42.</span>,
-                max: <span class="number">43.</span>,
-                sum: <span class="number">85.</span>,
+                last: <span class="number">43</span>.into(),
+                min: <span class="number">42</span>.into(),
+                max: <span class="number">43</span>.into(),
+                sum: <span class="number">85</span>.into(),
                 count: <span class="number">2</span>,
             })
         );
@@ -2183,7 +2178,7 @@
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42:17:21|c&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">assert_eq!</span>(metric.value, BucketValue::Counter(<span class="number">80.0</span>));
+        <span class="macro">assert_eq!</span>(metric.value, BucketValue::Counter(<span class="number">80</span>.into()));
     }
 
     <span class="attr">#[test]
@@ -2213,7 +2208,11 @@
         <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
         <span class="macro">assert_eq!</span>(
             metric.value,
-            BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">17.5</span>, <span class="number">21.9</span>, <span class="number">42.7</span>])
+            BucketValue::Distribution(<span class="macro">dist!</span>[
+                FiniteF64::new(<span class="number">17.5</span>).unwrap(),
+                FiniteF64::new(<span class="number">21.9</span>).unwrap(),
+                FiniteF64::new(<span class="number">42.7</span>).unwrap()
+            ])
         );
     }
 
@@ -2222,7 +2221,10 @@
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|h&quot;</span>; <span class="comment">// common alias for distribution
         </span><span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">assert_eq!</span>(metric.value, BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">17.5</span>]));
+        <span class="macro">assert_eq!</span>(
+            metric.value,
+            BucketValue::Distribution(<span class="macro">dist!</span>[FiniteF64::new(<span class="number">17.5</span>).unwrap()])
+        );
     }
 
     <span class="attr">#[test]

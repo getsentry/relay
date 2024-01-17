@@ -2710,7 +2710,7 @@
         Bucket {
             name: <span class="string">&quot;d:transactions/foo&quot;</span>.to_string(),
             width: <span class="number">0</span>,
-            value: BucketValue::counter(<span class="number">1.0</span>),
+            value: BucketValue::counter(<span class="number">1</span>.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }
@@ -2810,7 +2810,7 @@
     <span class="kw">fn </span>create_transaction_bucket() -&gt; Bucket {
         Bucket {
             name: <span class="string">&quot;d:transactions/foo&quot;</span>.to_string(),
-            value: BucketValue::Counter(<span class="number">1.0</span>),
+            value: BucketValue::Counter(<span class="number">1</span>.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
             width: <span class="number">10</span>,

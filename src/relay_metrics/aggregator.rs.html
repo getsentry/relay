@@ -1428,6 +1428,18 @@
 <a href="#1428" id="1428">1428</a>
 <a href="#1429" id="1429">1429</a>
 <a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1959,7 +1971,7 @@
                 <span class="self">self</span>.buckets.retain(|key, entry| {
                     <span class="kw">if </span>force || entry.elapsed() {
                         <span class="comment">// Take the value and leave a placeholder behind. It&#39;ll be removed right after.
-                        </span><span class="kw">let </span>value = mem::replace(<span class="kw-2">&amp;mut </span>entry.value, BucketValue::Counter(<span class="number">0.0</span>));
+                        </span><span class="kw">let </span>value = mem::replace(<span class="kw-2">&amp;mut </span>entry.value, BucketValue::counter(<span class="number">0</span>.into()));
                         cost_tracker.subtract_cost(key.project_key, key.cost());
                         cost_tracker.subtract_cost(key.project_key, value.cost());
 
@@ -2317,7 +2329,7 @@
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
             name: <span class="string">&quot;c:transactions/foo&quot;</span>.to_owned(),
-            value: BucketValue::counter(<span class="number">42.</span>),
+            value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         }
     }
@@ -2331,7 +2343,7 @@
         <span class="kw">let </span>bucket1 = some_bucket();
 
         <span class="kw">let </span><span class="kw-2">mut </span>bucket2 = bucket1.clone();
-        bucket2.value = BucketValue::counter(<span class="number">43.</span>);
+        bucket2.value = BucketValue::counter(<span class="number">43</span>.into());
         aggregator.merge(project_key, bucket1, <span class="prelude-val">None</span>).unwrap();
         aggregator.merge(project_key, bucket2, <span class="prelude-val">None</span>).unwrap();
 
@@ -2365,20 +2377,20 @@
         </span><span class="kw">let </span>expected_bucket_value_size = <span class="number">48</span>;
         <span class="kw">let </span>expected_set_entry_size = <span class="number">4</span>;
 
-        <span class="kw">let </span>counter = BucketValue::Counter(<span class="number">123.0</span>);
+        <span class="kw">let </span>counter = BucketValue::Counter(<span class="number">123</span>.into());
         <span class="macro">assert_eq!</span>(counter.cost(), expected_bucket_value_size);
         <span class="kw">let </span>set = BucketValue::Set([<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>].into());
         <span class="macro">assert_eq!</span>(
             set.cost(),
             expected_bucket_value_size + <span class="number">5 </span>* expected_set_entry_size
         );
-        <span class="kw">let </span>distribution = BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>]);
+        <span class="kw">let </span>distribution = BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>]);
         <span class="macro">assert_eq!</span>(distribution.cost(), expected_bucket_value_size + <span class="number">3 </span>* <span class="number">8</span>);
         <span class="kw">let </span>gauge = BucketValue::Gauge(GaugeValue {
-            last: <span class="number">43.</span>,
-            min: <span class="number">42.</span>,
-            max: <span class="number">43.</span>,
-            sum: <span class="number">85.</span>,
+            last: <span class="number">43</span>.into(),
+            min: <span class="number">42</span>.into(),
+            max: <span class="number">43</span>.into(),
+            sum: <span class="number">85</span>.into(),
             count: <span class="number">2</span>,
         });
         <span class="macro">assert_eq!</span>(gauge.cost(), expected_bucket_value_size);
@@ -2561,7 +2573,7 @@
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
             name: <span class="string">&quot;c:transactions/foo@none&quot;</span>.to_owned(),
-            value: BucketValue::counter(<span class="number">42.</span>),
+            value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         };
         <span class="kw">let </span>bucket_key = BucketKey {
@@ -2574,10 +2586,14 @@
         <span class="kw">for </span>(metric_name, metric_value, expected_added_cost) <span class="kw">in </span>[
             (
                 <span class="string">&quot;c:transactions/foo@none&quot;</span>,
-                BucketValue::counter(<span class="number">42.</span>),
+                BucketValue::counter(<span class="number">42</span>.into()),
                 fixed_cost,
             ),
-            (<span class="string">&quot;c:transactions/foo@none&quot;</span>, BucketValue::counter(<span class="number">42.</span>), <span class="number">0</span>), <span class="comment">// counters have constant size
+            (
+                <span class="string">&quot;c:transactions/foo@none&quot;</span>,
+                BucketValue::counter(<span class="number">42</span>.into()),
+                <span class="number">0</span>,
+            ), <span class="comment">// counters have constant size
             </span>(
                 <span class="string">&quot;s:transactions/foo@none&quot;</span>,
                 BucketValue::set(<span class="number">123</span>),
@@ -2587,17 +2603,25 @@
             </span>(<span class="string">&quot;s:transactions/foo@none&quot;</span>, BucketValue::set(<span class="number">456</span>), <span class="number">4</span>), <span class="comment">// Different element in set -&gt; +4
             </span>(
                 <span class="string">&quot;d:transactions/foo@none&quot;</span>,
-                BucketValue::distribution(<span class="number">1.0</span>),
+                BucketValue::distribution(<span class="number">1</span>.into()),
                 fixed_cost + <span class="number">8</span>,
             ), <span class="comment">// New bucket + 1 element
-            </span>(<span class="string">&quot;d:transactions/foo@none&quot;</span>, BucketValue::distribution(<span class="number">1.0</span>), <span class="number">8</span>), <span class="comment">// duplicate element
-            </span>(<span class="string">&quot;d:transactions/foo@none&quot;</span>, BucketValue::distribution(<span class="number">2.0</span>), <span class="number">8</span>), <span class="comment">// 1 new element
+            </span>(
+                <span class="string">&quot;d:transactions/foo@none&quot;</span>,
+                BucketValue::distribution(<span class="number">1</span>.into()),
+                <span class="number">8</span>,
+            ), <span class="comment">// duplicate element
+            </span>(
+                <span class="string">&quot;d:transactions/foo@none&quot;</span>,
+                BucketValue::distribution(<span class="number">2</span>.into()),
+                <span class="number">8</span>,
+            ), <span class="comment">// 1 new element
             </span>(
                 <span class="string">&quot;g:transactions/foo@none&quot;</span>,
-                BucketValue::gauge(<span class="number">0.3</span>),
+                BucketValue::gauge(<span class="number">3</span>.into()),
                 fixed_cost,
             ), <span class="comment">// New bucket
-            </span>(<span class="string">&quot;g:transactions/foo@none&quot;</span>, BucketValue::gauge(<span class="number">0.2</span>), <span class="number">0</span>), <span class="comment">// gauge has constant size
+            </span>(<span class="string">&quot;g:transactions/foo@none&quot;</span>, BucketValue::gauge(<span class="number">2</span>.into()), <span class="number">0</span>), <span class="comment">// gauge has constant size
         </span>] {
             <span class="kw">let </span><span class="kw-2">mut </span>bucket = bucket.clone();
             bucket.value = metric_value;
@@ -2804,7 +2828,7 @@
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
             name: <span class="string">&quot;c:transactions/foo&quot;</span>.to_owned(),
-            value: BucketValue::counter(<span class="number">42.</span>),
+            value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         };
 
@@ -2834,7 +2858,7 @@
             timestamp: UnixTimestamp::from_secs(<span class="number">999994711</span>),
             width: <span class="number">0</span>,
             name: <span class="string">&quot;c:transactions/foo&quot;</span>.to_owned(),
-            value: BucketValue::counter(<span class="number">42.</span>),
+            value: BucketValue::counter(<span class="number">42</span>.into()),
             tags: BTreeMap::new(),
         };
 

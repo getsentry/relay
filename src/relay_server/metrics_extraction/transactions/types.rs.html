@@ -352,13 +352,13 @@
             ),
             <span class="self">Self</span>::Usage { tags } =&gt; (
                 Cow::Borrowed(<span class="string">&quot;usage&quot;</span>),
-                BucketValue::counter(<span class="number">1.0</span>),
+                BucketValue::counter(<span class="number">1</span>.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
             <span class="self">Self</span>::CountPerRootProject { tags } =&gt; (
                 Cow::Borrowed(<span class="string">&quot;count_per_root_project&quot;</span>),
-                BucketValue::counter(<span class="number">1.0</span>),
+                BucketValue::counter(<span class="number">1</span>.into()),
                 MetricUnit::None,
                 tags.into(),
             ),

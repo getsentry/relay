@@ -1979,6 +1979,10 @@
 <a href="#1979" id="1979">1979</a>
 <a href="#1980" id="1980">1980</a>
 <a href="#1981" id="1981">1981</a>
+<a href="#1982" id="1982">1982</a>
+<a href="#1983" id="1983">1983</a>
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -1988,7 +1992,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
-<span class="kw">use </span>relay_metrics::{Bucket, DurationUnit};
+<span class="kw">use </span>relay_metrics::{Bucket, DurationUnit, FiniteF64};
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
@@ -2266,14 +2270,12 @@
             .collect();
         <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = event.measurements.value() {
             <span class="kw">for </span>(name, annotated) <span class="kw">in </span>measurements.iter() {
-                <span class="kw">let </span>measurement = <span class="kw">match </span>annotated.value() {
-                    <span class="prelude-val">Some</span>(m) =&gt; m,
-                    <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+                <span class="kw">let </span><span class="prelude-val">Some</span>(measurement) = annotated.value() <span class="kw">else </span>{
+                    <span class="kw">continue</span>;
                 };
 
-                <span class="kw">let </span>value = <span class="kw">match </span>measurement.value.value() {
-                    <span class="prelude-val">Some</span>(value) =&gt; <span class="kw-2">*</span>value,
-                    <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = measurement.value.value().and_then(|v| FiniteF64::new(<span class="kw-2">*</span>v)) <span class="kw">else </span>{
+                    <span class="kw">continue</span>;
                 };
 
                 <span class="comment">// We treat a measurement as &quot;performance score&quot; if its name is the name of another
@@ -2285,7 +2287,7 @@
                         .map_or(<span class="bool-val">false</span>, |suffix| measurement_names.contains(suffix));
 
                 <span class="kw">let </span>measurement_tags = TransactionMeasurementTags {
-                    measurement_rating: get_measurement_rating(name, value),
+                    measurement_rating: get_measurement_rating(name, value.to_f64()),
                     universal_tags: <span class="kw">if </span>is_performance_score {
                         CommonTags(
                             tags.<span class="number">0
@@ -2322,15 +2324,14 @@
                             </span><span class="kw">continue</span>;
                         }
 
-                        <span class="kw">let </span>measurement = <span class="kw">match </span>annotated.value() {
-                            <span class="prelude-val">Some</span>(m) =&gt; m,
-                            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+                        <span class="kw">let </span><span class="prelude-val">Some</span>(m) = annotated.value() <span class="kw">else </span>{
+                            <span class="kw">continue</span>;
                         };
 
-                        <span class="kw">let </span>value = <span class="kw">match </span>measurement.value.value() {
-                            <span class="prelude-val">Some</span>(value) =&gt; <span class="kw-2">*</span>value,
-                            <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+                        <span class="kw">let </span><span class="prelude-val">Some</span>(value) = m.value.value().and_then(|v| FiniteF64::new(<span class="kw-2">*</span>v)) <span class="kw">else </span>{
+                            <span class="kw">continue</span>;
                         };
+
                         metrics.project_metrics.push(
                             TransactionMetric::Breakdown {
                                 name: <span class="macro">format!</span>(<span class="string">&quot;{breakdown}.{measurement_name}&quot;</span>),
@@ -2356,33 +2357,35 @@
 
         <span class="comment">// Duration
         </span><span class="kw">let </span>duration = relay_common::time::chrono_to_positive_millis(end - start);
-        <span class="kw">let </span>has_profile = <span class="kw">if </span><span class="self">self</span>.config.version &gt;= <span class="number">3 </span>{
-            <span class="bool-val">false
-        </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.has_profile
-        };
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(duration) = FiniteF64::new(duration) {
+            <span class="kw">let </span>has_profile = <span class="kw">if </span><span class="self">self</span>.config.version &gt;= <span class="number">3 </span>{
+                <span class="bool-val">false
+            </span>} <span class="kw">else </span>{
+                <span class="self">self</span>.has_profile
+            };
 
-        metrics.project_metrics.push(
-            TransactionMetric::Duration {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: TransactionDurationTags {
-                    has_profile,
-                    universal_tags: tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        );
+            metrics.project_metrics.push(
+                TransactionMetric::Duration {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: TransactionDurationTags {
+                        has_profile,
+                        universal_tags: tags.clone(),
+                    },
+                }
+                .into_metric(timestamp),
+            );
 
-        <span class="comment">// Lower cardinality duration
-        </span>metrics.project_metrics.push(
-            TransactionMetric::DurationLight {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: light_tags,
-            }
-            .into_metric(timestamp),
-        );
+            <span class="comment">// Lower cardinality duration
+            </span>metrics.project_metrics.push(
+                TransactionMetric::DurationLight {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: light_tags,
+                }
+                .into_metric(timestamp),
+            );
+        }
 
         <span class="kw">let </span>root_counter_tags = {
             <span class="kw">let </span><span class="kw-2">mut </span>universal_tags = CommonTags(BTreeMap::default());
@@ -2391,12 +2394,14 @@
                     .<span class="number">0
                     </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
+            <span class="kw">let </span>decision = <span class="kw">if </span><span class="self">self</span>.sampling_result.should_keep() {
+                <span class="string">&quot;keep&quot;
+            </span>} <span class="kw">else </span>{
+                <span class="string">&quot;drop&quot;
+            </span>};
+
             TransactionCPRTags {
-                decision: <span class="kw">if </span><span class="self">self</span>.sampling_result.should_keep() {
-                    <span class="string">&quot;keep&quot;</span>.to_owned()
-                } <span class="kw">else </span>{
-                    <span class="string">&quot;drop&quot;</span>.to_owned()
-                },
+                decision: decision.to_owned(),
                 universal_tags,
             }
         };
@@ -3085,7 +3090,10 @@
             .unwrap();
 
         <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
-        <span class="macro">assert_eq!</span>(duration_metric.value, BucketValue::distribution(<span class="number">59000.0</span>));
+        <span class="macro">assert_eq!</span>(
+            duration_metric.value,
+            BucketValue::distribution(<span class="number">59000</span>.into())
+        );
 
         <span class="macro">assert_eq!</span>(duration_metric.tags.len(), <span class="number">4</span>);
         <span class="macro">assert_eq!</span>(duration_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.2.3&quot;</span>);
