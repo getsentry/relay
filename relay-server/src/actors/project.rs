@@ -606,7 +606,7 @@ impl Project {
                 MetricNamespace::Unsupported => false,
             };
 
-            if verdict {
+            if !verdict {
                 relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
             }
 
