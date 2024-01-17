@@ -2439,8 +2439,14 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-
     use crate::testutils::{self, create_test_processor};
+
+    #[cfg(feature = "processing")]
+    use {
+        relay_metrics::BucketValue,
+        relay_quotas::{Quota, ReasonCode},
+        relay_test::mock_service,
+    };
 
     use super::*;
 
@@ -2449,10 +2455,6 @@ mod tests {
     #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
-        use relay_metrics::BucketValue;
-        use relay_quotas::{Quota, ReasonCode};
-        use relay_test::mock_service;
-
         let rate_limited_org = 0;
         let not_ratelimited_org = 1;
 
