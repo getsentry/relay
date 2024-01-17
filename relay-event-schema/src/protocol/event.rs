@@ -14,9 +14,9 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, ProfileContext, RelayInfo,
-    Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
-    TraceContext, TransactionInfo, User, Values,
+    LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary, OsContext,
+    ProfileContext, RelayInfo, Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo,
+    Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -496,7 +496,7 @@ pub struct Event {
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
     #[metastructure(omit_from_schema)]
-    pub _metrics_summary: Annotated<Value>,
+    pub _metrics_summary: Annotated<MetricsSummary>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]

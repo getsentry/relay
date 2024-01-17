@@ -10,6 +10,7 @@
 //! more details.
 
 use std::borrow::Cow;
+use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -166,6 +167,39 @@ impl Status {
     }
 }
 
+#[derive(Clone)]
+pub struct GlobalConfigHandle {
+    watch: watch::Receiver<Status>,
+}
+
+impl GlobalConfigHandle {
+    /// Creates a new global config handle with a fixed global config.
+    #[cfg(test)]
+    pub fn fixed(config: GlobalConfig) -> Self {
+        let (_, watch) = watch::channel(Status::Ready(Arc::new(config)));
+        Self { watch }
+    }
+
+    /// Returns the currently loaded or a default global config.
+    ///
+    /// When no global config has been received from upstream yet,
+    /// this will return a default global config.
+    pub fn current(&self) -> Arc<GlobalConfig> {
+        match &*self.watch.borrow() {
+            Status::Ready(config) => Arc::clone(config),
+            Status::Pending => Default::default(),
+        }
+    }
+}
+
+impl fmt::Debug for GlobalConfigHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("GlobalConfigHandle")
+            .field(&*self.watch.borrow())
+            .finish()
+    }
+}
+
 /// Service implementing the [`GlobalConfigManager`] interface.
 ///
 /// The service offers two alternatives to fetch the [`GlobalConfig`]:
@@ -208,6 +242,14 @@ impl GlobalConfigService {
             last_fetched: Instant::now(),
             upstream_failure_interval: Duration::from_secs(35),
             shutdown: false,
+        }
+    }
+
+    /// Creates a [`GlobalConfigHandle`] which can be used to retrieve the current state
+    /// of the global config at any time.
+    pub fn handle(&self) -> GlobalConfigHandle {
+        GlobalConfigHandle {
+            watch: self.global_config_watch.subscribe(),
         }
     }
 

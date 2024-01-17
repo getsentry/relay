@@ -365,9 +365,14 @@ mod tests {
     fn test_global_ratelimit_infinite() {
         let limit = None;
 
-        let mut quota = build_quota(10, limit);
-        let scoping = build_scoping();
-        let redis_quota = build_redis_quota(&quota, &scoping);
+        let timestamp = UnixTimestamp::now();
+
+        let mut quota = build_quota(100, limit);
+        let scoping = ItemScoping {
+            category: DataCategory::MetricBucket,
+            scoping: &build_scoping(),
+        };
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
 
         let pool = build_redis_pool();
         let mut client = pool.client().unwrap();
@@ -387,7 +392,7 @@ mod tests {
         let rl = GlobalRateLimits::default();
 
         quota.limit = Some(redis_threshold);
-        let redis_quota = build_redis_quota(&quota, &scoping);
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
 
         assert!(rl
             .is_rate_limited(&mut client, &redis_quota, quantity)
