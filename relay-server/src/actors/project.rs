@@ -3,9 +3,8 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_common::glob3::GlobPatterns;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
@@ -590,10 +589,14 @@ impl Project {
         Self::filter_disabled_namespace(state, metrics);
     }
 
-    fn apply_metrics_deny_list(deny_list: &GlobPatterns, metrics: &mut Vec<Bucket>) {
-        metrics.retain(|metric| {
-            if deny_list.is_match(&metric.name) {
-                relay_log::trace!(mri = metric.name, "dropping metrics due to denylist");
+    fn apply_metrics_deny_list(deny_list: &ErrorBoundary<Metrics>, buckets: &mut Vec<Bucket>) {
+        let ErrorBoundary::Ok(metrics) = deny_list else {
+            return;
+        };
+
+        buckets.retain(|bucket| {
+            if metrics.denied_names.is_match(&bucket.name) {
+                relay_log::trace!(mri = bucket.name, "dropping metrics due to denylist");
                 false
             } else {
                 true
@@ -1475,7 +1478,7 @@ mod tests {
     fn apply_pattern_to_names(names: &[&str], patterns: &[&str]) -> Vec<String> {
         let mut buckets = get_test_buckets(names);
         let patterns = patterns.iter().map(|s| String::from(*s)).collect_vec();
-        let deny_list = GlobPatterns::new(patterns);
+        let deny_list = ErrorBoundary::Ok(Metrics::new(patterns));
         Project::apply_metrics_deny_list(&deny_list, &mut buckets);
         buckets.into_iter().map(|bucket| bucket.name).collect_vec()
     }

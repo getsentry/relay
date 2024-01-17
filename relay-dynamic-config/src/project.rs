@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 
 use relay_auth::PublicKey;
 use relay_base_schema::spans::SpanAttribute;
-use relay_common::glob3::GlobPatterns;
 use relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
@@ -14,12 +13,12 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::defaults;
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
     self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
+use crate::{defaults, Metrics};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,8 +88,9 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
-    /// List of patterns that would deny metrics based on their name.
-    pub deny_metrics: GlobPatterns,
+    /// Configuration for filtering metrics.
+    #[serde(default, skip_serializing_if = "skip_deny_metrics")]
+    pub deny_metrics: ErrorBoundary<Metrics>,
 }
 
 impl ProjectConfig {
@@ -131,7 +131,7 @@ impl Default for ProjectConfig {
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
-            deny_metrics: GlobPatterns::default(),
+            deny_metrics: Default::default(),
         }
     }
 }
@@ -140,6 +140,13 @@ fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> 
     match boundary {
         ErrorBoundary::Err(_) => true,
         ErrorBoundary::Ok(config) => !config.is_enabled(),
+    }
+}
+
+fn skip_deny_metrics(boundary: &ErrorBoundary<Metrics>) -> bool {
+    match boundary {
+        ErrorBoundary::Err(_) => true,
+        ErrorBoundary::Ok(metrics) => !metrics.has_denied_names(),
     }
 }
 

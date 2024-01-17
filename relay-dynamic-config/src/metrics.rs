@@ -4,10 +4,32 @@ use std::collections::BTreeSet;
 
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
+use relay_common::glob3::GlobPatterns;
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
+
+/// Configuration for metrics filtering.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct Metrics {
+    /// Patterns of names of metrics that we want to filter.
+    pub denied_names: GlobPatterns,
+}
+
+impl Metrics {
+    /// Creates a new instance of [`Metrics`].
+    pub fn new(patterns: Vec<String>) -> Self {
+        Self {
+            denied_names: GlobPatterns::new(patterns),
+        }
+    }
+
+    /// Returns `true` if it contains any names patterns to filter metric names.
+    pub fn has_denied_names(&self) -> bool {
+        !self.denied_names.is_empty()
+    }
+}
 
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
