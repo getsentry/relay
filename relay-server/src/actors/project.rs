@@ -682,7 +682,7 @@ impl Project {
         if self.metrics_allowed() {
             match &mut self.state {
                 State::Cached(state) => {
-                    let state = state.clone();
+                    let state = Arc::clone(state);
 
                     let buckets =
                         self.rate_limit_metrics(&state, buckets, outcome_aggregator.clone());
