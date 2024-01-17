@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_metrics::{Bucket, BucketValue, MetricResourceIdentifier, MetricType};
+use relay_metrics::{Bucket, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType};
 use relay_protocol::{Getter, Val};
 use relay_quotas::DataCategory;
 
@@ -129,14 +129,16 @@ fn read_metric_value(
 ) -> Option<BucketValue> {
     Some(match ty {
         MetricType::Counter => BucketValue::counter(match field {
-            Some(field) => instance.get_value(field)?.as_f64()?,
-            None => 1.0,
+            Some(field) => FiniteF64::new(instance.get_value(field)?.as_f64()?)?,
+            None => 1.into(),
         }),
         MetricType::Distribution => {
-            BucketValue::distribution(instance.get_value(field?)?.as_f64()?)
+            BucketValue::distribution(FiniteF64::new(instance.get_value(field?)?.as_f64()?)?)
         }
         MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
-        MetricType::Gauge => BucketValue::gauge(instance.get_value(field?)?.as_f64()?),
+        MetricType::Gauge => {
+            BucketValue::gauge(FiniteF64::new(instance.get_value(field?)?.as_f64()?)?)
+        }
     })
 }
 
@@ -421,6 +423,70 @@ mod tests {
                 tags: {
                     "fast": "yes",
                 },
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn skip_nonfinite_float() {
+        let event_json = json!({
+            "type": "transaction",
+            "timestamp": 1597976302.0,
+            "measurements": {
+                "valid": {"value": 1.0},
+                "invalid": {"value": 0.0},
+            }
+        });
+        let mut event = Event::from_value(event_json.into());
+
+        // Patch event.measurements.test.value to NAN
+        event
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .measurements
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .get_mut("invalid")
+            .unwrap()
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .value
+            .set_value(Some(f64::NAN));
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "d:transactions/measurements.valid@none",
+                    "field": "event.measurements.valid.value",
+                },
+                {
+                    "category": "transaction",
+                    "mri": "d:transactions/measurements.invalid@none",
+                    "field": "event.measurements.invalid.value",
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
+                name: "d:transactions/measurements.valid@none",
+                value: Distribution(
+                    [
+                        1.0,
+                    ],
+                ),
+                tags: {},
             },
         ]
         "###);
