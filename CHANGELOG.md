@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
+
 ## 24.1.0
 
 **Features**:
