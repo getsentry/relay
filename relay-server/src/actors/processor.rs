@@ -2526,7 +2526,7 @@ mod tests {
                     "enabled": true,
                     "kafka_config": [],
                     "redis": {
-                        "server": "redis://127.0.0.1:6379"
+                        "server": std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned()),
                     }
                 }
             });
