@@ -942,7 +942,7 @@ mod tests {
             set.cost(),
             expected_bucket_value_size + 5 * expected_set_entry_size
         );
-        let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
+        let distribution = BucketValue::Distribution(dist![1, 2, 3]);
         assert_eq!(distribution.cost(), expected_bucket_value_size + 3 * 8);
         let gauge = BucketValue::Gauge(GaugeValue {
             last: 43.into(),

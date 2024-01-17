@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_metrics::{Bucket, BucketValue, MetricResourceIdentifier, MetricType};
+use relay_metrics::{Bucket, BucketValue, FiniteF64, MetricResourceIdentifier, MetricType};
 use relay_protocol::{Getter, Val};
 use relay_quotas::DataCategory;
 
@@ -129,14 +129,16 @@ fn read_metric_value(
 ) -> Option<BucketValue> {
     Some(match ty {
         MetricType::Counter => BucketValue::counter(match field {
-            Some(field) => instance.get_value(field)?.as_f64()?,
-            None => 1.0,
+            Some(field) => FiniteF64::new(instance.get_value(field)?.as_f64()?)?,
+            None => 1.into(),
         }),
         MetricType::Distribution => {
-            BucketValue::distribution(instance.get_value(field?)?.as_f64()?)
+            BucketValue::distribution(FiniteF64::new(instance.get_value(field?)?.as_f64()?)?)
         }
         MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
-        MetricType::Gauge => BucketValue::gauge(instance.get_value(field?)?.as_f64()?),
+        MetricType::Gauge => {
+            BucketValue::gauge(FiniteF64::new(instance.get_value(field?)?.as_f64()?)?)
+        }
     })
 }
 
