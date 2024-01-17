@@ -553,17 +553,17 @@ impl Project {
     ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
     fn rate_limit_metrics(
         &self,
-        project_state: &ProjectState,
+        state: &ProjectState,
         mut metrics: Vec<Bucket>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) -> Vec<Bucket> {
-        Self::filter_metrics(project_state, &mut metrics);
+        Self::filter_metrics(state, &mut metrics);
 
         if metrics.is_empty() {
             return metrics;
         }
 
-        let (Some(state), Some(scoping)) = (&self.state_value(), self.scoping()) else {
+        let Some(scoping) = self.scoping() else {
             return metrics;
         };
 
