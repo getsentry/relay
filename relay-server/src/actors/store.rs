@@ -707,10 +707,19 @@ impl StoreService {
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
-            sampled: item
-                .get_header("sampled")
-                .and_then(Value::as_bool)
-                .unwrap_or(true),
+            headers: BTreeMap::from([(
+                "sampled".to_string(),
+                item.get_header("sampled")
+                    .and_then(Value::as_bool)
+                    .and_then(|sv| -> Option<String> {
+                        if sv {
+                            Some("true".to_string())
+                        } else {
+                            Some("false".to_string())
+                        }
+                    })
+                    .unwrap_or("true".to_string()),
+            )]),
             payload: item.payload(),
         };
         self.produce(
@@ -1107,7 +1116,8 @@ struct ProfileKafkaMessage {
     project_id: ProjectId,
     key_id: Option<u64>,
     received: u64,
-    sampled: bool,
+    #[serde(skip)]
+    headers: BTreeMap<String, String>,
     payload: Bytes,
 }
 
@@ -1236,12 +1246,21 @@ impl Message for KafkaMessage<'_> {
     }
 
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
-        if let KafkaMessage::Metric { headers, .. } = &self {
-            if !headers.is_empty() {
-                return Some(headers);
+        match &self {
+            KafkaMessage::Metric { headers, .. } => {
+                if !headers.is_empty() {
+                    return Some(headers);
+                }
+                None
             }
+            KafkaMessage::Profile(profile) => {
+                if !profile.headers.is_empty() {
+                    return Some(&profile.headers);
+                }
+                None
+            }
+            _ => None,
         }
-        None
     }
 
     /// Serializes the message into its binary format.
