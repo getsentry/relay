@@ -580,6 +580,16 @@ impl Project {
         }
     }
 
+    /// Remove metric buckets that are not allowed to be ingested.
+    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
+        let Some(state) = &self.state_value() else {
+            return;
+        };
+
+        Self::apply_metrics_deny_list(&state.config.deny_metrics, metrics);
+        Self::filter_disabled_namespace(state, metrics);
+    }
+
     fn apply_metrics_deny_list(deny_list: &GlobPatterns, metrics: &mut Vec<Bucket>) {
         metrics.retain(|metric| {
             if deny_list.is_match(&metric.name) {
@@ -612,16 +622,6 @@ impl Project {
 
             verdict
         });
-    }
-
-    /// Remove metric buckets that are not allowed to be ingested.
-    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
-        let Some(state) = &self.state_value() else {
-            return;
-        };
-
-        Self::apply_metrics_deny_list(&state.config.deny_metrics, metrics);
-        Self::filter_disabled_namespace(state, metrics);
     }
 
     fn rate_limit_and_merge_buckets(
