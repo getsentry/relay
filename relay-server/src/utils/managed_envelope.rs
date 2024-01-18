@@ -253,6 +253,16 @@ impl ManagedEnvelope {
         self
     }
 
+    /// Removes event item(s) and log an outcome.
+    ///
+    /// Note: This function relies on the envelope summary being correct.
+    pub fn reject_event(&mut self, outcome: Outcome) {
+        if let Some(event_category) = self.event_category() {
+            self.envelope.retain_items(|item| !item.creates_event());
+            self.track_outcome(outcome, event_category, 1);
+        }
+    }
+
     /// Records an outcome scoped to this envelope's context.
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
