@@ -289,7 +289,15 @@ impl TransactionExtractor<'_> {
                     continue;
                 };
 
-                let Some(value) = measurement.value.value().and_then(|v| FiniteF64::new(*v)) else {
+                let Some(value) = measurement.value.value().copied() else {
+                    continue;
+                };
+
+                let Some(value) = FiniteF64::new(value) else {
+                    relay_log::error!(
+                        tags.field = format_args!("measurements.{name}"),
+                        "non-finite float value in transaction metric extraction"
+                    );
                     continue;
                 };
 
@@ -339,11 +347,20 @@ impl TransactionExtractor<'_> {
                             continue;
                         }
 
-                        let Some(m) = annotated.value() else {
+                        let Some(measurement) = annotated.value() else {
                             continue;
                         };
 
-                        let Some(value) = m.value.value().and_then(|v| FiniteF64::new(*v)) else {
+                        let Some(value) = measurement.value.value().copied() else {
+                            continue;
+                        };
+
+                        let Some(value) = FiniteF64::new(value) else {
+                            relay_log::error!(
+                                tags.field =
+                                    format_args!("breakdowns.{breakdown}.{measurement_name}"),
+                                "non-finite float value in transaction metric extraction"
+                            );
                             continue;
                         };
 
@@ -399,6 +416,11 @@ impl TransactionExtractor<'_> {
                     tags: light_tags,
                 }
                 .into_metric(timestamp),
+            );
+        } else {
+            relay_log::error!(
+                tags.field = "duration",
+                "non-finite float value in transaction metric extraction"
             );
         }
 
