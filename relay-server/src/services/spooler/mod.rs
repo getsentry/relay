@@ -1126,7 +1126,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
-    use crate::actors::project_cache::SpoolHealth;
+    use crate::services::project_cache::SpoolHealth;
     use crate::testutils::empty_envelope;
 
     use super::*;
