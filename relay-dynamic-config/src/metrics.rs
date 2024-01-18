@@ -13,29 +13,47 @@ use crate::project::ProjectConfig;
 
 /// Configuration for metrics filtering.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
 pub struct Metrics {
     /// Patterns of names of metrics that we want to filter.
-    pub denied_names: GlobPatterns,
+    blocked_metrics: GlobPatterns,
+    blocked_tags: Vec<TagBlocker>,
 }
 
 impl Metrics {
     /// Filters metrics based on the metric name.
     pub fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
-        metrics.retain(|bucket| !self.denied_names.is_match(&bucket.name));
+        metrics.retain(|bucket| !self.blocked_metrics.is_match(&bucket.name));
+    }
+
+    ///
+    pub fn block_tags(&self, metrics: &mut Vec<Bucket>) {
+        for metric in metrics {
+            for tag_blocker in &self.blocked_tags {
+                if tag_blocker.metric.is_match(&metric.name) {
+                    metric.tags.retain(|key, _| !tag_blocker.tag.is_match(key));
+                }
+            }
+        }
     }
 
     /// Creates a new instance of [`Metrics`].
     pub fn new(patterns: Vec<String>) -> Self {
         Self {
-            denied_names: GlobPatterns::new(patterns),
+            blocked_metrics: GlobPatterns::new(patterns),
+            blocked_tags: Default::default(),
         }
     }
 
     /// Returns `true` if it contains any names patterns to filter metric names.
     pub fn is_empty(&self) -> bool {
-        self.denied_names.is_empty()
+        self.blocked_metrics.is_empty()
     }
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+struct TagBlocker {
+    metric: GlobPatterns,
+    tag: GlobPatterns,
 }
 
 /// Rule defining when a target tag should be set on a metric.
@@ -665,7 +683,7 @@ mod tests {
         };
 
         let back_to_vec: Vec<String> = {
-            let string_rep = serde_json::to_string(&deny_list.denied_names).unwrap();
+            let string_rep = serde_json::to_string(&deny_list.blocked_metrics).unwrap();
             serde_json::from_str(&string_rep).unwrap()
         };
 
