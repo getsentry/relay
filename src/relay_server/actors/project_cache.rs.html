@@ -1234,6 +1234,8 @@
 <a href="#1234" id="1234">1234</a>
 <a href="#1235" id="1235">1235</a>
 <a href="#1236" id="1236">1236</a>
+<a href="#1237" id="1237">1237</a>
+<a href="#1238" id="1238">1238</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2384,6 +2386,8 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>always_spools() {
+        <span class="macro">relay_log::init_test!</span>();
+
         <span class="kw">let </span>num_permits = <span class="number">5</span>;
         <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(num_permits).into();
         <span class="kw">let </span>services = mocked_services();
@@ -2430,7 +2434,7 @@
         ));
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
-        <span class="comment">// We should be able to unspool once since we have 1 permit.
+        <span class="comment">// We should be able to unspool 5 envelopes since we have 5 permits.
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = <span class="macro">vec!</span>[];
         <span class="kw">while let </span><span class="prelude-val">Ok</span>(envelope) = rx.try_recv() {
             envelopes.push(envelope)

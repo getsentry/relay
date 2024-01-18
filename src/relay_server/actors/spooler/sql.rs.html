@@ -127,6 +127,17 @@
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the helper functions wrapping the SQL queries which will be run against
 //! the on-disk spool (currently backed by SQLite).
 
@@ -153,17 +164,30 @@
 /// the envelope was received. This will create a prepared statement which is cached and re-used.
 </span><span class="kw">pub fn </span>delete_and_fetch&lt;<span class="lifetime">&#39;a</span>&gt;(
     key: QueueKey,
-    batch_size: u32,
+    batch_size: i64,
 ) -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
     sqlx::query(
         <span class="string">&quot;DELETE FROM
             envelopes
          WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?)
          RETURNING
-            envelope, received_at&quot;</span>,
+            received_at, own_key, sampling_key, envelope&quot;</span>,
     )
     .bind(key.own_key.to_string())
     .bind(key.sampling_key.to_string())
+    .bind(batch_size)
+}
+
+<span class="doccomment">/// Creates a DELETE query which returns the requested batch of the envelopes with the timestamp
+/// and designated keys.
+</span><span class="kw">pub fn </span>delete_and_fetch_all&lt;<span class="lifetime">&#39;a</span>&gt;(batch_size: i64) -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+    sqlx::query(
+        <span class="string">&quot;DELETE FROM
+            envelopes
+         WHERE id IN (SELECT id FROM envelopes LIMIT ?)
+         RETURNING
+            received_at, own_key, sampling_key, envelope&quot;</span>,
+    )
     .bind(batch_size)
 }
 
@@ -174,18 +198,16 @@
         .bind(key.sampling_key.to_string())
 }
 
-<span class="doccomment">/// Creates a query which fetches the current page count and page size.
+<span class="doccomment">/// Creates a query which fetches the `envelopes` table size.
 ///
 /// This info used to calculate the current allocated database size.
 </span><span class="kw">pub fn </span>current_size&lt;<span class="lifetime">&#39;a</span>&gt;() -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
-    sqlx::query(
-        <span class="string">&quot;SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size();&quot;</span>,
-    )
+    sqlx::query(<span class="string">r#&quot;SELECT SUM(pgsize - unused) FROM dbstat WHERE name=&quot;envelopes&quot;&quot;#</span>)
 }
 
 <span class="doccomment">/// Creates the query to select only 1 record&#39;s `received_at` from the database.
 ///
-/// It is usefull and very fast for checking if the table is empty.
+/// It is useful and very fast for checking if the table is empty.
 </span><span class="kw">pub fn </span>select_one&lt;<span class="lifetime">&#39;a</span>&gt;() -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
     sqlx::query(<span class="string">&quot;SELECT received_at FROM envelopes LIMIT 1;&quot;</span>)
 }
@@ -205,7 +227,7 @@
     .bind(managed_envelope)
 }
 
-<span class="doccomment">/// Descibes the chunk item which is handled by insert statement.
+<span class="doccomment">/// Describes the chunk item which is handled by insert statement.
 </span><span class="kw">type </span>ChunkItem = (QueueKey, Vec&lt;u8&gt;, i64);
 
 <span class="doccomment">/// Creates an INSERT query for the chunk of provided data.
@@ -233,12 +255,12 @@
     stream: <span class="kw">impl </span>Stream&lt;Item = ChunkItem&gt; + std::marker::Unpin,
     db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;u64, sqlx::Error&gt; {
-    <span class="comment">// Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+    <span class="comment">// Since we have 3 variables we have to bind, we divide the SQLite limit by 3
     // here to prepare the chunks which will be preparing the batch inserts.
     </span><span class="kw">let </span><span class="kw-2">mut </span>envelopes = stream.chunks(SQLITE_LIMIT_VARIABLE_NUMBER / <span class="number">3</span>);
 
     <span class="comment">// A builder type for constructing queries at runtime.
-    // This by default creates a prepared sql statement, which is cached and
+    // This by default creates a prepared SQL statement, which is cached and
     // re-used for sequential queries.
     </span><span class="kw">let </span><span class="kw-2">mut </span>query_builder: QueryBuilder&lt;Sqlite&gt; =
         QueryBuilder::new(<span class="string">&quot;INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) &quot;</span>);
