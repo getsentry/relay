@@ -698,17 +698,27 @@ impl OnDisk {
         }
     }
 
-    fn extract_key(&self, row: SqliteRow) -> Result<QueueKey, BufferError> {
-        let own_key: &str = row.try_get("own_key").map_err(BufferError::FetchFailed)?;
-        let sampling_key: &str = row
+    fn extract_key(&self, row: SqliteRow) -> Option<QueueKey> {
+        let own_key = row
+            .try_get("own_key")
+            .map_err(BufferError::FetchFailed)
+            .and_then(|key| ProjectKey::parse(key).map_err(BufferError::ParseProjectKeyFailed));
+        let sampling_key = row
             .try_get("sampling_key")
-            .map_err(BufferError::FetchFailed)?;
-        let queue_key = QueueKey {
-            own_key: ProjectKey::parse(own_key).map_err(BufferError::ParseProjectKeyFailed)?,
-            sampling_key: ProjectKey::parse(sampling_key)
-                .map_err(BufferError::ParseProjectKeyFailed)?,
-        };
-        Ok(queue_key)
+            .map_err(BufferError::FetchFailed)
+            .and_then(|key| ProjectKey::parse(key).map_err(BufferError::ParseProjectKeyFailed));
+
+        match (own_key, sampling_key) {
+            (Ok(own_key), Ok(sampling_key)) => Some(QueueKey {
+                own_key,
+                sampling_key,
+            }),
+            // Report the first found error.
+            (Err(err), _) | (_, Err(err)) => {
+                relay_log::error!("Failed to extract a queue key from the spool record: {err}");
+                None
+            }
+        }
     }
 
     /// Returns the index from the on-disk spool.
@@ -720,21 +730,19 @@ impl OnDisk {
             .await
             .map_err(BufferError::FetchFailed)?;
 
-        let extracted_keys: Result<Vec<_>, BufferError> = keys
+        let index = keys
             .into_iter()
             // Collect only keys we could extract.
-            .map(|row| self.extract_key(row))
-            .collect();
-
-        // Fold the list into the index format.
-        let index = extracted_keys?.into_iter().fold(
-            BTreeMap::new(),
-            |mut acc: BTreeMap<ProjectKey, BTreeSet<QueueKey>>, key| {
-                acc.entry(key.own_key).or_default().insert(key);
-                acc.entry(key.sampling_key).or_default().insert(key);
-                acc
-            },
-        );
+            .flat_map(|row| self.extract_key(row))
+            // Fold the list into the index format.
+            .fold(
+                BTreeMap::new(),
+                |mut acc: BTreeMap<ProjectKey, BTreeSet<QueueKey>>, key| {
+                    acc.entry(key.own_key).or_default().insert(key);
+                    acc.entry(key.sampling_key).or_default().insert(key);
+                    acc
+                },
+            );
 
         Ok(index)
     }
