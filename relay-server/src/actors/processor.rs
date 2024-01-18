@@ -1188,7 +1188,7 @@ impl EnvelopeProcessorService {
             event::scrub(state)?;
             event::serialize(state)?;
             if_processing!(self.inner.config, {
-                span::extract_from_event(state, self.inner.config.clone());
+                span::extract_from_event(state);
             });
         }
 
@@ -1327,7 +1327,7 @@ impl EnvelopeProcessorService {
             event::scrub(state)?;
             event::serialize(state)?;
             if_processing!(self.inner.config, {
-                span::extract_from_event(state, self.inner.config.clone());
+                span::extract_from_event(state);
             });
         }
 

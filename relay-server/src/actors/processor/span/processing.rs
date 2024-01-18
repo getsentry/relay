@@ -144,21 +144,14 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     });
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
+pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
     };
 
-    let normalize_span_config = get_normalize_span_config(
-        config,
-        state.managed_envelope.received_at(),
-        state.global_config.measurements.as_ref(),
-        state.project_state.config().measurements.as_ref(),
-    );
-
     let mut add_span = |span: Annotated<Span>| {
-        let mut span = match validate(span) {
+        let span = match validate(span) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!("Invalid span: {e}");
@@ -170,16 +163,6 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState, config: Arc<Config>)
                 return;
             }
         };
-
-        if let Err(e) = normalize(&mut span, normalize_span_config.clone()) {
-            relay_log::debug!("failed to normalize span: {}", e);
-            state.managed_envelope.track_outcome(
-                Outcome::Invalid(DiscardReason::Internal),
-                relay_quotas::DataCategory::SpanIndexed,
-                1,
-            );
-        };
-
         let span = match span.to_json() {
             Ok(span) => span,
             Err(e) => {
