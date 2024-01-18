@@ -1256,6 +1256,9 @@
 <a href="#1256" id="1256">1256</a>
 <a href="#1257" id="1257">1257</a>
 <a href="#1258" id="1258">1258</a>
+<a href="#1259" id="1259">1259</a>
+<a href="#1260" id="1260">1260</a>
+<a href="#1261" id="1261">1261</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -2332,6 +2335,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_field_value_provider_event_filled() {
         <span class="kw">let </span>event = Event {
+            level: Annotated::new(Level::Info),
             release: Annotated::new(LenientString(<span class="string">&quot;1.1.1&quot;</span>.to_owned())),
             environment: Annotated::new(<span class="string">&quot;prod&quot;</span>.to_owned()),
             user: Annotated::new(User {
@@ -2403,6 +2407,8 @@
             }),
             ..Default::default()
         };
+
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;info&quot;</span>)), event.get_value(<span class="string">&quot;event.level&quot;</span>));
 
         <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;1.1.1&quot;</span>)), event.get_value(<span class="string">&quot;event.release&quot;</span>));
         <span class="macro">assert_eq!</span>(

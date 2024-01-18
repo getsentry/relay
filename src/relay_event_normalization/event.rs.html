@@ -2433,6 +2433,61 @@
 <a href="#2433" id="2433">2433</a>
 <a href="#2434" id="2434">2434</a>
 <a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
+<a href="#2448" id="2448">2448</a>
+<a href="#2449" id="2449">2449</a>
+<a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
+<a href="#2452" id="2452">2452</a>
+<a href="#2453" id="2453">2453</a>
+<a href="#2454" id="2454">2454</a>
+<a href="#2455" id="2455">2455</a>
+<a href="#2456" id="2456">2456</a>
+<a href="#2457" id="2457">2457</a>
+<a href="#2458" id="2458">2458</a>
+<a href="#2459" id="2459">2459</a>
+<a href="#2460" id="2460">2460</a>
+<a href="#2461" id="2461">2461</a>
+<a href="#2462" id="2462">2462</a>
+<a href="#2463" id="2463">2463</a>
+<a href="#2464" id="2464">2464</a>
+<a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
+<a href="#2471" id="2471">2471</a>
+<a href="#2472" id="2472">2472</a>
+<a href="#2473" id="2473">2473</a>
+<a href="#2474" id="2474">2474</a>
+<a href="#2475" id="2475">2475</a>
+<a href="#2476" id="2476">2476</a>
+<a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
+<a href="#2483" id="2483">2483</a>
+<a href="#2484" id="2484">2484</a>
+<a href="#2485" id="2485">2485</a>
+<a href="#2486" id="2486">2486</a>
+<a href="#2487" id="2487">2487</a>
+<a href="#2488" id="2488">2488</a>
+<a href="#2489" id="2489">2489</a>
+<a href="#2490" id="2490">2490</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2454,8 +2509,8 @@
 };
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, User,
+    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
+    SpanStatus, Tags, User,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -2688,8 +2743,9 @@
     </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta);
     normalize_release_dist(event); <span class="comment">// dist is a tag extracted along with other metrics from transactions
     </span>normalize_event_tags(event); <span class="comment">// Tags are added to every metric
+    </span>normalize_platform_and_level(event);
 
-    // TODO: Consider moving to store normalization
+    <span class="comment">// TODO: Consider moving to store normalization
     </span><span class="kw">if </span>config.device_class_synthesis_config {
         normalize_device_class(event);
     }
@@ -2887,6 +2943,18 @@
             <span class="kw-2">*</span>dist = trimmed.to_string();
         }
         <span class="prelude-val">Ok</span>(())
+    });
+}
+
+<span class="doccomment">/// Defaults the `platform` and `level` required attributes.
+</span><span class="kw">fn </span>normalize_platform_and_level(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="comment">// The defaulting behavior, was inherited from `StoreNormalizeProcessor` and it&#39;s put here since only light
+    // normalization happens before metrics extraction and we want the metrics extraction pipeline to already work
+    // on some normalized data.
+    </span>event.platform.get_or_insert_with(|| <span class="string">&quot;other&quot;</span>.to_string());
+    event.level.get_or_insert_with(|| <span class="kw">match </span>event.ty.value() {
+        <span class="prelude-val">Some</span>(EventType::Transaction) =&gt; Level::Info,
+        <span class="kw">_ </span>=&gt; Level::Error,
     });
 }
 
@@ -3544,6 +3612,48 @@
         <span class="kw">let </span><span class="kw-2">mut </span>dist = Annotated::new(<span class="string">&quot; &quot;</span>.to_owned());
         normalize_dist(<span class="kw-2">&amp;mut </span>dist);
         <span class="macro">assert_eq!</span>(dist.value(), <span class="prelude-val">None</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_normalize_platform_and_level_with_transaction_event() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
+        {
+            &quot;type&quot;: &quot;transaction&quot;
+        }
+        &quot;#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
+
+        normalize_platform_and_level(<span class="kw-2">&amp;mut </span>event);
+
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        {
+          &quot;level&quot;: &quot;info&quot;,
+          &quot;type&quot;: &quot;transaction&quot;,
+          &quot;platform&quot;: &quot;other&quot;,
+        }
+        &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_normalize_platform_and_level_with_error_event() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
+        {
+            &quot;type&quot;: &quot;error&quot;
+        }
+        &quot;#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
+
+        normalize_platform_and_level(<span class="kw-2">&amp;mut </span>event);
+
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        {
+          &quot;level&quot;: &quot;error&quot;,
+          &quot;type&quot;: &quot;error&quot;,
+          &quot;platform&quot;: &quot;other&quot;,
+        }
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
