@@ -13,9 +13,9 @@ use relay_quotas::ReasonCode;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_system::Addr;
 
-use crate::actors::outcome::{Outcome, TrackOutcome};
-use crate::actors::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::envelope::{ContentType, ItemType};
+use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::utils::ItemAction;
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -284,10 +284,10 @@ mod tests {
     use relay_sampling::config::RuleId;
     use relay_sampling::evaluation::ReservoirCounters;
 
-    use crate::actors::processor::ProcessEnvelope;
-    use crate::actors::project::ProjectState;
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
+    use crate::services::processor::ProcessEnvelope;
+    use crate::services::project::ProjectState;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
 
@@ -335,7 +335,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -385,7 +384,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -443,7 +441,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -480,7 +477,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();

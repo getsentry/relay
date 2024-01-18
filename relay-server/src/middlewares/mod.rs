@@ -4,7 +4,7 @@
 //! axum/hyper HTTP server. Most of the middlewares should be registered as a layer on the
 //! [`Router`](axum::Router).
 //!
-//! See the server startup in [`HttpServer`](crate::actors::server::HttpServer) for where these
+//! See the server startup in [`HttpServer`](crate::services::server::HttpServer) for where these
 //! middlewares are registered.
 
 mod cors;

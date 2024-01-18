@@ -13,19 +13,19 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
-use crate::actors::outcome::{DiscardReason, TrackOutcome};
-use crate::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
-use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
+use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
+use crate::services::outcome::{DiscardReason, TrackOutcome};
+use crate::services::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
+use crate::services::project::{Project, ProjectSender, ProjectState};
+use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
-use crate::actors::project_redis::RedisProjectSource;
-use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
-use crate::actors::spooler::{
+use crate::services::project_redis::RedisProjectSource;
+use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
 };
-use crate::actors::test_store::TestStore;
-use crate::actors::upstream::UpstreamRelay;
+use crate::services::test_store::TestStore;
+use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
@@ -140,7 +140,7 @@ impl CheckEnvelope {
 ///  date, the envelopes is spooled and we continue when the state is fetched.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
 ///
-/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
+/// [`EnvelopeProcessor`]: crate::services::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
     envelope: ManagedEnvelope,
@@ -536,13 +536,6 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn global_config(&self) -> Option<Arc<GlobalConfig>> {
-        match &self.global_config {
-            GlobalConfigStatus::Ready(gc) => Some(gc.clone()),
-            GlobalConfigStatus::Pending(_) => None,
-        }
-    }
-
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
         self.index.entry(key.own_key).or_default().insert(key);
@@ -756,13 +749,6 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
-        let Some(global_config) = self.global_config() else {
-            // This indicates a logical error in our approach, this function should only
-            // be called when we have a global config.
-            relay_log::error!("attempted to process envelope without global config");
-            return;
-        };
-
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::error!(
                 tags.project_key = %project_key,
@@ -798,7 +784,6 @@ impl ProjectCacheBroker {
                 project_state: own_project_state,
                 sampling_project_state,
                 reservoir_counters,
-                global_config,
             };
 
             self.services.envelope_processor.send(process);
@@ -1081,7 +1066,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
-    use crate::actors::processor::ProcessingGroup;
+    use crate::services::processor::ProcessingGroup;
     use crate::testutils::empty_envelope;
 
     use super::*;
@@ -1163,6 +1148,8 @@ mod tests {
 
     #[tokio::test]
     async fn always_spools() {
+        relay_log::init_test!();
+
         let num_permits = 5;
         let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
@@ -1209,7 +1196,7 @@ mod tests {
         ));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // We should be able to unspool once since we have 1 permit.
+        // We should be able to unspool 5 envelopes since we have 5 permits.
         let mut envelopes = vec![];
         while let Ok(envelope) = rx.try_recv() {
             envelopes.push(envelope)
