@@ -654,4 +654,21 @@ mod tests {
             input_qty - endpoint_buckets - transaction_buckets
         );
     }
+
+    #[test]
+    fn test_serialize_metrics_config() {
+        let input_patterns = vec!["foo".to_string(), "bar*".to_string()];
+
+        let deny_list: Metrics = {
+            let vector_as_string: String = serde_json::to_string(&input_patterns).unwrap();
+            serde_json::from_str(&vector_as_string).unwrap()
+        };
+
+        let back_to_vec: Vec<String> = {
+            let string_rep = serde_json::to_string(&deny_list.denied_names).unwrap();
+            serde_json::from_str(&string_rep).unwrap()
+        };
+
+        assert_eq!(input_patterns, back_to_vec);
+    }
 }
