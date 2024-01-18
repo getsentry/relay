@@ -548,10 +548,8 @@ impl OnDisk {
         loop {
             // On each iteration make sure we are still below the lower limit of available
             // guard permits.
-            //
-            // Note: This is not an error, so we just return an empty container.
             if !self.buffer_guard.is_below_low_watermark() {
-                return Ok(Default::default());
+                return Ok(result);
             }
             let envelopes = sql::delete_and_fetch_all(self.unspool_batch())
                 .fetch(&self.db)
