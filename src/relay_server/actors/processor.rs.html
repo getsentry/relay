@@ -2700,17 +2700,6 @@
 <a href="#2700" id="2700">2700</a>
 <a href="#2701" id="2701">2701</a>
 <a href="#2702" id="2702">2702</a>
-<a href="#2703" id="2703">2703</a>
-<a href="#2704" id="2704">2704</a>
-<a href="#2705" id="2705">2705</a>
-<a href="#2706" id="2706">2706</a>
-<a href="#2707" id="2707">2707</a>
-<a href="#2708" id="2708">2708</a>
-<a href="#2709" id="2709">2709</a>
-<a href="#2710" id="2710">2710</a>
-<a href="#2711" id="2711">2711</a>
-<a href="#2712" id="2712">2712</a>
-<a href="#2713" id="2713">2713</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2747,7 +2736,7 @@
 <span class="kw">use </span>relay_profiling::ProfileId;
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
 <span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
-<span class="kw">use </span>relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
+<span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 <span class="kw">use </span>reqwest::header;
@@ -2998,9 +2987,6 @@
     #[error(<span class="string">&quot;failed to apply quotas&quot;</span>)]
     </span>QuotasFailed(<span class="attr">#[from] </span>RateLimitingError),
 
-    <span class="attr">#[error(<span class="string">&quot;event dropped by sampling rule {0}&quot;</span>)]
-    </span>Sampled(MatchedRuleIds),
-
     <span class="attr">#[error(<span class="string">&quot;invalid pii config&quot;</span>)]
     </span>PiiConfigError(PiiConfigError),
 }
@@ -3043,17 +3029,12 @@
             <span class="comment">// These outcomes are emitted at the source.
             </span><span class="self">Self</span>::MissingProjectId =&gt; <span class="prelude-val">None</span>,
             <span class="self">Self</span>::EventFiltered(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            <span class="self">Self</span>::Sampled(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
     }
 
     <span class="kw">fn </span>is_unexpected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.to_outcome()
             .map_or(<span class="bool-val">false</span>, |outcome| outcome.is_unexpected())
-    }
-
-    <span class="kw">fn </span>should_keep_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Sampled(<span class="kw">_</span>))
     }
 }
 
@@ -3210,9 +3191,13 @@
     }
 
     <span class="doccomment">/// Removes the event payload from this processing state.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>remove_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.event = Annotated::empty();
+    }
+
+    <span class="kw">fn </span>reject_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>, outcome: Outcome) {
+        <span class="self">self</span>.remove_event();
+        <span class="self">self</span>.managed_envelope.reject_event(outcome);
     }
 }
 
@@ -3889,7 +3874,7 @@
             <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
         }
 
-        dynamic_sampling::sample_envelope(state)<span class="question-mark">?</span>;
+        dynamic_sampling::sample_envelope_items(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="self">self</span>.inner.geoip_lookup.as_ref())<span class="question-mark">?</span>;
@@ -4022,7 +4007,7 @@
                 <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
             }
 
-            dynamic_sampling::sample_envelope(state)<span class="question-mark">?</span>;
+            dynamic_sampling::sample_envelope_items(state);
 
             <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                 event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="self">self</span>.inner.geoip_lookup.as_ref())<span class="question-mark">?</span>;
@@ -4137,13 +4122,6 @@
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = err.to_outcome() {
                             state.managed_envelope.reject(outcome);
-                        }
-
-                        <span class="kw">if </span>err.should_keep_metrics() {
-                            state.extracted_metrics.send_metrics(
-                                state.managed_envelope.envelope(),
-                                <span class="self">self</span>.inner.project_cache.clone(),
-                            );
                         }
 
                         <span class="prelude-val">Err</span>(err)

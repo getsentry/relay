@@ -690,6 +690,7 @@
 <a href="#690" id="690">690</a>
 <a href="#691" id="691">691</a>
 <a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -705,7 +706,7 @@
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::Outcome;
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{ProcessEnvelopeState, ProcessingError};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessEnvelopeState;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -788,20 +789,21 @@
 }
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
-</span><span class="kw">pub fn </span>sample_envelope(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+</span><span class="kw">pub fn </span>sample_envelope_items(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
     <span class="kw">if let </span>SamplingResult::Match(sampling_match) = std::mem::take(<span class="kw-2">&amp;mut </span>state.sampling_result) {
         <span class="comment">// We assume that sampling is only supposed to work on transactions.
         </span><span class="kw">if </span>state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction) &amp;&amp; sampling_match.should_drop() {
             <span class="kw">let </span>matched_rules = sampling_match.into_matched_rules();
 
+            <span class="kw">let </span>outcome = Outcome::FilteredSampling(matched_rules.clone());
             state
                 .managed_envelope
-                .reject(Outcome::FilteredSampling(matched_rules.clone()));
+                .retain_items(|<span class="kw">_</span>| utils::ItemAction::Drop(outcome.clone()));
 
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::Sampled(matched_rules));
+            <span class="comment">// The event is no longer in the envelope, so we need to handle it separately:
+            </span>state.reject_event(outcome);
         }
     }
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming transaction.
