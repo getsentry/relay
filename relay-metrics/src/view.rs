@@ -729,16 +729,19 @@ mod tests {
         assert_eq!(view.len(), 3);
         assert_eq!(
             view.value(),
-            BucketViewValue::Distribution(&[1.0, 2.0, 3.0])
+            BucketViewValue::Distribution(&[1.into(), 2.into(), 3.into()])
         );
         let view = BucketView::new(&bucket).select(1..3).unwrap();
         assert_eq!(view.len(), 2);
-        assert_eq!(view.value(), BucketViewValue::Distribution(&[2.0, 3.0]));
+        assert_eq!(
+            view.value(),
+            BucketViewValue::Distribution(&[2.into(), 3.into()])
+        );
         let view = BucketView::new(&bucket).select(1..5).unwrap();
         assert_eq!(view.len(), 4);
         assert_eq!(
             view.value(),
-            BucketViewValue::Distribution(&[2.0, 3.0, 5.0, 5.0])
+            BucketViewValue::Distribution(&[2.into(), 3.into(), 5.into(), 5.into()])
         );
     }
 
@@ -786,10 +789,10 @@ mod tests {
         assert_eq!(
             view.value(),
             BucketViewValue::Gauge(GaugeValue {
-                last: 25.0,
-                min: 17.0,
-                max: 42.0,
-                sum: 220.0,
+                last: 25.into(),
+                min: 17.into(),
+                max: 42.into(),
+                sum: 220.into(),
                 count: 85
             })
         );
