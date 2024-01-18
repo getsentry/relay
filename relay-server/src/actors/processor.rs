@@ -2794,7 +2794,7 @@ mod tests {
 
         let derived_value = {
             let name = "foobar".to_string();
-            let value = 5.0; // Arbitrary value.
+            let value = 5.into(); // Arbitrary value.
             let unit = MetricUnit::Duration(DurationUnit::default());
             let tags = TransactionMeasurementTags {
                 measurement_rating: None,

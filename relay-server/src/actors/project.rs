@@ -1287,7 +1287,7 @@ mod tests {
         Bucket {
             name: "d:transactions/foo".to_string(),
             width: 0,
-            value: BucketValue::counter(1.0),
+            value: BucketValue::counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }
@@ -1387,7 +1387,7 @@ mod tests {
     fn create_transaction_bucket() -> Bucket {
         Bucket {
             name: "d:transactions/foo".to_string(),
-            value: BucketValue::Counter(1.0),
+            value: BucketValue::Counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
             width: 10,
