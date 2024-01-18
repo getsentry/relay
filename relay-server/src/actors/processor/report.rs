@@ -335,7 +335,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -385,7 +384,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -443,7 +441,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -480,7 +477,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();

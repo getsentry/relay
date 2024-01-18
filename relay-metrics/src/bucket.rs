@@ -13,7 +13,7 @@ use crate::protocol::{
     self, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
     MetricType, SetType,
 };
-use crate::{MetricNamespace, ParseMetricError};
+use crate::{FiniteF64, MetricNamespace, ParseMetricError};
 
 const VALUE_SEPARATOR: char = ':';
 
@@ -51,7 +51,7 @@ impl GaugeValue {
         self.last = value;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
-        self.sum += value;
+        self.sum = self.sum.saturating_add(value);
         self.count += 1;
     }
 
@@ -60,17 +60,13 @@ impl GaugeValue {
         self.last = other.last;
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
-        self.sum += other.sum;
+        self.sum = self.sum.saturating_add(other.sum);
         self.count += other.count;
     }
 
     /// Returns the average of all values reported in this bucket.
-    pub fn avg(&self) -> GaugeType {
-        if self.count > 0 {
-            self.sum / (self.count as GaugeType)
-        } else {
-            0.0
-        }
+    pub fn avg(&self) -> Option<GaugeType> {
+        self.sum / FiniteF64::new(self.count as f64)?
     }
 }
 
@@ -85,9 +81,9 @@ impl GaugeValue {
 /// ```
 /// use relay_metrics::dist;
 ///
-/// let mut dist = dist![1.0, 1.0, 1.0, 2.0];
-/// dist.push(5.0);
-/// dist.extend(std::iter::repeat(3.0).take(7));
+/// let mut dist = dist![1, 1, 1, 2];
+/// dist.push(5.into());
+/// dist.extend(std::iter::repeat(3.into()).take(7));
 /// ```
 ///
 /// Logically, this distribution is equivalent to this visualization:
@@ -117,12 +113,12 @@ pub use smallvec::smallvec as _smallvec;
 /// # Example
 ///
 /// ```
-/// let dist = relay_metrics::dist![1.0, 2.0];
+/// let dist = relay_metrics::dist![1, 2];
 /// ```
 #[macro_export]
 macro_rules! dist {
     ($($x:expr),*$(,)*) => {
-        $crate::_smallvec!($($x),*) as $crate::DistributionValue
+        $crate::_smallvec!($($crate::DistributionType::from($x)),*) as $crate::DistributionValue
     };
 }
 
@@ -340,7 +336,7 @@ impl BucketValue {
     /// values are of the same variant. Otherwise, this returns `Err(other)`.
     pub fn merge(&mut self, other: Self) -> Result<(), Self> {
         match (self, other) {
-            (Self::Counter(slf), Self::Counter(other)) => *slf += other,
+            (Self::Counter(slf), Self::Counter(other)) => *slf = slf.saturating_add(other),
             (Self::Distribution(slf), Self::Distribution(other)) => slf.extend_from_slice(&other),
             (Self::Set(slf), Self::Set(other)) => slf.extend(other),
             (Self::Gauge(slf), Self::Gauge(other)) => slf.merge(other),
@@ -355,7 +351,7 @@ impl BucketValue {
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
     for component in string.split(VALUE_SEPARATOR) {
-        sum += component.parse::<CounterType>().ok()?;
+        sum = sum.saturating_add(component.parse().ok()?);
     }
     Some(sum)
 }
@@ -803,18 +799,16 @@ mod tests {
 
     #[test]
     fn test_bucket_value_merge_counter() {
-        let mut value = BucketValue::Counter(42.);
-        value.merge(BucketValue::Counter(43.)).unwrap();
-        assert_eq!(value, BucketValue::Counter(85.));
+        let mut value = BucketValue::Counter(42.into());
+        value.merge(BucketValue::Counter(43.into())).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.into()));
     }
 
     #[test]
     fn test_bucket_value_merge_distribution() {
-        let mut value = BucketValue::Distribution(dist![1., 2., 3.]);
-        value
-            .merge(BucketValue::Distribution(dist![2., 4.]))
-            .unwrap();
-        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2., 4.]));
+        let mut value = BucketValue::Distribution(dist![1, 2, 3]);
+        value.merge(BucketValue::Distribution(dist![2, 4])).unwrap();
+        assert_eq!(value, BucketValue::Distribution(dist![1, 2, 3, 2, 4]));
     }
 
     #[test]
@@ -826,16 +820,16 @@ mod tests {
 
     #[test]
     fn test_bucket_value_merge_gauge() {
-        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
-        value.merge(BucketValue::gauge(43.)).unwrap();
+        let mut value = BucketValue::Gauge(GaugeValue::single(42.into()));
+        value.merge(BucketValue::gauge(43.into())).unwrap();
 
         assert_eq!(
             value,
             BucketValue::Gauge(GaugeValue {
-                last: 43.,
-                min: 42.,
-                max: 43.,
-                sum: 85.,
+                last: 43.into(),
+                min: 42.into(),
+                max: 43.into(),
+                sum: 85.into(),
                 count: 2,
             })
         );
@@ -872,7 +866,7 @@ mod tests {
         let s = "transactions/foo:42:17:21|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.value, BucketValue::Counter(80.0));
+        assert_eq!(metric.value, BucketValue::Counter(80.into()));
     }
 
     #[test]
@@ -902,7 +896,11 @@ mod tests {
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
         assert_eq!(
             metric.value,
-            BucketValue::Distribution(dist![17.5, 21.9, 42.7])
+            BucketValue::Distribution(dist![
+                FiniteF64::new(17.5).unwrap(),
+                FiniteF64::new(21.9).unwrap(),
+                FiniteF64::new(42.7).unwrap()
+            ])
         );
     }
 
@@ -911,7 +909,10 @@ mod tests {
         let s = "transactions/foo:17.5|h"; // common alias for distribution
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.value, BucketValue::Distribution(dist![17.5]));
+        assert_eq!(
+            metric.value,
+            BucketValue::Distribution(dist![FiniteF64::new(17.5).unwrap()])
+        );
     }
 
     #[test]

@@ -13,7 +13,6 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::actors::envelopes::EnvelopeManager;
 use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
@@ -427,7 +426,6 @@ struct UpdateProjectState {
 pub struct Services {
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
-    pub envelope_manager: Addr<EnvelopeManager>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub project_cache: Addr<ProjectCache>,
     pub test_store: Addr<TestStore>,
@@ -441,7 +439,6 @@ impl Services {
     pub fn new(
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
-        envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
@@ -451,7 +448,6 @@ impl Services {
         Self {
             aggregator,
             envelope_processor,
-            envelope_manager,
             outcome_aggregator,
             project_cache,
             test_store,
@@ -537,13 +533,6 @@ impl ProjectCacheBroker {
             if state.map_or(false, |s| !s.invalid()) {
                 self.dequeue(project_key);
             }
-        }
-    }
-
-    fn global_config(&self) -> Option<Arc<GlobalConfig>> {
-        match &self.global_config {
-            GlobalConfigStatus::Ready(gc) => Some(gc.clone()),
-            GlobalConfigStatus::Pending(_) => None,
         }
     }
 
@@ -760,13 +749,6 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
-        let Some(global_config) = self.global_config() else {
-            // This indicates a logical error in our approach, this function should only
-            // be called when we have a global config.
-            relay_log::error!("attempted to process envelope without global config");
-            return;
-        };
-
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::error!(
                 tags.project_key = %project_key,
@@ -802,7 +784,6 @@ impl ProjectCacheBroker {
                 project_state: own_project_state,
                 sampling_project_state,
                 reservoir_counters,
-                global_config,
             };
 
             self.services.envelope_processor.send(process);
@@ -1093,7 +1074,6 @@ mod tests {
     fn mocked_services() -> Services {
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
-        let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
@@ -1103,7 +1083,6 @@ mod tests {
         Services {
             aggregator,
             envelope_processor,
-            envelope_manager,
             project_cache,
             outcome_aggregator,
             test_store,
@@ -1169,6 +1148,8 @@ mod tests {
 
     #[tokio::test]
     async fn always_spools() {
+        relay_log::init_test!();
+
         let num_permits = 5;
         let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
@@ -1215,7 +1196,7 @@ mod tests {
         ));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // We should be able to unspool once since we have 1 permit.
+        // We should be able to unspool 5 envelopes since we have 5 permits.
         let mut envelopes = vec![];
         while let Ok(envelope) = rx.try_recv() {
             envelopes.push(envelope)

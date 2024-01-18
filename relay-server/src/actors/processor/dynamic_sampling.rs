@@ -288,7 +288,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -435,7 +434,6 @@ mod tests {
                 profile_id: None,
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
-                global_config: Arc::default(),
             }
         };
 

@@ -1,19 +1,17 @@
 import json
+import signal
+import time
 import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from queue import Empty
-import signal
 from pathlib import Path
+from queue import Empty
 
-import requests
 import pytest
-import time
-
+import requests
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 from .test_metrics import metrics_by_name
-
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
 
@@ -575,7 +573,17 @@ def _get_event_payload(event_type):
             "type": "transaction",
             "timestamp": now.isoformat(),
             "start_timestamp": (now - timedelta(seconds=2)).isoformat(),
-            "spans": [],
+            "spans": [
+                {
+                    "op": "default",
+                    "span_id": "968cff94913ebb07",
+                    "segment_id": "968cff94913ebb07",
+                    "start_timestamp": now.timestamp(),
+                    "timestamp": now.timestamp() + 1,
+                    "exclusive_time": 1000.0,
+                    "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                },
+            ],
             "contexts": {
                 "trace": {
                     "op": "hi",
@@ -668,6 +676,19 @@ def _get_profile_payload(metadata_only=True):
         },
     }
     return profile
+
+
+def _get_span_payload():
+    now = datetime.utcnow()
+    return {
+        "op": "default",
+        "span_id": "968cff94913ebb07",
+        "segment_id": "968cff94913ebb07",
+        "start_timestamp": now.timestamp(),
+        "timestamp": now.timestamp() + 1,
+        "exclusive_time": 1000.0,
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+    }
 
 
 @pytest.mark.parametrize(
@@ -1599,5 +1620,310 @@ def test_profile_outcomes_rate_limited(
     for outcome in outcomes:
         outcome.pop("timestamp")
         outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes
+
+
+def test_global_rate_limit(
+    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
+):
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metric_bucket_limit = 9
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting" + str(uuid.uuid4()),
+            "scope": "global",
+            "categories": ["metric_bucket"],
+            "limit": metric_bucket_limit,
+            "window": 1000,
+            "reasonCode": "global rate limit hit",
+        }
+    ]
+
+    ts = datetime.utcnow().timestamp()
+
+    def send_buckets(n):
+        buckets = [
+            {
+                "org_id": 1,
+                "project_id": project_id,
+                "timestamp": ts,
+                "name": "d:transactions/measurements.lcp@millisecond",
+                "type": "d",
+                "value": [1.0],
+                "width": bucket_interval,
+                "tags": {"foo": str(i)},
+            }
+            for i in range(n)
+        ]
+
+        relay.send_metrics_buckets(project_id, buckets)
+        time.sleep(5)
+
+    def assert_metrics_outcomes(n_metrics, n_outcomes):
+        produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
+        outcomes = outcomes_consumer.get_outcomes()
+
+        assert len(produced_buckets) == n_metrics
+        assert len(outcomes) == n_outcomes
+
+        for outcome in outcomes:
+            assert outcome["reason"] == "global rate limit hit"
+
+    # Send the exact amount allowed
+    send_buckets(metric_bucket_limit)
+    assert_metrics_outcomes(metric_bucket_limit, 0)
+
+    # Send more once the limit is hit and make sure they are rejected.
+    for _ in range(2):
+        send_buckets(1)
+        assert_metrics_outcomes(0, 1)
+
+
+@pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
+def test_span_outcomes(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    num_intermediate_relays,
+):
+    """
+    Tests that Relay reports correct outcomes for spans.
+
+    Have a chain of many relays that eventually connect to Sentry
+    and verify that the outcomes sent by the first relay
+    are properly forwarded up to sentry.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=5)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "projects:span-metrics-extraction-all-modules",
+        ]
+    )
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+    project_config["sampling"] = {
+        "version": 2,
+        "rules": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.transaction",
+                    "value": "hi",
+                },
+            }
+        ],
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "processing-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    # The innermost Relay needs to be in processing mode
+    upstream = relay_with_processing(config)
+
+    # build a chain of relays
+    for i in range(num_intermediate_relays):
+        config = deepcopy(config)
+        if i == 0:
+            # Emulate a PoP Relay
+            config["outcomes"]["source"] = "pop-relay"
+        if i == 1:
+            # Emulate a customer Relay
+            config["outcomes"]["source"] = "external-relay"
+            config["outcomes"]["emit_outcomes"] = "as_client_reports"
+        upstream = relay(upstream, config)
+
+    def make_envelope(transaction_name):
+        payload = _get_event_payload("transaction")
+        payload["transaction"] = transaction_name
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        return envelope
+
+    upstream.send_envelope(
+        project_id, make_envelope("hi")
+    )  # should get dropped by dynamic sampling
+    upstream.send_envelope(
+        project_id, make_envelope("ho")
+    )  # should be kept by dynamic sampling
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_source = {
+        0: "processing-relay",
+        1: "pop-relay",
+        2: "pop-relay",
+    }[num_intermediate_relays]
+    expected_outcomes = [
+        {
+            "category": 9,  # Span
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # Filtered
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "Sampled:1",
+            "source": expected_source,
+        },
+        {
+            "category": 16,  # SpanIndexed
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 0,  # Accepted
+            "project_id": 42,
+            "quantity": 2,
+            "source": "processing-relay",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+
+    assert outcomes == expected_outcomes, outcomes
+
+
+@pytest.mark.parametrize("metrics_already_extracted", [False, True])
+def test_span_outcomes_invalid(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    metrics_already_extracted,
+):
+    """
+    Tests that Relay reports correct outcomes for invalid spans as `Span` or `Transaction`.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "projects:span-metrics-extraction-all-modules",
+            "organizations:standalone-span-ingestion",
+        ]
+    )
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "pop-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    # Create an envelope with an invalid profile:
+    def make_envelope():
+        envelope = Envelope()
+        payload = _get_event_payload("transaction")
+        payload["spans"][0].pop("span_id", None)
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+                headers={"metrics_extracted": metrics_already_extracted},
+            )
+        )
+        payload = _get_span_payload()
+        payload.pop("span_id", None)
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="span",
+                headers={"metrics_extracted": metrics_already_extracted},
+            )
+        )
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = [
+        {
+            "category": 9 if metrics_already_extracted else 2,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "invalid_transaction",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+        {
+            "category": 16 if metrics_already_extracted else 12,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "internal",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id")
 
     assert outcomes == expected_outcomes, outcomes

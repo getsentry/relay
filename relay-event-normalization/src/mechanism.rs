@@ -1,4 +1,4 @@
-use relay_event_schema::processor::{self, ProcessingAction, ProcessingResult};
+use relay_event_schema::processor::{self, ProcessingAction};
 use relay_event_schema::protocol::{Event, Mechanism, OsContext};
 use relay_protocol::{Annotated, Error};
 
@@ -589,19 +589,19 @@ impl OsHint {
 }
 
 /// Normalizes the exception mechanism in place.
-pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) -> ProcessingResult {
-    processor::apply(&mut mechanism.help_link, |value, meta| {
+pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) {
+    let _ = processor::apply(&mut mechanism.help_link, |value, meta| {
         if value.starts_with("http://") || value.starts_with("https://") {
             Ok(())
         } else {
             meta.add_error(Error::expected("http URL"));
             Err(ProcessingAction::DeleteValueSoft)
         }
-    })?;
+    });
 
     let meta = match mechanism.meta.value_mut() {
         Some(meta) => meta,
-        None => return Ok(()),
+        None => return,
     };
 
     if let Some(os_hint) = os_hint {
@@ -643,8 +643,6 @@ pub fn normalize_mechanism(mechanism: &mut Mechanism, os_hint: Option<OsHint>) -
             }
         }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -664,7 +662,7 @@ mod tests {
 
         let old_mechanism = mechanism.clone();
 
-        normalize_mechanism(&mut mechanism, None).unwrap();
+        normalize_mechanism(&mut mechanism, None);
 
         assert_eq!(mechanism, old_mechanism);
     }
@@ -683,7 +681,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut mechanism, Some(OsHint::Linux)).unwrap();
+        normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
         let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
         assert_eq!(
@@ -709,7 +707,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut mechanism, Some(OsHint::Linux)).unwrap();
+        normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
         let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
         assert_eq!(
@@ -735,7 +733,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut mechanism, None).unwrap();
+        normalize_mechanism(&mut mechanism, None);
 
         let errno = mechanism.meta.value().unwrap().errno.value().unwrap();
         assert_eq!(
@@ -762,7 +760,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut mechanism, Some(OsHint::Darwin)).unwrap();
+        normalize_mechanism(&mut mechanism, Some(OsHint::Darwin));
 
         let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
         assert_eq!(
@@ -790,7 +788,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut mechanism, Some(OsHint::Linux)).unwrap();
+        normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
         let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -820,7 +818,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut mechanism, Some(OsHint::Linux)).unwrap();
+        normalize_mechanism(&mut mechanism, Some(OsHint::Linux));
 
         let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -850,7 +848,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut mechanism, None).unwrap();
+        normalize_mechanism(&mut mechanism, None);
 
         let signal = mechanism.meta.value().unwrap().signal.value().unwrap();
 
@@ -883,7 +881,7 @@ mod tests {
         // We do not need SDK information here because mach exceptions only
         // occur on Darwin
 
-        normalize_mechanism(&mut mechanism, None).unwrap();
+        normalize_mechanism(&mut mechanism, None);
 
         let mach_exception = mechanism
             .meta
@@ -923,7 +921,7 @@ mod tests {
         // We do not need SDK information here because mach exceptions only
         // occur on Darwin
 
-        normalize_mechanism(&mut mechanism, None).unwrap();
+        normalize_mechanism(&mut mechanism, None);
 
         let mach_exception = mechanism
             .meta
@@ -962,7 +960,7 @@ mod tests {
         // We do not need SDK information here because mach exceptions only
         // occur on Darwin
 
-        normalize_mechanism(&mut mechanism, None).unwrap();
+        normalize_mechanism(&mut mechanism, None);
 
         let mach_exception = mechanism
             .meta
@@ -990,7 +988,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut good_mechanism, None).unwrap();
+        normalize_mechanism(&mut good_mechanism, None);
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(good_mechanism)), @r#"
         {
           "type": "generic",
@@ -1004,7 +1002,7 @@ mod tests {
             ..Default::default()
         };
 
-        normalize_mechanism(&mut bad_mechanism, None).unwrap();
+        normalize_mechanism(&mut bad_mechanism, None);
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(bad_mechanism)), @r#"
         {
           "type": "generic",

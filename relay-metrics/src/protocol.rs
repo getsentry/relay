@@ -10,17 +10,19 @@ pub use relay_base_schema::metrics::{
 #[doc(inline)]
 pub use relay_common::time::UnixTimestamp;
 
+use crate::FiniteF64;
+
 /// Type used for Counter metric
-pub type CounterType = f64;
+pub type CounterType = FiniteF64;
 
 /// Type of distribution entries
-pub type DistributionType = f64;
+pub type DistributionType = FiniteF64;
 
 /// Type used for set elements in Set metric
 pub type SetType = u32;
 
 /// Type used for Gauge entries
-pub type GaugeType = f64;
+pub type GaugeType = FiniteF64;
 
 /// Validates a tag key.
 ///

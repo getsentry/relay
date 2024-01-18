@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Sentry quotas and rate limiting"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.12.1"
+version = "24.1.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -14,6 +14,7 @@ default = []
 redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
 
 [dependencies]
+hashbrown = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log", optional = true }
@@ -25,3 +26,4 @@ thiserror = { workspace = true, optional = true }
 [dev-dependencies]
 insta = { workspace = true }
 serde_json = { workspace = true }
+uuid = { workspace = true }
