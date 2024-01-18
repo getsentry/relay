@@ -20,7 +20,7 @@ pub enum ShutdownMode {
     Immediate,
 }
 
-/// Shutdown request message sent by the [`Controller`] to subscribed actors.
+/// Shutdown request message sent by the [`Controller`] to subscribed services.
 ///
 /// A handler has to ensure that it doesn't take longer than `timeout` to resolve the future.
 /// Ideally, open work is persisted or finished in an orderly manner but no new requests are
