@@ -1983,6 +1983,28 @@
 <a href="#1983" id="1983">1983</a>
 <a href="#1984" id="1984">1984</a>
 <a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
+<a href="#2006" id="2006">2006</a>
+<a href="#2007" id="2007">2007</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -2274,7 +2296,15 @@
                     <span class="kw">continue</span>;
                 };
 
-                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = measurement.value.value().and_then(|v| FiniteF64::new(<span class="kw-2">*</span>v)) <span class="kw">else </span>{
+                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = measurement.value.value().copied() <span class="kw">else </span>{
+                    <span class="kw">continue</span>;
+                };
+
+                <span class="kw">let </span><span class="prelude-val">Some</span>(value) = FiniteF64::new(value) <span class="kw">else </span>{
+                    <span class="macro">relay_log::error!</span>(
+                        tags.field = <span class="macro">format_args!</span>(<span class="string">&quot;measurements.{name}&quot;</span>),
+                        <span class="string">&quot;non-finite float value in transaction metric extraction&quot;
+                    </span>);
                     <span class="kw">continue</span>;
                 };
 
@@ -2324,11 +2354,20 @@
                             </span><span class="kw">continue</span>;
                         }
 
-                        <span class="kw">let </span><span class="prelude-val">Some</span>(m) = annotated.value() <span class="kw">else </span>{
+                        <span class="kw">let </span><span class="prelude-val">Some</span>(measurement) = annotated.value() <span class="kw">else </span>{
                             <span class="kw">continue</span>;
                         };
 
-                        <span class="kw">let </span><span class="prelude-val">Some</span>(value) = m.value.value().and_then(|v| FiniteF64::new(<span class="kw-2">*</span>v)) <span class="kw">else </span>{
+                        <span class="kw">let </span><span class="prelude-val">Some</span>(value) = measurement.value.value().copied() <span class="kw">else </span>{
+                            <span class="kw">continue</span>;
+                        };
+
+                        <span class="kw">let </span><span class="prelude-val">Some</span>(value) = FiniteF64::new(value) <span class="kw">else </span>{
+                            <span class="macro">relay_log::error!</span>(
+                                tags.field =
+                                    <span class="macro">format_args!</span>(<span class="string">&quot;breakdowns.{breakdown}.{measurement_name}&quot;</span>),
+                                <span class="string">&quot;non-finite float value in transaction metric extraction&quot;
+                            </span>);
                             <span class="kw">continue</span>;
                         };
 
@@ -2385,6 +2424,11 @@
                 }
                 .into_metric(timestamp),
             );
+        } <span class="kw">else </span>{
+            <span class="macro">relay_log::error!</span>(
+                tags.field = <span class="string">&quot;duration&quot;</span>,
+                <span class="string">&quot;non-finite float value in transaction metric extraction&quot;
+            </span>);
         }
 
         <span class="kw">let </span>root_counter_tags = {
