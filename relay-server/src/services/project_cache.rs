@@ -13,19 +13,19 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
-use crate::actors::outcome::{DiscardReason, TrackOutcome};
-use crate::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
-use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
+use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
+use crate::services::outcome::{DiscardReason, TrackOutcome};
+use crate::services::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
+use crate::services::project::{Project, ProjectSender, ProjectState};
+use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
-use crate::actors::project_redis::RedisProjectSource;
-use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
-use crate::actors::spooler::{
+use crate::services::project_redis::RedisProjectSource;
+use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
 };
-use crate::actors::test_store::TestStore;
-use crate::actors::upstream::UpstreamRelay;
+use crate::services::test_store::TestStore;
+use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
@@ -140,7 +140,7 @@ impl CheckEnvelope {
 ///  date, the envelopes is spooled and we continue when the state is fetched.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
 ///
-/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
+/// [`EnvelopeProcessor`]: crate::services::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
     envelope: ManagedEnvelope,
@@ -1066,7 +1066,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
-    use crate::actors::processor::ProcessingGroup;
+    use crate::services::processor::ProcessingGroup;
     use crate::testutils::empty_envelope;
 
     use super::*;

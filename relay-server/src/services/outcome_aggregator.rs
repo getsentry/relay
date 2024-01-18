@@ -12,7 +12,7 @@ use relay_quotas::{DataCategory, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
 
-use crate::actors::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, OutcomeProducer, TrackOutcome};
 use crate::statsd::RelayTimers;
 use crate::utils::SleepHandle;
 

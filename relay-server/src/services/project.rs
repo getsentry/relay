@@ -20,11 +20,11 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
-use crate::actors::processor::RateLimitBuckets;
-use crate::actors::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
-use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
+use crate::services::processor::RateLimitBuckets;
+use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
+use crate::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
@@ -959,7 +959,7 @@ impl Project {
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
     ///
-    /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
+    /// [`ValidateEnvelope`]: crate::services::project_cache::ValidateEnvelope
     pub fn update_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
@@ -1050,7 +1050,7 @@ impl Project {
 
     /// Runs the checks on incoming envelopes.
     ///
-    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information
+    /// See, [`crate::services::project_cache::CheckEnvelope`] for more information
     ///
     /// * checks the rate limits
     /// * validates the envelope meta in `check_request` - determines whether the given request

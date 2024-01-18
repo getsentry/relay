@@ -7,8 +7,8 @@ use relay_metrics::{
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::envelope::SourceQuantities;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
