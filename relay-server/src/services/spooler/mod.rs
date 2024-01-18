@@ -733,7 +733,7 @@ impl OnDisk {
         let index = keys
             .into_iter()
             // Collect only keys we could extract.
-            .flat_map(|row| Self::extract_key(row))
+            .flat_map(Self::extract_key)
             // Fold the list into the index format.
             .fold(
                 BTreeMap::new(),
@@ -1107,13 +1107,19 @@ impl BufferService {
             BufferState::Disk(ref disk) => {
                 let db = disk.db.clone();
                 let project_cache = self.services.project_cache.clone();
-                tokio::spawn(async move {
-                    let index = OnDisk::get_spooled_index(&db).await.unwrap();
-                    relay_log::trace!(
-                        "recover index from disk with {} unique project keys",
-                        index.len()
-                    );
-                    project_cache.send(SpoolIndex(index))
+                tokio::task::spawn_blocking(|| async move {
+                    match OnDisk::get_spooled_index(&db).await {
+                        Ok(index) => {
+                            relay_log::trace!(
+                                "recover index from disk with {} unique project keys",
+                                index.len()
+                            );
+                            project_cache.send(SpoolIndex(index))
+                        }
+                        Err(err) => {
+                            relay_log::error!("failed to retrive the index from the disk: {err}")
+                        }
+                    }
                 });
             }
         }
