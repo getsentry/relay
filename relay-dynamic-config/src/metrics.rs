@@ -13,6 +13,7 @@ use crate::project::ProjectConfig;
 
 /// Configuration for metrics filtering.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Metrics {
     /// Patterns of names of metrics that we want to filter.
     pub denied_names: GlobPatterns,
@@ -575,8 +576,10 @@ mod tests {
 
     fn apply_pattern_to_names(names: &[&str], patterns: &[&str]) -> Vec<String> {
         let mut buckets = get_test_buckets(names);
-        let patterns = patterns.iter().map(|s| String::from(*s)).collect();
-        let deny_list = Metrics::new(patterns);
+        let deny_list: Metrics = {
+            let vector_as_string: String = serde_json::to_string(patterns).unwrap();
+            serde_json::from_str(&vector_as_string).unwrap()
+        };
         deny_list.filter_metrics(&mut buckets);
         buckets.into_iter().map(|bucket| bucket.name).collect()
     }
