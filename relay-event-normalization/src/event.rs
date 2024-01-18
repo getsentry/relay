@@ -202,9 +202,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     // Check for required and non-empty values
     let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
-    // Set required attributes to default values if not present.
-    normalize_default_required_attrs(event);
-
     normalize_timestamps(
         event,
         meta,
@@ -256,6 +253,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_logentry(&mut event.logentry, meta);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
+    normalize_platform_and_level(event);
 
     // TODO: Consider moving to store normalization
     if config.device_class_synthesis_config {
@@ -458,8 +456,8 @@ fn normalize_dist(distribution: &mut Annotated<String>) {
     });
 }
 
-/// Defaults required attributes to their identity value.
-fn normalize_default_required_attrs(event: &mut Event) {
+/// Defaults the `platform` and `level` required attributes.
+fn normalize_platform_and_level(event: &mut Event) {
     // The defaulting behavior, was inherited from `StoreNormalizeProcessor` and it's put here since only light
     // normalization happens before metrics extraction and we want the metrics extraction pipeline to already work
     // on some normalized data.
@@ -1127,7 +1125,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_default_required_attrs_with_transaction_event() {
+    fn test_normalize_platform_and_level_with_transaction_event() {
         let json = r#"
         {
             "type": "transaction"
@@ -1136,7 +1134,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_default_required_attrs(&mut event);
+        normalize_platform_and_level(&mut event);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -1148,7 +1146,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_default_required_attrs_with_error_event() {
+    fn test_normalize_platform_and_level_with_error_event() {
         let json = r#"
         {
             "type": "error"
@@ -1157,7 +1155,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_default_required_attrs(&mut event);
+        normalize_platform_and_level(&mut event);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
