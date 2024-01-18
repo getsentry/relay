@@ -1018,10 +1018,11 @@ impl BufferService {
 
     async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
         match self.state {
-            // We do not check the ram, since we rely on `cache.envelope_buffer_size` to limit the
-            // memory usage and the number of the envelopes in the memory.
-            // Note: in the future we want to switch to `spool.envelopes.max_memory_size` option.
-            BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => health.0.send(true),
+            BufferState::Memory(ref ram) => health.0.send(!ram.is_full()),
+            BufferState::MemoryFileStandby { ref ram, ref disk } => health
+                .0
+                .send(!ram.is_full() || !disk.is_full().await.unwrap_or_default()),
+
             BufferState::Disk(ref disk) => health.0.send(!disk.is_full().await.unwrap_or_default()),
         }
 
