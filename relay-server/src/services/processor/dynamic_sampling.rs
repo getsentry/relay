@@ -12,8 +12,8 @@ use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::actors::outcome::Outcome;
-use crate::actors::processor::ProcessEnvelopeState;
+use crate::services::outcome::Outcome;
+use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::{self, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -241,10 +241,10 @@ mod tests {
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
     use uuid::Uuid;
 
-    use crate::actors::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::actors::project::ProjectState;
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };

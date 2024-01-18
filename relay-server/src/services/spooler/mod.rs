@@ -13,7 +13,7 @@
 //! be happening.
 //!
 //! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
-//! [`crate::actors::project::ProjectState`] it continues to use the memory as temporary spool.
+//! [`crate::services::project::ProjectState`] it continues to use the memory as temporary spool.
 //!
 //! Keeping the envelopes in memory as long as we can, we ensure the fast unspool operations and
 //! fast processing times.
@@ -48,12 +48,12 @@ use sqlx::{Pool, Row, Sqlite};
 use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
-use crate::actors::outcome::TrackOutcome;
-use crate::actors::processor::ProcessingGroup;
-use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
-use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
+use crate::services::outcome::TrackOutcome;
+use crate::services::processor::ProcessingGroup;
+use crate::services::project_cache::{ProjectCache, UpdateBufferIndex};
+use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 

@@ -2,9 +2,9 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::processor::ProcessBatchedMetrics;
 use crate::extractors::{SignedBytes, StartTime};
 use crate::service::ServiceState;
+use crate::services::processor::ProcessBatchedMetrics;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SendMetricsResponse {}

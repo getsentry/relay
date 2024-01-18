@@ -5,7 +5,7 @@ use relay_config::Config;
 use relay_redis::{RedisError, RedisPool};
 use relay_statsd::metric;
 
-use crate::actors::project::ProjectState;
+use crate::services::project::ProjectState;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 #[derive(Debug, Clone)]

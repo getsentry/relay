@@ -2,10 +2,10 @@ use std::fmt;
 
 use relay_system::Addr;
 
-use crate::actors::outcome::TrackOutcome;
-use crate::actors::processor::ProcessingGroup;
-use crate::actors::test_store::TestStore;
 use crate::envelope::Envelope;
+use crate::services::outcome::TrackOutcome;
+use crate::services::processor::ProcessingGroup;
+use crate::services::test_store::TestStore;
 use crate::statsd::RelayHistograms;
 use crate::utils::{ManagedEnvelope, Semaphore};
 

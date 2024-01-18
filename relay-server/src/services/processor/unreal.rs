@@ -4,8 +4,8 @@
 
 use relay_config::Config;
 
-use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::envelope::ItemType;
+use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils;
 
 /// Expands Unreal 4 items inside an envelope.
@@ -18,7 +18,7 @@ use crate::utils;
 /// this includes cases where a single attachment file exceeds the maximum file size. This is in
 /// line with the behavior of the envelope endpoint.
 ///
-/// After this, [`crate::actors::processor::EnvelopeProcessorService`] should be able to process the envelope the same
+/// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
 pub fn expand(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();

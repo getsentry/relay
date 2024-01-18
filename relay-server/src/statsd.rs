@@ -488,7 +488,7 @@ pub enum RelayCounters {
     /// Number of times an upstream request for a project config failed.
     ///
     /// Failure can happen, for example, when there's a network error. Refer to
-    /// [`UpstreamRequestError`](crate::actors::upstream::UpstreamRequestError) for all cases.
+    /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
     ProjectUpstreamFailed,
     /// Number of full metric data flushes.
     ///

@@ -5,8 +5,8 @@ use relay_config::{Config, RelayMode};
 use relay_event_schema::protocol::EventId;
 use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
-use crate::actors::outcome::Outcome;
 use crate::envelope::Envelope;
+use crate::services::outcome::Outcome;
 use crate::utils::ManagedEnvelope;
 
 /// Either a captured envelope or an error that occured during processing.
