@@ -1473,7 +1473,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_health() {
+    async fn health_check_fails() {
         relay_log::init_test!();
 
         let buffer_guard: Arc<_> = BufferGuard::new(10).into();
@@ -1499,5 +1499,34 @@ mod tests {
         let health_service = TestHealthService::new(addr.clone()).start();
         let healthy = health_service.send(SpoolHealth).await.unwrap();
         assert!(!healthy);
+    }
+
+    #[tokio::test]
+    async fn health_check_succeeds() {
+        relay_log::init_test!();
+
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                    "max_disk_size": "100KB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let buffer = BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
+
+        let addr = buffer.start();
+
+        let health_service = TestHealthService::new(addr.clone()).start();
+        let healthy = health_service.send(SpoolHealth).await.unwrap();
+        assert!(healthy);
     }
 }
