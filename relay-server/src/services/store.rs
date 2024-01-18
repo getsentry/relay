@@ -27,8 +27,8 @@ use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType, SourceQuantities};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::statsd::RelayCounters;
 use crate::utils::{self, ExtractionMode, ManagedEnvelope};
 

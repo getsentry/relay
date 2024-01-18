@@ -14,10 +14,10 @@ use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 
-use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils::ItemAction;
 
 pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {

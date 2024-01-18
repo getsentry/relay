@@ -10,13 +10,13 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
 
-use crate::actors::global_config::GlobalConfigHandle;
-use crate::actors::outcome::TrackOutcome;
-use crate::actors::processor::EnvelopeProcessorService;
-use crate::actors::project::ProjectState;
-use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::global_config::GlobalConfigHandle;
+use crate::services::outcome::TrackOutcome;
+use crate::services::processor::EnvelopeProcessorService;
+use crate::services::project::ProjectState;
+use crate::services::test_store::TestStore;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,

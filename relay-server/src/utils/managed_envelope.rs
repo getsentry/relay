@@ -7,11 +7,11 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::processor::ProcessingGroup;
-use crate::actors::test_store::{Capture, TestStore};
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::ProcessingGroup;
+use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 

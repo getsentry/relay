@@ -43,7 +43,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{Store, StoreEnvelope},
+    crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
@@ -52,12 +52,6 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-use crate::actors::global_config::GlobalConfigHandle;
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
-use crate::actors::test_store::{Capture, TestStore};
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{
     self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
 };
@@ -66,6 +60,14 @@ use crate::http;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
+use crate::services::global_config::GlobalConfigHandle;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::project::ProjectState;
+use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
+use crate::services::test_store::{Capture, TestStore};
+use crate::services::upstream::{
+    SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ExtractionMode, ManagedEnvelope, SamplingResult};
 
@@ -1845,8 +1847,8 @@ impl EnvelopeProcessorService {
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
     fn encode_metrics_processing(&self, message: EncodeMetrics, store_forwarder: &Addr<Store>) {
-        use crate::actors::store::StoreMetrics;
         use crate::constants::DEFAULT_EVENT_RETENTION;
+        use crate::services::store::StoreMetrics;
 
         for (scoping, message) in message.scopes {
             let ProjectMetrics {

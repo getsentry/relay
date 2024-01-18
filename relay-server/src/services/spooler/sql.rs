@@ -6,7 +6,7 @@ use sqlx::query::Query;
 use sqlx::sqlite::SqliteArguments;
 use sqlx::{Pool, QueryBuilder, Sqlite};
 
-use crate::actors::spooler::QueueKey;
+use crate::services::spooler::QueueKey;
 use crate::statsd::RelayCounters;
 
 /// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
