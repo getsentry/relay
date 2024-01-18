@@ -733,7 +733,7 @@ impl BufferState {
     async fn transition(self, config: &Config, services: &Services) -> Self {
         match self {
             Self::MemoryFileStandby { ram, mut disk }
-                if dbg!(ram.is_full()) || disk.buffer_guard.is_over_high_watermark() =>
+                if ram.is_full() || disk.buffer_guard.is_over_high_watermark() =>
             {
                 if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
