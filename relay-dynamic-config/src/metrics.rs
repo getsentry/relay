@@ -507,7 +507,9 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+    use serde_json::json;
     use similar_asserts::assert_eq;
 
     #[test]
@@ -536,5 +538,117 @@ mod tests {
         let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
         let mapping: TagMapping = serde_json::from_str(json).unwrap();
         assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
+    }
+
+    fn get_test_buckets(names: &[&str]) -> Vec<Bucket> {
+        let create_bucket = |name: &&str| -> Bucket {
+            let json = json!({
+                        "timestamp": 1615889440,
+                        "width": 10,
+                        "name": name,
+                        "type": "c",
+                        "value": 4.0,
+                        "tags": {
+                        "route": "user_index"
+            }});
+
+            serde_json::from_value(json).unwrap()
+        };
+
+        names.iter().map(create_bucket).collect()
+    }
+
+    fn get_test_bucket_names() -> Vec<&'static str> {
+        [
+            "g:transactions/foo@none",
+            "c:custom/foo@none",
+            "transactions/foo@second",
+            "transactions/foo",
+            "c:custom/foo_bar@none",
+            "endpoint.response_time",
+            "endpoint.hits",
+            "endpoint.parallel_requests",
+            "endpoint.users",
+        ]
+        .into()
+    }
+
+    fn apply_pattern_to_names(names: &[&str], patterns: &[&str]) -> Vec<String> {
+        let mut buckets = get_test_buckets(names);
+        let patterns = patterns.iter().map(|s| String::from(*s)).collect();
+        let deny_list = Metrics::new(patterns);
+        deny_list.filter_metrics(&mut buckets);
+        buckets.into_iter().map(|bucket| bucket.name).collect()
+    }
+
+    #[test]
+    fn test_metric_deny_list_exact() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint.parallel_requests"]);
+
+        // There's 1 bucket with that exact name.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_end_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["*foo"]);
+
+        // There's 1 bucket name with 'foo' in the end.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_middle_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["*foo*"]);
+
+        // There's 4 bucket names with 'foo' in the middle, and one with foo in the end.
+        let buckets_to_remove = 5;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_beginning_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint*"]);
+
+        // There's 4 buckets starting with "endpoint".
+        let buckets_to_remove = 4;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_everything() {
+        let names = get_test_bucket_names();
+        let remaining_names = apply_pattern_to_names(&names, &["*"]);
+
+        assert_eq!(remaining_names.len(), 0);
+    }
+
+    #[test]
+    fn test_metric_deny_list_multiple() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint*", "*transactions*"]);
+
+        let endpoint_buckets = 4;
+        let transaction_buckets = 3;
+
+        assert_eq!(
+            remaining_names.len(),
+            input_qty - endpoint_buckets - transaction_buckets
+        );
     }
 }
