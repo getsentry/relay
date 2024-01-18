@@ -1021,7 +1021,7 @@ impl Service for ProjectCacheService {
                 }
             };
 
-            // Reqest the existing index from the spooler.
+            // Request the existing index from the spooler.
             buffer.send(GetIndex);
 
             // Main broker that serializes public and internal messages, and triggers project state

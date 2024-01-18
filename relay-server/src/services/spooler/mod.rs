@@ -804,7 +804,7 @@ impl BufferState {
                     );
                 }
                 relay_log::trace!(
-                    "Transition to disk spool: # of envelopes = {}",
+                    "transition to disk spool: # of envelopes = {}",
                     disk.count.unwrap_or_default()
                 );
 
@@ -818,7 +818,7 @@ impl BufferState {
                             buffer,
                         );
                         relay_log::trace!(
-                            "Transition to memory spool: # of envelopes = {}",
+                            "transition to memory spool: # of envelopes = {}",
                             ram.envelope_count
                         );
 
@@ -1117,7 +1117,7 @@ impl BufferService {
                             project_cache.send(SpoolIndex(index))
                         }
                         Err(err) => {
-                            relay_log::error!("failed to retrive the index from the disk: {err}")
+                            relay_log::error!("failed to retrieve the index from the disk: {err}")
                         }
                     }
                 });
