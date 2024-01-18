@@ -50,7 +50,11 @@ fn get_normalize_span_config<'a>(
     }
 }
 
-pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
+pub fn process(
+    state: &mut ProcessEnvelopeState,
+    config: Arc<Config>,
+    global_measurements_config: Option<MeasurementsConfig>,
+) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
@@ -60,7 +64,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
     let normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
-        state.global_config.measurements.as_ref(),
+        global_measurements_config.as_ref(),
         state.project_state.config().measurements.as_ref(),
     );
 
@@ -412,6 +416,8 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         ref mut timestamp,
         ref mut span_id,
         ref mut trace_id,
+        ref mut measurements,
+        ref mut _metrics_summary,
         ..
     } = inner;
 
@@ -461,6 +467,14 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
     }
     if let Some(tags) = tags.value_mut() {
         tags.retain(|_, value| !value.value().is_empty())
+    }
+    if let Some(measurements) = measurements.value_mut() {
+        measurements.retain(|_, value| !value.value().is_empty())
+    }
+    if let Some(metrics_summary) = _metrics_summary.value_mut() {
+        metrics_summary
+            .0
+            .retain(|_, value| !value.value().is_empty())
     }
 
     Ok(span)
