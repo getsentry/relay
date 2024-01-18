@@ -6,8 +6,8 @@ use relay_metrics::{AcceptsMetrics, Aggregator};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
-use crate::actors::project_cache::{ProjectCache, SpoolHealth};
-use crate::actors::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
+use crate::services::project_cache::{ProjectCache, SpoolHealth};
+use crate::services::upstream::{IsAuthenticated, IsNetworkOutage, UpstreamRelay};
 use crate::statsd::RelayGauges;
 
 /// Checks whether Relay is alive and healthy based on its variant.

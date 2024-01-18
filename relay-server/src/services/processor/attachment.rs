@@ -6,8 +6,8 @@ use std::time::Instant;
 use relay_pii::PiiAttachmentsProcessor;
 use relay_statsd::metric;
 
-use crate::actors::processor::ProcessEnvelopeState;
 use crate::envelope::{AttachmentType, ContentType};
+use crate::services::processor::ProcessEnvelopeState;
 use crate::statsd::RelayTimers;
 
 #[cfg(feature = "processing")]

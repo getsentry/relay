@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
-use crate::actors::upstream::{
+use crate::services::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayTimers};
@@ -415,7 +415,7 @@ mod tests {
     use relay_system::{Controller, Service, ShutdownMode};
     use relay_test::mock_service;
 
-    use crate::actors::global_config::{Get, GlobalConfigService};
+    use crate::services::global_config::{Get, GlobalConfigService};
 
     /// Tests that the service can still handle requests after sending a
     /// shutdown signal.
