@@ -698,7 +698,7 @@ impl OnDisk {
         }
     }
 
-    fn extract_key(&self, row: SqliteRow) -> Option<QueueKey> {
+    fn extract_key(row: SqliteRow) -> Option<QueueKey> {
         let own_key = row
             .try_get("own_key")
             .map_err(BufferError::FetchFailed)
@@ -723,17 +723,17 @@ impl OnDisk {
 
     /// Returns the index from the on-disk spool.
     async fn get_spooled_index(
-        &self,
+        db: &Pool<Sqlite>,
     ) -> Result<BTreeMap<ProjectKey, BTreeSet<QueueKey>>, BufferError> {
         let keys = sql::get_keys()
-            .fetch_all(&self.db)
+            .fetch_all(db)
             .await
             .map_err(BufferError::FetchFailed)?;
 
         let index = keys
             .into_iter()
             // Collect only keys we could extract.
-            .flat_map(|row| self.extract_key(row))
+            .flat_map(|row| Self::extract_key(row))
             // Fold the list into the index format.
             .fold(
                 BTreeMap::new(),
@@ -1094,6 +1094,9 @@ impl BufferService {
 
     /// Handles retrieving of the index from the underlying spool.
     ///
+    /// To process this request we spawn the tokio task and once it's done the result will be sent
+    /// to [`ProjectCache`].
+    ///
     /// If the spool is memory based, we ignore this request - the index in the
     /// [`ProjectCache`] should be full and correct.
     /// If the spool is located on the disk, we read up the keys and compile the index of the
@@ -1102,13 +1105,16 @@ impl BufferService {
         match self.state {
             BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => (),
             BufferState::Disk(ref disk) => {
-                let index = disk.get_spooled_index().await?;
-                relay_log::trace!(
-                    "recover index from disk with {} unique project keys",
-                    index.len()
-                );
-
-                self.services.project_cache.send(SpoolIndex(index))
+                let db = disk.db.clone();
+                let project_cache = self.services.project_cache.clone();
+                tokio::spawn(async move {
+                    let index = OnDisk::get_spooled_index(&db).await.unwrap();
+                    relay_log::trace!(
+                        "recover index from disk with {} unique project keys",
+                        index.len()
+                    );
+                    project_cache.send(SpoolIndex(index))
+                });
             }
         }
 
