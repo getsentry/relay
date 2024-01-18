@@ -35,10 +35,10 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::GetCapturedEnvelope;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
 <span class="kw">use </span><span class="kw">crate</span>::envelope;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::test_store::GetCapturedEnvelope;
 
 <span class="kw">pub async fn </span>handle(
     state: ServiceState,

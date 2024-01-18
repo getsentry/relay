@@ -170,13 +170,13 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parses_metric() {
-        <span class="kw">let </span>metric = <span class="string">&quot;service.back_pressure:0|g|#service:relay_server::actors::processor::EnvelopeProcessorService&quot;</span>;
+        <span class="kw">let </span>metric = <span class="string">&quot;service.back_pressure:0|g|#service:relay_server::services::processor::EnvelopeProcessorService&quot;</span>;
         <span class="macro">assert_eq!</span>(
             parse_metric(metric),
             Metric {
                 ty: <span class="string">&quot;g&quot;</span>,
                 name: <span class="string">&quot;service.back_pressure&quot;</span>,
-                tags: <span class="string">&quot;#service:relay_server::actors::processor::EnvelopeProcessorService&quot;</span>,
+                tags: <span class="string">&quot;#service:relay_server::services::processor::EnvelopeProcessorService&quot;</span>,
                 value: <span class="number">0.0
             </span>}
         )

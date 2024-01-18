@@ -457,11 +457,11 @@
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>serde::Deserialize;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
@@ -700,7 +700,7 @@
 ///   queued and processed.
 /// - Sessions and Session batches are always queued separately. If they occur in the same envelope
 ///   as an event, they are split off. Their path is the same as other Envelopes.
-/// - Metrics are directly sent to the [`crate::actors::processor::EnvelopeProcessor`], bypassing the manager&#39;s queue and
+/// - Metrics are directly sent to the [`crate::services::processor::EnvelopeProcessor`], bypassing the manager&#39;s queue and
 ///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is

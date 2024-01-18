@@ -22,9 +22,9 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>relay_config::EmitOutcomes;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{SendOutcomes, SendOutcomesResponse};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{SendOutcomes, SendOutcomesResponse};
 
 <span class="kw">pub async fn </span>handle(state: ServiceState, body: SignedJson&lt;SendOutcomes&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
     <span class="kw">if </span>!body.relay.internal || state.config().emit_outcomes() != EmitOutcomes::AsOutcomes {

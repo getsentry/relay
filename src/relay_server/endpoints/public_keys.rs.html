@@ -38,10 +38,10 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>futures::future;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::relays::{GetRelay, GetRelays, GetRelaysResponse};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::relays::{GetRelay, GetRelays, GetRelaysResponse};
 
 <span class="doccomment">/// Handles the Relay public keys endpoint.
 ///

@@ -222,13 +222,13 @@
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{<span class="self">self</span>, StatusResponse};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project::{LimitedProjectState, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::forward;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, StatusResponse};
+<span class="kw">use </span><span class="kw">crate</span>::services::project::{LimitedProjectState, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 <span class="doccomment">/// V2 version of this endpoint.
 ///
@@ -298,7 +298,7 @@
 
 <span class="doccomment">/// Request payload of the project config endpoint.
 ///
-/// This is a replica of [`GetProjectStates`](crate::actors::project_upstream::GetProjectStates)
+/// This is a replica of [`GetProjectStates`](crate::services::project_upstream::GetProjectStates)
 /// which allows skipping invalid project keys.
 </span><span class="attr">#[derive(Debug, Deserialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]

@@ -464,11 +464,11 @@
 <span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
 <span class="kw">use </span>relay_system::Addr;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessingGroup;
-<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
+<span class="kw">use </span><span class="kw">crate</span>::services::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeSummary, SemaphorePermit};
 

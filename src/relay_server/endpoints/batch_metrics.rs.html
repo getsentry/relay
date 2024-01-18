@@ -30,9 +30,9 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessBatchedMetrics;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{SignedBytes, StartTime};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessBatchedMetrics;
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">struct </span>SendMetricsResponse {}

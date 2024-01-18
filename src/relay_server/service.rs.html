@@ -326,17 +326,17 @@
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{GlobalConfigManager, GlobalConfigService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, HealthCheckService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator;
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{ProjectCache, ProjectCacheService, Services};
-<span class="kw">use </span><span class="kw">crate</span>::actors::relays::{RelayCache, RelayCacheService};
+<span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
+<span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome_aggregator::OutcomeAggregator;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{EnvelopeProcessor, EnvelopeProcessorService};
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, ProjectCacheService, Services};
+<span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::actors::store::StoreService;
-<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::{TestStore, TestStoreService};
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{UpstreamRelay, UpstreamRelayService};
+</span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreService;
+<span class="kw">use </span><span class="kw">crate</span>::services::test_store::{TestStore, TestStoreService};
+<span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
 <span class="kw">use </span><span class="kw">crate</span>::utils::BufferGuard;
 
 <span class="doccomment">/// Indicates the type of failure of the server.

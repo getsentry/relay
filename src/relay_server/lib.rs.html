@@ -565,8 +565,7 @@
 </span>)]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-</span><span class="kw">mod </span>actors;
-<span class="kw">mod </span>constants;
+</span><span class="kw">mod </span>constants;
 <span class="kw">mod </span>endpoints;
 <span class="kw">mod </span>envelope;
 <span class="kw">mod </span>extractors;
@@ -574,6 +573,7 @@
 <span class="kw">mod </span>metrics_extraction;
 <span class="kw">mod </span>middlewares;
 <span class="kw">mod </span>service;
+<span class="kw">mod </span>services;
 <span class="kw">mod </span>statsd;
 <span class="kw">mod </span>utils;
 
@@ -585,8 +585,8 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Controller, Service};
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::server::HttpServer;
 <span class="kw">use </span><span class="kw">crate</span>::service::{Runtimes, ServiceState};
+<span class="kw">use </span><span class="kw">crate</span>::services::server::HttpServer;
 
 <span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.
 ///

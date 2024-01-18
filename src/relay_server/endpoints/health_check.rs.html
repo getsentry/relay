@@ -33,8 +33,8 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::Serialize;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::health_check::IsHealthy;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::health_check::IsHealthy;
 
 <span class="attr">#[derive(Serialize)]
 </span><span class="kw">struct </span>Status {

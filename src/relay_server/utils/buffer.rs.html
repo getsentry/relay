@@ -119,10 +119,10 @@
 
 <span class="kw">use </span>relay_system::Addr;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::outcome::TrackOutcome;
-<span class="kw">use </span><span class="kw">crate</span>::actors::processor::ProcessingGroup;
-<span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::TrackOutcome;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
+<span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, Semaphore};
 

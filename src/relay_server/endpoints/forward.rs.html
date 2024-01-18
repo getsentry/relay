@@ -296,10 +296,10 @@
 <span class="kw">use </span>tokio::sync::oneshot;
 <span class="kw">use </span>tokio::sync::oneshot::error::RecvError;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::ForwardedFor;
 <span class="kw">use </span><span class="kw">crate</span>::http::{HttpError, RequestBuilder, Response <span class="kw">as </span>UpstreamResponse};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 
 <span class="doccomment">/// Headers that this endpoint must handle and cannot forward.
 </span><span class="kw">static </span>HOP_BY_HOP_HEADERS: <span class="kw-2">&amp;</span>[HeaderName] = <span class="kw-2">&amp;</span>[
