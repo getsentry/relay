@@ -19,8 +19,8 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, User,
+    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
+    SpanStatus, Tags, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -201,6 +201,9 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     // Check for required and non-empty values
     let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+
+    // Set required attributes to default values if not present.
+    normalize_default_required_attrs(event);
 
     normalize_timestamps(
         event,
@@ -452,6 +455,18 @@ fn normalize_dist(distribution: &mut Annotated<String>) {
             *dist = trimmed.to_string();
         }
         Ok(())
+    });
+}
+
+/// Defaults required attributes to their identity value.
+fn normalize_default_required_attrs(event: &mut Event) {
+    // The defaulting behavior, was inherited from `StoreNormalizeProcessor` and it's put here since only light
+    // normalization happens before metrics extraction and we want the metrics extraction pipeline to already work
+    // on some normalized data.
+    event.platform.get_or_insert_with(|| "other".to_string());
+    event.level.get_or_insert_with(|| match event.ty.value() {
+        Some(EventType::Transaction) => Level::Info,
+        _ => Level::Error,
     });
 }
 
@@ -1109,6 +1124,48 @@ mod tests {
         let mut dist = Annotated::new(" ".to_owned());
         normalize_dist(&mut dist);
         assert_eq!(dist.value(), None);
+    }
+
+    #[test]
+    fn test_normalize_default_required_attrs_with_transaction_event() {
+        let json = r#"
+        {
+            "type": "transaction"
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        normalize_default_required_attrs(&mut event);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "level": "info",
+          "type": "transaction",
+          "platform": "other",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_default_required_attrs_with_error_event() {
+        let json = r#"
+        {
+            "type": "error"
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        normalize_default_required_attrs(&mut event);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "level": "error",
+          "type": "error",
+          "platform": "other",
+        }
+        "###);
     }
 
     #[test]
