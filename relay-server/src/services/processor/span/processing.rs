@@ -95,11 +95,10 @@ pub fn process(
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
-        let Some(span) = annotated_span.value_mut() else {
-            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-        };
-
         if let Some(config) = span_metrics_extraction_config {
+            let Some(span) = annotated_span.value_mut() else {
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            };
             let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
@@ -469,13 +468,72 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         tags.retain(|_, value| !value.value().is_empty())
     }
     if let Some(measurements) = measurements.value_mut() {
-        measurements.retain(|_, value| !value.value().is_empty())
+        measurements.retain(|_, value| match value.value() {
+            Some(v) => !v.is_empty() && !v.value.is_empty(),
+            None => false,
+        });
     }
     if let Some(metrics_summary) = _metrics_summary.value_mut() {
-        metrics_summary
-            .0
-            .retain(|_, value| !value.value().is_empty())
+        metrics_summary.0.retain(|_, value| match value.value() {
+            Some(v) => !v.is_empty() && v.iter().all(|v| !v.is_empty()),
+            None => false,
+        });
     }
 
     Ok(span)
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_event_schema::protocol::Span;
+    use relay_protocol::{Annotated, Empty};
+
+    use super::validate;
+
+    #[test]
+    fn test_validate_null_measurements() {
+        let payload = r#"{
+            "description": "test",
+            "op": "default",
+            "span_id": "cd429c44b67a3eb1",
+            "segment_id": "968cff94913ebb07",
+            "start_timestamp": 1705593248,
+            "timestamp": 1705593258,
+            "exclusive_time": 345.0,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "measurements": {
+                "somemeasurement": null,
+                "someother": {
+                    "value": null,
+                    "unit": "testunit"
+                }
+            }
+        }"#;
+        let span = Annotated::<Span>::from_json_bytes(payload.as_bytes()).unwrap();
+        let validated_span = validate(span).unwrap();
+        assert!(validated_span.value().unwrap().measurements.is_empty());
+    }
+
+    #[test]
+    fn test_validate_null_metrics_summaries() {
+        let payload = r#"{
+            "description": "test",
+            "op": "default",
+            "span_id": "cd429c44b67a3eb1",
+            "segment_id": "968cff94913ebb07",
+            "start_timestamp": 1705593248,
+            "timestamp": 1705593258,
+            "exclusive_time": 345.0,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "_metrics_summary": {
+                "somemri": null,
+                "othermri": [
+                    null
+                ]
+            }
+        }"#;
+        let span = Annotated::<Span>::from_json_bytes(payload.as_bytes()).unwrap();
+        let validated_span = validate(span).unwrap();
+        assert!(validated_span.value().unwrap()._metrics_summary.is_empty());
+    }
 }

@@ -112,7 +112,6 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
 
 #[cfg(test)]
 mod tests {
-
     use std::sync::Arc;
 
     use insta::assert_debug_snapshot;
