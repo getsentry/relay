@@ -1074,6 +1074,7 @@ mod tests {
     #[test]
     fn test_field_value_provider_event_filled() {
         let event = Event {
+            level: Annotated::new(Level::Info),
             release: Annotated::new(LenientString("1.1.1".to_owned())),
             environment: Annotated::new("prod".to_owned()),
             user: Annotated::new(User {
@@ -1145,6 +1146,8 @@ mod tests {
             }),
             ..Default::default()
         };
+
+        assert_eq!(Some(Val::String("info")), event.get_value("event.level"));
 
         assert_eq!(Some(Val::String("1.1.1")), event.get_value("event.release"));
         assert_eq!(
