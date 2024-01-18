@@ -341,7 +341,7 @@ impl InMemory {
 
     /// Returns `true` if the in-memory buffer is full, `false` otherwise.
     fn is_full(&self) -> bool {
-        self.used_memory >= self.max_memory_size
+        self.max_memory_size == 0 || self.used_memory >= self.max_memory_size
     }
 }
 
@@ -634,8 +634,8 @@ impl OnDisk {
 
     /// Returns `true` if the maximum size is reached, `false` otherwise.
     async fn is_full(&self) -> Result<bool, BufferError> {
-        let current_size = self.estimate_spool_size().await?;
-        Ok(current_size as usize >= self.max_disk_size)
+        Ok(self.max_disk_size == 0
+            || (self.estimate_spool_size().await? as usize) >= self.max_disk_size)
     }
 
     /// Returns `true` if the spool is empty, `false` otherwise.
@@ -1018,10 +1018,11 @@ impl BufferService {
 
     async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
         match self.state {
-            // We do not check the ram, since we rely on `cache.envelope_buffer_size` to limit the
-            // memory usage and the number of the envelopes in the memory.
-            // Note: in the future we want to switch to `spool.envelopes.max_memory_size` option.
-            BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => health.0.send(true),
+            BufferState::Memory(ref ram) => health.0.send(!ram.is_full()),
+            BufferState::MemoryFileStandby { ref ram, ref disk } => health
+                .0
+                .send(!ram.is_full() || !disk.is_full().await.unwrap_or_default()),
+
             BufferState::Disk(ref disk) => health.0.send(!disk.is_full().await.unwrap_or_default()),
         }
 
@@ -1121,9 +1122,11 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use insta::assert_debug_snapshot;
+    use relay_system::AsyncResponse;
     use relay_test::mock_service;
     use uuid::Uuid;
 
+    use crate::services::project_cache::SpoolHealth;
     use crate::testutils::empty_envelope;
 
     use super::*;
@@ -1428,5 +1431,102 @@ mod tests {
             "buffer.reads:1|c",
         ]
         "#);
+    }
+
+    pub enum TestHealth {
+        SpoolHealth(Sender<bool>),
+    }
+
+    impl Interface for TestHealth {}
+
+    impl FromMessage<SpoolHealth> for TestHealth {
+        type Response = AsyncResponse<bool>;
+
+        fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
+            Self::SpoolHealth(sender)
+        }
+    }
+
+    pub struct TestHealthService {
+        buffer: Addr<Buffer>,
+    }
+
+    impl TestHealthService {
+        fn new(buffer: Addr<Buffer>) -> Self {
+            Self { buffer }
+        }
+    }
+
+    impl Service for TestHealthService {
+        type Interface = TestHealth;
+
+        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+            tokio::spawn(async move {
+                loop {
+                    tokio::select! {
+                        Some(TestHealth::SpoolHealth(sender)) = rx.recv() => self.buffer.send(Health(sender)),
+                        else => break,
+                    }
+                }
+            });
+        }
+    }
+
+    #[tokio::test]
+    async fn health_check_fails() {
+        relay_log::init_test!();
+
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                    "max_disk_size": 0,
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let buffer = BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
+
+        let addr = buffer.start();
+
+        let health_service = TestHealthService::new(addr.clone()).start();
+        let healthy = health_service.send(SpoolHealth).await.unwrap();
+        assert!(!healthy);
+    }
+
+    #[tokio::test]
+    async fn health_check_succeeds() {
+        relay_log::init_test!();
+
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                    "max_disk_size": "100KB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let buffer = BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
+
+        let addr = buffer.start();
+
+        let health_service = TestHealthService::new(addr.clone()).start();
+        let healthy = health_service.send(SpoolHealth).await.unwrap();
+        assert!(healthy);
     }
 }
