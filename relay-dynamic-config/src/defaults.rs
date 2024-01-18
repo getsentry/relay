@@ -395,5 +395,57 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
                     .always(), // already guarded by condition on metric
             ],
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/webvital.score.total@ratio".into(),
+            field: Some("span.measurements.score.total".into()),
+            condition: None,
+            tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("browser.name")
+                    .from_field("span.browser.name")
+                    .always(),
+                Tag::with_key("geo.country_code")
+                    .from_field("span.geo.country_code")
+                    .always(),
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/webvital.score.inp@ratio".into(),
+            field: Some("span.measurements.score.inp".into()),
+            condition: None,
+            tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("browser.name")
+                    .from_field("span.sentry_tags.browser.name")
+                    .always(),
+                Tag::with_key("geo.country_code")
+                    .from_field("span.sentry_tags.geo.country_code")
+                    .always(),
+            ],
+        },
     ]
 }

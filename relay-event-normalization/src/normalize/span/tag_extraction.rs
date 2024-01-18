@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, Span, Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -32,6 +32,8 @@ pub enum SpanTagKey {
     Transaction,
     TransactionMethod,
     TransactionOp,
+    BrowserName,
+    GeoCountryCode,
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
@@ -75,6 +77,8 @@ impl SpanTagKey {
             SpanTagKey::TransactionOp => "transaction.op",
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
+            SpanTagKey::GeoCountryCode => "geo.country_code",
+            SpanTagKey::BrowserName => "browser.name",
 
             SpanTagKey::Action => "action",
             SpanTagKey::Category => "category",
@@ -224,6 +228,19 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 
     if let Some(device_class) = event.tag_value("device.class") {
         tags.insert(SpanTagKey::DeviceClass, device_class.into());
+    }
+
+    if let Some(browser_name) = event
+        .context::<BrowserContext>()
+        .and_then(|v| v.name.value())
+    {
+        tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    }
+
+    if let Some(user) = event.user.value() {
+        if let Some(geo_country_code) = user.geo.value().and_then(|v| v.country_code.value()) {
+            tags.insert(SpanTagKey::GeoCountryCode, geo_country_code.into());
+        }
     }
 
     tags
@@ -1148,5 +1165,64 @@ LIMIT 1
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread"), None);
+    }
+
+    #[test]
+    fn test_browser_name_and_geo_country_code() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    },
+                    "browser": {
+                        "name": "Chrome"
+                    }
+                },
+                "user": {
+                    "geo": {
+                        "country_code": "US"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span = &event.spans.value().unwrap()[0];
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(
+            tags.get("geo.country_code"),
+            Some(&Annotated::new("US".to_string()))
+        );
+        assert_eq!(
+            tags.get("browser.name"),
+            Some(&Annotated::new("Chrome".to_string()))
+        );
     }
 }
