@@ -32,8 +32,8 @@ impl Metrics {
     }
 
     /// Returns `true` if it contains any names patterns to filter metric names.
-    pub fn has_denied_names(&self) -> bool {
-        !self.denied_names.is_empty()
+    pub fn is_empty(&self) -> bool {
+        self.denied_names.is_empty()
     }
 }
 

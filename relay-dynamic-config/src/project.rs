@@ -146,7 +146,7 @@ fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> 
 fn skip_deny_metrics(boundary: &ErrorBoundary<Metrics>) -> bool {
     match boundary {
         ErrorBoundary::Err(_) => true,
-        ErrorBoundary::Ok(metrics) => !metrics.has_denied_names(),
+        ErrorBoundary::Ok(metrics) => metrics.is_empty(),
     }
 }
 
