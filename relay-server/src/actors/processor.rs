@@ -2504,7 +2504,7 @@ mod tests {
             let project_metrics = ProjectMetrics {
                 buckets: vec![Bucket {
                     name: "d:transactions/bar".to_string(),
-                    value: BucketValue::Counter(1.0),
+                    value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
                     timestamp: UnixTimestamp::now(),
                     tags: Default::default(),
                     width: 10,
