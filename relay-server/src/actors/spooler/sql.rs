@@ -72,6 +72,11 @@ pub fn select_one<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query("SELECT received_at FROM envelopes LIMIT 1;")
 }
 
+/// Returns the query to select all the unique combinations of own and sampling keys.
+pub fn get_keys<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query("SELECT DISTINCT own_key, sampling_key FROM envelopes;")
+}
+
 /// Creates the INSERT query.
 pub fn insert<'a>(
     key: QueueKey,

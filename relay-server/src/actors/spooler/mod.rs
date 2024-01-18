@@ -50,7 +50,7 @@ use tokio::sync::mpsc;
 
 use crate::actors::outcome::TrackOutcome;
 use crate::actors::processor::ProcessingGroup;
-use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
+use crate::actors::project_cache::{ProjectCache, SpoolIndex, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
@@ -183,6 +183,10 @@ impl RemoveMany {
 #[derive(Debug)]
 pub struct Health(pub Sender<bool>);
 
+/// Requests the index [`ProjectKey`] -> [`QueueKey`] of the data currently residing in the spool.
+#[derive(Debug)]
+pub struct GetIndex;
+
 /// The interface for [`BufferService`].
 ///
 /// Buffer maintaince internal storage (internal buffer) of the envelopes, which keep accumulating
@@ -204,6 +208,7 @@ pub enum Buffer {
     DequeueMany(DequeueMany),
     RemoveMany(RemoveMany),
     Health(Health),
+    GetIndex(GetIndex),
 }
 
 impl Interface for Buffer {}
@@ -237,6 +242,14 @@ impl FromMessage<Health> for Buffer {
 
     fn from_message(message: Health, _: ()) -> Self {
         Self::Health(message)
+    }
+}
+
+impl FromMessage<GetIndex> for Buffer {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: GetIndex, _: ()) -> Self {
+        Self::GetIndex(message)
     }
 }
 
@@ -684,6 +697,47 @@ impl OnDisk {
             relay_statsd::metric!(gauge(RelayGauges::BufferEnvelopesDiskCount) = *count);
         }
     }
+
+    fn extract_key(&self, row: SqliteRow) -> Result<QueueKey, BufferError> {
+        let own_key: &str = row.try_get("own_key").map_err(BufferError::FetchFailed)?;
+        let sampling_key: &str = row
+            .try_get("sampling_key")
+            .map_err(BufferError::FetchFailed)?;
+        let queue_key = QueueKey {
+            own_key: ProjectKey::parse(own_key).map_err(BufferError::ParseProjectKeyFailed)?,
+            sampling_key: ProjectKey::parse(sampling_key)
+                .map_err(BufferError::ParseProjectKeyFailed)?,
+        };
+        Ok(queue_key)
+    }
+
+    /// Returns the index from the on-disk spool.
+    async fn get_spooled_index(
+        &self,
+    ) -> Result<BTreeMap<ProjectKey, BTreeSet<QueueKey>>, BufferError> {
+        let keys = sql::get_keys()
+            .fetch_all(&self.db)
+            .await
+            .map_err(BufferError::FetchFailed)?;
+
+        let extracted_keys: Result<Vec<_>, BufferError> = keys
+            .into_iter()
+            // Collect only keys we could extract.
+            .map(|row| self.extract_key(row))
+            .collect();
+
+        // Fold the list into the index format.
+        let index = extracted_keys?.into_iter().fold(
+            BTreeMap::new(),
+            |mut acc: BTreeMap<ProjectKey, BTreeSet<QueueKey>>, key| {
+                acc.entry(key.own_key).or_default().insert(key);
+                acc.entry(key.sampling_key).or_default().insert(key);
+                acc
+            },
+        );
+
+        Ok(index)
+    }
 }
 
 /// The state which defines the [`BufferService`] behaviour.
@@ -1016,6 +1070,7 @@ impl BufferService {
         Ok(())
     }
 
+    /// Handles the health requests.
     async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
         match self.state {
             // We do not check the ram, since we rely on `cache.envelope_buffer_size` to limit the
@@ -1028,6 +1083,26 @@ impl BufferService {
         Ok(())
     }
 
+    /// Handles the retrieving the index from the underlying spool.
+    async fn handle_get_index(&mut self, _: GetIndex) -> Result<(), BufferError> {
+        match self.state {
+            // If spool uses memory, it means that we did not restart and still should have a full
+            // and correct index in the ProjectCache.
+            BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => (),
+            BufferState::Disk(ref disk) => {
+                let index = disk.get_spooled_index().await?;
+                relay_log::trace!(
+                    "recover index from disk with {} unique project keys",
+                    index.len()
+                );
+
+                self.services.project_cache.send(SpoolIndex(index))
+            }
+        }
+
+        Ok(())
+    }
+
     /// Handles all the incoming messages from the [`Buffer`] interface.
     async fn handle_message(&mut self, message: Buffer) -> Result<(), BufferError> {
         match message {
@@ -1035,6 +1110,7 @@ impl BufferService {
             Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
             Buffer::Health(message) => self.handle_health(message).await,
+            Buffer::GetIndex(message) => self.handle_get_index(message).await,
         }
     }
 

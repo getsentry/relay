@@ -22,7 +22,7 @@ use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService
 use crate::actors::project_redis::RedisProjectSource;
 use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::actors::spooler::{
-    self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
+    self, Buffer, BufferService, DequeueMany, Enqueue, GetIndex, QueueKey, RemoveMany,
 };
 use crate::actors::test_store::TestStore;
 use crate::actors::upstream::UpstreamRelay;
@@ -195,6 +195,10 @@ impl UpdateBufferIndex {
 #[derive(Debug)]
 pub struct SpoolHealth;
 
+/// The current envelopes index fetched from the underlying buffer spool.
+#[derive(Debug)]
+pub struct SpoolIndex(pub BTreeMap<ProjectKey, BTreeSet<QueueKey>>);
+
 /// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -225,6 +229,7 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
+    SpoolIndex(SpoolIndex),
 }
 
 impl Interface for ProjectCache {}
@@ -234,6 +239,14 @@ impl FromMessage<UpdateBufferIndex> for ProjectCache {
 
     fn from_message(message: UpdateBufferIndex, _: ()) -> Self {
         Self::UpdateBufferIndex(message)
+    }
+}
+
+impl FromMessage<SpoolIndex> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: SpoolIndex, _: ()) -> Self {
+        Self::SpoolIndex(message)
     }
 }
 
@@ -886,6 +899,17 @@ impl ProjectCacheBroker {
         self.buffer.send(spooler::Health(sender))
     }
 
+    fn handle_spool_index(&mut self, message: SpoolIndex) {
+        let SpoolIndex(index) = message;
+        let project_cache = self.services.project_cache.clone();
+
+        for (key, values) in index {
+            self.index.entry(key).or_default().extend(values);
+            self.get_or_create_project(key)
+                .prefetch(project_cache.clone(), false);
+        }
+    }
+
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
@@ -903,6 +927,7 @@ impl ProjectCacheBroker {
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
+            ProjectCache::SpoolIndex(message) => self.handle_spool_index(message),
         }
     }
 }
@@ -995,6 +1020,9 @@ impl Service for ProjectCacheService {
                     GlobalConfigStatus::Pending(BTreeSet::new())
                 }
             };
+
+            // Reqest the existing index from the spooler.
+            buffer.send(GetIndex);
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
