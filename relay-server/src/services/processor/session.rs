@@ -13,8 +13,8 @@ use relay_event_schema::protocol::{
 use relay_metrics::Bucket;
 use relay_statsd::metric;
 
-use crate::actors::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::envelope::{ContentType, Item, ItemType};
+use crate::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 

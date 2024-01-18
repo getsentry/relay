@@ -34,7 +34,7 @@ use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
-use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
+use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -43,7 +43,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{Store, StoreEnvelope},
+    crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
@@ -52,12 +52,6 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-use crate::actors::global_config::GlobalConfigHandle;
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
-use crate::actors::test_store::{Capture, TestStore};
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{
     self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
 };
@@ -66,6 +60,14 @@ use crate::http;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
+use crate::services::global_config::GlobalConfigHandle;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::project::ProjectState;
+use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
+use crate::services::test_store::{Capture, TestStore};
+use crate::services::upstream::{
+    SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ExtractionMode, ManagedEnvelope, SamplingResult};
 
@@ -285,9 +287,6 @@ pub enum ProcessingError {
     #[error("failed to apply quotas")]
     QuotasFailed(#[from] RateLimitingError),
 
-    #[error("event dropped by sampling rule {0}")]
-    Sampled(MatchedRuleIds),
-
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
 }
@@ -330,17 +329,12 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
-            Self::Sampled(_) => None,
         }
     }
 
     fn is_unexpected(&self) -> bool {
         self.to_outcome()
             .map_or(false, |outcome| outcome.is_unexpected())
-    }
-
-    fn should_keep_metrics(&self) -> bool {
-        matches!(self, Self::Sampled(_))
     }
 }
 
@@ -497,9 +491,13 @@ impl<'a> ProcessEnvelopeState<'a> {
     }
 
     /// Removes the event payload from this processing state.
-    #[cfg(feature = "processing")]
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
+    }
+
+    fn reject_event(&mut self, outcome: Outcome) {
+        self.remove_event();
+        self.managed_envelope.reject_event(outcome);
     }
 }
 
@@ -1176,7 +1174,7 @@ impl EnvelopeProcessorService {
             self.extract_metrics(state)?;
         }
 
-        dynamic_sampling::sample_envelope(state)?;
+        dynamic_sampling::sample_envelope_items(state);
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1309,7 +1307,7 @@ impl EnvelopeProcessorService {
                 self.extract_metrics(state)?;
             }
 
-            dynamic_sampling::sample_envelope(state)?;
+            dynamic_sampling::sample_envelope_items(state);
 
             if_processing!(self.inner.config, {
                 event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1424,13 +1422,6 @@ impl EnvelopeProcessorService {
                     Err(err) => {
                         if let Some(outcome) = err.to_outcome() {
                             state.managed_envelope.reject(outcome);
-                        }
-
-                        if err.should_keep_metrics() {
-                            state.extracted_metrics.send_metrics(
-                                state.managed_envelope.envelope(),
-                                self.inner.project_cache.clone(),
-                            );
                         }
 
                         Err(err)
@@ -1845,8 +1836,8 @@ impl EnvelopeProcessorService {
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
     fn encode_metrics_processing(&self, message: EncodeMetrics, store_forwarder: &Addr<Store>) {
-        use crate::actors::store::StoreMetrics;
         use crate::constants::DEFAULT_EVENT_RETENTION;
+        use crate::services::store::StoreMetrics;
 
         for (scoping, message) in message.scopes {
             let ProjectMetrics {

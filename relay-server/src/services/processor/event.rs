@@ -26,12 +26,12 @@ use {
     relay_event_schema::protocol::IpAddr,
 };
 
-use crate::actors::outcome::Outcome;
-use crate::actors::processor::{
-    ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
-};
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::outcome::Outcome;
+use crate::services::processor::{
+    ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
+};
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 

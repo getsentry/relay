@@ -127,18 +127,28 @@ fn read_metric_value(
     field: Option<&str>,
     ty: MetricType,
 ) -> Option<BucketValue> {
+    let finite = |float: f64| match FiniteF64::new(float) {
+        Some(f) => Some(f),
+        None => {
+            relay_log::error!(
+                tags.field = field,
+                tags.metric_type = ?ty,
+                "non-finite float value in generic metric extraction"
+            );
+            None
+        }
+    };
+
     Some(match ty {
         MetricType::Counter => BucketValue::counter(match field {
-            Some(field) => FiniteF64::new(instance.get_value(field)?.as_f64()?)?,
+            Some(field) => finite(instance.get_value(field)?.as_f64()?)?,
             None => 1.into(),
         }),
         MetricType::Distribution => {
-            BucketValue::distribution(FiniteF64::new(instance.get_value(field?)?.as_f64()?)?)
+            BucketValue::distribution(finite(instance.get_value(field?)?.as_f64()?)?)
         }
         MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
-        MetricType::Gauge => {
-            BucketValue::gauge(FiniteF64::new(instance.get_value(field?)?.as_f64()?)?)
-        }
+        MetricType::Gauge => BucketValue::gauge(finite(instance.get_value(field?)?.as_f64()?)?),
     })
 }
 

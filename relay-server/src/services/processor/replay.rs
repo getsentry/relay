@@ -15,9 +15,9 @@ use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 
-use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::envelope::{ContentType, ItemType};
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 

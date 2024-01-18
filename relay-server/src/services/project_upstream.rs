@@ -17,9 +17,9 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::actors::project::ProjectState;
-use crate::actors::project_cache::FetchProjectState;
-use crate::actors::upstream::{
+use crate::services::project::ProjectState;
+use crate::services::project_cache::FetchProjectState;
+use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
