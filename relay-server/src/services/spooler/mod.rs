@@ -1092,11 +1092,14 @@ impl BufferService {
         Ok(())
     }
 
-    /// Handles the retrieving the index from the underlying spool.
+    /// Handles retrieving of the index from the underlying spool.
+    ///
+    /// If the spool is memory based, we ignore this request - the index in the
+    /// [`ProjectCache`] should be full and correct.
+    /// If the spool is located on the disk, we read up the keys and compile the index of the
+    /// spooled envelopes for [`ProjectCache`].
     async fn handle_get_index(&mut self, _: GetIndex) -> Result<(), BufferError> {
         match self.state {
-            // If spool uses memory, it means that we did not restart and still should have a full
-            // and correct index in the ProjectCache.
             BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => (),
             BufferState::Disk(ref disk) => {
                 let index = disk.get_spooled_index().await?;
