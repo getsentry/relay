@@ -1224,11 +1224,15 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+    use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
     use insta::assert_debug_snapshot;
     use relay_system::AsyncResponse;
     use relay_test::mock_service;
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::ConnectOptions;
     use uuid::Uuid;
 
     use crate::services::project_cache::SpoolHealth;
@@ -1633,5 +1637,86 @@ mod tests {
         let health_service = TestHealthService::new(addr.clone()).start();
         let healthy = health_service.send(SpoolHealth).await.unwrap();
         assert!(healthy);
+    }
+
+    #[tokio::test]
+    async fn index_restore() {
+        relay_log::init_test!();
+
+        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": db_path,
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                    "max_disk_size": "100KB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        // Setup spool file and run migrations.
+        BufferService::setup(&db_path).await.unwrap();
+
+        // Setup db and insert few records for the test.
+        let mut db =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.to_str().unwrap()))
+                .unwrap()
+                .connect()
+                .await
+                .unwrap();
+
+        let now = chrono::Utc::now().timestamp_millis();
+        let result = sqlx::query(&format!(
+            r#"INSERT INTO
+                    envelopes (received_at, own_key, sampling_key, envelope)
+               VALUES
+                    ("{}", "a94ae32be2584e0bbd7a4cbb95971fee", "a94ae32be2584e0bbd7a4cbb95971fee", ""),
+                    ("{}", "a94ae32be2584e0bbd7a4cbb95971f00", "a94ae32be2584e0bbd7a4cbb95971f11", "")
+            "#, now , now),
+        ).execute(&mut db).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 2);
+
+        let index = Arc::new(Mutex::new(BTreeMap::new()));
+        let mut services = services();
+        let index_in = index.clone();
+        let (project_cache, _) = mock_service("project_cache", (), move |(), msg: ProjectCache| {
+            let ProjectCache::RefreshIndexCache(new_index) = msg else {
+                return;
+            };
+            index_in.lock().unwrap().extend(new_index.0);
+        });
+
+        services.project_cache = project_cache;
+
+        let buffer = BufferService::create(buffer_guard, services, config)
+            .await
+            .unwrap();
+        let addr = buffer.start();
+        addr.send(RestoreIndex);
+        // Give some time to process the message
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Get the index out of the mutex.
+        let index = index.lock().unwrap().clone();
+
+        assert_eq!(index.len(), 3);
+        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f00").unwrap()));
+        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f11").unwrap()));
+        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap()));
+        let result_for_key = BTreeSet::from([QueueKey {
+            own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        }]);
+        assert_eq!(
+            index
+                .get(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap())
+                .unwrap(),
+            &result_for_key
+        );
     }
 }
