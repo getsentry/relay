@@ -45,7 +45,7 @@ pub enum Feature {
     /// Enable processing and extracting data from non dinamycally sampled profiles.
     /// Only some data for slowest function aggregation will be used. The profile
     /// itself won't be stored on GCS.
-    #[serde(rename = "organizations:profiling-ingest-unsampled-profiles")]
+    #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
     IngestUnsampledProfiles,
 
     /// Deprecated, still forwarded for older downstream Relays.
