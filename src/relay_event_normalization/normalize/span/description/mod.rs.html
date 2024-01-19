@@ -975,6 +975,28 @@
 <a href="#975" id="975">975</a>
 <a href="#976" id="976">976</a>
 <a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -1011,9 +1033,9 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_span_description(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>description = span.description.as_str()<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>db_system = span
-        .data
-        .value()
+    <span class="kw">let </span>data = span.data.value();
+
+    <span class="kw">let </span>db_system = data
         .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
         .and_then(|system| system.as_str());
     <span class="kw">let </span>span_origin = span.origin.as_str();
@@ -1053,6 +1075,10 @@
                 // be low-risk to start adding the description.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
+            (<span class="string">&quot;ui&quot;</span>, sub) <span class="kw">if </span>sub.starts_with(<span class="string">&quot;interaction.&quot;</span>) || sub.starts_with(<span class="string">&quot;react.&quot;</span>) =&gt; data
+                .and_then(|data| data.get(<span class="string">&quot;ui.component_name&quot;</span>))
+                .and_then(|value| value.as_str())
+                .map(String::from),
             (<span class="string">&quot;app&quot;</span>, <span class="kw">_</span>) =&gt; {
                 <span class="comment">// `app.*` has static descriptions, like `Cold Start`
                 // or `Pre Runtime Init`.
@@ -1950,6 +1976,24 @@
             scrubbed.as_deref(),
             <span class="prelude-val">Some</span>(<span class="string">&quot;UPDATED * &#39;QueuedRequest&#39;, DELETED * &#39;QueuedRequest&#39;&quot;</span>)
         );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>ui_interaction_with_component_name() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+            &quot;description&quot;: &quot;input.app-asdfasfg.asdfasdf[type=\&quot;range\&quot;][name=\&quot;replay-timeline\&quot;]&quot;,
+            &quot;op&quot;: &quot;ui.interaction.click&quot;,
+            &quot;data&quot;: {
+                &quot;ui.component_name&quot;: &quot;my-component-name&quot;
+            }
+        }&quot;#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
+
+        <span class="kw">let </span>scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+
+        <span class="comment">// Can be scrubbed with db system.
+        </span><span class="macro">assert_eq!</span>(scrubbed.as_deref(), <span class="prelude-val">Some</span>(<span class="string">&quot;my-component-name&quot;</span>));
     }
 }
 </code></pre></div></section></main></body></html>
