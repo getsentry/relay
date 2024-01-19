@@ -902,7 +902,7 @@ impl ProjectCacheBroker {
         self.buffer.send(spooler::Health(sender))
     }
 
-    fn handle_spool_index(&mut self, message: RefreshIndexCache) {
+    fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
         let RefreshIndexCache(index) = message;
         let project_cache = self.services.project_cache.clone();
 
@@ -930,7 +930,7 @@ impl ProjectCacheBroker {
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
-            ProjectCache::RefreshIndexCache(message) => self.handle_spool_index(message),
+            ProjectCache::RefreshIndexCache(message) => self.handle_refresh_index_cache(message),
         }
     }
 }

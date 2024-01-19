@@ -1107,7 +1107,7 @@ impl BufferService {
     /// [`ProjectCache`] should be full and correct.
     /// If the spool is located on the disk, we read up the keys and compile the index of the
     /// spooled envelopes for [`ProjectCache`].
-    async fn handle_get_index(&mut self, _: RestoreIndex) -> Result<(), BufferError> {
+    async fn handle_restore_index(&mut self, _: RestoreIndex) -> Result<(), BufferError> {
         match self.state {
             BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => (),
             BufferState::Disk(ref disk) => {
@@ -1140,7 +1140,7 @@ impl BufferService {
             Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
             Buffer::Health(message) => self.handle_health(message).await,
-            Buffer::RestoreIndex(message) => self.handle_get_index(message).await,
+            Buffer::RestoreIndex(message) => self.handle_restore_index(message).await,
         }
     }
 
