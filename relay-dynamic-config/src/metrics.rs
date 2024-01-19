@@ -26,10 +26,11 @@ impl Metrics {
     }
 }
 
+/// For metrics matching the 'name' pattern, we remove tags matching the 'tag' pattern.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct TagBlocker {
     ///
-    pub metric: GlobPatterns,
+    pub name: GlobPatterns,
     ///
     pub tag: GlobPatterns,
 }

@@ -611,7 +611,7 @@ impl Project {
 
         bucket.tags.retain(|key, _| {
             metrics.blocked_tags.iter().any(|tag_blocker| {
-                !(tag_blocker.metric.is_match(&bucket.name) && tag_blocker.tag.is_match(key))
+                !(tag_blocker.name.is_match(&bucket.name) && tag_blocker.tag.is_match(key))
             })
         });
     }
