@@ -1812,3 +1812,65 @@ def test_span_extraction_with_ddm(
     }
 
     spans_consumer.assert_empty()
+
+
+def test_span_extraction_with_ddm_missing_values(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["spanAttributes"] = ["exclusive-time"]
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+    ]
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    metrics_summary = {
+        "c:spans/some_metric@none": [
+            {
+                "min": None,
+                "max": 2.0,
+                "count": 4,
+                "tags": {
+                    "environment": "test",
+                },
+            },
+        ],
+    }
+    event["_metrics_summary"] = metrics_summary
+
+    relay.send_event(project_id, event)
+
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
+    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+
+    metrics_summary["c:spans/some_metric@none"][0].pop("min", None)
+    metrics_summary["c:spans/some_metric@none"][0]["tags"].pop("random", None)
+
+    transaction_span = spans_consumer.get_span()
+    del transaction_span["received"]
+    assert transaction_span == {
+        "duration_ms": duration_ms,
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "retention_days": 90,
+        "description": "hi",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "span_id": "968cff94913ebb07",
+        "start_timestamp_ms": int(
+            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+        ),
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "_metrics_summary": metrics_summary,
+    }
+
+    spans_consumer.assert_empty()

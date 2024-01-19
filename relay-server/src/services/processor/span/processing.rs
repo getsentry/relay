@@ -415,8 +415,6 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         ref mut timestamp,
         ref mut span_id,
         ref mut trace_id,
-        ref mut measurements,
-        ref mut _metrics_summary,
         ..
     } = inner;
 
@@ -466,19 +464,6 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
     }
     if let Some(tags) = tags.value_mut() {
         tags.retain(|_, value| !value.value().is_empty())
-    }
-    if let Some(measurements) = measurements.value_mut() {
-        measurements.retain(|_, v| {
-            v.value()
-                .and_then(|v| v.value.value().cloned())
-                .map_or(false, f64::is_finite)
-        });
-    }
-    if let Some(metrics_summary) = _metrics_summary.value_mut() {
-        metrics_summary.0.retain(|_, value| match value.value() {
-            Some(v) => !v.is_empty() && v.iter().all(|v| !v.is_empty()),
-            None => false,
-        });
     }
 
     Ok(span)

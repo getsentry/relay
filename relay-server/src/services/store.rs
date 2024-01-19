@@ -865,6 +865,35 @@ impl StoreService {
             }
         };
 
+        if let Some(measurements) = &mut span.measurements {
+            measurements.retain(|_, v| {
+                if let Some(v) = v {
+                    v.value.map_or(false, f64::is_finite)
+                } else {
+                    false
+                }
+            });
+        }
+
+        if let Some(metrics_summary) = &mut span.metrics_summary {
+            metrics_summary.retain(|_, mut v| {
+                if let Some(v) = &mut v {
+                    v.retain(|v| {
+                        if let Some(v) = v {
+                            return v.min.is_some()
+                                || v.max.is_some()
+                                || v.sum.is_some()
+                                || v.count.is_some();
+                        }
+                        false
+                    });
+                    !v.is_empty()
+                } else {
+                    false
+                }
+            });
+        }
+
         span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
         span.event_id = event_id;
         span.project_id = scoping.project_id.value();
@@ -1171,6 +1200,26 @@ struct CheckInKafkaMessage {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+struct SpanMeasurement {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    value: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SpanMetricsSummary {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sum: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tags: Option<BTreeMap<String, String>>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing)]
     start_timestamp: f64,
@@ -1189,13 +1238,13 @@ struct SpanKafkaMessage<'a> {
     is_segment: bool,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<&'a RawValue>,
+    measurements: Option<BTreeMap<&'a str, Option<SpanMeasurement>>>,
     #[serde(
         default,
         rename = "_metrics_summary",
         skip_serializing_if = "Option::is_none"
     )]
-    metrics_summary: Option<&'a RawValue>,
+    metrics_summary: Option<BTreeMap<&'a str, Option<Vec<Option<SpanMetricsSummary>>>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
