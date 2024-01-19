@@ -501,7 +501,7 @@ impl<'a> ProcessEnvelopeState<'a> {
     }
 
     fn forward_unsampled_profiles(&self, global_config: &GlobalConfig) -> bool {
-        let Some(global_options) = global_config.options else {
+        let Some(global_options) = &global_config.options else {
             return false;
         };
 
