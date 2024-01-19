@@ -483,10 +483,7 @@ mod tests {
         "#;
 
         let mut event = Annotated::from_json(json).unwrap();
-        let features = FeatureSet(BTreeSet::from([
-            Feature::SpanMetricsExtraction,
-            Feature::SpanMetricsExtractionAllModules,
-        ]));
+        let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
@@ -1137,12 +1134,7 @@ mod tests {
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [
-                Feature::SpanMetricsExtraction,
-                Feature::SpanMetricsExtractionAllModules,
-            ]
-            .into_iter()
-            .collect(),
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -1202,12 +1194,7 @@ mod tests {
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [
-                Feature::SpanMetricsExtraction,
-                Feature::SpanMetricsExtractionAllModules,
-            ]
-            .into_iter()
-            .collect(),
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
