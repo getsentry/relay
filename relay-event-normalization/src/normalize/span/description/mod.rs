@@ -71,9 +71,6 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
-                // At the moment the metrics from this module
-                // are still filtered by the `SpanMetricsExtractionAllModules` feature, so it should
-                // be low-risk to start adding the description.
                 Some(description.to_owned())
             }
             ("app", _) => {
