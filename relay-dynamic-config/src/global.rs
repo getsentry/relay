@@ -60,6 +60,13 @@ pub struct Options {
     )]
     pub profile_metrics_sample_rate: f32,
 
+    /// kill switch for shutting down profile metrics
+    #[serde(
+        default,
+        rename = "profiling.profile_metrics.unsampled_profiles.enabled"
+    )]
+    pub profile_metrics_kill_switch: bool,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
