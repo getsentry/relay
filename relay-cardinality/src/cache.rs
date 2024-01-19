@@ -1,7 +1,6 @@
-use std::hash::Hash;
 use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::{FooScope, OrganizationId};
+use crate::redis::RedisQuota;
 
 /// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
 /// this hash.
@@ -37,7 +36,7 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    pub fn update<'a>(&'a self, scope: FooScope, window: u64) -> CacheUpdate<'a> {
+    pub fn update(&self, quota: RedisQuota, window: u64) -> CacheUpdate<'_> {
         let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
 
         // If the window is older don't do anything and give up the lock early.
@@ -51,43 +50,34 @@ impl Cache {
             inner.cache.clear();
         }
 
-        CacheUpdate::new(inner, scope)
+        CacheUpdate::new(inner, quota)
     }
 }
 
 /// Cache read handle.
 ///
 /// Holds a cache read lock, the lock is released on drop.
-pub struct CacheRead<'a>(CacheReadInner<'a>);
-
-/// Internal state for [`CacheRead`].
-enum CacheReadInner<'a> {
-    Noop,
-    Cache {
-        inner: RwLockReadGuard<'a, Inner>,
-        timestamp: u64,
-    },
+pub struct CacheRead<'a> {
+    inner: RwLockReadGuard<'a, Inner>,
+    timestamp: u64,
 }
 
+/// Internal state for [`CacheRead`].
 impl<'a> CacheRead<'a> {
     /// Creates a new [`CacheRead`] which reads from the cache.
     fn new(inner: RwLockReadGuard<'a, Inner>, timestamp: u64) -> Self {
-        Self(CacheReadInner::Cache { inner, timestamp })
+        Self { inner, timestamp }
     }
 
-    /// Creates a new noop [`CacheRead`] which does not require a lock.
-    fn noop() -> Self {
-        Self(CacheReadInner::Noop)
-    }
-
-    pub fn check(&self, scope: FooScope, hash: u32, limit: u64) -> CacheOutcome {
-        match &self.0 {
-            CacheReadInner::Noop => CacheOutcome::Unknown,
-            CacheReadInner::Cache { inner, timestamp } => inner
-                .cache
-                .get(&scope)
-                .map_or(CacheOutcome::Unknown, |s| s.check(hash, limit)),
+    pub fn check(&self, quota: RedisQuota, hash: u32, limit: u64) -> CacheOutcome {
+        if quota.window.active_time_bucket(self.timestamp) < self.inner.current_window {
+            return CacheOutcome::Unknown;
         }
+
+        self.inner
+            .cache
+            .get(&quota)
+            .map_or(CacheOutcome::Unknown, |s| s.check(hash, limit))
     }
 }
 
@@ -101,13 +91,13 @@ enum CacheUpdateInner<'a> {
     Noop,
     Cache {
         inner: RwLockWriteGuard<'a, Inner>,
-        key: FooScope,
+        key: RedisQuota,
     },
 }
 
 impl<'a> CacheUpdate<'a> {
     /// Creates a new [`CacheUpdate`] which operates on the passed cache.
-    fn new(inner: RwLockWriteGuard<'a, Inner>, key: FooScope) -> Self {
+    fn new(inner: RwLockWriteGuard<'a, Inner>, key: RedisQuota) -> Self {
         Self(CacheUpdateInner::Cache { inner, key })
     }
 
@@ -128,7 +118,7 @@ impl<'a> CacheUpdate<'a> {
 /// Critical section of the [`Cache`].
 #[derive(Debug, Default)]
 struct Inner {
-    cache: hashbrown::HashMap<FooScope, ScopedCache>,
+    cache: hashbrown::HashMap<RedisQuota, ScopedCache>,
     current_window: u64,
 }
 

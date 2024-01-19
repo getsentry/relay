@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::SlidingWindow;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+/// A cardinality limit.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct CardinalityLimit {
     /// Unique identifier of the cardinality limit.
     pub id: String,
@@ -20,7 +21,8 @@ pub struct CardinalityLimit {
     pub namespace: Option<MetricNamespace>, // TODO: should this be a list of namespaces?
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+/// A scope to restrict the [`CardinalityLimit`] to.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum CardinalityScope {
     /// The organization that this project belongs to.
     ///

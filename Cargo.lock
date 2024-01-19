@@ -3571,7 +3571,6 @@ dependencies = [
  "insta",
  "relay-auth",
  "relay-base-schema",
- "relay-cardinality",
  "relay-common",
  "relay-event-normalization",
  "relay-filter",

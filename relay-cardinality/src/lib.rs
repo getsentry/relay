@@ -14,13 +14,7 @@ pub mod limiter;
 #[cfg(feature = "redis")]
 mod redis;
 mod statsd;
-#[cfg(feature = "redis")]
-mod utils;
 mod window;
-
-// TODO
-mod scope;
-pub use scope::*;
 
 pub use self::config::*;
 pub use self::error::*;

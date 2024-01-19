@@ -9,9 +9,14 @@ use relay_statsd::metric;
 use crate::statsd::CardinalityLimiterTimers;
 use crate::{CardinalityLimit, Error, OrganizationId, Result};
 
-#[derive(Clone, Copy, Debug)]
+/// Data scoping information.
+///
+/// This structure holds information of all scopes required for attributing entries to limits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Scoping {
+    /// The organization id.
     pub organization_id: OrganizationId,
+    /// The project id.
     pub project_id: ProjectId,
 }
 
@@ -166,6 +171,8 @@ impl<T> CardinalityLimits<T> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{CardinalityScope, SlidingWindow};
+
     use super::*;
 
     #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -190,6 +197,26 @@ mod tests {
 
         fn namespace(&self) -> Option<MetricNamespace> {
             self.namespace
+        }
+    }
+
+    fn build_limits() -> [CardinalityLimit; 1] {
+        [CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 10_000,
+            scope: CardinalityScope::Organization,
+            namespace: None,
+        }]
+    }
+
+    fn build_scoping() -> Scoping {
+        Scoping {
+            organization_id: 1,
+            project_id: ProjectId::new(1),
         }
     }
 
@@ -228,139 +255,125 @@ mod tests {
         assert!(limits.into_accepted().is_empty());
     }
 
-    // #[test]
-    // fn test_limiter_reject_all() {
-    //     struct RejectAllLimiter;
-    //
-    //     impl Limiter for RejectAllLimiter {
-    //         fn check_cardinality_limits<I>(
-    //             &self,
-    //             _scoping: Scoping,
-    //             limits: &[CardinalityLimit],
-    //             entries: I,
-    //         ) -> Result<Box<dyn Iterator<Item = Rejection>>>
-    //         where
-    //             I: IntoIterator<Item = Entry>,
-    //         {
-    //             // assert_eq!(limit, 1000);
-    //             let rejections = entries
-    //                 .into_iter()
-    //                 .map(|entry| Rejection::new(entry.id))
-    //                 .collect::<Vec<_>>();
-    //
-    //             Ok(Box::new(rejections.into_iter()))
-    //         }
-    //     }
-    //
-    //     let limiter = CardinalityLimiter::new(
-    //         RejectAllLimiter,
-    //         Config {
-    //             cardinality_limit: 1000,
-    //         },
-    //     );
-    //
-    //     let result = limiter
-    //         .check_cardinality_limits(
-    //             1,
-    //             vec![
-    //                 Item::new(0, MetricNamespace::Transactions),
-    //                 Item::new(1, MetricNamespace::Transactions),
-    //             ],
-    //         )
-    //         .unwrap();
-    //
-    //     assert!(result.into_accepted().is_empty());
-    // }
-    //
-    // #[test]
-    // fn test_limiter_accept_all() {
-    //     struct AcceptAllLimiter;
-    //
-    //     impl Limiter for AcceptAllLimiter {
-    //         fn check_cardinality_limits<I>(
-    //             &self,
-    //             _organization: OrganizationId,
-    //             _entries: I,
-    //             limit: usize,
-    //         ) -> Result<Box<dyn Iterator<Item = Rejection>>>
-    //         where
-    //             I: IntoIterator<Item = Entry>,
-    //         {
-    //             assert_eq!(limit, 100);
-    //             Ok(Box::new(Vec::new().into_iter()))
-    //         }
-    //     }
-    //
-    //     let limiter = CardinalityLimiter::new(
-    //         AcceptAllLimiter,
-    //         Config {
-    //             cardinality_limit: 100,
-    //         },
-    //     );
-    //
-    //     let items = vec![
-    //         Item::new(0, MetricNamespace::Transactions),
-    //         Item::new(1, MetricNamespace::Spans),
-    //     ];
-    //     let result = limiter.check_cardinality_limits(1, items.clone()).unwrap();
-    //
-    //     assert_eq!(result.into_accepted(), items);
-    // }
-    //
-    // #[test]
-    // fn test_limiter_accept_odd_reject_even() {
-    //     struct RejectEvenLimiter;
-    //
-    //     impl Limiter for RejectEvenLimiter {
-    //         fn check_cardinality_limits<I>(
-    //             &self,
-    //             organization: OrganizationId,
-    //             entries: I,
-    //             limit: usize,
-    //         ) -> Result<Box<dyn Iterator<Item = Rejection>>>
-    //         where
-    //             I: IntoIterator<Item = Entry>,
-    //         {
-    //             assert_eq!(limit, 100);
-    //             assert_eq!(organization, 3);
-    //
-    //             let rejections = entries
-    //                 .into_iter()
-    //                 .filter_map(|entry| (entry.id.0 % 2 == 0).then_some(Rejection::new(entry.id)))
-    //                 .collect::<Vec<_>>();
-    //
-    //             Ok(Box::new(rejections.into_iter()))
-    //         }
-    //     }
-    //
-    //     let limiter = CardinalityLimiter::new(
-    //         RejectEvenLimiter,
-    //         Config {
-    //             cardinality_limit: 100,
-    //         },
-    //     );
-    //
-    //     let items = vec![
-    //         Item::new(0, MetricNamespace::Sessions),
-    //         Item::new(1, MetricNamespace::Transactions),
-    //         Item::new(2, MetricNamespace::Spans),
-    //         Item::new(3, MetricNamespace::Custom),
-    //         Item::new(4, MetricNamespace::Custom),
-    //         Item::new(5, MetricNamespace::Transactions),
-    //         Item::new(6, MetricNamespace::Spans),
-    //     ];
-    //     let accepted = limiter
-    //         .check_cardinality_limits(3, items)
-    //         .unwrap()
-    //         .into_accepted();
-    //
-    //     assert_eq!(
-    //         accepted,
-    //         vec![
-    //             Item::new(1, MetricNamespace::Transactions),
-    //             Item::new(3, MetricNamespace::Custom),
-    //             Item::new(5, MetricNamespace::Transactions),
-    //         ]
-    //     );
-    // }
+    #[test]
+    fn test_limiter_reject_all() {
+        struct RejectAllLimiter;
+
+        impl Limiter for RejectAllLimiter {
+            fn check_cardinality_limits<I>(
+                &self,
+                _scoping: Scoping,
+                _limits: &[CardinalityLimit],
+                entries: I,
+            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+            where
+                I: IntoIterator<Item = Entry>,
+            {
+                let rejections = entries
+                    .into_iter()
+                    .map(|entry| Rejection::new(entry.id))
+                    .collect::<Vec<_>>();
+
+                Ok(Box::new(rejections.into_iter()))
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(RejectAllLimiter);
+
+        let result = limiter
+            .check_cardinality_limits(
+                build_scoping(),
+                &build_limits(),
+                vec![
+                    Item::new(0, MetricNamespace::Transactions),
+                    Item::new(1, MetricNamespace::Transactions),
+                ],
+            )
+            .unwrap();
+
+        assert!(result.into_accepted().is_empty());
+    }
+
+    #[test]
+    fn test_limiter_accept_all() {
+        struct AcceptAllLimiter;
+
+        impl Limiter for AcceptAllLimiter {
+            fn check_cardinality_limits<I>(
+                &self,
+                _scoping: Scoping,
+                _limits: &[CardinalityLimit],
+                _entries: I,
+            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+            where
+                I: IntoIterator<Item = Entry>,
+            {
+                Ok(Box::new(Vec::new().into_iter()))
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(AcceptAllLimiter);
+
+        let items = vec![
+            Item::new(0, MetricNamespace::Transactions),
+            Item::new(1, MetricNamespace::Spans),
+        ];
+        let result = limiter
+            .check_cardinality_limits(build_scoping(), &build_limits(), items.clone())
+            .unwrap();
+
+        assert_eq!(result.into_accepted(), items);
+    }
+
+    #[test]
+    fn test_limiter_accept_odd_reject_even() {
+        struct RejectEvenLimiter;
+
+        impl Limiter for RejectEvenLimiter {
+            fn check_cardinality_limits<I>(
+                &self,
+                scoping: Scoping,
+                limits: &[CardinalityLimit],
+                entries: I,
+            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+            where
+                I: IntoIterator<Item = Entry>,
+            {
+                assert_eq!(scoping, build_scoping());
+                assert_eq!(limits, &build_limits());
+
+                let rejections = entries
+                    .into_iter()
+                    .filter_map(|entry| (entry.id.0 % 2 == 0).then_some(Rejection::new(entry.id)))
+                    .collect::<Vec<_>>();
+
+                Ok(Box::new(rejections.into_iter()))
+            }
+        }
+
+        let limiter = CardinalityLimiter::new(RejectEvenLimiter);
+
+        let items = vec![
+            Item::new(0, MetricNamespace::Sessions),
+            Item::new(1, MetricNamespace::Transactions),
+            Item::new(2, MetricNamespace::Spans),
+            Item::new(3, MetricNamespace::Custom),
+            Item::new(4, MetricNamespace::Custom),
+            Item::new(5, MetricNamespace::Transactions),
+            Item::new(6, MetricNamespace::Spans),
+        ];
+        let accepted = limiter
+            .check_cardinality_limits(build_scoping(), &build_limits(), items)
+            .unwrap()
+            .into_accepted();
+
+        assert_eq!(
+            accepted,
+            vec![
+                Item::new(1, MetricNamespace::Transactions),
+                Item::new(3, MetricNamespace::Custom),
+                Item::new(5, MetricNamespace::Transactions),
+            ]
+        );
+    }
 }

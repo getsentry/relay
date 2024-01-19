@@ -13,12 +13,12 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::defaults;
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
     self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::{defaults, Metrics};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,9 +88,6 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
-    /// Metric specific configuration.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metrics: Option<ErrorBoundary<Metrics>>,
 }
 
 impl ProjectConfig {
@@ -131,7 +128,6 @@ impl Default for ProjectConfig {
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
-            metrics: None,
         }
     }
 }

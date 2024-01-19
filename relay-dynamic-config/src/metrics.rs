@@ -3,20 +3,11 @@
 use std::collections::BTreeSet;
 
 use relay_base_schema::data_category::DataCategory;
-use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
-
-/// Configuration for metrics.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct Metrics {
-    /// Cardinality for this project.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub cardinality_limits: Vec<CardinalityLimit>,
-}
 
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
