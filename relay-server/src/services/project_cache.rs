@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::sync::Arc;
 
@@ -13,19 +13,19 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
-use crate::actors::outcome::{DiscardReason, TrackOutcome};
-use crate::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
-use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
+use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
+use crate::services::outcome::{DiscardReason, TrackOutcome};
+use crate::services::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
+use crate::services::project::{Project, ProjectSender, ProjectState};
+use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
-use crate::actors::project_redis::RedisProjectSource;
-use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
-use crate::actors::spooler::{
+use crate::services::project_redis::RedisProjectSource;
+use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
 };
-use crate::actors::test_store::TestStore;
-use crate::actors::upstream::UpstreamRelay;
+use crate::services::test_store::TestStore;
+use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
@@ -140,7 +140,7 @@ impl CheckEnvelope {
 ///  date, the envelopes is spooled and we continue when the state is fetched.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
 ///
-/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
+/// [`EnvelopeProcessor`]: crate::services::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
     envelope: ManagedEnvelope,
@@ -864,7 +864,7 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let mut output = HashMap::new();
+        let mut output = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let outcome_aggregator = self.services.outcome_aggregator.clone();
             let project = self.get_or_create_project(project_key);
@@ -1066,7 +1066,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
-    use crate::actors::processor::ProcessingGroup;
+    use crate::services::processor::ProcessingGroup;
     use crate::testutils::empty_envelope;
 
     use super::*;
@@ -1148,6 +1148,8 @@ mod tests {
 
     #[tokio::test]
     async fn always_spools() {
+        relay_log::init_test!();
+
         let num_permits = 5;
         let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
@@ -1194,7 +1196,7 @@ mod tests {
         ));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // We should be able to unspool once since we have 1 permit.
+        // We should be able to unspool 5 envelopes since we have 5 permits.
         let mut envelopes = vec![];
         while let Ok(envelope) = rx.try_recv() {
             envelopes.push(envelope)

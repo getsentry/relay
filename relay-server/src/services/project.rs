@@ -20,11 +20,11 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
-use crate::actors::processor::RateLimitBuckets;
-use crate::actors::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
-use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
+use crate::services::processor::RateLimitBuckets;
+use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProjectMetrics};
+use crate::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
@@ -579,45 +579,70 @@ impl Project {
         }
     }
 
-    /// Remove metric buckets that are not allowed to be ingested.
+    /// Remove metric buckets or tags that are not allowed to be ingested.
     fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
         let Some(state) = &self.state_value() else {
             return;
         };
 
-        Self::apply_metrics_deny_list(&state.config.deny_metrics, metrics);
-        Self::filter_disabled_namespace(state, metrics);
+        metrics.retain_mut(|bucket| {
+            if Self::metric_name_denied(&state.config.metrics, bucket) {
+                relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
+                false
+            } else if Self::metric_namespace_invalid(state, bucket) {
+                false
+            } else {
+                Self::remove_tags(&state.config.metrics, bucket);
+                true
+            }
+        });
     }
 
-    fn apply_metrics_deny_list(deny_list: &ErrorBoundary<Metrics>, buckets: &mut Vec<Bucket>) {
+    /// Removes tags based on user configured deny list.
+    ///
+    /// The deny list has pattern-matching for both the metric where tags should be removed, and the
+    /// tags on that metric which should be removed. So for each tag we check if any configured stuff
+    /// matches on both the metric name and the tag key.
+    /// Time complexity: O(M * T * P) (Metric, Tag, Patterns).
+    fn remove_tags(deny_list: &ErrorBoundary<Metrics>, bucket: &mut Bucket) {
         let ErrorBoundary::Ok(metrics) = deny_list else {
             return;
         };
 
-        metrics.filter_metrics(buckets);
+        bucket.tags.retain(|key, _| {
+            metrics.blocked_tags.iter().any(|tag_blocker| {
+                !(tag_blocker.metric.is_match(&bucket.name) && tag_blocker.tag.is_match(key))
+            })
+        });
     }
 
-    fn filter_disabled_namespace(state: &ProjectState, metrics: &mut Vec<Bucket>) {
-        metrics.retain(|metric| {
-            let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
-                relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
-                return false;
-            };
+    fn metric_name_denied(deny_list: &ErrorBoundary<Metrics>, bucket: &Bucket) -> bool {
+        let ErrorBoundary::Ok(metrics) = deny_list else {
+            return false;
+        };
 
-            let verdict = match mri.namespace {
-                MetricNamespace::Sessions => true,
-                MetricNamespace::Transactions => true,
-                MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
-                MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
-                MetricNamespace::Unsupported => false,
-            };
+        metrics.blocked_metrics.is_match(&bucket.name)
+    }
 
-            if !verdict {
-                relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
-            }
+    fn metric_namespace_invalid(state: &ProjectState, metric: &Bucket) -> bool {
+        let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
+            relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
+            return false;
+        };
 
-            verdict
-        });
+        let verdict = match mri.namespace {
+            MetricNamespace::Sessions => false,
+            MetricNamespace::Transactions => false,
+            MetricNamespace::Spans => !state.has_feature(Feature::SpanMetricsExtraction),
+            MetricNamespace::Custom => !state.has_feature(Feature::CustomMetrics),
+            MetricNamespace::Unsupported => true,
+        };
+
+        if !verdict {
+            relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
+        }
+
+        verdict
     }
 
     fn rate_limit_and_merge_buckets(
@@ -972,7 +997,7 @@ impl Project {
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
     ///
-    /// [`ValidateEnvelope`]: crate::actors::project_cache::ValidateEnvelope
+    /// [`ValidateEnvelope`]: crate::services::project_cache::ValidateEnvelope
     pub fn update_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
@@ -1063,7 +1088,7 @@ impl Project {
 
     /// Runs the checks on incoming envelopes.
     ///
-    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information
+    /// See, [`crate::services::project_cache::CheckEnvelope`] for more information
     ///
     /// * checks the rate limits
     /// * validates the envelope meta in `check_request` - determines whether the given request
@@ -1300,7 +1325,7 @@ mod tests {
         Bucket {
             name: "d:transactions/foo".to_string(),
             width: 0,
-            value: BucketValue::counter(1.0),
+            value: BucketValue::counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }
@@ -1400,7 +1425,7 @@ mod tests {
     fn create_transaction_bucket() -> Bucket {
         Bucket {
             name: "d:transactions/foo".to_string(),
-            value: BucketValue::Counter(1.0),
+            value: BucketValue::Counter(1.into()),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
             width: 10,
@@ -1432,5 +1457,137 @@ mod tests {
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
 
         assert!(metrics.is_empty());
+    }
+
+    fn get_test_buckets(names: &[&str]) -> Vec<Bucket> {
+        let create_bucket = |name: &&str| -> Bucket {
+            let json = json!({
+                        "timestamp": 1615889440,
+                        "width": 10,
+                        "name": name,
+                        "type": "c",
+                        "value": 4.0,
+                        "tags": {
+                        "route": "user_index"
+            }});
+
+            serde_json::from_value(json).unwrap()
+        };
+
+        names.iter().map(create_bucket).collect()
+    }
+
+    fn get_test_bucket_names() -> Vec<&'static str> {
+        [
+            "g:transactions/foo@none",
+            "c:custom/foo@none",
+            "transactions/foo@second",
+            "transactions/foo",
+            "c:custom/foo_bar@none",
+            "endpoint.response_time",
+            "endpoint.hits",
+            "endpoint.parallel_requests",
+            "endpoint.users",
+        ]
+        .into()
+    }
+
+    fn apply_pattern_to_names(names: &[&str], patterns: &[&str]) -> Vec<String> {
+        let mut buckets = get_test_buckets(names);
+        let deny_list: Metrics = {
+            let vector_as_string: String = serde_json::to_string(patterns).unwrap();
+            serde_json::from_str(&vector_as_string).unwrap()
+        };
+
+        Project::metric_name_denied(&ErrorBoundary::Ok(deny_list), &mut buckets);
+        buckets.into_iter().map(|bucket| bucket.name).collect()
+    }
+
+    #[test]
+    fn test_metric_deny_list_exact() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint.parallel_requests"]);
+
+        // There's 1 bucket with that exact name.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_end_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["*foo"]);
+
+        // There's 1 bucket name with 'foo' in the end.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_middle_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["*foo*"]);
+
+        // There's 4 bucket names with 'foo' in the middle, and one with foo in the end.
+        let buckets_to_remove = 5;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_beginning_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint*"]);
+
+        // There's 4 buckets starting with "endpoint".
+        let buckets_to_remove = 4;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_everything() {
+        let names = get_test_bucket_names();
+        let remaining_names = apply_pattern_to_names(&names, &["*"]);
+
+        assert_eq!(remaining_names.len(), 0);
+    }
+
+    #[test]
+    fn test_metric_deny_list_multiple() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint*", "*transactions*"]);
+
+        let endpoint_buckets = 4;
+        let transaction_buckets = 3;
+
+        assert_eq!(
+            remaining_names.len(),
+            input_qty - endpoint_buckets - transaction_buckets
+        );
+    }
+
+    #[test]
+    fn test_serialize_metrics_config() {
+        let input_patterns = vec!["foo".to_string(), "bar*".to_string()];
+
+        let deny_list: Metrics = {
+            let vector_as_string: String = serde_json::to_string(&input_patterns).unwrap();
+            serde_json::from_str(&vector_as_string).unwrap()
+        };
+
+        let back_to_vec: Vec<String> = {
+            let string_rep = serde_json::to_string(&deny_list.blocked_metrics).unwrap();
+            serde_json::from_str(&string_rep).unwrap()
+        };
+
+        assert_eq!(input_patterns, back_to_vec);
     }
 }

@@ -274,12 +274,32 @@ impl VisitorMut for NormalizeVisitor {
             }
             Expr::BinaryOp {
                 ref mut left,
-                op: BinaryOperator::Or | BinaryOperator::And,
+                op: op @ (BinaryOperator::Or | BinaryOperator::And),
                 ref right,
             } => {
-                let is_equal = left == right;
-                if is_equal {
+                if left == right {
+                    //     /\
+                    //    /  \
+                    //   /\   B
+                    //  /  \
+                    // A    A
                     *expr = take_expr(left);
+                } else {
+                    //     /\
+                    //    /  \
+                    //   /\   B
+                    //  /  \
+                    // A    B
+                    if let Expr::BinaryOp {
+                        left: left_left,
+                        op: left_op,
+                        right: left_right,
+                    } = left.as_mut()
+                    {
+                        if left_op == op && left_right == right {
+                            *left = Box::new(take_expr(left_left));
+                        }
+                    }
                 }
             }
             Expr::Nested(inner) if matches!(inner.as_ref(), &Expr::Nested(_)) => {

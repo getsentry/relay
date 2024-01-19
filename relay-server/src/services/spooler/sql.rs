@@ -6,7 +6,7 @@ use sqlx::query::Query;
 use sqlx::sqlite::SqliteArguments;
 use sqlx::{Pool, QueryBuilder, Sqlite};
 
-use crate::actors::spooler::QueueKey;
+use crate::services::spooler::QueueKey;
 use crate::statsd::RelayCounters;
 
 /// SQLite allocates space to hold all host parameters between 1 and the largest host parameter number used.
@@ -24,17 +24,30 @@ const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
 /// the envelope was received. This will create a prepared statement which is cached and re-used.
 pub fn delete_and_fetch<'a>(
     key: QueueKey,
-    batch_size: u32,
+    batch_size: i64,
 ) -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query(
         "DELETE FROM
             envelopes
          WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?)
          RETURNING
-            envelope, received_at",
+            received_at, own_key, sampling_key, envelope",
     )
     .bind(key.own_key.to_string())
     .bind(key.sampling_key.to_string())
+    .bind(batch_size)
+}
+
+/// Creates a DELETE query which returns the requested batch of the envelopes with the timestamp
+/// and designated keys.
+pub fn delete_and_fetch_all<'a>(batch_size: i64) -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query(
+        "DELETE FROM
+            envelopes
+         WHERE id IN (SELECT id FROM envelopes LIMIT ?)
+         RETURNING
+            received_at, own_key, sampling_key, envelope",
+    )
     .bind(batch_size)
 }
 
@@ -45,18 +58,16 @@ pub fn delete<'a>(key: QueueKey) -> Query<'a, Sqlite, SqliteArguments<'a>> {
         .bind(key.sampling_key.to_string())
 }
 
-/// Creates a query which fetches the current page count and page size.
+/// Creates a query which fetches the `envelopes` table size.
 ///
 /// This info used to calculate the current allocated database size.
 pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query(
-        "SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size();",
-    )
+    sqlx::query(r#"SELECT SUM(pgsize - unused) FROM dbstat WHERE name="envelopes""#)
 }
 
 /// Creates the query to select only 1 record's `received_at` from the database.
 ///
-/// It is usefull and very fast for checking if the table is empty.
+/// It is useful and very fast for checking if the table is empty.
 pub fn select_one<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query("SELECT received_at FROM envelopes LIMIT 1;")
 }
@@ -76,7 +87,7 @@ pub fn insert<'a>(
     .bind(managed_envelope)
 }
 
-/// Descibes the chunk item which is handled by insert statement.
+/// Describes the chunk item which is handled by insert statement.
 type ChunkItem = (QueueKey, Vec<u8>, i64);
 
 /// Creates an INSERT query for the chunk of provided data.
@@ -104,12 +115,12 @@ pub async fn do_insert(
     stream: impl Stream<Item = ChunkItem> + std::marker::Unpin,
     db: &Pool<Sqlite>,
 ) -> Result<u64, sqlx::Error> {
-    // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
+    // Since we have 3 variables we have to bind, we divide the SQLite limit by 3
     // here to prepare the chunks which will be preparing the batch inserts.
     let mut envelopes = stream.chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
 
     // A builder type for constructing queries at runtime.
-    // This by default creates a prepared sql statement, which is cached and
+    // This by default creates a prepared SQL statement, which is cached and
     // re-used for sequential queries.
     let mut query_builder: QueryBuilder<Sqlite> =
         QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
