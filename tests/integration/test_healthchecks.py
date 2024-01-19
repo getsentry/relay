@@ -118,7 +118,12 @@ def test_readiness_disk_spool(mini_sentry, relay):
 
         relay_config = {
             "spool": {
-                "envelopes": {"path": dbfile, "max_memory_size": 0, "max_disk_size": 0}
+                # if the config contains max_disk_size and max_memory_size set both to 0, Relay will never passes readiness check
+                "envelopes": {
+                    "path": dbfile,
+                    "max_memory_size": 0,
+                    "max_disk_size": "100",
+                }
             },
         }
 
@@ -131,7 +136,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
         # Second sent event can trigger error on the relay size, since the spool is full now.
         # Wrapping this into the try block, to make sure we ignore those errors and just check the health at the end.
         try:
-            # These events will consume all the disk sapce and we will report not ready.
+            # These events will consume all the disk space and we will report not ready.
             relay.send_event(project_key)
         finally:
             # Authentication failures would fail the test

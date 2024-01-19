@@ -20,10 +20,10 @@ use relay_config::Config;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
-use crate::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
 use crate::service::ServiceState;
+use crate::services::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 
 /// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[

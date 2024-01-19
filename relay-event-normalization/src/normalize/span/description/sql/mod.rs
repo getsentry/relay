@@ -727,6 +727,18 @@ mod tests {
     );
 
     scrub_sql_test!(
+        duplicate_conditions_left,
+        r#"SELECT * FROM t WHERE a = %s OR a = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_right,
+        r#"SELECT * FROM t WHERE a = %s OR b = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
         non_duplicate_conditions,
         r#"SELECT *
         FROM a

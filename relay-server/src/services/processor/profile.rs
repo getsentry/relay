@@ -8,9 +8,9 @@ use relay_event_schema::protocol::{Contexts, ProfileContext};
 use relay_profiling::ProfileError;
 use relay_protocol::Annotated;
 
-use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::ProcessEnvelopeState;
 use crate::envelope::ItemType;
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::ItemAction;
 
 /// Removes profiles from the envelope if they can not be parsed.
@@ -120,10 +120,10 @@ mod tests {
     use relay_sampling::evaluation::ReservoirCounters;
     use relay_system::Addr;
 
-    use crate::actors::processor::{Feature, ProcessEnvelope};
-    use crate::actors::project::ProjectState;
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
+    use crate::services::processor::{Feature, ProcessEnvelope};
+    use crate::services::project::ProjectState;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
 

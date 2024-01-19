@@ -12,8 +12,8 @@ use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::actors::outcome::Outcome;
-use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
+use crate::services::outcome::Outcome;
+use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::{self, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -96,20 +96,21 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn sample_envelope(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn sample_envelope_items(state: &mut ProcessEnvelopeState) {
     if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
         // We assume that sampling is only supposed to work on transactions.
         if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
             let matched_rules = sampling_match.into_matched_rules();
 
+            let outcome = Outcome::FilteredSampling(matched_rules.clone());
             state
                 .managed_envelope
-                .reject(Outcome::FilteredSampling(matched_rules.clone()));
+                .retain_items(|_| utils::ItemAction::Drop(outcome.clone()));
 
-            return Err(ProcessingError::Sampled(matched_rules));
+            // The event is no longer in the envelope, so we need to handle it separately:
+            state.reject_event(outcome);
         }
     }
-    Ok(())
 }
 
 /// Computes the sampling decision on the incoming transaction.
@@ -240,10 +241,10 @@ mod tests {
     use relay_sampling::evaluation::{ReservoirCounters, SamplingMatch};
     use uuid::Uuid;
 
-    use crate::actors::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::actors::project::ProjectState;
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };

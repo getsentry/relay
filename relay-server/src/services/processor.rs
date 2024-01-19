@@ -34,7 +34,7 @@ use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, Scoping};
-use relay_sampling::evaluation::{MatchedRuleIds, ReservoirCounters, ReservoirEvaluator};
+use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -43,7 +43,7 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::store::{Store, StoreEnvelope},
+    crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
@@ -52,12 +52,6 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
-use crate::actors::global_config::GlobalConfigHandle;
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
-use crate::actors::test_store::{Capture, TestStore};
-use crate::actors::upstream::{SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError};
 use crate::envelope::{
     self, ContentType, Envelope, EnvelopeError, Item, ItemType, SourceQuantities,
 };
@@ -66,6 +60,14 @@ use crate::http;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
+use crate::services::global_config::GlobalConfigHandle;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::project::ProjectState;
+use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
+use crate::services::test_store::{Capture, TestStore};
+use crate::services::upstream::{
+    SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
+};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ExtractionMode, ManagedEnvelope, SamplingResult};
 
@@ -285,9 +287,6 @@ pub enum ProcessingError {
     #[error("failed to apply quotas")]
     QuotasFailed(#[from] RateLimitingError),
 
-    #[error("event dropped by sampling rule {0}")]
-    Sampled(MatchedRuleIds),
-
     #[error("invalid pii config")]
     PiiConfigError(PiiConfigError),
 }
@@ -330,17 +329,12 @@ impl ProcessingError {
             // These outcomes are emitted at the source.
             Self::MissingProjectId => None,
             Self::EventFiltered(_) => None,
-            Self::Sampled(_) => None,
         }
     }
 
     fn is_unexpected(&self) -> bool {
         self.to_outcome()
             .map_or(false, |outcome| outcome.is_unexpected())
-    }
-
-    fn should_keep_metrics(&self) -> bool {
-        matches!(self, Self::Sampled(_))
     }
 }
 
@@ -497,9 +491,13 @@ impl<'a> ProcessEnvelopeState<'a> {
     }
 
     /// Removes the event payload from this processing state.
-    #[cfg(feature = "processing")]
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
+    }
+
+    fn reject_event(&mut self, outcome: Outcome) {
+        self.remove_event();
+        self.managed_envelope.reject_event(outcome);
     }
 }
 
@@ -580,7 +578,7 @@ pub struct ProcessMetricMeta {
 }
 
 /// Metric buckets with additional project.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
@@ -591,7 +589,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: HashMap<Scoping, ProjectMetrics>,
+    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -1176,7 +1174,7 @@ impl EnvelopeProcessorService {
             self.extract_metrics(state)?;
         }
 
-        dynamic_sampling::sample_envelope(state)?;
+        dynamic_sampling::sample_envelope_items(state);
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1309,7 +1307,7 @@ impl EnvelopeProcessorService {
                 self.extract_metrics(state)?;
             }
 
-            dynamic_sampling::sample_envelope(state)?;
+            dynamic_sampling::sample_envelope_items(state);
 
             if_processing!(self.inner.config, {
                 event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1424,13 +1422,6 @@ impl EnvelopeProcessorService {
                     Err(err) => {
                         if let Some(outcome) = err.to_outcome() {
                             state.managed_envelope.reject(outcome);
-                        }
-
-                        if err.should_keep_metrics() {
-                            state.extracted_metrics.send_metrics(
-                                state.managed_envelope.envelope(),
-                                self.inner.project_cache.clone(),
-                            );
                         }
 
                         Err(err)
@@ -1845,8 +1836,8 @@ impl EnvelopeProcessorService {
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
     fn encode_metrics_processing(&self, message: EncodeMetrics, store_forwarder: &Addr<Store>) {
-        use crate::actors::store::StoreMetrics;
         use crate::constants::DEFAULT_EVENT_RETENTION;
+        use crate::services::store::StoreMetrics;
 
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
@@ -1864,7 +1855,7 @@ impl EnvelopeProcessorService {
             }
 
             if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
-                return;
+                continue;
             }
 
             let retention = project_state
@@ -2102,6 +2093,11 @@ impl EnvelopeProcessorService {
                 "failed to store metric meta in redis"
             )
         }
+    }
+
+    #[cfg(all(test, feature = "processing"))]
+    fn redis_rate_limiter_enabled(&self) -> bool {
+        self.inner.rate_limiter.is_some()
     }
 
     fn handle_message(&self, message: EnvelopeProcessor) {
@@ -2457,10 +2453,111 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-
     use crate::testutils::{self, create_test_processor};
 
+    #[cfg(feature = "processing")]
+    use {
+        relay_metrics::BucketValue,
+        relay_quotas::{Quota, ReasonCode},
+        relay_test::mock_service,
+    };
+
     use super::*;
+
+    /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
+    /// also ratelimit the next batches in the same message automatically.
+    #[cfg(feature = "processing")]
+    #[tokio::test]
+    async fn test_ratelimit_per_batch() {
+        let rate_limited_org = 1;
+        let not_ratelimited_org = 2;
+
+        let message = {
+            let project_state = {
+                let quota = Quota {
+                    id: Some("testing".into()),
+                    categories: vec![DataCategory::MetricBucket].into(),
+                    scope: relay_quotas::QuotaScope::Organization,
+                    scope_id: Some(rate_limited_org.to_string()),
+                    limit: Some(0),
+                    window: None,
+                    reason_code: Some(ReasonCode::new("test")),
+                };
+
+                let mut config = ProjectConfig::default();
+                config.quotas.push(quota);
+
+                let mut project_state = ProjectState::allowed();
+                project_state.config = config;
+                Arc::new(project_state)
+            };
+
+            let project_metrics = ProjectMetrics {
+                buckets: vec![Bucket {
+                    name: "d:transactions/bar".to_string(),
+                    value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
+                    timestamp: UnixTimestamp::now(),
+                    tags: Default::default(),
+                    width: 10,
+                }],
+                project_state,
+            };
+
+            let scoping_by_org_id = |org_id: u64| Scoping {
+                organization_id: org_id,
+                project_id: ProjectId::new(21),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(17),
+            };
+
+            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
+            scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
+            scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
+
+            EncodeMetrics { scopes }
+        };
+
+        // ensure the order of the map while iterating is as expected.
+        let mut iter = message.scopes.keys();
+        assert_eq!(iter.next().unwrap().organization_id, rate_limited_org);
+        assert_eq!(iter.next().unwrap().organization_id, not_ratelimited_org);
+        assert!(iter.next().is_none());
+
+        let config = {
+            let config_json = serde_json::json!({
+                "processing": {
+                    "enabled": true,
+                    "kafka_config": [],
+                    "redis": {
+                        "server": std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned()),
+                    }
+                }
+            });
+            Config::from_json_value(config_json).unwrap()
+        };
+
+        let (store, handle) = {
+            let f = |org_ids: &mut Vec<u64>, msg: Store| {
+                let org_id = match msg {
+                    Store::Metrics(x) => x.scoping.organization_id,
+                    Store::Envelope(_) => panic!("received envelope when expecting only metrics"),
+                };
+                org_ids.push(org_id);
+            };
+
+            mock_service("store_forwarder", vec![], f)
+        };
+
+        let processor = create_test_processor(config);
+        assert!(processor.redis_rate_limiter_enabled());
+
+        processor.encode_metrics_processing(message, &store);
+
+        drop(store);
+        let orgs_not_ratelimited = handle.await.unwrap();
+
+        assert_eq!(orgs_not_ratelimited, vec![not_ratelimited_org]);
+    }
 
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
@@ -2688,7 +2785,7 @@ mod tests {
 
         let derived_value = {
             let name = "foobar".to_string();
-            let value = 5.0; // Arbitrary value.
+            let value = 5.into(); // Arbitrary value.
             let unit = MetricUnit::Duration(DurationUnit::default());
             let tags = TransactionMeasurementTags {
                 measurement_rating: None,
