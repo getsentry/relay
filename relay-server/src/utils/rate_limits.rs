@@ -7,8 +7,8 @@ use relay_quotas::{
 };
 use relay_system::Addr;
 
-use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::services::outcome::{Outcome, TrackOutcome};
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";

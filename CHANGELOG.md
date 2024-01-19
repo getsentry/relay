@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
+- Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
+
+**Bug Fixes**:
+
+- Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
+- Avoid producing `null` values in metric data. These values were the result of Infinity or NaN values extracted from event data. The values are now discarded during extraction. ([#2958](https://github.com/getsentry/relay/pull/2958))
+
+## 24.1.0
+
+**Features**:
+
+- Add a global throughput rate limiter for metric buckets. ([#2928](https://github.com/getsentry/relay/pull/2928))
+- Group db spans with repeating logical conditions together. ([#2929](https://github.com/getsentry/relay/pull/2929))
+
 **Bug Fixes**:
 
 - Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
@@ -12,8 +29,14 @@
 - Add `duration` metric for mobile app start spans. ([#2906](https://github.com/getsentry/relay/pull/2906))
 - Introduce the configuration option `http.global_metrics`. When enabled, Relay submits metric buckets not through regular project-scoped Envelopes, but instead through the global endpoint. When this Relay serves a high number of projects, this can reduce the overall request volume. ([#2902](https://github.com/getsentry/relay/pull/2902))
 - Record the size of global metrics requests in statsd as `upstream.metrics.body_size`. ([#2908](https://github.com/getsentry/relay/pull/2908))
-- Only extract span metrics / tags when they are needed. ([#2907](https://github.com/getsentry/relay/pull/2907), [#2923](https://github.com/getsentry/relay/pull/2923))
+- Make Kafka spans compatible with the Snuba span schema. ([#2917](https://github.com/getsentry/relay/pull/2917), [#2926](https://github.com/getsentry/relay/pull/2926))
+- Only extract span metrics / tags when they are needed. ([#2907](https://github.com/getsentry/relay/pull/2907), [#2923](https://github.com/getsentry/relay/pull/2923), [#2924](https://github.com/getsentry/relay/pull/2924))
 - Normalize metric resource identifiers in `event._metrics_summary` and `span._metrics_summary`. ([#2914](https://github.com/getsentry/relay/pull/2914))
+- Send outcomes for spans. ([#2930](https://github.com/getsentry/relay/pull/2930))
+- Validate error_id and trace_id vectors in replay deserializer. ([#2931](https://github.com/getsentry/relay/pull/2931))
+- Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
+- Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
+- Create rate limited outcomes for cardinality limited metrics ([#2947](https://github.com/getsentry/relay/pull/2947))
 
 ## 23.12.1
 

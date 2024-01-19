@@ -211,8 +211,8 @@ mod tests {
 
     scrub_sql_test!(
         various_parameterized_ins_percentage,
-        "SELECT count() FROM table1 WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
-        "SELECT count() FROM table1 WHERE id IN (%s) AND id IN (%s)"
+        "SELECT count() FROM table1 WHERE id1 IN (%s, %s) AND id2 IN (%s, %s, %s)",
+        "SELECT count() FROM table1 WHERE id1 IN (%s) AND id2 IN (%s)"
     );
 
     scrub_sql_test!(
@@ -696,6 +696,58 @@ mod tests {
             ELSE 30
         END"#,
         "UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+            (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND (id = %s AND org = %s)"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_or,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        OR (
+            (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s OR (id = %s OR org = %s)"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_left,
+        r#"SELECT * FROM t WHERE a = %s OR a = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_right,
+        r#"SELECT * FROM t WHERE a = %s OR b = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        non_duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+            (a.id = %s AND a.org2 = %s)
+            OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND ((id = %s AND org2 = %s) OR (id = %s AND org = %s))"
     );
 
     scrub_sql_test!(

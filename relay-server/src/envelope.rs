@@ -617,9 +617,12 @@ impl Item {
             ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
+            ItemType::Span | ItemType::OtelSpan => Some(if indexed {
+                DataCategory::SpanIndexed
+            } else {
+                DataCategory::Span
+            }),
             ItemType::Unknown(_) => None,
-            ItemType::Span => None,     // No outcomes, for now
-            ItemType::OtelSpan => None, // No outcomes, for now
         }
     }
 
@@ -912,8 +915,8 @@ impl EnvelopeHeaders<PartialMeta> {
 
         // Relay does not read the envelope's headers before running initial validation and fully
         // relies on request headers at the moment. Technically, the envelope's meta is checked
-        // again once the event goes into the EnvelopeManager, but we want to be as accurate as
-        // possible in the endpoint already.
+        // again once the event goes through validation, but we want to be as accurate as possible
+        // in the endpoint already.
         if meta.origin().is_some() && meta.origin() != request_meta.origin() {
             return Err(EnvelopeError::HeaderMismatch("origin"));
         }

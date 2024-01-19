@@ -34,9 +34,9 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
     let description = span.description.as_str()?;
 
-    let db_system = span
-        .data
-        .value()
+    let data = span.data.value();
+
+    let db_system = data
         .and_then(|v| v.get("db.system"))
         .and_then(|system| system.as_str());
     let span_origin = span.origin.as_str();
@@ -76,10 +76,34 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                 // be low-risk to start adding the description.
                 Some(description.to_owned())
             }
+            ("ui", sub) if sub.starts_with("interaction.") || sub.starts_with("react.") => data
+                .and_then(|data| data.get("ui.component_name"))
+                .and_then(|value| value.as_str())
+                .map(String::from),
             ("app", _) => {
                 // `app.*` has static descriptions, like `Cold Start`
                 // or `Pre Runtime Init`.
                 // They are low-cardinality.
+                Some(description.to_owned())
+            }
+            ("contentprovider", "load") => {
+                // `contentprovider.load` spans contain paths of third party framework components
+                // and their onCreate method such as
+                // `io.sentry.android.core.SentryPerformanceProvider.onCreate`, which
+                // _should_ be low-cardinality, on the order of 10s per project.
+                Some(description.to_owned())
+            }
+            ("application", "load") => {
+                // `application.load` spans contain paths of app components and their
+                // onCreate method such as
+                // `io.sentry.samples.android.MyApplication.onCreate`, which _should_ be
+                // low-cardinality.
+                Some(description.to_owned())
+            }
+            ("activity", "load") => {
+                // `activity.load` spans contain paths of app components and their onCreate/onStart
+                // method such as `io.sentry.samples.android.MainActivity.onCreate`, which
+                // _should_ be low-cardinality, less than 10 per project.
                 Some(description.to_owned())
             }
             ("file", _) => scrub_file(description),
@@ -684,6 +708,27 @@ mod tests {
     );
 
     span_description_test!(
+        contentprovider_load,
+        "io.sentry.android.core.SentryPerformanceProvider.onCreate",
+        "contentprovider.load",
+        "io.sentry.android.core.SentryPerformanceProvider.onCreate"
+    );
+
+    span_description_test!(
+        application_load,
+        "io.sentry.samples.android.MyApplication.onCreate",
+        "application.load",
+        "io.sentry.samples.android.MyApplication.onCreate"
+    );
+
+    span_description_test!(
+        activity_load,
+        "io.sentry.samples.android.MainActivity.onCreate",
+        "activity.load",
+        "io.sentry.samples.android.MainActivity.onCreate"
+    );
+
+    span_description_test!(
         span_description_file_write_keep_extension_only,
         "data.data (42 KB)",
         "file.write",
@@ -932,5 +977,23 @@ mod tests {
             scrubbed.as_deref(),
             Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
         );
+    }
+
+    #[test]
+    fn ui_interaction_with_component_name() {
+        let json = r#"{
+            "description": "input.app-asdfasfg.asdfasdf[type=\"range\"][name=\"replay-timeline\"]",
+            "op": "ui.interaction.click",
+            "data": {
+                "ui.component_name": "my-component-name"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
+
+        // Can be scrubbed with db system.
+        assert_eq!(scrubbed.as_deref(), Some("my-component-name"));
     }
 }

@@ -49,7 +49,7 @@ pub enum DataCategory {
     ProfileIndexed = 11,
     /// Span
     ///
-    /// Used for spans processed independently of transactions.
+    /// This is the category for spans from which we extracted metrics from.
     Span = 12,
     /// Monitor Seat
     ///
@@ -65,6 +65,10 @@ pub enum DataCategory {
     UserReportV2 = 14,
     /// Metric buckets.
     MetricBucket = 15,
+    /// SpanIndexed
+    ///
+    /// This is the category for spans we store in full.
+    SpanIndexed = 16,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -96,6 +100,7 @@ impl DataCategory {
             "monitor_seat" => Self::MonitorSeat,
             "feedback" => Self::UserReportV2,
             "metric_bucket" => Self::MetricBucket,
+            "span_indexed" => Self::SpanIndexed,
             _ => Self::Unknown,
         }
     }
@@ -120,6 +125,7 @@ impl DataCategory {
             Self::MonitorSeat => "monitor_seat",
             Self::UserReportV2 => "feedback",
             Self::MetricBucket => "metric_bucket",
+            Self::SpanIndexed => "span_indexed",
             Self::Unknown => "unknown",
         }
     }
