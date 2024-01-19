@@ -522,6 +522,7 @@ pub struct ItemHeaders {
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
     /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
     /// for which the transaction was dropped as `sampled: false`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     sampled: Option<bool>,
 
     /// Other attributes for forward compatibility.
@@ -745,11 +746,6 @@ impl Item {
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
-    }
-
-    /// Returns the `sampled` flag.
-    pub fn sampled(&self) -> Option<bool> {
-        self.headers.sampled
     }
 
     /// Sets the `sampled` flag.
