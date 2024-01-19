@@ -954,25 +954,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1702474613),
         width: 0,
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            [
-                32.000065,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "span.description": "my-component-name",
-            "span.group": "e674f9eca1d88a4d",
-            "span.op": "ui.interaction.click",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
             [
@@ -980,12 +961,9 @@ expression: metrics
             ],
         ),
         tags: {
-            "environment": "fake_environment",
             "span.description": "my-component-name",
             "span.group": "e674f9eca1d88a4d",
             "span.op": "ui.interaction.click",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
         },
     },
     Bucket {
