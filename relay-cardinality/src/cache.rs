@@ -36,17 +36,17 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    pub fn update(&self, quota: RedisQuota, window: u64) -> CacheUpdate<'_> {
+    pub fn update(&self, quota: RedisQuota, slot: u64) -> CacheUpdate<'_> {
         let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
 
-        // If the window is older don't do anything and give up the lock early.
-        if window < inner.current_window {
+        // If the slot is older don't do anything and give up the lock early.
+        if slot < inner.current_slot {
             return CacheUpdate::noop();
         }
 
-        // If the window is newer then the current window, reset the cache to the new window.
-        if window > inner.current_window {
-            inner.current_window = window;
+        // If the slot is newer then the current slot, reset the cache to the new slot.
+        if slot > inner.current_slot {
+            inner.current_slot = slot;
             inner.cache.clear();
         }
 
@@ -70,7 +70,7 @@ impl<'a> CacheRead<'a> {
     }
 
     pub fn check(&self, quota: RedisQuota, hash: u32, limit: u64) -> CacheOutcome {
-        if quota.window.active_time_bucket(self.timestamp) < self.inner.current_window {
+        if quota.window.active_slot(self.timestamp) < self.inner.current_slot {
             return CacheOutcome::Unknown;
         }
 
@@ -119,7 +119,7 @@ impl<'a> CacheUpdate<'a> {
 #[derive(Debug, Default)]
 struct Inner {
     cache: hashbrown::HashMap<RedisQuota, ScopedCache>,
-    current_window: u64,
+    current_slot: u64,
 }
 
 /// Scope specific information of the cache.

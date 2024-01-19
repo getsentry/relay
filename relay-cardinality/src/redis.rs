@@ -49,18 +49,19 @@ impl RedisSetLimiter {
     fn check_limits(
         &self,
         con: &mut Connection,
-        quota: &RedisQuota,
-        entries: Vec<RedisEntry>,
+        state: &mut LimitState<'_>,
         timestamp: u64,
-        limit: u64,
     ) -> Result<CheckedLimits> {
+        let quota = state.quota;
+        let limit = state.limit;
+        let entries = state.take_entries();
+
         metric!(
             histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
-            // scope = &item_scope,
+            id = &state.id,
         );
 
         let keys = quota.slots(timestamp).map(|slot| quota.to_redis_key(slot));
-
         let hashes = entries.iter().map(|entry| entry.hash);
 
         // The expiry is a off by `window.granularity_seconds`,
@@ -71,7 +72,7 @@ impl RedisSetLimiter {
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
-            // scope = &item_scope,
+            id = &state.id,
         );
 
         Ok(CheckedLimits {
@@ -141,14 +142,7 @@ impl Limiter for RedisSetLimiter {
             }
 
             let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id, {
-                let entries = state.take_entries();
-                self.check_limits(
-                    &mut connection,
-                    &state.quota,
-                    entries,
-                    timestamp,
-                    state.limit,
-                )
+                self.check_limits(&mut connection, &mut state, timestamp)
             })?;
 
             // This always acquires a write lock, but we only hit this
