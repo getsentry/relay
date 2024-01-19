@@ -33,7 +33,6 @@ pub enum SpanTagKey {
     TransactionMethod,
     TransactionOp,
     BrowserName,
-    GeoCountryCode,
     // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
@@ -77,7 +76,6 @@ impl SpanTagKey {
             SpanTagKey::TransactionOp => "transaction.op",
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
-            SpanTagKey::GeoCountryCode => "geo.country_code",
             SpanTagKey::BrowserName => "browser.name",
 
             SpanTagKey::Action => "action",
@@ -235,12 +233,6 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         .and_then(|v| v.name.value())
     {
         tags.insert(SpanTagKey::BrowserName, browser_name.into());
-    }
-
-    if let Some(user) = event.user.value() {
-        if let Some(geo_country_code) = user.geo.value().and_then(|v| v.country_code.value()) {
-            tags.insert(SpanTagKey::GeoCountryCode, geo_country_code.into());
-        }
     }
 
     tags
@@ -1185,11 +1177,6 @@ LIMIT 1
                         "name": "Chrome"
                     }
                 },
-                "user": {
-                    "geo": {
-                        "country_code": "US"
-                    }
-                },
                 "spans": [
                     {
                         "op": "resource.script",
@@ -1216,10 +1203,6 @@ LIMIT 1
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
-        assert_eq!(
-            tags.get("geo.country_code"),
-            Some(&Annotated::new("US".to_string()))
-        );
         assert_eq!(
             tags.get("browser.name"),
             Some(&Annotated::new("Chrome".to_string()))

@@ -79,6 +79,11 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
+    let is_allowed_browser = RuleCondition::eq(
+        "span.browser.name",
+        vec!["Chrome", "Firefox", "Safari", "Edge", "Opera"],
+    );
+
     // This filter is based on
     // https://github.com/getsentry/sentry/blob/e01885215ff1a5b4e0da3046b4d929398a946360/static/app/views/starfish/views/screens/screenLoadSpans/spanOpSelector.tsx#L31-L34
     let is_screen = RuleCondition::eq("span.sentry_tags.transaction.op", "ui.load")
@@ -399,7 +404,7 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/webvital.score.total@ratio".into(),
             field: Some("span.measurements.score.total".into()),
-            condition: None,
+            condition: Some(is_allowed_browser.clone()),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
@@ -415,17 +420,14 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
                     .always(),
                 Tag::with_key("browser.name")
                     .from_field("span.browser.name")
-                    .always(),
-                Tag::with_key("geo.country_code")
-                    .from_field("span.geo.country_code")
-                    .always(),
+                    .always(), // already guarded by condition on metric
             ],
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/webvital.score.inp@ratio".into(),
             field: Some("span.measurements.score.inp".into()),
-            condition: None,
+            condition: Some(is_allowed_browser),
             tags: vec![
                 Tag::with_key("transaction.op")
                     .from_field("span.sentry_tags.transaction.op")
@@ -441,10 +443,7 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
                     .always(),
                 Tag::with_key("browser.name")
                     .from_field("span.sentry_tags.browser.name")
-                    .always(),
-                Tag::with_key("geo.country_code")
-                    .from_field("span.sentry_tags.geo.country_code")
-                    .always(),
+                    .always(), // already guarded by condition on metric
             ],
         },
     ]
