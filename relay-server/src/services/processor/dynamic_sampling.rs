@@ -5,7 +5,7 @@ use std::ops::ControlFlow;
 use chrono::Utc;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature};
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::{RuleType, SamplingMode};
@@ -97,13 +97,11 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn sample_envelope_items(state: &mut ProcessEnvelopeState) {
+pub fn sample_envelope_items(state: &mut ProcessEnvelopeState, global_config: &GlobalConfig) {
     if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
         // We assume that sampling is only supposed to work on transactions.
         if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
-            let unsampled_profiles_enabled = state
-                .project_state
-                .has_feature(Feature::IngestUnsampledProfiles);
+            let unsampled_profiles_enabled = state.forward_unsampled_profiles(global_config);
 
             let matched_rules = sampling_match.into_matched_rules();
             let outcome = Outcome::FilteredSampling(matched_rules.clone());

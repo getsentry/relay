@@ -65,7 +65,7 @@ pub struct Options {
         default,
         rename = "profiling.profile_metrics.unsampled_profiles.enabled"
     )]
-    pub profile_metrics_kill_switch: bool,
+    pub unsampled_profiles_enabled: bool,
 
     /// All other unknown options.
     #[serde(flatten)]

@@ -17,7 +17,7 @@ use fnv::FnvHasher;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_normalization::{
     normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
     NormalizationConfig, TransactionNameConfig,
@@ -498,6 +498,30 @@ impl<'a> ProcessEnvelopeState<'a> {
     fn reject_event(&mut self, outcome: Outcome) {
         self.remove_event();
         self.managed_envelope.reject_event(outcome);
+    }
+
+    fn forward_unsampled_profiles(&self, global_config: &GlobalConfig) -> bool {
+        let Some(global_options) = global_config.options else {
+            return false;
+        };
+
+        if !global_options.unsampled_profiles_enabled {
+            return false;
+        }
+
+        let event_platform = self
+            .event
+            .value()
+            .and_then(|e| e.platform.as_str())
+            .unwrap_or("");
+
+        self.project_state
+            .has_feature(Feature::IngestUnsampledProfiles)
+            && global_options
+                .profile_metrics_allowed_platforms
+                .iter()
+                .any(|s| s == event_platform)
+            && rand::random::<f32>() < global_options.profile_metrics_sample_rate
     }
 }
 
@@ -1174,7 +1198,7 @@ impl EnvelopeProcessorService {
             self.extract_metrics(state)?;
         }
 
-        dynamic_sampling::sample_envelope_items(state);
+        dynamic_sampling::sample_envelope_items(state, &self.inner.global_config.current());
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1307,7 +1331,7 @@ impl EnvelopeProcessorService {
                 self.extract_metrics(state)?;
             }
 
-            dynamic_sampling::sample_envelope_items(state);
+            dynamic_sampling::sample_envelope_items(state, &self.inner.global_config.current());
 
             if_processing!(self.inner.config, {
                 event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
