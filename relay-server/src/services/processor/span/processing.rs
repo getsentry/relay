@@ -23,37 +23,10 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils::ItemAction;
 
-fn get_normalize_span_config<'a>(
-    config: Arc<Config>,
-    received_at: DateTime<Utc>,
-    global_measurements_config: Option<&'a MeasurementsConfig>,
-    project_measurements_config: Option<&'a MeasurementsConfig>,
-) -> NormalizeSpanConfig<'a> {
-    let transaction_aggregator_config =
-        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Transactions));
-
-    NormalizeSpanConfig {
-        received_at,
-        transaction_range: transaction_aggregator_config.timestamp_range(),
-        max_tag_value_size: config
-            .aggregator_config_for(MetricNamespace::Spans)
-            .max_tag_value_length,
-        measurements: Some(DynamicMeasurementsConfig::new(
-            project_measurements_config,
-            global_measurements_config,
-        )),
-        max_name_and_unit_len: Some(
-            transaction_aggregator_config
-                .max_name_length
-                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
-        ),
-    }
-}
-
 pub fn process(
     state: &mut ProcessEnvelopeState,
     config: Arc<Config>,
-    global_measurements_config: Option<MeasurementsConfig>,
+    global_measurements_config: Option<&MeasurementsConfig>,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -64,7 +37,7 @@ pub fn process(
     let normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
-        global_measurements_config.as_ref(),
+        global_measurements_config,
         state.project_state.config().measurements.as_ref(),
     );
 
@@ -268,6 +241,33 @@ struct NormalizeSpanConfig<'a> {
     pub max_name_and_unit_len: Option<usize>,
 }
 
+fn get_normalize_span_config<'a>(
+    config: Arc<Config>,
+    received_at: DateTime<Utc>,
+    global_measurements_config: Option<&'a MeasurementsConfig>,
+    project_measurements_config: Option<&'a MeasurementsConfig>,
+) -> NormalizeSpanConfig<'a> {
+    let aggregator_config =
+        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
+
+    NormalizeSpanConfig {
+        received_at,
+        transaction_range: aggregator_config.timestamp_range(),
+        max_tag_value_size: config
+            .aggregator_config_for(MetricNamespace::Spans)
+            .max_tag_value_length,
+        measurements: Some(DynamicMeasurementsConfig::new(
+            project_measurements_config,
+            global_measurements_config,
+        )),
+        max_name_and_unit_len: Some(
+            aggregator_config
+                .max_name_length
+                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+        ),
+    }
+}
+
 /// Normalizes a standalone span.
 fn normalize(
     annotated_span: &mut Annotated<Span>,
@@ -468,9 +468,10 @@ fn validate(mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error>
         tags.retain(|_, value| !value.value().is_empty())
     }
     if let Some(measurements) = measurements.value_mut() {
-        measurements.retain(|_, value| match value.value() {
-            Some(v) => !v.is_empty() && !v.value.is_empty(),
-            None => false,
+        measurements.retain(|_, v| {
+            v.value()
+                .and_then(|v| v.value.value().cloned())
+                .map_or(false, f64::is_finite)
         });
     }
     if let Some(metrics_summary) = _metrics_summary.value_mut() {

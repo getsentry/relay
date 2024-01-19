@@ -6,6 +6,7 @@
 
 - Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
 - Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
+- Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
 
 **Bug Fixes**:
 
@@ -36,7 +37,6 @@
 - Validate error_id and trace_id vectors in replay deserializer. ([#2931](https://github.com/getsentry/relay/pull/2931))
 - Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
 - Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
-- Normalize and copy measurements on spans when appropriate. ([#2953](https://github.com/getsentry/relay/pull/2953))
 - Create rate limited outcomes for cardinality limited metrics ([#2947](https://github.com/getsentry/relay/pull/2947))
 
 ## 23.12.1

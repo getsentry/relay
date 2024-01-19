@@ -1257,7 +1257,7 @@ impl EnvelopeProcessorService {
             span::process(
                 state,
                 self.inner.config.clone(),
-                self.inner.global_config.current().measurements.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
             );
         });
         Ok(())
@@ -1325,7 +1325,7 @@ impl EnvelopeProcessorService {
             span::process(
                 state,
                 self.inner.config.clone(),
-                self.inner.global_config.current().measurements.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
             );
         });
 
