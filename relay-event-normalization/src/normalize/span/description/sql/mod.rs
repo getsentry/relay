@@ -43,6 +43,17 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
+/// For MySQL, also look for double quoted strings.
+static DOUBLE_QUOTED_STRING_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # Capture double-quoted strings, including the remaining substring if `\'` is found.
+        ((?-x)(?P<single_quoted_strs>N?"(?:\\"|[^"])*(?:"|$)(::\w+(\[\]?)?)?))
+        "#,
+    )
+    .unwrap()
+});
+
 /// Removes extra whitespace and newlines.
 static WHITESPACE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\s*\n\s*)|(\s\s+)").unwrap());
 
@@ -133,21 +144,37 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
 
     let mut string = Cow::from(string.trim());
 
-    for (regex, replacement) in [
-        (&COMMENTS, "\n"),
-        (&INLINE_COMMENTS, ""),
-        (&NORMALIZER_REGEX, "$pre%s"),
-        (&WHITESPACE, " "),
-        (&PARENS, "$pre$post"),
-        (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
-        (&STRIP_QUOTES, "$entity_name"),
-        (&COLLAPSE_ENTITIES, "$entity_name"),
-        (&COLLAPSE_COLUMNS, "$pre..$post"),
-    ] {
-        let replaced = regex.replace_all(&string, replacement);
-        if let Cow::Owned(s) = replaced {
+    if let Cow::Owned(s) = COMMENTS.replace_all(&string, "\n") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = INLINE_COMMENTS.replace_all(&string, "") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = NORMALIZER_REGEX.replace_all(&string, "$pre%s") {
+        string = Cow::Owned(s);
+    }
+    if db_system == Some("mysql") {
+        if let Cow::Owned(s) = DOUBLE_QUOTED_STRING_REGEX.replace_all(&string, "%s") {
             string = Cow::Owned(s);
         }
+    }
+    if let Cow::Owned(s) = WHITESPACE.replace_all(&string, " ") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = PARENS.replace_all(&string, "$pre$post") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = COLLAPSE_PLACEHOLDERS.replace_all(&string, "$pre%s$post") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = STRIP_QUOTES.replace_all(&string, "$entity_name") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = COLLAPSE_ENTITIES.replace_all(&string, "$entity_name") {
+        string = Cow::Owned(s);
+    }
+    if let Cow::Owned(s) = COLLAPSE_COLUMNS.replace_all(&string, "$pre..$post") {
+        string = Cow::Owned(s);
     }
 
     let result = match string {
@@ -184,8 +211,8 @@ mod tests {
 
     scrub_sql_test!(
         various_parameterized_ins_percentage,
-        "SELECT count() FROM table1 WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
-        "SELECT count() FROM table1 WHERE id IN (%s) AND id IN (%s)"
+        "SELECT count() FROM table1 WHERE id1 IN (%s, %s) AND id2 IN (%s, %s, %s)",
+        "SELECT count() FROM table1 WHERE id1 IN (%s) AND id2 IN (%s)"
     );
 
     scrub_sql_test!(
@@ -672,6 +699,58 @@ mod tests {
     );
 
     scrub_sql_test!(
+        duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+            (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+            OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND (id = %s AND org = %s)"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_or,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        OR (
+            (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+            OR (a.id = %s OR a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s OR (id = %s OR org = %s)"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_left,
+        r#"SELECT * FROM t WHERE a = %s OR a = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_right,
+        r#"SELECT * FROM t WHERE a = %s OR b = %s OR b = %s"#,
+        "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        non_duplicate_conditions,
+        r#"SELECT *
+        FROM a
+        WHERE a.status = %s
+        AND (
+            (a.id = %s AND a.org2 = %s)
+            OR (a.id = %s AND a.org = %s)
+        )"#,
+        "SELECT * FROM a WHERE status = %s AND ((id = %s AND org2 = %s) OR (id = %s AND org = %s))"
+    );
+
+    scrub_sql_test!(
         unique_alias,
         "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
         "SELECT pg_advisory_unlock(%s, %s)"
@@ -766,6 +845,16 @@ mod tests {
         fallback_hex,
         r#"SELECT {ts '2023-12-24 23:59'}, 0x123456789AbCdEf"#,
         "SELECT %s, %s"
+    );
+
+    scrub_sql_test_with_dialect!(
+        dont_fallback_to_regex,
+        "mysql",
+        // sqlparser cannot parse REPLACE INTO. If we know that
+        // a query is MySQL, we should give up rather than try to scrub
+        // with regex
+        r#"REPLACE INTO `foo` (`a`) VALUES ("abcd1234")"#,
+        "REPLACE INTO foo (a) VALUES (%s)"
     );
 
     scrub_sql_test!(

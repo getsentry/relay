@@ -757,6 +757,13 @@ struct Http {
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
     encoding: HttpEncoding,
+    /// Submit metrics globally through a shared endpoint.
+    ///
+    /// As opposed to regular envelopes which are sent to an endpoint inferred from the project's
+    /// DSN, this submits metrics to the global endpoint with Relay authentication.
+    ///
+    /// This option does not have any effect on processing mode.
+    global_metrics: bool,
 }
 
 impl Default for Http {
@@ -771,6 +778,7 @@ impl Default for Http {
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
+            global_metrics: false,
         }
     }
 }
@@ -805,11 +813,6 @@ fn spool_envelopes_max_connections() -> u32 {
     20
 }
 
-/// Defaualt period for garbage collection in the spooler.
-fn spool_envelopes_check_interval() -> u64 {
-    60
-}
-
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -833,11 +836,6 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
-
-    /// The interval for the internal check to run and issue specific to the spooler metrics and
-    /// errors.
-    #[serde(default = "spool_envelopes_check_interval")]
-    check_interval: u64,
 }
 
 impl Default for EnvelopeSpool {
@@ -848,7 +846,6 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            check_interval: spool_envelopes_check_interval(),
         }
     }
 }
@@ -1722,6 +1719,11 @@ impl Config {
         self.values.http.encoding
     }
 
+    /// Returns whether metrics should be sent globally through a shared endpoint.
+    pub fn http_global_metrics(&self) -> bool {
+        self.values.http.global_metrics
+    }
+
     /// Returns whether this Relay should emit outcomes.
     ///
     /// This is `true` either if `outcomes.emit_outcomes` is explicitly enabled, or if this Relay is
@@ -1927,11 +1929,6 @@ impl Config {
     /// The maximum size of the memory buffer, in bytes.
     pub fn spool_envelopes_max_memory_size(&self) -> usize {
         self.values.spool.envelopes.max_memory_size.as_bytes()
-    }
-
-    /// The interval to run the check.
-    pub fn spool_envelopes_check_interval(&self) -> Duration {
-        Duration::from_secs(self.values.spool.envelopes.check_interval)
     }
 
     /// Returns the maximum size of an event payload in bytes.

@@ -4,8 +4,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, EventId, JsonLenientString, Measurements, OperationType, OriginType, ProfileContext,
-    SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
+    Event, EventId, JsonLenientString, Measurements, MetricsSummary, OperationType, OriginType,
+    ProfileContext, SpanId, SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -86,7 +86,7 @@ pub struct Span {
     /// This shall move to a stable location once we have stabilized the
     /// interface.  This is intentionally not typed today.
     #[metastructure(skip_serialization = "empty")]
-    pub _metrics_summary: Annotated<Value>,
+    pub _metrics_summary: Annotated<MetricsSummary>,
 
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
@@ -135,6 +135,11 @@ impl Getter for Span {
             "trace_id" => self.trace_id.as_str()?.into(),
             "status" => self.status.as_str()?.into(),
             "origin" => self.origin.as_str()?.into(),
+            "duration" => {
+                let start_timestamp = *self.start_timestamp.value()?;
+                let timestamp = *self.timestamp.value()?;
+                relay_common::time::chrono_to_positive_millis(timestamp - start_timestamp).into()
+            }
             path => {
                 if let Some(key) = path.strip_prefix("tags.") {
                     self.tags.value()?.get(key)?.as_str()?.into()
@@ -301,39 +306,38 @@ mod tests {
             sentry_tags: ~,
             received: ~,
             measurements: ~,
-            _metrics_summary: Object(
+            _metrics_summary: MetricsSummary(
                 {
-                    "some_metric": Array(
-                        [
-                            Object(
-                                {
-                                    "count": I64(
-                                        2,
-                                    ),
-                                    "max": F64(
-                                        2.0,
-                                    ),
-                                    "min": F64(
-                                        1.0,
-                                    ),
-                                    "sum": F64(
-                                        3.0,
-                                    ),
-                                    "tags": Object(
-                                        {
-                                            "environment": String(
-                                                "test",
-                                            ),
-                                        },
-                                    ),
-                                },
-                            ),
-                        ],
-                    ),
+                    "some_metric": [
+                        MetricSummary {
+                            min: 1.0,
+                            max: 2.0,
+                            sum: 3.0,
+                            count: 2,
+                            tags: {
+                                "environment": "test",
+                            },
+                        },
+                    ],
                 },
             ),
             other: {},
         }
         "###);
+    }
+
+    #[test]
+    fn test_span_duration() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "start_timestamp": 1694732407.8367,
+                "timestamp": 1694732408.3145
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_eq!(span.get_value("span.duration"), Some(Val::F64(477.800131)));
     }
 }

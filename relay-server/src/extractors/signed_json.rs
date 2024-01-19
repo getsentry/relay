@@ -7,8 +7,8 @@ use relay_auth::{RelayId, UnpackError};
 use relay_config::RelayInfo;
 use serde::de::DeserializeOwned;
 
-use crate::actors::relays::GetRelay;
 use crate::service::ServiceState;
+use crate::services::relays::GetRelay;
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]

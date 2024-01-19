@@ -124,13 +124,6 @@ pub enum MetricHistograms {
     ///    time period (`false`) or after the initial delay has expired (`true`).
     BucketsDelay,
 
-    ///
-    /// Distribution of flush buckets over partition keys.
-    ///
-    /// The distribution of buckets should be even.
-    /// If it is not, this metric should expose it.
-    PartitionKeys,
-
     /// Distribution of invalid bucket timestamps observed, relative to the time of observation.
     ///
     /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
@@ -143,7 +136,6 @@ impl HistogramMetric for MetricHistograms {
             Self::BucketsFlushed => "metrics.buckets.flushed",
             Self::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
             Self::BucketsDelay => "metrics.buckets.delay",
-            Self::PartitionKeys => "metrics.buckets.partition_keys",
             Self::InvalidBucketTimestamp => "metrics.buckets.invalid_timestamp",
         }
     }

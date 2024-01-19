@@ -469,10 +469,12 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Addr, Breadcrumb, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry,
-        NativeDebugImage, Request, Span, TagEntry, Tags,
+        Addr, Breadcrumb, DebugImage, DebugMeta, Event, ExtraValue, Headers, LogEntry, Message,
+        NativeDebugImage, Request, Span, TagEntry, Tags, TraceContext,
     };
-    use relay_protocol::{assert_annotated_snapshot, Annotated, FromValue, Object, Value};
+    use relay_protocol::{
+        assert_annotated_snapshot, get_value, Annotated, FromValue, Object, Value,
+    };
 
     use super::*;
     use crate::{DataScrubbingConfig, PiiConfig, ReplaceRedaction};
@@ -1164,6 +1166,43 @@ mod tests {
     }
 
     #[test]
+    fn test_trace_route_params_scrubbed() {
+        let mut trace_context: Annotated<TraceContext> = Annotated::from_json(
+            r#"
+            {
+                "type": "trace",
+                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                "span_id": "fa90fdead5f74052",
+                "data": {
+                    "previousRoute": {
+                        "params": {
+                            "password": "test"
+                        }
+                    }
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        let ds_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+        let pii_config = ds_config.pii_config().unwrap().as_ref().unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(
+            &mut trace_context,
+            &mut pii_processor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert_annotated_snapshot!(trace_context);
+    }
+
+    #[test]
     fn test_scrub_span_data_http_not_scrubbed() {
         let mut span: Annotated<Span> = Annotated::from_json(
             r#"{
@@ -1487,5 +1526,52 @@ mod tests {
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
         assert_debug_snapshot!(&data);
+    }
+
+    #[test]
+    fn test_logentry_params_scrubbed() {
+        let config = serde_json::from_str::<PiiConfig>(
+            r##"
+                {
+                    "applications": {
+                        "$string": ["@anything:remove"]
+                    }
+                }
+                "##,
+        )
+        .unwrap();
+
+        let mut event = Annotated::new(Event {
+            logentry: Annotated::new(LogEntry {
+                message: Annotated::new(Message::from("failed to parse report id=%s".to_owned())),
+                formatted: Annotated::new("failed to parse report id=1".to_string().into()),
+                params: Annotated::new(Value::Array(vec![Annotated::new(Value::String(
+                    "12345".to_owned(),
+                ))])),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let mut processor = PiiProcessor::new(config.compiled());
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let params = get_value!(event.logentry.params!);
+        assert_debug_snapshot!(params, @r#"Array(
+    [
+        Meta {
+            remarks: [
+                Remark {
+                    ty: Removed,
+                    rule_id: "@anything:remove",
+                    range: None,
+                },
+            ],
+            errors: [],
+            original_length: None,
+            original_value: None,
+        },
+    ],
+)"#);
     }
 }

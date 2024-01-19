@@ -1342,7 +1342,8 @@ def test_span_extraction(
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
-    start = end - timedelta(milliseconds=500)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
     event["spans"] = [
         {
             "description": "GET /api/0/organizations/?member=1",
@@ -1358,60 +1359,51 @@ def test_span_extraction(
     relay.send_event(project_id, event)
 
     child_span = spans_consumer.get_span()
-    del child_span["start_time"]
-    del child_span["span"]["received"]
+    del child_span["received"]
     assert child_span == {
+        "duration_ms": int(duration.total_seconds() * 1e3),
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
-        "organization_id": 1,
         "retention_days": 90,
-        "span": {
-            "description": "GET /api/0/organizations/?member=1",
-            "exclusive_time": 500.0,
-            "is_segment": False,
+        "description": "GET /api/0/organizations/?member=1",
+        "exclusive_time_ms": 500.0,
+        "is_segment": False,
+        "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {
+            "category": "http",
+            "description": "GET *",
+            "group": "37e3d9fab1ae9162",
             "op": "http",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
-            "segment_id": "968cff94913ebb07",
-            "sentry_tags": {
-                "category": "http",
-                "description": "GET *",
-                "group": "37e3d9fab1ae9162",
-                "op": "http",
-                "transaction": "hi",
-                "transaction.op": "hi",
-            },
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.timestamp(),
-            "timestamp": end.timestamp(),
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "transaction": "hi",
+            "transaction.op": "hi",
         },
+        "span_id": "bbbbbbbbbbbbbbbb",
+        "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
 
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
+    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    duration_ms = (end_timestamp - start_timestamp).total_seconds() * 1e3
+
     transaction_span = spans_consumer.get_span()
-    del transaction_span["start_time"]
-    del transaction_span["span"]["received"]
+    del transaction_span["received"]
     assert transaction_span == {
+        "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
-        "organization_id": 1,
         "retention_days": 90,
-        "span": {
-            "description": "hi",
-            "exclusive_time": 2000.0,
-            "is_segment": True,
-            "op": "hi",
-            "segment_id": "968cff94913ebb07",
-            "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
-            "span_id": "968cff94913ebb07",
-            "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
-            .replace(tzinfo=timezone.utc)
-            .timestamp(),
-            "status": "unknown",
-            "timestamp": datetime.fromisoformat(event["timestamp"])
-            .replace(tzinfo=timezone.utc)
-            .timestamp(),
-            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        },
+        "description": "hi",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "span_id": "968cff94913ebb07",
+        "start_timestamp_ms": int(
+            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+        ),
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
     }
 
     spans_consumer.assert_empty()
@@ -1457,11 +1449,17 @@ def test_span_ingestion(
                 bytes=json.dumps(
                     {
                         "traceId": "89143b0763095bd9c9955e8175d1fb23",
-                        "spanId": "e342abb1214ca181",
+                        "spanId": "a342abb1214ca181",
                         "name": "my 1st OTel span",
                         "startTimeUnixNano": int(start.timestamp() * 1e9),
                         "endTimeUnixNano": int(end.timestamp() * 1e9),
                         "attributes": [
+                            {
+                                "key": "sentry.op",
+                                "value": {
+                                    "stringValue": "db.query",
+                                },
+                            },
                             {
                                 "key": "sentry.exclusive_time_ns",
                                 "value": {
@@ -1493,6 +1491,43 @@ def test_span_ingestion(
             ),
         )
     )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "description": r"test \" with \" escaped \" chars",
+                        "op": "default",
+                        "span_id": "cd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "op": "default",
+                        "span_id": "ed429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    },
+                ).encode()
+            ),
+        )
+    )
     relay.send_envelope(project_id, envelope)
 
     # 2 - Send OTel span via endpoint
@@ -1506,17 +1541,16 @@ def test_span_ingestion(
                             "spans": [
                                 {
                                     "traceId": "89143b0763095bd9c9955e8175d1fb24",
-                                    "spanId": "e342abb1214ca182",
+                                    "spanId": "d342abb1214ca182",
                                     "name": "my 2nd OTel span",
-                                    "startTimeUnixNano": int(start.timestamp() * 1e9)
-                                    + 2,
-                                    "endTimeUnixNano": int(end.timestamp() * 1e9) + 3,
+                                    "startTimeUnixNano": int(start.timestamp() * 1e9),
+                                    "endTimeUnixNano": int(end.timestamp() * 1e9),
                                     "attributes": [
                                         {
                                             "key": "sentry.exclusive_time_ns",
                                             "value": {
                                                 "intValue": int(
-                                                    (duration.total_seconds() + 1) * 1e9
+                                                    duration.total_seconds() * 1e9
                                                 ),
                                             },
                                         },
@@ -1532,77 +1566,83 @@ def test_span_ingestion(
 
     spans = list(spans_consumer.get_spans())
     for span in spans:
-        del span["start_time"]
-        span["span"].pop("received", None)
+        span.pop("received", None)
 
-    spans.sort(
-        key=lambda msg: msg["span"].get("description", "")
-    )  # endpoint might overtake envelope
+    spans.sort(key=lambda msg: msg["span_id"])  # endpoint might overtake envelope
 
     assert spans == [
         {
-            "organization_id": 1,
+            "description": "my 1st OTel span",
+            "duration_ms": 500,
+            "exclusive_time_ms": 500.0,
+            "is_segment": True,
+            "parent_span_id": "",
             "project_id": 42,
             "retention_days": 90,
-            "span": {
-                "description": "https://example.com/p/blah.js",
-                "is_segment": True,
+            "segment_id": "a342abb1214ca181",
+            "sentry_tags": {"category": "db", "op": "db.query"},
+            "span_id": "a342abb1214ca181",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "89143b0763095bd9c9955e8175d1fb23",
+        },
+        {
+            "description": "https://example.com/p/blah.js",
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "bd429c44b67a3eb1",
+            "sentry_tags": {
+                "category": "resource",
+                "description": "https://example.com/*/blah.js",
+                "domain": "example.com",
+                "file_extension": "js",
+                "group": "8a97a9e43588e2bd",
                 "op": "resource.script",
-                "segment_id": "968cff94913ebb07",
-                "sentry_tags": {
-                    "category": "resource",
-                    "description": "https://example.com/*/blah.js",
-                    "domain": "example.com",
-                    "file_extension": "js",
-                    "group": "8a97a9e43588e2bd",
-                    "op": "resource.script",
-                },
-                "span_id": "bd429c44b67a3eb1",
-                "start_timestamp": start.timestamp(),
-                "timestamp": end.timestamp() + 1,
-                "exclusive_time": 345.0,
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
             },
+            "span_id": "bd429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "organization_id": 1,
+            "description": r"test \" with \" escaped \" chars",
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
             "project_id": 42,
             "retention_days": 90,
-            "span": {
-                "data": {},
-                "description": "my 1st OTel span",
-                "exclusive_time": 500.0,
-                "is_segment": True,
-                "op": "default",
-                "parent_span_id": "",
-                "segment_id": "e342abb1214ca181",
-                "sentry_tags": {"op": "default"},
-                "span_id": "e342abb1214ca181",
-                "start_timestamp": start.timestamp(),
-                "status": "ok",
-                "timestamp": end.timestamp(),
-                "trace_id": "89143b0763095bd9c9955e8175d1fb23",
-            },
+            "segment_id": "cd429c44b67a3eb1",
+            "sentry_tags": {"op": "default"},
+            "span_id": "cd429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
         {
-            "organization_id": 1,
+            "description": "my 2nd OTel span",
+            "duration_ms": 500,
+            "exclusive_time_ms": 500.0,
+            "is_segment": True,
+            "parent_span_id": "",
             "project_id": 42,
             "retention_days": 90,
-            "span": {
-                "data": {},
-                "description": "my 2nd OTel span",
-                "exclusive_time": 1500.0,
-                "is_segment": True,
-                "op": "default",
-                "parent_span_id": "",
-                "segment_id": "e342abb1214ca182",
-                "sentry_tags": {"op": "default"},
-                "span_id": "e342abb1214ca182",
-                "start_timestamp": start.timestamp(),
-                "status": "ok",
-                "timestamp": end.timestamp(),
-                "trace_id": "89143b0763095bd9c9955e8175d1fb24",
-            },
+            "segment_id": "d342abb1214ca182",
+            "sentry_tags": {"op": "default"},
+            "span_id": "d342abb1214ca182",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "89143b0763095bd9c9955e8175d1fb24",
+        },
+        {
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "ed429c44b67a3eb1",
+            "sentry_tags": {"op": "default"},
+            "span_id": "ed429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
     ]
 
@@ -1618,6 +1658,16 @@ def test_span_ingestion(
 
     assert metrics == [
         {
+            "name": "c:spans/count_per_op@none",
+            "org_id": 1,
+            "project_id": 42,
+            "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "db.query"},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 1.0,
+        },
+        {
             "org_id": 1,
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
@@ -1632,8 +1682,18 @@ def test_span_ingestion(
             "project_id": 42,
             "name": "c:spans/count_per_op@none",
             "type": "c",
-            "value": 2.0,
+            "value": 1.0,
             "timestamp": expected_timestamp,
+            "tags": {"span.op": "default"},
+            "retention_days": 90,
+        },
+        {
+            "org_id": 1,
+            "project_id": 42,
+            "name": "c:spans/count_per_op@none",
+            "type": "c",
+            "value": 2.0,
+            "timestamp": expected_timestamp + 1,
             "tags": {"span.op": "default"},
             "retention_days": 90,
         },
@@ -1658,11 +1718,11 @@ def test_span_ingestion(
             "org_id": 1,
             "project_id": 42,
             "name": "d:spans/exclusive_time@millisecond",
-            "type": "d",
-            "value": [500.0, 1500],
-            "timestamp": expected_timestamp,
-            "tags": {"span.status": "ok", "span.op": "default"},
             "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "db.query"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
         },
         {
             "org_id": 1,
@@ -1682,17 +1742,14 @@ def test_span_ingestion(
             "retention_days": 90,
         },
         {
+            "name": "d:spans/exclusive_time_light@millisecond",
             "org_id": 1,
             "project_id": 42,
-            "name": "d:spans/exclusive_time_light@millisecond",
-            "type": "d",
-            "value": [500.0, 1500],
-            "timestamp": expected_timestamp,
-            "tags": {
-                "span.op": "default",
-                "span.status": "ok",
-            },
             "retention_days": 90,
+            "tags": {"span.category": "db", "span.op": "db.query"},
+            "timestamp": expected_timestamp,
+            "type": "d",
+            "value": [500.0],
         },
     ]
 
@@ -1730,32 +1787,28 @@ def test_span_extraction_with_ddm(
 
     relay.send_event(project_id, event)
 
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
+    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    duration_ms = (end_timestamp - start_timestamp).total_seconds() * 1e3
+
     transaction_span = spans_consumer.get_span()
-    del transaction_span["start_time"]
-    del transaction_span["span"]["received"]
+    del transaction_span["received"]
     assert transaction_span == {
+        "duration_ms": duration_ms,
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
-        "organization_id": 1,
         "retention_days": 90,
-        "span": {
-            "description": "hi",
-            "exclusive_time": 2000.0,
-            "is_segment": True,
-            "op": "hi",
-            "segment_id": "968cff94913ebb07",
-            "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
-            "span_id": "968cff94913ebb07",
-            "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
-            .replace(tzinfo=timezone.utc)
-            .timestamp(),
-            "status": "unknown",
-            "timestamp": datetime.fromisoformat(event["timestamp"])
-            .replace(tzinfo=timezone.utc)
-            .timestamp(),
-            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-            "_metrics_summary": metrics_summary,
-        },
+        "description": "hi",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "span_id": "968cff94913ebb07",
+        "start_timestamp_ms": int(
+            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+        ),
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "_metrics_summary": metrics_summary,
     }
 
     spans_consumer.assert_empty()

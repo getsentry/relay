@@ -11,7 +11,12 @@ import queue
 from .test_envelope import generate_transaction_item
 
 TEST_CONFIG = {
-    "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0}
+    "aggregator": {
+        "bucket_interval": 1,
+        "initial_delay": 0,
+        "debounce_delay": 0,
+        "shift_key": "none",
+    }
 }
 
 
@@ -138,6 +143,7 @@ def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_
             "max_secs_in_past": forever,
             "max_secs_in_future": forever,
             "flush_partitions": metrics_partitions,
+            "shift_key": "none",
         },
     }
     relay = relay(mini_sentry, options=relay_config)
@@ -199,8 +205,147 @@ def test_metrics_max_batch_size(mini_sentry, relay, max_batch_size, expected_eve
         mini_sentry.captured_events.get(timeout=1)
 
 
+def test_global_metrics(mini_sentry, relay):
+    relay = relay(
+        mini_sentry, options={"http": {"global_metrics": True}, **TEST_CONFIG}
+    )
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics_batch = mini_sentry.captured_metrics.get(timeout=5)
+    assert mini_sentry.captured_metrics.qsize() == 0  # we had only one batch
+
+    metrics = sorted(metrics_batch[public_key], key=lambda x: x["name"])
+
+    assert metrics == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/bar@none",
+            "value": 17.0,
+            "type": "c",
+        },
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/foo@none",
+            "value": 42.0,
+            "type": "c",
+        },
+    ]
+
+
+def test_global_metrics_batching(mini_sentry, relay):
+    # See `test_metrics_max_batch_size`: 200 should lead to 2 batches
+    MAX_FLUSH_SIZE = 200
+
+    relay = relay(
+        mini_sentry,
+        options={
+            "http": {"global_metrics": True},
+            "limits": {"max_concurrent_requests": 1},  # deterministic submission order
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "max_flush_bytes": MAX_FLUSH_SIZE,
+            },
+        },
+    )
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = (
+        f"transactions/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17|d|T{timestamp}"
+    )
+    relay.send_metrics(project_id, metrics_payload)
+
+    batch1 = mini_sentry.captured_metrics.get(timeout=5)
+    batch2 = mini_sentry.captured_metrics.get(timeout=1)
+    with pytest.raises(queue.Empty):
+        mini_sentry.captured_metrics.get(timeout=1)
+
+    assert batch1[public_key] == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "d:transactions/foo@none",
+            "value": [float(i) for i in range(1, 16)],
+            "type": "d",
+        }
+    ]
+
+    assert batch2[public_key] == [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "d:transactions/foo@none",
+            "value": [16.0, 17.0],
+            "type": "d",
+        }
+    ]
+
+
 def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_consumer):
     relay = relay_with_processing(options=TEST_CONFIG)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:custom-metrics"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
+
+    metrics = metrics_by_name(metrics_consumer, 2)
+
+    assert metrics["headers"]["c:transactions/foo@none"] == [
+        ("namespace", b"transactions")
+    ]
+    assert metrics["c:transactions/foo@none"] == {
+        "org_id": 1,
+        "project_id": project_id,
+        "retention_days": 90,
+        "name": "c:transactions/foo@none",
+        "tags": {},
+        "value": 42.0,
+        "type": "c",
+        "timestamp": timestamp,
+    }
+
+    assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
+    assert metrics["c:custom/bar@second"] == {
+        "org_id": 1,
+        "project_id": project_id,
+        "retention_days": 90,
+        "name": "c:custom/bar@second",
+        "tags": {},
+        "value": 17.0,
+        "type": "c",
+        "timestamp": timestamp,
+    }
+
+
+def test_global_metrics_with_processing(
+    mini_sentry, relay, relay_with_processing, metrics_consumer
+):
+    # Set up a relay chain where the outer relay has global metrics enabled
+    # and forwards to a processing Relay.
+    processing_relay = relay_with_processing(options=TEST_CONFIG)
+    relay = relay(
+        processing_relay, options={"http": {"global_metrics": True}, **TEST_CONFIG}
+    )
+
     metrics_consumer = metrics_consumer()
 
     project_id = 42
@@ -1067,7 +1212,6 @@ def test_transaction_name_too_long(
             assert metric["tags"]["transaction"] == expected_transaction_name
 
 
-@pytest.mark.skip(reason="flake")
 def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
         mini_sentry,
@@ -1075,8 +1219,9 @@ def test_graceful_shutdown(mini_sentry, relay):
             "limits": {"shutdown_timeout": 2},
             "aggregator": {
                 "bucket_interval": 1,
-                "initial_delay": 10,
+                "initial_delay": 100,
                 "debounce_delay": 0,
+                "shift_key": "none",
             },
         },
     )
@@ -1088,17 +1233,17 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     # Backdated metric will be flushed immediately due to debounce delay
     past_timestamp = timestamp - 1000
-    metrics_payload = f"transactions/foo:42|c|T{past_timestamp}"
+    metrics_payload = f"transactions/past:42|c|T{past_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     # Future timestamp will not be flushed regularly, only through force flush
     future_timestamp = timestamp + 30
-    metrics_payload = f"transactions/bar:17|c|T{future_timestamp}"
+    metrics_payload = f"transactions/future:17|c|T{future_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
-    relay.shutdown(sig=signal.SIGTERM)
+    relay.process.send_signal(signal.SIGTERM)
 
     # Try to send another metric (will be rejected)
-    metrics_payload = f"transactions/zap:666|c|T{timestamp}"
+    metrics_payload = f"transactions/now:666|c|T{timestamp}"
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload)
 
@@ -1112,14 +1257,14 @@ def test_graceful_shutdown(mini_sentry, relay):
         {
             "timestamp": future_timestamp,
             "width": 1,
-            "name": "c:transactions/bar@none",
+            "name": "c:transactions/future@none",
             "value": 17.0,
             "type": "c",
         },
         {
             "timestamp": past_timestamp,
             "width": 1,
-            "name": "c:transactions/foo@none",
+            "name": "c:transactions/past@none",
             "value": 42.0,
             "type": "c",
         },

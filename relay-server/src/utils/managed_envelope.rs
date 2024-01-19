@@ -7,10 +7,11 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::test_store::{Capture, TestStore};
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::ProcessingGroup;
+use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
@@ -61,6 +62,7 @@ struct EnvelopeContext {
     slot: Option<SemaphorePermit>,
     partition_key: Option<u64>,
     done: bool,
+    group: ProcessingGroup,
 }
 
 /// Tracks the lifetime of an [`Envelope`] in Relay.
@@ -93,6 +95,7 @@ impl ManagedEnvelope {
         slot: Option<SemaphorePermit>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
         let meta = &envelope.meta();
         let summary = EnvelopeSummary::compute(envelope.as_ref());
@@ -105,6 +108,7 @@ impl ManagedEnvelope {
                 slot,
                 partition_key: None,
                 done: false,
+                group,
             },
             outcome_aggregator,
             test_store,
@@ -117,7 +121,13 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        let mut envelope = Self::new_internal(envelope, None, outcome_aggregator, test_store);
+        let mut envelope = Self::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Ungrouped,
+        );
         envelope.context.done = true;
         envelope
     }
@@ -134,7 +144,13 @@ impl ManagedEnvelope {
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
     ) -> Self {
-        Self::new_internal(envelope, None, outcome_aggregator, test_store)
+        Self::new_internal(
+            envelope,
+            None,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Ungrouped,
+        )
     }
 
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
@@ -145,13 +161,19 @@ impl ManagedEnvelope {
         slot: SemaphorePermit,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
-        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store)
+        Self::new_internal(envelope, Some(slot), outcome_aggregator, test_store, group)
     }
 
     /// Returns a reference to the contained [`Envelope`].
     pub fn envelope(&self) -> &Envelope {
         self.envelope.as_ref()
+    }
+
+    /// Returns the [`ProcessingGroup`] where this envelope belongs to.
+    pub fn group(&self) -> ProcessingGroup {
+        self.context.group
     }
 
     /// Returns a mutable reference to the contained [`Envelope`].
@@ -196,14 +218,18 @@ impl ManagedEnvelope {
         let use_indexed = self.use_index_category();
         self.envelope.retain_items(|item| match f(item) {
             ItemAction::Keep => true,
+            ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
+                let use_indexed = if item.ty() == &ItemType::Span {
+                    item.metrics_extracted()
+                } else {
+                    use_indexed
+                };
                 if let Some(category) = item.outcome_category(use_indexed) {
                     outcomes.push((outcome, category, item.quantity()));
-                }
-
+                };
                 false
             }
-            ItemAction::DropSilently => false,
         });
         for (outcome, category, quantity) in outcomes {
             self.track_outcome(outcome, category, quantity);
@@ -227,11 +253,21 @@ impl ManagedEnvelope {
         self
     }
 
+    /// Removes event item(s) and log an outcome.
+    ///
+    /// Note: This function relies on the envelope summary being correct.
+    pub fn reject_event(&mut self, outcome: Outcome) {
+        if let Some(event_category) = self.event_category() {
+            self.envelope.retain_items(|item| !item.creates_event());
+            self.track_outcome(outcome, event_category, 1);
+        }
+    }
+
     /// Records an outcome scoped to this envelope's context.
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         self.outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at(),
             scoping: self.context.scoping,

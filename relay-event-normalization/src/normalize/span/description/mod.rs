@@ -86,6 +86,26 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                 // They are low-cardinality.
                 Some(description.to_owned())
             }
+            ("contentprovider", "load") => {
+                // `contentprovider.load` spans contain paths of third party framework components
+                // and their onCreate method such as
+                // `io.sentry.android.core.SentryPerformanceProvider.onCreate`, which
+                // _should_ be low-cardinality, on the order of 10s per project.
+                Some(description.to_owned())
+            }
+            ("application", "load") => {
+                // `application.load` spans contain paths of app components and their
+                // onCreate method such as
+                // `io.sentry.samples.android.MyApplication.onCreate`, which _should_ be
+                // low-cardinality.
+                Some(description.to_owned())
+            }
+            ("activity", "load") => {
+                // `activity.load` spans contain paths of app components and their onCreate/onStart
+                // method such as `io.sentry.samples.android.MainActivity.onCreate`, which
+                // _should_ be low-cardinality, less than 10 per project.
+                Some(description.to_owned())
+            }
             ("file", _) => scrub_file(description),
             _ => None,
         })
@@ -685,6 +705,27 @@ mod tests {
         "ListAppViewController",
         "ui.load",
         "ListAppViewController"
+    );
+
+    span_description_test!(
+        contentprovider_load,
+        "io.sentry.android.core.SentryPerformanceProvider.onCreate",
+        "contentprovider.load",
+        "io.sentry.android.core.SentryPerformanceProvider.onCreate"
+    );
+
+    span_description_test!(
+        application_load,
+        "io.sentry.samples.android.MyApplication.onCreate",
+        "application.load",
+        "io.sentry.samples.android.MyApplication.onCreate"
+    );
+
+    span_description_test!(
+        activity_load,
+        "io.sentry.samples.android.MainActivity.onCreate",
+        "activity.load",
+        "io.sentry.samples.android.MainActivity.onCreate"
     );
 
     span_description_test!(

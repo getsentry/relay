@@ -78,13 +78,13 @@ impl IntoMetric for TransactionMetric {
             ),
             Self::Usage { tags } => (
                 Cow::Borrowed("usage"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
             Self::CountPerRootProject { tags } => (
                 Cow::Borrowed("count_per_root_project"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
@@ -142,12 +142,16 @@ impl From<TransactionDurationTags> for BTreeMap<String, String> {
 
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct LightTransactionTags {
+    pub transaction_op: Option<String>,
     pub transaction: Option<String>,
 }
 
 impl From<LightTransactionTags> for BTreeMap<String, String> {
     fn from(tags: LightTransactionTags) -> Self {
         let mut map = BTreeMap::new();
+        if let Some(transaction_op) = tags.transaction_op {
+            map.insert(CommonTag::TransactionOp.to_string(), transaction_op);
+        }
         if let Some(transaction) = tags.transaction {
             map.insert(CommonTag::Transaction.to_string(), transaction);
         }

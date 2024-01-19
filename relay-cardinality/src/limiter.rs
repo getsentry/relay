@@ -123,9 +123,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
             );
 
             let rejections = match result {
-                Ok(rejections) => rejections
-                    .map(|rejection| rejection.id.0)
-                    .collect::<BTreeSet<usize>>(),
+                Ok(rejections) => rejections.map(|rejection| rejection.id.0).collect(),
                 Err(err) => return Err((items, err)),
             };
 
@@ -138,54 +136,37 @@ impl<T: Limiter> CardinalityLimiter<T> {
 }
 
 /// Result of [`CardinalityLimiter::check_cardinality_limits`].
+#[derive(Debug)]
 pub struct CardinalityLimits<T> {
     source: Vec<T>,
     rejections: BTreeSet<usize>,
 }
 
 impl<T> CardinalityLimits<T> {
+    /// Returns an iterator yielding only rejected items.
+    pub fn rejected(&self) -> impl Iterator<Item = &T> {
+        self.rejections.iter().filter_map(|&i| self.source.get(i))
+    }
+
     /// Consumes the result and returns an iterator over all accepted items.
-    pub fn into_accepted(self) -> Accepted<T> {
-        Accepted::new(self.source, self.rejections)
-    }
-}
-
-/// Iterator for all accepted elements.
-pub struct Accepted<T> {
-    source: std::vec::IntoIter<T>,
-    rejections: std::iter::Peekable<std::collections::btree_set::IntoIter<usize>>,
-    next_index: usize,
-}
-
-impl<T> Accepted<T> {
-    fn new(source: Vec<T>, rejections: BTreeSet<usize>) -> Self {
-        Self {
-            source: source.into_iter(),
-            rejections: rejections.into_iter().peekable(),
-            next_index: 0,
+    pub fn into_accepted(self) -> Vec<T> {
+        if self.rejections.is_empty() {
+            return self.source;
+        } else if self.source.len() == self.rejections.len() {
+            return Vec::new();
         }
-    }
-}
 
-impl<T> Iterator for Accepted<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let current_index = self.next_index;
-            let next = self.source.next();
-            self.next_index += 1;
-
-            match self.rejections.peek() {
-                Some(&index) if index == current_index => {
-                    // Current index matches a rejected element, skip it and advance the rejections.
-                    let _ = self.rejections.next();
+        self.source
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, t)| {
+                if self.rejections.contains(&i) {
+                    None
+                } else {
+                    Some(t)
                 }
-                _ => {
-                    return next;
-                }
-            }
-        }
+            })
+            .collect()
     }
 }
 
@@ -222,23 +203,37 @@ mod tests {
 
     #[test]
     fn test_accepted() {
+        // Workaround for windows which requires an absurd amount of type annotations here.
+        fn assert_rejected(
+            limits: &CardinalityLimits<char>,
+            expected: impl IntoIterator<Item = char>,
+        ) {
+            assert_eq!(
+                limits.rejected().copied().collect::<Vec<char>>(),
+                expected.into_iter().collect::<Vec<char>>(),
+            );
+        }
+
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 3]),
         };
-        assert_eq!(&limits.into_accepted().collect::<String>(), "ce");
+        assert_rejected(&limits, ['a', 'b', 'd']);
+        assert_eq!(limits.into_accepted(), vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([]),
         };
-        assert_eq!(&limits.into_accepted().collect::<String>(), "abcde");
+        assert_rejected(&limits, []);
+        assert_eq!(limits.into_accepted(), vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
             rejections: BTreeSet::from([0, 1, 2, 3, 4]),
         };
-        assert_eq!(&limits.into_accepted().collect::<String>(), "");
+        assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
+        assert!(limits.into_accepted().is_empty());
     }
 
     #[test]
@@ -277,7 +272,7 @@ mod tests {
             .check_cardinality_limits(1, vec![Item::new(0, "a"), Item::new(1, "b")])
             .unwrap();
 
-        assert_eq!(result.into_accepted().count(), 0);
+        assert!(result.into_accepted().is_empty());
     }
 
     #[test]
@@ -310,7 +305,7 @@ mod tests {
         let items = vec![Item::new(0, "a"), Item::new(1, "b")];
         let result = limiter.check_cardinality_limits(1, items.clone()).unwrap();
 
-        assert_eq!(result.into_accepted().collect::<Vec<_>>(), items);
+        assert_eq!(result.into_accepted(), items);
     }
 
     #[test]
@@ -359,8 +354,7 @@ mod tests {
         let accepted = limiter
             .check_cardinality_limits(3, items)
             .unwrap()
-            .into_accepted()
-            .collect::<Vec<_>>();
+            .into_accepted();
 
         assert_eq!(
             accepted,

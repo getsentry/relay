@@ -10,6 +10,7 @@
 //! logic.
 use std::io;
 
+use bytes::Bytes;
 use relay_config::HttpEncoding;
 use reqwest::header::{HeaderMap, HeaderValue};
 pub use reqwest::StatusCode;
@@ -19,8 +20,6 @@ use serde::de::DeserializeOwned;
 pub enum HttpError {
     #[error("payload too large")]
     Overflow,
-    #[error("attempted to send upstream request without credentials configured")]
-    NoCredentials,
     #[error("could not send request")]
     Reqwest(#[from] reqwest::Error),
     #[error("failed to stream payload")]
@@ -39,7 +38,6 @@ impl HttpError {
             Self::Reqwest(error) => error.is_timeout(),
             Self::Json(_) => false,
             HttpError::Overflow => false,
-            HttpError::NoCredentials => false,
         }
     }
 }
@@ -47,43 +45,56 @@ impl HttpError {
 pub struct Request(pub reqwest::Request);
 
 pub struct RequestBuilder {
-    builder: reqwest::RequestBuilder,
+    builder: Option<reqwest::RequestBuilder>,
 }
 
 impl RequestBuilder {
     pub fn reqwest(builder: reqwest::RequestBuilder) -> Self {
-        RequestBuilder { builder }
+        RequestBuilder {
+            builder: Some(builder),
+        }
     }
 
     pub fn finish(self) -> Result<Request, HttpError> {
-        Ok(Request(self.builder.build()?))
+        // The builder is not optional, instead the option is used inside `build` so that it can be
+        // moved temporarily. Therefore, the `unwrap` here is infallible.
+        Ok(Request(self.builder.unwrap().build()?))
+    }
+
+    fn build<F>(&mut self, f: F) -> &mut Self
+    where
+        F: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    {
+        self.builder = self.builder.take().map(f);
+        self
     }
 
     /// Add a new header, not replacing existing ones.
-    pub fn header(mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> Self {
-        self.builder = self.builder.header(key.as_ref(), value.as_ref());
-        self
+    pub fn header(&mut self, key: impl AsRef<str>, value: impl AsRef<[u8]>) -> &mut Self {
+        self.build(|builder| builder.header(key.as_ref(), value.as_ref()))
     }
 
     /// Add an optional header, not replacing existing ones.
     ///
     /// If the value is `Some`, the header is added. If the value is `None`, headers are not
     /// changed.
-    pub fn header_opt(mut self, key: impl AsRef<str>, value: Option<impl AsRef<[u8]>>) -> Self {
-        if let Some(value) = value {
-            self.builder = self.builder.header(key.as_ref(), value.as_ref());
+    pub fn header_opt(
+        &mut self,
+        key: impl AsRef<str>,
+        value: Option<impl AsRef<[u8]>>,
+    ) -> &mut Self {
+        match value {
+            Some(value) => self.build(|builder| builder.header(key.as_ref(), value.as_ref())),
+            None => self,
         }
-        self
     }
 
-    pub fn content_encoding(self, encoding: HttpEncoding) -> Self {
+    pub fn content_encoding(&mut self, encoding: HttpEncoding) -> &mut Self {
         self.header_opt("content-encoding", encoding.name())
     }
 
-    pub fn body<B: AsRef<[u8]>>(mut self, body: B) -> Result<Request, HttpError> {
-        // TODO: This clones data. Change the signature to require `Bytes` to prevent cloning.
-        self.builder = self.builder.body(body.as_ref().to_vec());
-        self.finish()
+    pub fn body(&mut self, body: Bytes) -> &mut Self {
+        self.build(|builder| builder.body(body))
     }
 }
 
