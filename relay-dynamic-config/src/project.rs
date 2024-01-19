@@ -90,7 +90,7 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
     /// Configuration for filtering metrics.
-    #[serde(default, skip_serializing_if = "skip_deny_metrics")]
+    #[serde(default, skip_serializing_if = "skip_metrics")]
     pub metrics: ErrorBoundary<Metrics>,
 }
 
@@ -144,7 +144,7 @@ fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> 
     }
 }
 
-fn skip_deny_metrics(boundary: &ErrorBoundary<Metrics>) -> bool {
+fn skip_metrics(boundary: &ErrorBoundary<Metrics>) -> bool {
     match boundary {
         ErrorBoundary::Err(_) => true,
         ErrorBoundary::Ok(metrics) => metrics.is_empty(),
