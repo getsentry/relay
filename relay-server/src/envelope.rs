@@ -748,6 +748,11 @@ impl Item {
         self.headers.metrics_extracted = metrics_extracted;
     }
 
+    /// Gets the `sampled` flag.
+    pub fn sampled(&self) -> Option<bool> {
+        self.headers.sampled
+    }
+
     /// Sets the `sampled` flag.
     pub fn set_sampled(&mut self, sampled: bool) {
         self.headers.sampled = Some(sampled);

@@ -20,7 +20,6 @@ use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
 };
-use relay_protocol::Value;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
@@ -725,16 +724,11 @@ impl StoreService {
             received: UnixTimestamp::from_instant(start_time).as_secs(),
             headers: BTreeMap::from([(
                 "sampled".to_string(),
-                item.get_header("sampled")
-                    .and_then(Value::as_bool)
-                    .map(|sv| -> String {
-                        if sv {
-                            "true".to_string()
-                        } else {
-                            "false".to_string()
-                        }
-                    })
-                    .unwrap_or("true".to_string()),
+                match item.sampled() {
+                    Some(false) => "false",
+                    _ => "true",
+                }
+                .to_owned(),
             )]),
             payload: item.payload(),
         };
