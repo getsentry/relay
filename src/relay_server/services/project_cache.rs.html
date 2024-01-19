@@ -1236,7 +1236,7 @@
 <a href="#1236" id="1236">1236</a>
 <a href="#1237" id="1237">1237</a>
 <a href="#1238" id="1238">1238</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -2102,7 +2102,7 @@
     }
 
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
-        <span class="kw">let </span><span class="kw-2">mut </span>output = HashMap::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>output = BTreeMap::new();
         <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>message.buckets {
             <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
             <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
