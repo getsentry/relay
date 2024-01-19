@@ -52,7 +52,7 @@ use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateBufferIndex};
+use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
@@ -635,7 +635,7 @@ impl OnDisk {
         if !unused_keys.is_empty() {
             services
                 .project_cache
-                .send(UpdateBufferIndex::new(project_key, unused_keys))
+                .send(UpdateSpoolIndex::new(project_key, unused_keys))
         }
     }
 
