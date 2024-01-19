@@ -2488,6 +2488,75 @@
 <a href="#2488" id="2488">2488</a>
 <a href="#2489" id="2489">2489</a>
 <a href="#2490" id="2490">2490</a>
+<a href="#2491" id="2491">2491</a>
+<a href="#2492" id="2492">2492</a>
+<a href="#2493" id="2493">2493</a>
+<a href="#2494" id="2494">2494</a>
+<a href="#2495" id="2495">2495</a>
+<a href="#2496" id="2496">2496</a>
+<a href="#2497" id="2497">2497</a>
+<a href="#2498" id="2498">2498</a>
+<a href="#2499" id="2499">2499</a>
+<a href="#2500" id="2500">2500</a>
+<a href="#2501" id="2501">2501</a>
+<a href="#2502" id="2502">2502</a>
+<a href="#2503" id="2503">2503</a>
+<a href="#2504" id="2504">2504</a>
+<a href="#2505" id="2505">2505</a>
+<a href="#2506" id="2506">2506</a>
+<a href="#2507" id="2507">2507</a>
+<a href="#2508" id="2508">2508</a>
+<a href="#2509" id="2509">2509</a>
+<a href="#2510" id="2510">2510</a>
+<a href="#2511" id="2511">2511</a>
+<a href="#2512" id="2512">2512</a>
+<a href="#2513" id="2513">2513</a>
+<a href="#2514" id="2514">2514</a>
+<a href="#2515" id="2515">2515</a>
+<a href="#2516" id="2516">2516</a>
+<a href="#2517" id="2517">2517</a>
+<a href="#2518" id="2518">2518</a>
+<a href="#2519" id="2519">2519</a>
+<a href="#2520" id="2520">2520</a>
+<a href="#2521" id="2521">2521</a>
+<a href="#2522" id="2522">2522</a>
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a>
+<a href="#2526" id="2526">2526</a>
+<a href="#2527" id="2527">2527</a>
+<a href="#2528" id="2528">2528</a>
+<a href="#2529" id="2529">2529</a>
+<a href="#2530" id="2530">2530</a>
+<a href="#2531" id="2531">2531</a>
+<a href="#2532" id="2532">2532</a>
+<a href="#2533" id="2533">2533</a>
+<a href="#2534" id="2534">2534</a>
+<a href="#2535" id="2535">2535</a>
+<a href="#2536" id="2536">2536</a>
+<a href="#2537" id="2537">2537</a>
+<a href="#2538" id="2538">2538</a>
+<a href="#2539" id="2539">2539</a>
+<a href="#2540" id="2540">2540</a>
+<a href="#2541" id="2541">2541</a>
+<a href="#2542" id="2542">2542</a>
+<a href="#2543" id="2543">2543</a>
+<a href="#2544" id="2544">2544</a>
+<a href="#2545" id="2545">2545</a>
+<a href="#2546" id="2546">2546</a>
+<a href="#2547" id="2547">2547</a>
+<a href="#2548" id="2548">2548</a>
+<a href="#2549" id="2549">2549</a>
+<a href="#2550" id="2550">2550</a>
+<a href="#2551" id="2551">2551</a>
+<a href="#2552" id="2552">2552</a>
+<a href="#2553" id="2553">2553</a>
+<a href="#2554" id="2554">2554</a>
+<a href="#2555" id="2555">2555</a>
+<a href="#2556" id="2556">2556</a>
+<a href="#2557" id="2557">2557</a>
+<a href="#2558" id="2558">2558</a>
+<a href="#2559" id="2559">2559</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -3257,7 +3326,11 @@
                     </span><span class="kw">let </span><span class="kw-2">mut </span>normalized_component_weight = <span class="number">0.0</span>;
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurements.get_value(component.measurement.as_str()) {
                         normalized_component_weight = component.weight / weight_total;
-                        <span class="kw">let </span>cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+                        <span class="kw">let </span>cdf = utils::calculate_cdf_score(
+                            value.max(<span class="number">0.0</span>), <span class="comment">// Webvitals can&#39;t be negative, but we need to clamp in case of bad data.
+                            </span>component.p10,
+                            component.p50,
+                        );
                         <span class="kw">let </span>component_score = cdf * normalized_component_weight;
                         score_total += component_score;
                         should_add_total = <span class="bool-val">true</span>;
@@ -4916,6 +4989,71 @@
           &quot;measurements&quot;: {
             &quot;cls&quot;: {
               &quot;value&quot;: 0.11,
+            },
+          },
+        }
+        &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_computed_performance_score_negative_value() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;
+        {
+            &quot;type&quot;: &quot;transaction&quot;,
+            &quot;timestamp&quot;: &quot;2021-04-26T08:00:05+0100&quot;,
+            &quot;start_timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
+            &quot;measurements&quot;: {
+                &quot;ttfb&quot;: {&quot;value&quot;: -100, &quot;unit&quot;: &quot;millisecond&quot;}
+            }
+        }
+        &quot;#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
+
+        <span class="kw">let </span>performance_score: PerformanceScoreConfig = serde_json::from_value(<span class="macro">json!</span>({
+            <span class="string">&quot;profiles&quot;</span>: [
+                {
+                    <span class="string">&quot;name&quot;</span>: <span class="string">&quot;Desktop&quot;</span>,
+                    <span class="string">&quot;scoreComponents&quot;</span>: [
+                        {
+                            <span class="string">&quot;measurement&quot;</span>: <span class="string">&quot;ttfb&quot;</span>,
+                            <span class="string">&quot;weight&quot;</span>: <span class="number">1.0</span>,
+                            <span class="string">&quot;p10&quot;</span>: <span class="number">100.0</span>,
+                            <span class="string">&quot;p50&quot;</span>: <span class="number">250.0
+                        </span>},
+                    ],
+                    <span class="string">&quot;condition&quot;</span>: {
+                        <span class="string">&quot;op&quot;</span>:<span class="string">&quot;and&quot;</span>,
+                        <span class="string">&quot;inner&quot;</span>: []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>performance_score));
+
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        {
+          &quot;type&quot;: &quot;transaction&quot;,
+          &quot;timestamp&quot;: 1619420405.0,
+          &quot;start_timestamp&quot;: 1619420400.0,
+          &quot;measurements&quot;: {
+            &quot;score.total&quot;: {
+              &quot;value&quot;: 1.0,
+              &quot;unit&quot;: &quot;ratio&quot;,
+            },
+            &quot;score.ttfb&quot;: {
+              &quot;value&quot;: 1.0,
+              &quot;unit&quot;: &quot;ratio&quot;,
+            },
+            &quot;score.weight.ttfb&quot;: {
+              &quot;value&quot;: 1.0,
+              &quot;unit&quot;: &quot;ratio&quot;,
+            },
+            &quot;ttfb&quot;: {
+              &quot;value&quot;: -100.0,
+              &quot;unit&quot;: &quot;millisecond&quot;,
             },
           },
         }
