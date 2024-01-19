@@ -109,7 +109,7 @@ pub fn sample_envelope_items(state: &mut ProcessEnvelopeState) {
             let outcome = Outcome::FilteredSampling(matched_rules.clone());
             state.managed_envelope.retain_items(|item| {
                 if unsampled_profiles_enabled && item.ty() == &ItemType::Profile {
-                    item.set_header("sampled", false);
+                    item.set_sampled(false);
                     ItemAction::Keep
                 } else {
                     ItemAction::Drop(outcome.clone())
