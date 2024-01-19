@@ -578,7 +578,7 @@ pub struct ProcessMetricMeta {
 }
 
 /// Metric buckets with additional project.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
@@ -589,7 +589,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: HashMap<Scoping, ProjectMetrics>,
+    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -1855,7 +1855,7 @@ impl EnvelopeProcessorService {
             }
 
             if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
-                return;
+                continue;
             }
 
             let retention = project_state
@@ -2093,6 +2093,11 @@ impl EnvelopeProcessorService {
                 "failed to store metric meta in redis"
             )
         }
+    }
+
+    #[cfg(all(test, feature = "processing"))]
+    fn redis_rate_limiter_enabled(&self) -> bool {
+        self.inner.rate_limiter.is_some()
     }
 
     fn handle_message(&self, message: EnvelopeProcessor) {
@@ -2448,10 +2453,111 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-
     use crate::testutils::{self, create_test_processor};
 
+    #[cfg(feature = "processing")]
+    use {
+        relay_metrics::BucketValue,
+        relay_quotas::{Quota, ReasonCode},
+        relay_test::mock_service,
+    };
+
     use super::*;
+
+    /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
+    /// also ratelimit the next batches in the same message automatically.
+    #[cfg(feature = "processing")]
+    #[tokio::test]
+    async fn test_ratelimit_per_batch() {
+        let rate_limited_org = 1;
+        let not_ratelimited_org = 2;
+
+        let message = {
+            let project_state = {
+                let quota = Quota {
+                    id: Some("testing".into()),
+                    categories: vec![DataCategory::MetricBucket].into(),
+                    scope: relay_quotas::QuotaScope::Organization,
+                    scope_id: Some(rate_limited_org.to_string()),
+                    limit: Some(0),
+                    window: None,
+                    reason_code: Some(ReasonCode::new("test")),
+                };
+
+                let mut config = ProjectConfig::default();
+                config.quotas.push(quota);
+
+                let mut project_state = ProjectState::allowed();
+                project_state.config = config;
+                Arc::new(project_state)
+            };
+
+            let project_metrics = ProjectMetrics {
+                buckets: vec![Bucket {
+                    name: "d:transactions/bar".to_string(),
+                    value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
+                    timestamp: UnixTimestamp::now(),
+                    tags: Default::default(),
+                    width: 10,
+                }],
+                project_state,
+            };
+
+            let scoping_by_org_id = |org_id: u64| Scoping {
+                organization_id: org_id,
+                project_id: ProjectId::new(21),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(17),
+            };
+
+            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
+            scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
+            scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
+
+            EncodeMetrics { scopes }
+        };
+
+        // ensure the order of the map while iterating is as expected.
+        let mut iter = message.scopes.keys();
+        assert_eq!(iter.next().unwrap().organization_id, rate_limited_org);
+        assert_eq!(iter.next().unwrap().organization_id, not_ratelimited_org);
+        assert!(iter.next().is_none());
+
+        let config = {
+            let config_json = serde_json::json!({
+                "processing": {
+                    "enabled": true,
+                    "kafka_config": [],
+                    "redis": {
+                        "server": std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned()),
+                    }
+                }
+            });
+            Config::from_json_value(config_json).unwrap()
+        };
+
+        let (store, handle) = {
+            let f = |org_ids: &mut Vec<u64>, msg: Store| {
+                let org_id = match msg {
+                    Store::Metrics(x) => x.scoping.organization_id,
+                    Store::Envelope(_) => panic!("received envelope when expecting only metrics"),
+                };
+                org_ids.push(org_id);
+            };
+
+            mock_service("store_forwarder", vec![], f)
+        };
+
+        let processor = create_test_processor(config);
+        assert!(processor.redis_rate_limiter_enabled());
+
+        processor.encode_metrics_processing(message, &store);
+
+        drop(store);
+        let orgs_not_ratelimited = handle.await.unwrap();
+
+        assert_eq!(orgs_not_ratelimited, vec![not_ratelimited_org]);
+    }
 
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
