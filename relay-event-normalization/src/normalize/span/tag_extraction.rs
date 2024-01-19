@@ -307,6 +307,8 @@ pub fn extract_tags(
         }
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
+            // if let Some(domain) = span {
+            // }
             // HACK: Parse the normalized description to get the normalized domain.
             if let Some(scrubbed) = scrubbed_description.as_deref() {
                 let url = if let Some((_, url)) = scrubbed.split_once(' ') {
