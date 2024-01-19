@@ -92,6 +92,12 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
 
     let is_mobile = is_mobile_sdk.clone() & (is_mobile_op.clone() | is_screen);
 
+    let is_interaction = if is_extract_all {
+        RuleCondition::glob("span.op", "ui.interaction.*")
+    } else {
+        RuleCondition::never()
+    };
+
     // For mobile spans, only extract duration metrics when they are below a threshold.
     let duration_condition = RuleCondition::negate(is_mobile_op.clone())
         | RuleCondition::lte(
@@ -176,7 +182,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
             condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
                     & duration_condition.clone(),
             ),
             tags: vec![
