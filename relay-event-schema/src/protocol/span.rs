@@ -159,10 +159,11 @@ impl Getter for Span {
                     val.into()
                 } else if let Some(key) = path.strip_prefix("sentry_tags.") {
                     self.sentry_tags.value()?.get(key)?.as_str()?.into()
-                } else if let Some(key) = path.strip_prefix("measurements.") {
+                } else if let Some(rest) = path.strip_prefix("measurements.") {
+                    let name = rest.strip_suffix(".value")?;
                     self.measurements
                         .value()?
-                        .get(key)?
+                        .get(name)?
                         .value()?
                         .value
                         .value()?

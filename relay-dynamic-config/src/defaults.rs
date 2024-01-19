@@ -403,7 +403,7 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/webvital.score.total@ratio".into(),
-            field: Some("span.measurements.score.total".into()),
+            field: Some("span.measurements.score.total.value".into()),
             condition: Some(is_allowed_browser.clone()),
             tags: vec![
                 Tag::with_key("transaction.op")
@@ -426,7 +426,7 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/webvital.score.inp@ratio".into(),
-            field: Some("span.measurements.score.inp".into()),
+            field: Some("span.measurements.score.inp.value".into()),
             condition: Some(is_allowed_browser),
             tags: vec![
                 Tag::with_key("transaction.op")
