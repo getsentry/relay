@@ -115,11 +115,17 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
+    #[cfg(feature = "processing")]
+    let redis = config
+        .redis()
+        .filter(|_| config.processing_enabled())
+        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+
     EnvelopeProcessorService::new(
         Arc::new(config),
         GlobalConfigHandle::fixed(Default::default()),
         #[cfg(feature = "processing")]
-        None,
+        redis,
         outcome_aggregator,
         project_cache,
         upstream_relay,
