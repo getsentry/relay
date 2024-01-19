@@ -585,7 +585,7 @@ impl Project {
             return;
         };
 
-        Self::apply_metrics_deny_list(&state.config.deny_metrics, metrics);
+        Self::apply_metrics_deny_list(&state.config.metrics, metrics);
         Self::filter_disabled_namespace(state, metrics);
     }
 
@@ -594,7 +594,14 @@ impl Project {
             return;
         };
 
-        metrics.filter_metrics(buckets);
+        buckets.retain(|bucket| {
+            if metrics.denied_names.is_match(&bucket.name) {
+                relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
+                false
+            } else {
+                true
+            }
+        });
     }
 
     fn filter_disabled_namespace(state: &ProjectState, metrics: &mut Vec<Bucket>) {
@@ -1432,5 +1439,137 @@ mod tests {
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
 
         assert!(metrics.is_empty());
+    }
+
+    fn get_test_buckets(names: &[&str]) -> Vec<Bucket> {
+        let create_bucket = |name: &&str| -> Bucket {
+            let json = json!({
+                        "timestamp": 1615889440,
+                        "width": 10,
+                        "name": name,
+                        "type": "c",
+                        "value": 4.0,
+                        "tags": {
+                        "route": "user_index"
+            }});
+
+            serde_json::from_value(json).unwrap()
+        };
+
+        names.iter().map(create_bucket).collect()
+    }
+
+    fn get_test_bucket_names() -> Vec<&'static str> {
+        [
+            "g:transactions/foo@none",
+            "c:custom/foo@none",
+            "transactions/foo@second",
+            "transactions/foo",
+            "c:custom/foo_bar@none",
+            "endpoint.response_time",
+            "endpoint.hits",
+            "endpoint.parallel_requests",
+            "endpoint.users",
+        ]
+        .into()
+    }
+
+    fn apply_pattern_to_names(names: &[&str], patterns: &[&str]) -> Vec<String> {
+        let mut buckets = get_test_buckets(names);
+        let deny_list: Metrics = {
+            let vector_as_string: String = serde_json::to_string(patterns).unwrap();
+            serde_json::from_str(&vector_as_string).unwrap()
+        };
+
+        Project::apply_metrics_deny_list(&ErrorBoundary::Ok(deny_list), &mut buckets);
+        buckets.into_iter().map(|bucket| bucket.name).collect()
+    }
+
+    #[test]
+    fn test_metric_deny_list_exact() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint.parallel_requests"]);
+
+        // There's 1 bucket with that exact name.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_end_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["*foo"]);
+
+        // There's 1 bucket name with 'foo' in the end.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_middle_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["*foo*"]);
+
+        // There's 4 bucket names with 'foo' in the middle, and one with foo in the end.
+        let buckets_to_remove = 5;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_beginning_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint*"]);
+
+        // There's 4 buckets starting with "endpoint".
+        let buckets_to_remove = 4;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_everything() {
+        let names = get_test_bucket_names();
+        let remaining_names = apply_pattern_to_names(&names, &["*"]);
+
+        assert_eq!(remaining_names.len(), 0);
+    }
+
+    #[test]
+    fn test_metric_deny_list_multiple() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(&names, &["endpoint*", "*transactions*"]);
+
+        let endpoint_buckets = 4;
+        let transaction_buckets = 3;
+
+        assert_eq!(
+            remaining_names.len(),
+            input_qty - endpoint_buckets - transaction_buckets
+        );
+    }
+
+    #[test]
+    fn test_serialize_metrics_config() {
+        let input_patterns = vec!["foo".to_string(), "bar*".to_string()];
+
+        let deny_list: Metrics = {
+            let vector_as_string: String = serde_json::to_string(&input_patterns).unwrap();
+            serde_json::from_str(&vector_as_string).unwrap()
+        };
+
+        let back_to_vec: Vec<String> = {
+            let string_rep = serde_json::to_string(&deny_list.denied_names).unwrap();
+            serde_json::from_str(&string_rep).unwrap()
+        };
+
+        assert_eq!(input_patterns, back_to_vec);
     }
 }

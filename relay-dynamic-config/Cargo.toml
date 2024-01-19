@@ -24,7 +24,6 @@ relay-pii = { path = "../relay-pii" }
 relay-protocol  = { path = "../relay-protocol" }
 relay-quotas = { path = "../relay-quotas" }
 relay-sampling = { path = "../relay-sampling" }
-relay-metrics = { path = "../relay-metrics" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
