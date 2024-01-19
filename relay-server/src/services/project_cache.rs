@@ -22,7 +22,7 @@ use crate::services::project_local::{LocalProjectSource, LocalProjectSourceServi
 use crate::services::project_redis::RedisProjectSource;
 use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 use crate::services::spooler::{
-    self, Buffer, BufferService, DequeueMany, Enqueue, GetIndex, QueueKey, RemoveMany,
+    self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
 };
 use crate::services::test_store::TestStore;
 use crate::services::upstream::UpstreamRelay;
@@ -180,12 +180,12 @@ pub struct AddMetricMeta {
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
-pub struct UpdateBufferIndex {
+pub struct UpdateSpoolIndex {
     project_key: ProjectKey,
     keys: BTreeSet<QueueKey>,
 }
 
-impl UpdateBufferIndex {
+impl UpdateSpoolIndex {
     pub fn new(project_key: ProjectKey, keys: BTreeSet<QueueKey>) -> Self {
         Self { project_key, keys }
     }
@@ -196,8 +196,11 @@ impl UpdateBufferIndex {
 pub struct SpoolHealth;
 
 /// The current envelopes index fetched from the underlying buffer spool.
+///
+/// This index will be received only once shortly after startup and will trigger refresh for the
+/// project states for the project keys returned in the message.
 #[derive(Debug)]
-pub struct SpoolIndex(pub BTreeMap<ProjectKey, BTreeSet<QueueKey>>);
+pub struct RefreshIndexCache(pub BTreeMap<ProjectKey, BTreeSet<QueueKey>>);
 
 /// A cache for [`ProjectState`]s.
 ///
@@ -227,26 +230,26 @@ pub enum ProjectCache {
     MergeBuckets(MergeBuckets),
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
-    UpdateBufferIndex(UpdateBufferIndex),
+    UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
-    SpoolIndex(SpoolIndex),
+    RefreshIndexCache(RefreshIndexCache),
 }
 
 impl Interface for ProjectCache {}
 
-impl FromMessage<UpdateBufferIndex> for ProjectCache {
+impl FromMessage<UpdateSpoolIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: UpdateBufferIndex, _: ()) -> Self {
-        Self::UpdateBufferIndex(message)
+    fn from_message(message: UpdateSpoolIndex, _: ()) -> Self {
+        Self::UpdateSpoolIndex(message)
     }
 }
 
-impl FromMessage<SpoolIndex> for ProjectCache {
+impl FromMessage<RefreshIndexCache> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: SpoolIndex, _: ()) -> Self {
-        Self::SpoolIndex(message)
+    fn from_message(message: RefreshIndexCache, _: ()) -> Self {
+        Self::RefreshIndexCache(message)
     }
 }
 
@@ -891,7 +894,7 @@ impl ProjectCacheBroker {
             .send(EncodeMetrics { scopes: output })
     }
 
-    fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {
+    fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {
         self.index.insert(message.project_key, message.keys);
     }
 
@@ -899,8 +902,8 @@ impl ProjectCacheBroker {
         self.buffer.send(spooler::Health(sender))
     }
 
-    fn handle_spool_index(&mut self, message: SpoolIndex) {
-        let SpoolIndex(index) = message;
+    fn handle_spool_index(&mut self, message: RefreshIndexCache) {
+        let RefreshIndexCache(index) = message;
         let project_cache = self.services.project_cache.clone();
 
         for (key, values) in index {
@@ -925,9 +928,9 @@ impl ProjectCacheBroker {
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
-            ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
+            ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
-            ProjectCache::SpoolIndex(message) => self.handle_spool_index(message),
+            ProjectCache::RefreshIndexCache(message) => self.handle_spool_index(message),
         }
     }
 }
@@ -1022,7 +1025,7 @@ impl Service for ProjectCacheService {
             };
 
             // Request the existing index from the spooler.
-            buffer.send(GetIndex);
+            buffer.send(RestoreIndex);
 
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.

@@ -52,7 +52,7 @@ use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::{ProjectCache, SpoolIndex, UpdateBufferIndex};
+use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateBufferIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
@@ -184,8 +184,14 @@ impl RemoveMany {
 pub struct Health(pub Sender<bool>);
 
 /// Requests the index [`ProjectKey`] -> [`QueueKey`] of the data currently residing in the spool.
+///
+/// This is a one time request, which is sent on startup.
+/// Upon receiving this this message the buffer internally will check the existing keys in the
+/// on-disk spool and compile the index which will be returned to [`ProjectCache`].
+///
+/// The returned message will initiate the project state refresh for all the returned project keys.
 #[derive(Debug)]
-pub struct GetIndex;
+pub struct RestoreIndex;
 
 /// The interface for [`BufferService`].
 ///
@@ -208,7 +214,7 @@ pub enum Buffer {
     DequeueMany(DequeueMany),
     RemoveMany(RemoveMany),
     Health(Health),
-    GetIndex(GetIndex),
+    RestoreIndex(RestoreIndex),
 }
 
 impl Interface for Buffer {}
@@ -245,11 +251,11 @@ impl FromMessage<Health> for Buffer {
     }
 }
 
-impl FromMessage<GetIndex> for Buffer {
+impl FromMessage<RestoreIndex> for Buffer {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: GetIndex, _: ()) -> Self {
-        Self::GetIndex(message)
+    fn from_message(message: RestoreIndex, _: ()) -> Self {
+        Self::RestoreIndex(message)
     }
 }
 
@@ -1101,7 +1107,7 @@ impl BufferService {
     /// [`ProjectCache`] should be full and correct.
     /// If the spool is located on the disk, we read up the keys and compile the index of the
     /// spooled envelopes for [`ProjectCache`].
-    async fn handle_get_index(&mut self, _: GetIndex) -> Result<(), BufferError> {
+    async fn handle_get_index(&mut self, _: RestoreIndex) -> Result<(), BufferError> {
         match self.state {
             BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => (),
             BufferState::Disk(ref disk) => {
@@ -1114,7 +1120,7 @@ impl BufferService {
                                 "recover index from disk with {} unique project keys",
                                 index.len()
                             );
-                            project_cache.send(SpoolIndex(index))
+                            project_cache.send(RefreshIndexCache(index))
                         }
                         Err(err) => {
                             relay_log::error!("failed to retrieve the index from the disk: {err}")
@@ -1134,7 +1140,7 @@ impl BufferService {
             Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
             Buffer::Health(message) => self.handle_health(message).await,
-            Buffer::GetIndex(message) => self.handle_get_index(message).await,
+            Buffer::RestoreIndex(message) => self.handle_get_index(message).await,
         }
     }
 
