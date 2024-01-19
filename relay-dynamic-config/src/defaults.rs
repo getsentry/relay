@@ -92,11 +92,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
 
     let is_mobile = is_mobile_sdk.clone() & (is_mobile_op.clone() | is_screen);
 
-    let is_interaction = if is_extract_all {
-        RuleCondition::glob("span.op", "ui.interaction.*")
-    } else {
-        RuleCondition::never()
-    };
+    let is_interaction = RuleCondition::glob("span.op", "ui.interaction.*");
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
     let duration_condition = RuleCondition::negate(is_mobile_op.clone())
