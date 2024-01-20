@@ -609,11 +609,11 @@ impl Project {
             return;
         };
 
-        bucket.tags.retain(|key, _| {
-            metrics.blocked_tags.iter().any(|tag_blocker| {
-                !(tag_blocker.name.is_match(&bucket.name) && tag_blocker.tag.is_match(key))
-            })
-        });
+        for tag_blocker in &metrics.blocked_tags {
+            if tag_blocker.name.is_match(&bucket.name) {
+                bucket.filter_tags(&tag_blocker.tag);
+            }
+        }
     }
 
     fn metric_name_denied(deny_list: &ErrorBoundary<Metrics>, bucket: &Bucket) -> bool {
@@ -1494,12 +1494,13 @@ mod tests {
 
     fn apply_pattern_to_names(names: &[&str], patterns: &[&str]) -> Vec<String> {
         let mut buckets = get_test_buckets(names);
-        let deny_list: Metrics = {
+        let deny_list: ErrorBoundary<Metrics> = {
             let vector_as_string: String = serde_json::to_string(patterns).unwrap();
-            serde_json::from_str(&vector_as_string).unwrap()
+            ErrorBoundary::Ok(serde_json::from_str(&vector_as_string).unwrap())
         };
 
-        Project::metric_name_denied(&ErrorBoundary::Ok(deny_list), &mut buckets);
+        buckets.retain(|bucket| !Project::metric_name_denied(&deny_list, bucket));
+
         buckets.into_iter().map(|bucket| bucket.name).collect()
     }
 
