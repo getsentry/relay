@@ -225,7 +225,7 @@ struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
     /// Allowed time range for transactions.
-    pub transaction_range: std::ops::Range<UnixTimestamp>,
+    pub timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
     /// Configuration for measurement normalization in transaction events.
@@ -252,7 +252,7 @@ fn get_normalize_span_config<'a>(
 
     NormalizeSpanConfig {
         received_at,
-        transaction_range: aggregator_config.timestamp_range(),
+        timestamp_range: aggregator_config.timestamp_range(),
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
@@ -279,7 +279,7 @@ fn normalize(
 
     let NormalizeSpanConfig {
         received_at,
-        transaction_range,
+        timestamp_range,
         max_tag_value_size,
         measurements,
         max_name_and_unit_len,
@@ -303,7 +303,7 @@ fn normalize(
 
     process_value(
         annotated_span,
-        &mut TransactionsProcessor::new(Default::default(), Some(transaction_range)),
+        &mut TransactionsProcessor::new(Default::default(), Some(timestamp_range)),
         ProcessingState::root(),
     )?;
 
