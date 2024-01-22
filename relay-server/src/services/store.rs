@@ -1,6 +1,7 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Arc;
@@ -1219,6 +1220,8 @@ struct SpanMetricsSummary {
     tags: Option<BTreeMap<String, String>>,
 }
 
+type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
+
 #[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
     #[serde(skip_serializing)]
@@ -1237,14 +1240,15 @@ struct SpanKafkaMessage<'a> {
     exclusive_time_ms: f64,
     is_segment: bool,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<BTreeMap<&'a str, Option<SpanMeasurement>>>,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<BTreeMap<Cow<'a, str>, Option<SpanMeasurement>>>,
     #[serde(
+        borrow,
         default,
         rename = "_metrics_summary",
         skip_serializing_if = "Option::is_none"
     )]
-    metrics_summary: Option<BTreeMap<&'a str, Option<Vec<Option<SpanMetricsSummary>>>>>,
+    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
