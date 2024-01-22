@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.42
 
 - Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
 
