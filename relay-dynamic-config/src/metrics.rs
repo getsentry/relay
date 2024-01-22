@@ -12,7 +12,6 @@ use crate::project::ProjectConfig;
 
 /// Configuration for metrics filtering.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
 pub struct Metrics {
     /// List of patterns for blocking metrics based on their name.
     pub denied_names: GlobPatterns,
