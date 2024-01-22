@@ -2808,6 +2808,14 @@
 <a href="#2808" id="2808">2808</a>
 <a href="#2809" id="2809">2809</a>
 <a href="#2810" id="2810">2810</a>
+<a href="#2811" id="2811">2811</a>
+<a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
+<a href="#2818" id="2818">2818</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4064,7 +4072,11 @@
         span::filter(state);
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
-            span::process(state, <span class="self">self</span>.inner.config.clone());
+            span::process(
+                state,
+                <span class="self">self</span>.inner.config.clone(),
+                <span class="self">self</span>.inner.global_config.current().measurements.as_ref(),
+            );
         });
         <span class="prelude-val">Ok</span>(())
     }
@@ -4128,7 +4140,11 @@
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
             profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
             <span class="self">self</span>.process_check_ins(state);
-            span::process(state, <span class="self">self</span>.inner.config.clone());
+            span::process(
+                state,
+                <span class="self">self</span>.inner.config.clone(),
+                <span class="self">self</span>.inner.global_config.current().measurements.as_ref(),
+            );
         });
 
         <span class="kw">if </span>state.has_event() {

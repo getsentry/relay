@@ -2557,6 +2557,25 @@
 <a href="#2557" id="2557">2557</a>
 <a href="#2558" id="2558">2558</a>
 <a href="#2559" id="2559">2559</a>
+<a href="#2560" id="2560">2560</a>
+<a href="#2561" id="2561">2561</a>
+<a href="#2562" id="2562">2562</a>
+<a href="#2563" id="2563">2563</a>
+<a href="#2564" id="2564">2564</a>
+<a href="#2565" id="2565">2565</a>
+<a href="#2566" id="2566">2566</a>
+<a href="#2567" id="2567">2567</a>
+<a href="#2568" id="2568">2568</a>
+<a href="#2569" id="2569">2569</a>
+<a href="#2570" id="2570">2570</a>
+<a href="#2571" id="2571">2571</a>
+<a href="#2572" id="2572">2572</a>
+<a href="#2573" id="2573">2573</a>
+<a href="#2574" id="2574">2574</a>
+<a href="#2575" id="2575">2575</a>
+<a href="#2576" id="2576">2576</a>
+<a href="#2577" id="2577">2577</a>
+<a href="#2578" id="2578">2578</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2579,7 +2598,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
-    SpanStatus, Tags, User,
+    SpanStatus, Tags, Timestamp, User,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -2821,7 +2840,7 @@
     normalize_stacktraces(event);
     normalize_exceptions(event); <span class="comment">// Browser extension filters look at the stacktrace
     </span>normalize_user_agent(event, config.normalize_user_agent); <span class="comment">// Legacy browsers filter
-    </span>normalize_measurements(
+    </span>normalize_event_measurements(
         event,
         config.measurements.clone(),
         config.max_name_and_unit_len,
@@ -3252,8 +3271,8 @@
     }
 }
 
-<span class="doccomment">/// Ensure measurements interface is only present for transaction events.
-</span><span class="kw">fn </span>normalize_measurements(
+<span class="doccomment">/// Ensures measurements interface is only present for transaction events.
+</span><span class="kw">fn </span>normalize_event_measurements(
     event: <span class="kw-2">&amp;mut </span>Event,
     measurements_config: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&gt;,
     max_mri_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
@@ -3262,19 +3281,38 @@
         <span class="comment">// Only transaction events may have a measurements interface
         </span>event.measurements = Annotated::empty();
     } <span class="kw">else if let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>measurements), <span class="kw-2">ref mut </span>meta) = event.measurements {
-        normalize_mobile_measurements(measurements);
-        normalize_units(measurements);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
-        }
-
-        <span class="kw">let </span>duration_millis = <span class="kw">match </span>(event.start_timestamp.<span class="number">0</span>, event.timestamp.<span class="number">0</span>) {
-            (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; relay_common::time::chrono_to_positive_millis(end - start),
-            <span class="kw">_ </span>=&gt; <span class="number">0.0</span>,
-        };
-
-        compute_measurements(duration_millis, measurements);
+        normalize_measurements(
+            measurements,
+            meta,
+            measurements_config,
+            max_mri_len,
+            event.start_timestamp.<span class="number">0</span>,
+            event.timestamp.<span class="number">0</span>,
+        );
     }
+}
+
+<span class="doccomment">/// Ensure only valid measurements are ingested.
+</span><span class="kw">pub fn </span>normalize_measurements(
+    measurements: <span class="kw-2">&amp;mut </span>Measurements,
+    meta: <span class="kw-2">&amp;mut </span>Meta,
+    measurements_config: <span class="prelude-ty">Option</span>&lt;DynamicMeasurementsConfig&gt;,
+    max_mri_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+    start_timestamp: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
+    end_timestamp: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
+) {
+    normalize_mobile_measurements(measurements);
+    normalize_units(measurements);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements_config) = measurements_config {
+        remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
+    }
+
+    <span class="kw">let </span>duration_millis = <span class="kw">match </span>(start_timestamp, end_timestamp) {
+        (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; relay_common::time::chrono_to_positive_millis(end - start),
+        <span class="kw">_ </span>=&gt; <span class="number">0.0</span>,
+    };
+
+    compute_measurements(duration_millis, measurements);
 }
 
 <span class="doccomment">/// Computes performance score measurements.
@@ -3747,7 +3785,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap().<span class="number">0</span>.unwrap();
 
-        normalize_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
+        normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#&quot;
         {
@@ -3819,7 +3857,7 @@
         <span class="kw">let </span>dynamic_measurement_config =
             DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_measurement_config), <span class="prelude-val">None</span>);
 
-        normalize_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
+        normalize_event_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(dynamic_measurement_config), <span class="prelude-val">None</span>);
 
         <span class="comment">// Only two custom measurements are retained, in alphabetic order (1 and 2)
         </span><span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#&quot;
