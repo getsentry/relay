@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use relay_base_schema::data_category::DataCategory;
+use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
 use relay_protocol::RuleCondition;
@@ -14,21 +15,16 @@ use crate::project::ProjectConfig;
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Metrics {
+    /// List of cardinality limits to enforce for this project.
+    pub cardinality_limits: Vec<CardinalityLimit>,
     /// List of patterns for blocking metrics based on their name.
     pub denied_names: GlobPatterns,
 }
 
 impl Metrics {
-    /// Returns a new instance of [`Metrics`].
-    pub fn new(patterns: Vec<String>) -> Self {
-        Self {
-            denied_names: GlobPatterns::new(patterns),
-        }
-    }
-
-    /// Returns `true` if there are no blocked metrics.
+    /// Returns `true` if there are no changes to the metrics config.
     pub fn is_empty(&self) -> bool {
-        self.denied_names.is_empty()
+        self.cardinality_limits.is_empty() && self.denied_names.is_empty()
     }
 }
 

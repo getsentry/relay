@@ -1479,10 +1479,12 @@ mod tests {
         patterns: impl AsRef<[&'a str]>,
     ) -> Vec<String> {
         let mut buckets = get_test_buckets(&names);
-        let patterns: Vec<String> = patterns.as_ref().iter().map(|s| (*s).to_owned()).collect();
-        let deny_list = Metrics::new(patterns);
+        let mut metrics = Metrics {
+            denied_names: patterns.as_ref().iter().map(|s| (*s).to_owned()).collect(),
+            ..Default::default()
+        };
 
-        Project::apply_metrics_deny_list(&ErrorBoundary::Ok(deny_list), &mut buckets);
+        Project::apply_metrics_deny_list(&ErrorBoundary::Ok(metrics), &mut buckets);
         buckets.into_iter().map(|bucket| bucket.name).collect()
     }
 
