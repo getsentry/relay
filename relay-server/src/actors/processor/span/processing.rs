@@ -14,6 +14,7 @@ use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 
+use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
@@ -45,7 +46,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
                     Ok(otel_span) => Annotated::new(otel_span.into()),
                     Err(err) => {
                         relay_log::debug!("failed to parse OTel span: {}", err);
-                        return ItemAction::DropSilently;
+                        return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
                     }
                 }
             }
@@ -53,7 +54,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
                 Ok(span) => span,
                 Err(err) => {
                     relay_log::debug!("failed to parse span: {}", err);
-                    return ItemAction::DropSilently;
+                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
                 }
             },
 
@@ -62,16 +63,17 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
 
         if let Err(e) = normalize(&mut annotated_span, config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
-            return ItemAction::DropSilently;
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
         let Some(span) = annotated_span.value_mut() else {
-            return ItemAction::DropSilently;
+            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
         if let Some(config) = span_metrics_extraction_config {
             let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
+            item.set_metrics_extracted(true);
         }
 
         // TODO: dynamic sampling
@@ -95,7 +97,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             Ok(res) => res,
             Err(err) => {
                 relay_log::error!("invalid span: {err}");
-                return ItemAction::DropSilently;
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidSpan));
             }
         };
 
@@ -105,10 +107,11 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             Ok(payload) => payload,
             Err(err) => {
                 relay_log::debug!("failed to serialize span: {}", err);
-                return ItemAction::DropSilently;
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             }
         };
         new_item.set_payload(ContentType::Json, payload);
+        new_item.set_metrics_extracted(item.metrics_extracted());
 
         *item = new_item;
 
@@ -127,6 +130,11 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!("Invalid span: {e}");
+                state.managed_envelope.track_outcome(
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                    relay_quotas::DataCategory::SpanIndexed,
+                    1,
+                );
                 return;
             }
         };
@@ -134,11 +142,18 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
+                state.managed_envelope.track_outcome(
+                    Outcome::Invalid(DiscardReason::InvalidSpan),
+                    relay_quotas::DataCategory::SpanIndexed,
+                    1,
+                );
                 return;
             }
         };
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
+        // If metrics extraction happened for the event, it also happened for its spans:
+        item.set_metrics_extracted(state.event_metrics_extracted);
         state.managed_envelope.envelope_mut().add_item(item);
     };
 

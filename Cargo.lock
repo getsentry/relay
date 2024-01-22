@@ -3461,7 +3461,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.39"
+version = "0.8.41"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3846,6 +3846,7 @@ dependencies = [
 name = "relay-quotas"
 version = "23.12.1"
 dependencies = [
+ "hashbrown 0.13.2",
  "insta",
  "relay-base-schema",
  "relay-common",
@@ -3855,6 +3856,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]

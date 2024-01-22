@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add a global throughput rate limiter for metric buckets. ([#2928](https://github.com/getsentry/relay/pull/2928))
 - Group db spans with repeating logical conditions together. ([#2929](https://github.com/getsentry/relay/pull/2929))
 
 **Bug Fixes**:
@@ -19,9 +20,11 @@
 - Make Kafka spans compatible with the Snuba span schema. ([#2917](https://github.com/getsentry/relay/pull/2917), [#2926](https://github.com/getsentry/relay/pull/2926))
 - Only extract span metrics / tags when they are needed. ([#2907](https://github.com/getsentry/relay/pull/2907), [#2923](https://github.com/getsentry/relay/pull/2923), [#2924](https://github.com/getsentry/relay/pull/2924))
 - Normalize metric resource identifiers in `event._metrics_summary` and `span._metrics_summary`. ([#2914](https://github.com/getsentry/relay/pull/2914))
+- Send outcomes for spans. ([#2930](https://github.com/getsentry/relay/pull/2930))
 - Validate error_id and trace_id vectors in replay deserializer. ([#2931](https://github.com/getsentry/relay/pull/2931))
 - Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
 - Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
+- Create rate limited outcomes for cardinality limited metrics ([#2947](https://github.com/getsentry/relay/pull/2947))
 
 ## 23.12.1
 
