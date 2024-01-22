@@ -16,10 +16,17 @@ pub struct Metrics {
     /// Patterns of names of metrics that we want to filter.
     pub blocked_metrics: GlobPatterns,
     ///
-    pub blocked_tags: Vec<TagBlocker>,
+    pub blocked_tags: Vec<TagBlockConfig>,
 }
 
 impl Metrics {
+    /// Returns a new instance of [`Metrics`].
+    pub fn new(patterns: Vec<String>) -> Self {
+        Self {
+            blocked_metrics: GlobPatterns::new(patterns),
+            blocked_tags: vec![],
+        }
+    }
     /// Returns `true` if it contains any names patterns to filter metric names.
     pub fn is_empty(&self) -> bool {
         self.blocked_metrics.is_empty()
@@ -28,7 +35,7 @@ impl Metrics {
 
 /// For metrics matching the 'name' pattern, we remove tags matching the 'tag' pattern.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct TagBlocker {
+pub struct TagBlockConfig {
     ///
     pub name: GlobPatterns,
     ///

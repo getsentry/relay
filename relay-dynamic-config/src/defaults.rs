@@ -47,6 +47,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
+    // Feature flag for experimental features.
     let is_extract_all = project_config
         .features
         .has(Feature::SpanMetricsExtractionAllModules);
@@ -97,6 +98,12 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
         );
 
     let is_mobile = is_mobile_sdk.clone() & (is_mobile_op.clone() | is_screen);
+
+    let is_interaction = if is_extract_all {
+        RuleCondition::glob("span.op", "ui.interaction.*")
+    } else {
+        RuleCondition::never()
+    };
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
     let duration_condition = RuleCondition::negate(is_mobile_op.clone())
@@ -182,7 +189,7 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
             condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
                     & duration_condition.clone(),
             ),
             tags: vec![

@@ -477,6 +477,18 @@ mod tests {
                         "http.response_content_length": 0,
                         "http.response_transfer_size": 0
                     }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "input.app-123.adfasf456[type=\"range\"][name=\"replay-timeline\"]",
+                    "op": "ui.interaction.click",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {
+                        "ui.component_name": "my-component-name"
+                    }
                 }
             ]
         }
