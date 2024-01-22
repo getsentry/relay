@@ -174,20 +174,12 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
     let mut transaction_span: Span = event.into();
 
     if extract_child_spans {
-        let all_modules_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionAllModules);
-
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
                 let Some(inner_span) = span.value() else {
                     continue;
                 };
-                // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled && !is_allowed(inner_span) {
-                    continue;
-                }
                 // HACK: clone the span to set the segment_id. This should happen
                 // as part of normalization once standalone spans reach wider adoption.
                 let mut new_span = inner_span.clone();
@@ -318,34 +310,6 @@ fn scrub(
     }
 
     Ok(())
-}
-
-fn is_allowed(span: &Span) -> bool {
-    let Some(op) = span.op.value() else {
-        return false;
-    };
-    let Some(description) = span.description.value() else {
-        return false;
-    };
-    let system: &str = span
-        .data
-        .value()
-        .and_then(|v| v.get("span.system"))
-        .and_then(|system| system.as_str())
-        .unwrap_or_default();
-    op.contains("resource.script")
-        || op.contains("resource.css")
-        || op == "resource.img"
-        || op == "http.client"
-        || op.starts_with("app.")
-        || op.starts_with("ui.load")
-        || op.starts_with("file")
-        || (op.starts_with("db")
-            && !(op.contains("clickhouse")
-                || op.contains("mongodb")
-                || op.contains("redis")
-                || op.contains("compiler"))
-            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb")))
 }
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.
