@@ -1181,6 +1181,7 @@ impl Project {
 mod tests {
     use std::sync::{Arc, Mutex};
 
+    use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
@@ -1474,16 +1475,13 @@ mod tests {
         .into()
     }
 
-    fn apply_pattern_to_names<'a>(
-        names: Vec<&str>,
-        patterns: impl AsRef<[&'a str]>,
-    ) -> Vec<String> {
-        let mut buckets = get_test_buckets(&names);
-        let mut metrics = Metrics {
-            denied_names: patterns.as_ref().iter().map(|s| (*s).to_owned()).collect(),
+    fn apply_pattern_to_names(names: Vec<&str>, patterns: &[&str]) -> Vec<String> {
+        let metrics = Metrics {
+            denied_names: GlobPatterns::new(patterns.iter().map(|&s| s.to_owned()).collect()),
             ..Default::default()
         };
 
+        let mut buckets = get_test_buckets(&names);
         Project::apply_metrics_deny_list(&ErrorBoundary::Ok(metrics), &mut buckets);
         buckets.into_iter().map(|bucket| bucket.name).collect()
     }
@@ -1492,7 +1490,7 @@ mod tests {
     fn test_metric_deny_list_exact() {
         let names = get_test_bucket_names();
         let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, ["endpoint.parallel_requests"]);
+        let remaining_names = apply_pattern_to_names(names, &["endpoint.parallel_requests"]);
 
         // There's 1 bucket with that exact name.
         let buckets_to_remove = 1;
@@ -1504,7 +1502,7 @@ mod tests {
     fn test_metric_deny_list_end_glob() {
         let names = get_test_bucket_names();
         let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, ["*foo"]);
+        let remaining_names = apply_pattern_to_names(names, &["*foo"]);
 
         // There's 1 bucket name with 'foo' in the end.
         let buckets_to_remove = 1;
@@ -1516,7 +1514,7 @@ mod tests {
     fn test_metric_deny_list_middle_glob() {
         let names = get_test_bucket_names();
         let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, ["*foo*"]);
+        let remaining_names = apply_pattern_to_names(names, &["*foo*"]);
 
         // There's 4 bucket names with 'foo' in the middle, and one with foo in the end.
         let buckets_to_remove = 5;
@@ -1528,7 +1526,7 @@ mod tests {
     fn test_metric_deny_list_beginning_glob() {
         let names = get_test_bucket_names();
         let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, ["endpoint*"]);
+        let remaining_names = apply_pattern_to_names(names, &["endpoint*"]);
 
         // There's 4 buckets starting with "endpoint".
         let buckets_to_remove = 4;
@@ -1539,7 +1537,7 @@ mod tests {
     #[test]
     fn test_metric_deny_list_everything() {
         let names = get_test_bucket_names();
-        let remaining_names = apply_pattern_to_names(names, ["*"]);
+        let remaining_names = apply_pattern_to_names(names, &["*"]);
 
         assert_eq!(remaining_names.len(), 0);
     }
@@ -1548,7 +1546,7 @@ mod tests {
     fn test_metric_deny_list_multiple() {
         let names = get_test_bucket_names();
         let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, ["endpoint*", "*transactions*"]);
+        let remaining_names = apply_pattern_to_names(names, &["endpoint*", "*transactions*"]);
 
         let endpoint_buckets = 4;
         let transaction_buckets = 3;

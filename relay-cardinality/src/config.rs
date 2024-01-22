@@ -18,7 +18,7 @@ pub struct CardinalityLimit {
     /// Metric namespace the limit applies to.
     ///
     /// No namespace means this specific limit is enforced across all namespaces.
-    pub namespace: Option<MetricNamespace>, // TODO: should this be a list of namespaces?
+    pub namespace: Option<MetricNamespace>,
 }
 
 /// A scope to restrict the [`CardinalityLimit`] to.
