@@ -735,6 +735,7 @@ pub fn normalize_measurements(
     };
 
     compute_measurements(duration_millis, measurements);
+    normalize_web_vital_measurements(measurements);
 }
 
 /// Computes performance score measurements.
@@ -1098,6 +1099,17 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
     }
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
         measurements.insert("app_start_warm".to_string(), app_start_warm_value);
+    }
+}
+
+// Drop any web vitals received that are negative values since they are invalid.
+fn normalize_web_vital_measurements(measurements: &mut Measurements) {
+    for key in ["fcp", "lcp", "fid", "cls", "ttfb"] {
+        if let Some(value) = measurements.get_value(key) {
+            if value < 0.0 {
+                measurements.remove(key);
+            }
+        }
     }
 }
 
@@ -2574,5 +2586,30 @@ mod tests {
                 .to_string(),
             "invalid transaction event: timestamp is too stale"
         );
+    }
+
+    #[test]
+    fn test_filter_negative_web_vital_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        normalize_event_measurements(&mut event, None, None);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+        }
+        "###);
     }
 }
