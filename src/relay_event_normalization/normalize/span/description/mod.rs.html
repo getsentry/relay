@@ -994,9 +994,6 @@
 <a href="#994" id="994">994</a>
 <a href="#995" id="995">995</a>
 <a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -1070,9 +1067,6 @@
             (<span class="string">&quot;ui&quot;</span>, <span class="string">&quot;load&quot;</span>) =&gt; {
                 <span class="comment">// `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
-                // At the moment the metrics from this module
-                // are still filtered by the `SpanMetricsExtractionAllModules` feature, so it should
-                // be low-risk to start adding the description.
                 </span><span class="prelude-val">Some</span>(description.to_owned())
             }
             (<span class="string">&quot;ui&quot;</span>, sub) <span class="kw">if </span>sub.starts_with(<span class="string">&quot;interaction.&quot;</span>) || sub.starts_with(<span class="string">&quot;react.&quot;</span>) =&gt; data

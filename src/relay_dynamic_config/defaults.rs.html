@@ -393,17 +393,6 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -424,7 +413,13 @@
 ];
 
 <span class="doccomment">/// A list of `span.op` patterns we want to enable for mobile.
-</span><span class="kw">const </span>MOBILE_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;app.*&quot;</span>, <span class="string">&quot;ui.load*&quot;</span>];
+</span><span class="kw">const </span>MOBILE_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
+    <span class="string">&quot;activity.load&quot;</span>,
+    <span class="string">&quot;app.*&quot;</span>,
+    <span class="string">&quot;application.load&quot;</span>,
+    <span class="string">&quot;contentprovider.load&quot;</span>,
+    <span class="string">&quot;ui.load*&quot;</span>,
+];
 
 <span class="doccomment">/// A list of span descriptions that indicate top-level app start spans.
 </span><span class="kw">const </span>APP_START_ROOT_SPAN_DESCRIPTIONS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;Cold Start&quot;</span>, <span class="string">&quot;Warm Start&quot;</span>];
@@ -453,12 +448,7 @@
         <span class="kw">return</span>;
     }
 
-    <span class="comment">// Feature flag for experimental features.
-    </span><span class="kw">let </span>is_extract_all = project_config
-        .features
-        .has(Feature::SpanMetricsExtractionAllModules);
-
-    config.metrics.extend(span_metrics(is_extract_all));
+    config.metrics.extend(span_metrics());
 
     config._span_metrics_extended = <span class="bool-val">true</span>;
     <span class="kw">if </span>config.version == <span class="number">0 </span>{
@@ -467,22 +457,14 @@
 }
 
 <span class="doccomment">/// Metrics with tags applied as required.
-</span><span class="kw">fn </span>span_metrics(is_extract_all: bool) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = MetricSpec&gt; {
-    <span class="kw">let </span>flagged_mobile_ops = {
-        <span class="kw">let </span><span class="kw-2">mut </span>ops = MOBILE_OPS.to_vec();
-        <span class="kw">if </span>is_extract_all {
-            ops.extend([<span class="string">&quot;contentprovider.load&quot;</span>, <span class="string">&quot;application.load&quot;</span>, <span class="string">&quot;activity.load&quot;</span>]);
-        }
-        ops
-    };
-
+</span><span class="kw">fn </span>span_metrics() -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = MetricSpec&gt; {
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">&quot;span.sentry_tags.category&quot;</span>, <span class="string">&quot;db&quot;</span>)
         &amp; !(RuleCondition::eq(<span class="string">&quot;span.system&quot;</span>, <span class="string">&quot;mongodb&quot;</span>)
             | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, DISABLED_DATABASES)
             | RuleCondition::glob(<span class="string">&quot;span.description&quot;</span>, MONGODB_QUERIES));
     <span class="kw">let </span>is_resource = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, RESOURCE_SPAN_OPS);
 
-    <span class="kw">let </span>is_mobile_op = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, flagged_mobile_ops);
+    <span class="kw">let </span>is_mobile_op = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, MOBILE_OPS);
 
     <span class="kw">let </span>is_mobile_sdk = RuleCondition::eq(<span class="string">&quot;span.sentry_tags.mobile&quot;</span>, <span class="string">&quot;true&quot;</span>);
 
@@ -505,11 +487,7 @@
 
     <span class="kw">let </span>is_mobile = is_mobile_sdk.clone() &amp; (is_mobile_op.clone() | is_screen);
 
-    <span class="kw">let </span>is_interaction = <span class="kw">if </span>is_extract_all {
-        RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;ui.interaction.*&quot;</span>)
-    } <span class="kw">else </span>{
-        RuleCondition::never()
-    };
+    <span class="kw">let </span>is_interaction = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;ui.interaction.*&quot;</span>);
 
     <span class="comment">// For mobile spans, only extract duration metrics when they are below a threshold.
     </span><span class="kw">let </span>duration_condition = RuleCondition::negate(is_mobile_op.clone())

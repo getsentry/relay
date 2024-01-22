@@ -111,6 +111,7 @@
 <a href="#111" id="111">111</a>
 <a href="#112" id="112">112</a>
 <a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -140,9 +141,7 @@
     <span class="doccomment">/// Allow ingestion of metrics in the &quot;custom&quot; namespace.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:custom-metrics&quot;</span>)]
     </span>CustomMetrics,
-    <span class="doccomment">/// Enable extracting spans for all modules.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-all-modules&quot;</span>)]
-    </span>SpanMetricsExtractionAllModules,
+
     <span class="doccomment">/// Enable processing profiles
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
     </span>Profiling,
@@ -168,6 +167,9 @@
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-resource&quot;</span>)]
     </span>Deprecated5,
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-all-modules&quot;</span>)]
+    </span>Deprected6,
     <span class="doccomment">/// Forward compatibility.
     </span><span class="attr">#[serde(other)]
     </span>Unknown,

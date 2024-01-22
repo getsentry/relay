@@ -1363,19 +1363,6 @@
 <a href="#1363" id="1363">1363</a>
 <a href="#1364" id="1364">1364</a>
 <a href="#1365" id="1365">1365</a>
-<a href="#1366" id="1366">1366</a>
-<a href="#1367" id="1367">1367</a>
-<a href="#1368" id="1368">1368</a>
-<a href="#1369" id="1369">1369</a>
-<a href="#1370" id="1370">1370</a>
-<a href="#1371" id="1371">1371</a>
-<a href="#1372" id="1372">1372</a>
-<a href="#1373" id="1373">1373</a>
-<a href="#1374" id="1374">1374</a>
-<a href="#1375" id="1375">1375</a>
-<a href="#1376" id="1376">1376</a>
-<a href="#1377" id="1377">1377</a>
-<a href="#1378" id="1378">1378</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1873,10 +1860,7 @@
         &quot;#</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
-        <span class="kw">let </span>features = FeatureSet(BTreeSet::from([
-            Feature::SpanMetricsExtraction,
-            Feature::SpanMetricsExtractionAllModules,
-        ]));
+        <span class="kw">let </span>features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
         <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
         </span>normalize_event(
@@ -2527,12 +2511,7 @@
 
         <span class="comment">// Create a project config with the relevant feature flag. Sanitize to fill defaults.
         </span><span class="kw">let </span><span class="kw-2">mut </span>project = ProjectConfig {
-            features: [
-                Feature::SpanMetricsExtraction,
-                Feature::SpanMetricsExtractionAllModules,
-            ]
-            .into_iter()
-            .collect(),
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -2592,12 +2571,7 @@
 
         <span class="comment">// Create a project config with the relevant feature flag. Sanitize to fill defaults.
         </span><span class="kw">let </span><span class="kw-2">mut </span>project = ProjectConfig {
-            features: [
-                Feature::SpanMetricsExtraction,
-                Feature::SpanMetricsExtractionAllModules,
-            ]
-            .into_iter()
-            .collect(),
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
