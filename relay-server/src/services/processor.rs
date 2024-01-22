@@ -826,7 +826,7 @@ impl EnvelopeProcessorService {
 
     /// Returns current cardinality limits built from the configuration.
     ///
-    /// In the near future this limits will be coming from the project config.
+    /// In the near future these limits will be coming from the project config.
     #[cfg(feature = "processing")]
     fn get_cardinality_limits(&self) -> [CardinalityLimit; 5] {
         let limit = self.inner.config.cardinality_limit();
