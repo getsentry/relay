@@ -510,16 +510,62 @@
 <a href="#510" id="510">510</a>
 <a href="#511" id="511">511</a>
 <a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
+<span class="kw">use </span>relay_common::glob3::GlobPatterns;
 <span class="kw">use </span>relay_protocol::RuleCondition;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::project::ProjectConfig;
+
+<span class="doccomment">/// Configuration for metrics filtering.
+</span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>Metrics {
+    <span class="doccomment">/// List of patterns for blocking metrics based on their name.
+    </span><span class="kw">pub </span>denied_names: GlobPatterns,
+}
+
+<span class="kw">impl </span>Metrics {
+    <span class="doccomment">/// Returns a new instance of [`Metrics`].
+    </span><span class="kw">pub fn </span>new(patterns: Vec&lt;String&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            denied_names: GlobPatterns::new(patterns),
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if there are no blocked metrics.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.denied_names.is_empty()
+    }
+}
 
 <span class="doccomment">/// Rule defining when a target tag should be set on a metric.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
