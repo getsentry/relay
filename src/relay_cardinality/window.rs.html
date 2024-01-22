@@ -71,8 +71,12 @@
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
 <a href="#73" id="73">73</a>
-</pre></div><pre class="rust"><code><span class="doccomment">/// A sliding window.
-</span><span class="attr">#[derive(Debug, Clone, Copy)]
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
+
+<span class="doccomment">/// A sliding window.
+</span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>SlidingWindow {
     <span class="doccomment">/// The number of seconds to apply the limit to.
     </span><span class="kw">pub </span>window_seconds: u64,

@@ -2751,6 +2751,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::sync::{Arc, Mutex};
 
+    <span class="kw">use </span>relay_common::glob3::GlobPatterns;
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
     <span class="kw">use </span>relay_metrics::BucketValue;
     <span class="kw">use </span>relay_test::mock_service;
@@ -3044,15 +3045,14 @@
         .into()
     }
 
-    <span class="kw">fn </span>apply_pattern_to_names&lt;<span class="lifetime">&#39;a</span>&gt;(
-        names: Vec&lt;<span class="kw-2">&amp;</span>str&gt;,
-        patterns: <span class="kw">impl </span>AsRef&lt;[<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str]&gt;,
-    ) -&gt; Vec&lt;String&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = get_test_buckets(<span class="kw-2">&amp;</span>names);
-        <span class="kw">let </span>patterns: Vec&lt;String&gt; = patterns.as_ref().iter().map(|s| (<span class="kw-2">*</span>s).to_owned()).collect();
-        <span class="kw">let </span>deny_list = Metrics::new(patterns);
+    <span class="kw">fn </span>apply_pattern_to_names(names: Vec&lt;<span class="kw-2">&amp;</span>str&gt;, patterns: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; Vec&lt;String&gt; {
+        <span class="kw">let </span>metrics = Metrics {
+            denied_names: GlobPatterns::new(patterns.iter().map(|<span class="kw-2">&amp;</span>s| s.to_owned()).collect()),
+            ..Default::default()
+        };
 
-        Project::apply_metrics_deny_list(<span class="kw-2">&amp;</span>ErrorBoundary::Ok(deny_list), <span class="kw-2">&amp;mut </span>buckets);
+        <span class="kw">let </span><span class="kw-2">mut </span>buckets = get_test_buckets(<span class="kw-2">&amp;</span>names);
+        Project::apply_metrics_deny_list(<span class="kw-2">&amp;</span>ErrorBoundary::Ok(metrics), <span class="kw-2">&amp;mut </span>buckets);
         buckets.into_iter().map(|bucket| bucket.name).collect()
     }
 
@@ -3060,7 +3060,7 @@
     </span><span class="kw">fn </span>test_metric_deny_list_exact() {
         <span class="kw">let </span>names = get_test_bucket_names();
         <span class="kw">let </span>input_qty = names.len();
-        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, [<span class="string">&quot;endpoint.parallel_requests&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, <span class="kw-2">&amp;</span>[<span class="string">&quot;endpoint.parallel_requests&quot;</span>]);
 
         <span class="comment">// There&#39;s 1 bucket with that exact name.
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">1</span>;
@@ -3072,7 +3072,7 @@
     </span><span class="kw">fn </span>test_metric_deny_list_end_glob() {
         <span class="kw">let </span>names = get_test_bucket_names();
         <span class="kw">let </span>input_qty = names.len();
-        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, [<span class="string">&quot;*foo&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, <span class="kw-2">&amp;</span>[<span class="string">&quot;*foo&quot;</span>]);
 
         <span class="comment">// There&#39;s 1 bucket name with &#39;foo&#39; in the end.
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">1</span>;
@@ -3084,7 +3084,7 @@
     </span><span class="kw">fn </span>test_metric_deny_list_middle_glob() {
         <span class="kw">let </span>names = get_test_bucket_names();
         <span class="kw">let </span>input_qty = names.len();
-        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, [<span class="string">&quot;*foo*&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, <span class="kw-2">&amp;</span>[<span class="string">&quot;*foo*&quot;</span>]);
 
         <span class="comment">// There&#39;s 4 bucket names with &#39;foo&#39; in the middle, and one with foo in the end.
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">5</span>;
@@ -3096,7 +3096,7 @@
     </span><span class="kw">fn </span>test_metric_deny_list_beginning_glob() {
         <span class="kw">let </span>names = get_test_bucket_names();
         <span class="kw">let </span>input_qty = names.len();
-        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, [<span class="string">&quot;endpoint*&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, <span class="kw-2">&amp;</span>[<span class="string">&quot;endpoint*&quot;</span>]);
 
         <span class="comment">// There&#39;s 4 buckets starting with &quot;endpoint&quot;.
         </span><span class="kw">let </span>buckets_to_remove = <span class="number">4</span>;
@@ -3107,7 +3107,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_metric_deny_list_everything() {
         <span class="kw">let </span>names = get_test_bucket_names();
-        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, [<span class="string">&quot;*&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, <span class="kw-2">&amp;</span>[<span class="string">&quot;*&quot;</span>]);
 
         <span class="macro">assert_eq!</span>(remaining_names.len(), <span class="number">0</span>);
     }
@@ -3116,7 +3116,7 @@
     </span><span class="kw">fn </span>test_metric_deny_list_multiple() {
         <span class="kw">let </span>names = get_test_bucket_names();
         <span class="kw">let </span>input_qty = names.len();
-        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, [<span class="string">&quot;endpoint*&quot;</span>, <span class="string">&quot;*transactions*&quot;</span>]);
+        <span class="kw">let </span>remaining_names = apply_pattern_to_names(names, <span class="kw-2">&amp;</span>[<span class="string">&quot;endpoint*&quot;</span>, <span class="string">&quot;*transactions*&quot;</span>]);
 
         <span class="kw">let </span>endpoint_buckets = <span class="number">4</span>;
         <span class="kw">let </span>transaction_buckets = <span class="number">3</span>;

@@ -533,11 +533,17 @@
 <a href="#533" id="533">533</a>
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_base_schema::data_category::DataCategory;
+<span class="kw">use </span>relay_cardinality::CardinalityLimit;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_common::glob3::GlobPatterns;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -546,24 +552,21 @@
 <span class="kw">use </span><span class="kw">crate</span>::project::ProjectConfig;
 
 <span class="doccomment">/// Configuration for metrics filtering.
-</span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>Metrics {
+    <span class="doccomment">/// List of cardinality limits to enforce for this project.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>cardinality_limits: Vec&lt;CardinalityLimit&gt;,
     <span class="doccomment">/// List of patterns for blocking metrics based on their name.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;GlobPatterns::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>denied_names: GlobPatterns,
 }
 
 <span class="kw">impl </span>Metrics {
-    <span class="doccomment">/// Returns a new instance of [`Metrics`].
-    </span><span class="kw">pub fn </span>new(patterns: Vec&lt;String&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            denied_names: GlobPatterns::new(patterns),
-        }
-    }
-
-    <span class="doccomment">/// Returns `true` if there are no blocked metrics.
+    <span class="doccomment">/// Returns `true` if there are no changes to the metrics config.
     </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.denied_names.is_empty()
+        <span class="self">self</span>.cardinality_limits.is_empty() &amp;&amp; <span class="self">self</span>.denied_names.is_empty()
     }
 }
 
@@ -588,7 +591,7 @@
 <span class="kw">const </span>EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = <span class="number">2</span>;
 
 <span class="doccomment">/// Configuration for metric extraction from sessions.
-</span><span class="attr">#[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
+</span><span class="attr">#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>SessionMetricsConfig {
     <span class="doccomment">/// The revision of the extraction algorithm.
@@ -1039,6 +1042,13 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>similar_asserts::assert_eq;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_empty_metrics_deserialize() {
+        <span class="kw">let </span>m: Metrics = serde_json::from_str(<span class="string">&quot;{}&quot;</span>).unwrap();
+        <span class="macro">assert!</span>(m.is_empty());
+        <span class="macro">assert_eq!</span>(m, Metrics::default());
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>parse_tag_spec_value() {

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Error"],"mod":["limiter"],"struct":["RedisSetLimiter","SlidingWindow"],"type":["CardinalityLimiter","Result"]};
+window.SIDEBAR_ITEMS = {"enum":["Error"],"mod":["limiter"],"struct":["CardinalityLimit","RedisSetLimiter","SlidingWindow"],"type":["CardinalityLimiter","Result"]};
