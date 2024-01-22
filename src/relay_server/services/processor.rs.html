@@ -2816,6 +2816,15 @@
 <a href="#2816" id="2816">2816</a>
 <a href="#2817" id="2817">2817</a>
 <a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a>
+<a href="#2821" id="2821">2821</a>
+<a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
+<a href="#2826" id="2826">2826</a>
+<a href="#2827" id="2827">2827</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3010,6 +3019,17 @@
             ))
         }
 
+        <span class="comment">// Extract user report and user feedback.
+        </span><span class="kw">let </span>report_items = envelope.take_items_by(|item| {
+            <span class="macro">matches!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::UserReport | <span class="kw-2">&amp;</span>ItemType::ClientReport)
+        });
+        <span class="kw">if </span>!report_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::UserReport,
+                Envelope::from_parts(headers.clone(), report_items),
+            ))
+        }
+
         <span class="comment">// Extract all the items which require an event into separate envelope.
         </span><span class="kw">let </span>require_event_items = envelope.take_items_by(Item::requires_event);
         <span class="kw">if </span>!require_event_items.is_empty() {
@@ -3035,8 +3055,6 @@
             <span class="kw">let </span>item_type = item.ty();
             <span class="kw">let </span>group = <span class="kw">if </span><span class="macro">matches!</span>(item_type, <span class="kw-2">&amp;</span>ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
-            } <span class="kw">else if </span><span class="macro">matches!</span>(item_type, <span class="kw-2">&amp;</span>ItemType::UserReport | <span class="kw-2">&amp;</span>ItemType::ClientReport) {
-                ProcessingGroup::UserReport
             } <span class="kw">else if </span><span class="macro">matches!</span>(item_type, <span class="kw-2">&amp;</span>ItemType::Unknown(<span class="kw">_</span>)) {
                 ProcessingGroup::ForwardUnknown
             } <span class="kw">else </span>{

@@ -455,6 +455,11 @@
 <a href="#455" id="455">455</a>
 <a href="#456" id="456">456</a>
 <a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -570,6 +575,11 @@
             outcome_aggregator,
             test_store,
         }
+    }
+
+    <span class="attr">#[cfg(test)]
+    </span><span class="kw">pub fn </span>set_processing_group(<span class="kw-2">&amp;mut </span><span class="self">self</span>, group: ProcessingGroup) {
+        <span class="self">self</span>.context.group = group
     }
 
     <span class="attr">#[cfg(test)]
