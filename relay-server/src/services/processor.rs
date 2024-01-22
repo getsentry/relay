@@ -192,6 +192,17 @@ impl ProcessingGroup {
             ))
         }
 
+        // Extract user report and user feedback.
+        let report_items = envelope.take_items_by(|item| {
+            matches!(item.ty(), &ItemType::UserReport | &ItemType::ClientReport)
+        });
+        if !report_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::UserReport,
+                Envelope::from_parts(headers.clone(), report_items),
+            ))
+        }
+
         // Extract all the items which require an event into separate envelope.
         let require_event_items = envelope.take_items_by(Item::requires_event);
         if !require_event_items.is_empty() {
@@ -217,8 +228,6 @@ impl ProcessingGroup {
             let item_type = item.ty();
             let group = if matches!(item_type, &ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
-            } else if matches!(item_type, &ItemType::UserReport | &ItemType::ClientReport) {
-                ProcessingGroup::UserReport
             } else if matches!(item_type, &ItemType::Unknown(_)) {
                 ProcessingGroup::ForwardUnknown
             } else {
