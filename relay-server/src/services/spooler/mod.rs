@@ -52,7 +52,7 @@ use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::{ProjectCache, UpdateBufferIndex};
+use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
@@ -183,6 +183,16 @@ impl RemoveMany {
 #[derive(Debug)]
 pub struct Health(pub Sender<bool>);
 
+/// Requests the index [`ProjectKey`] -> [`QueueKey`] of the data currently residing in the spool.
+///
+/// This is a one time request, which is sent on startup.
+/// Upon receiving this this message the buffer internally will check the existing keys in the
+/// on-disk spool and compile the index which will be returned to [`ProjectCache`].
+///
+/// The returned message will initiate the project state refresh for all the returned project keys.
+#[derive(Debug)]
+pub struct RestoreIndex;
+
 /// The interface for [`BufferService`].
 ///
 /// Buffer maintaince internal storage (internal buffer) of the envelopes, which keep accumulating
@@ -204,6 +214,7 @@ pub enum Buffer {
     DequeueMany(DequeueMany),
     RemoveMany(RemoveMany),
     Health(Health),
+    RestoreIndex(RestoreIndex),
 }
 
 impl Interface for Buffer {}
@@ -237,6 +248,14 @@ impl FromMessage<Health> for Buffer {
 
     fn from_message(message: Health, _: ()) -> Self {
         Self::Health(message)
+    }
+}
+
+impl FromMessage<RestoreIndex> for Buffer {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: RestoreIndex, _: ()) -> Self {
+        Self::RestoreIndex(message)
     }
 }
 
@@ -616,7 +635,7 @@ impl OnDisk {
         if !unused_keys.is_empty() {
             services
                 .project_cache
-                .send(UpdateBufferIndex::new(project_key, unused_keys))
+                .send(UpdateSpoolIndex::new(project_key, unused_keys))
         }
     }
 
@@ -684,6 +703,55 @@ impl OnDisk {
             relay_statsd::metric!(gauge(RelayGauges::BufferEnvelopesDiskCount) = *count);
         }
     }
+
+    fn extract_key(row: SqliteRow) -> Option<QueueKey> {
+        let own_key = row
+            .try_get("own_key")
+            .map_err(BufferError::FetchFailed)
+            .and_then(|key| ProjectKey::parse(key).map_err(BufferError::ParseProjectKeyFailed));
+        let sampling_key = row
+            .try_get("sampling_key")
+            .map_err(BufferError::FetchFailed)
+            .and_then(|key| ProjectKey::parse(key).map_err(BufferError::ParseProjectKeyFailed));
+
+        match (own_key, sampling_key) {
+            (Ok(own_key), Ok(sampling_key)) => Some(QueueKey {
+                own_key,
+                sampling_key,
+            }),
+            // Report the first found error.
+            (Err(err), _) | (_, Err(err)) => {
+                relay_log::error!("Failed to extract a queue key from the spool record: {err}");
+                None
+            }
+        }
+    }
+
+    /// Returns the index from the on-disk spool.
+    async fn get_spooled_index(
+        db: &Pool<Sqlite>,
+    ) -> Result<BTreeMap<ProjectKey, BTreeSet<QueueKey>>, BufferError> {
+        let keys = sql::get_keys()
+            .fetch_all(db)
+            .await
+            .map_err(BufferError::FetchFailed)?;
+
+        let index = keys
+            .into_iter()
+            // Collect only keys we could extract.
+            .filter_map(Self::extract_key)
+            // Fold the list into the index format.
+            .fold(
+                BTreeMap::new(),
+                |mut acc: BTreeMap<ProjectKey, BTreeSet<QueueKey>>, key| {
+                    acc.entry(key.own_key).or_default().insert(key);
+                    acc.entry(key.sampling_key).or_default().insert(key);
+                    acc
+                },
+            );
+
+        Ok(index)
+    }
 }
 
 /// The state which defines the [`BufferService`] behaviour.
@@ -742,7 +810,7 @@ impl BufferState {
                     );
                 }
                 relay_log::trace!(
-                    "Transition to disk spool: # of envelopes = {}",
+                    "transition to disk spool: # of envelopes = {}",
                     disk.count.unwrap_or_default()
                 );
 
@@ -756,7 +824,7 @@ impl BufferState {
                             buffer,
                         );
                         relay_log::trace!(
-                            "Transition to memory spool: # of envelopes = {}",
+                            "transition to memory spool: # of envelopes = {}",
                             ram.envelope_count
                         );
 
@@ -1016,6 +1084,7 @@ impl BufferService {
         Ok(())
     }
 
+    /// Handles the health requests.
     async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
         match self.state {
             BufferState::Memory(ref ram) => health.0.send(!ram.is_full()),
@@ -1029,6 +1098,41 @@ impl BufferService {
         Ok(())
     }
 
+    /// Handles retrieving of the index from the underlying spool.
+    ///
+    /// To process this request we spawn the tokio task and once it's done the result will be sent
+    /// to [`ProjectCache`].
+    ///
+    /// If the spool is memory based, we ignore this request - the index in the
+    /// [`ProjectCache`] should be full and correct.
+    /// If the spool is located on the disk, we read up the keys and compile the index of the
+    /// spooled envelopes for [`ProjectCache`].
+    async fn handle_restore_index(&mut self, _: RestoreIndex) -> Result<(), BufferError> {
+        match self.state {
+            BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => (),
+            BufferState::Disk(ref disk) => {
+                let db = disk.db.clone();
+                let project_cache = self.services.project_cache.clone();
+                tokio::spawn(async move {
+                    match OnDisk::get_spooled_index(&db).await {
+                        Ok(index) => {
+                            relay_log::trace!(
+                                "recover index from disk with {} unique project keys",
+                                index.len()
+                            );
+                            project_cache.send(RefreshIndexCache(index))
+                        }
+                        Err(err) => {
+                            relay_log::error!("failed to retrieve the index from the disk: {err}")
+                        }
+                    }
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     /// Handles all the incoming messages from the [`Buffer`] interface.
     async fn handle_message(&mut self, message: Buffer) -> Result<(), BufferError> {
         match message {
@@ -1036,6 +1140,7 @@ impl BufferService {
             Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
             Buffer::Health(message) => self.handle_health(message).await,
+            Buffer::RestoreIndex(message) => self.handle_restore_index(message).await,
         }
     }
 
@@ -1119,11 +1224,15 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+    use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
     use insta::assert_debug_snapshot;
     use relay_system::AsyncResponse;
     use relay_test::mock_service;
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::ConnectOptions;
     use uuid::Uuid;
 
     use crate::services::project_cache::SpoolHealth;
@@ -1528,5 +1637,86 @@ mod tests {
         let health_service = TestHealthService::new(addr.clone()).start();
         let healthy = health_service.send(SpoolHealth).await.unwrap();
         assert!(healthy);
+    }
+
+    #[tokio::test]
+    async fn index_restore() {
+        relay_log::init_test!();
+
+        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let buffer_guard: Arc<_> = BufferGuard::new(10).into();
+
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": db_path,
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                    "max_disk_size": "100KB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        // Setup spool file and run migrations.
+        BufferService::setup(&db_path).await.unwrap();
+
+        // Setup db and insert few records for the test.
+        let mut db =
+            SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.to_str().unwrap()))
+                .unwrap()
+                .connect()
+                .await
+                .unwrap();
+
+        let now = chrono::Utc::now().timestamp_millis();
+        let result = sqlx::query(&format!(
+            r#"INSERT INTO
+                    envelopes (received_at, own_key, sampling_key, envelope)
+               VALUES
+                    ("{}", "a94ae32be2584e0bbd7a4cbb95971fee", "a94ae32be2584e0bbd7a4cbb95971fee", ""),
+                    ("{}", "a94ae32be2584e0bbd7a4cbb95971f00", "a94ae32be2584e0bbd7a4cbb95971f11", "")
+            "#, now , now),
+        ).execute(&mut db).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 2);
+
+        let index = Arc::new(Mutex::new(BTreeMap::new()));
+        let mut services = services();
+        let index_in = index.clone();
+        let (project_cache, _) = mock_service("project_cache", (), move |(), msg: ProjectCache| {
+            let ProjectCache::RefreshIndexCache(new_index) = msg else {
+                return;
+            };
+            index_in.lock().unwrap().extend(new_index.0);
+        });
+
+        services.project_cache = project_cache;
+
+        let buffer = BufferService::create(buffer_guard, services, config)
+            .await
+            .unwrap();
+        let addr = buffer.start();
+        addr.send(RestoreIndex);
+        // Give some time to process the message
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Get the index out of the mutex.
+        let index = index.lock().unwrap().clone();
+
+        assert_eq!(index.len(), 3);
+        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f00").unwrap()));
+        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f11").unwrap()));
+        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap()));
+        let result_for_key = BTreeSet::from([QueueKey {
+            own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        }]);
+        assert_eq!(
+            index
+                .get(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap())
+                .unwrap(),
+            &result_for_key
+        );
     }
 }
