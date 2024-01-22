@@ -116,6 +116,11 @@ impl ManagedEnvelope {
     }
 
     #[cfg(test)]
+    pub fn set_processing_group(&mut self, group: ProcessingGroup) {
+        self.context.group = group
+    }
+
+    #[cfg(test)]
     pub fn untracked(
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,
