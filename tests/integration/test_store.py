@@ -1843,6 +1843,13 @@ def test_span_extraction_with_ddm_missing_values(
         ],
     }
     event["_metrics_summary"] = metrics_summary
+    event["measurements"] = {
+        "somemeasurement": None,
+        "anothermeasurement": {
+            "value": None,
+            "unit": "byte",
+        },
+    }
 
     relay.send_event(project_id, event)
 
@@ -1851,7 +1858,6 @@ def test_span_extraction_with_ddm_missing_values(
     duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
 
     metrics_summary["c:spans/some_metric@none"][0].pop("min", None)
-    metrics_summary["c:spans/some_metric@none"][0]["tags"].pop("random", None)
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["received"]
@@ -1871,6 +1877,7 @@ def test_span_extraction_with_ddm_missing_values(
         ),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
         "_metrics_summary": metrics_summary,
+        "measurements": {},
     }
 
     spans_consumer.assert_empty()
