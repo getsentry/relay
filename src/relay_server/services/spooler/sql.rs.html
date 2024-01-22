@@ -138,6 +138,11 @@
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
 <a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the helper functions wrapping the SQL queries which will be run against
 //! the on-disk spool (currently backed by SQLite).
 
@@ -210,6 +215,11 @@
 /// It is useful and very fast for checking if the table is empty.
 </span><span class="kw">pub fn </span>select_one&lt;<span class="lifetime">&#39;a</span>&gt;() -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
     sqlx::query(<span class="string">&quot;SELECT received_at FROM envelopes LIMIT 1;&quot;</span>)
+}
+
+<span class="doccomment">/// Returns the query to select all the unique combinations of own and sampling keys.
+</span><span class="kw">pub fn </span>get_keys&lt;<span class="lifetime">&#39;a</span>&gt;() -&gt; Query&lt;<span class="lifetime">&#39;a</span>, Sqlite, SqliteArguments&lt;<span class="lifetime">&#39;a</span>&gt;&gt; {
+    sqlx::query(<span class="string">&quot;SELECT DISTINCT own_key, sampling_key FROM envelopes;&quot;</span>)
 }
 
 <span class="doccomment">/// Creates the INSERT query.
