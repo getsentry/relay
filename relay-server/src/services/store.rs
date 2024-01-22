@@ -868,11 +868,9 @@ impl StoreService {
 
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
-                if let Some(v) = v {
-                    v.value.map_or(false, f64::is_finite)
-                } else {
-                    false
-                }
+                v.as_ref()
+                    .and_then(|v| v.value)
+                    .map_or(false, f64::is_finite)
             });
         }
 
