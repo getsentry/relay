@@ -5,6 +5,7 @@ use crate::SlidingWindow;
 
 /// A cardinality limit.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CardinalityLimit {
     /// Unique identifier of the cardinality limit.
     pub id: String,
@@ -23,6 +24,7 @@ pub struct CardinalityLimit {
 
 /// A scope to restrict the [`CardinalityLimit`] to.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum CardinalityScope {
     /// The organization that this project belongs to.
     ///
