@@ -11,13 +11,13 @@ use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::global_config::{self, StatusResponse};
-use crate::actors::project::{LimitedProjectState, ProjectState};
-use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
 use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
+use crate::services::global_config::{self, StatusResponse};
+use crate::services::project::{LimitedProjectState, ProjectState};
+use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
 
 /// V2 version of this endpoint.
 ///
@@ -87,7 +87,7 @@ struct GetProjectStatesResponseWrapper {
 
 /// Request payload of the project config endpoint.
 ///
-/// This is a replica of [`GetProjectStates`](crate::actors::project_upstream::GetProjectStates)
+/// This is a replica of [`GetProjectStates`](crate::services::project_upstream::GetProjectStates)
 /// which allows skipping invalid project keys.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -5,8 +5,8 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::Serialize;
 
-use crate::actors::health_check::IsHealthy;
 use crate::service::ServiceState;
+use crate::services::health_check::IsHealthy;
 
 #[derive(Serialize)]
 struct Status {

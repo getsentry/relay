@@ -78,13 +78,13 @@ impl IntoMetric for TransactionMetric {
             ),
             Self::Usage { tags } => (
                 Cow::Borrowed("usage"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.into()),
                 MetricUnit::None,
                 tags.into(),
             ),
             Self::CountPerRootProject { tags } => (
                 Cow::Borrowed("count_per_root_project"),
-                BucketValue::counter(1.0),
+                BucketValue::counter(1.into()),
                 MetricUnit::None,
                 tags.into(),
             ),

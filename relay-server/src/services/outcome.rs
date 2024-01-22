@@ -29,10 +29,10 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::processor::{EnvelopeProcessor, SubmitClientReports};
-use crate::actors::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
+use crate::services::processor::{EnvelopeProcessor, SubmitClientReports};
+use crate::services::upstream::{Method, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::statsd::RelayCounters;
 use crate::utils::SleepHandle;
 

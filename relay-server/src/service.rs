@@ -12,17 +12,17 @@ use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
-use crate::actors::global_config::{GlobalConfigManager, GlobalConfigService};
-use crate::actors::health_check::{HealthCheck, HealthCheckService};
-use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
-use crate::actors::processor::{EnvelopeProcessor, EnvelopeProcessorService};
-use crate::actors::project_cache::{ProjectCache, ProjectCacheService, Services};
-use crate::actors::relays::{RelayCache, RelayCacheService};
+use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
+use crate::services::health_check::{HealthCheck, HealthCheckService};
+use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
+use crate::services::outcome_aggregator::OutcomeAggregator;
+use crate::services::processor::{EnvelopeProcessor, EnvelopeProcessorService};
+use crate::services::project_cache::{ProjectCache, ProjectCacheService, Services};
+use crate::services::relays::{RelayCache, RelayCacheService};
 #[cfg(feature = "processing")]
-use crate::actors::store::StoreService;
-use crate::actors::test_store::{TestStore, TestStoreService};
-use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
+use crate::services::store::StoreService;
+use crate::services::test_store::{TestStore, TestStoreService};
+use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::BufferGuard;
 
 /// Indicates the type of failure of the server.
@@ -118,11 +118,12 @@ impl ServiceState {
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&runtimes.outcome);
 
+        let global_config = GlobalConfigService::new(config.clone(), upstream_relay.clone());
+        let global_config_handle = global_config.handle();
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        let global_config =
-            GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
+        let global_config = global_config.start();
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
 
@@ -143,6 +144,7 @@ impl ServiceState {
 
         EnvelopeProcessorService::new(
             config.clone(),
+            global_config_handle,
             #[cfg(feature = "processing")]
             redis_pool.clone(),
             outcome_aggregator.clone(),

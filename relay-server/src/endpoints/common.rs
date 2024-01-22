@@ -7,11 +7,11 @@ use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
 
-use crate::actors::outcome::{DiscardReason, Outcome};
-use crate::actors::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
-use crate::actors::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::{ProcessMetricMeta, ProcessMetrics, ProcessingGroup};
+use crate::services::project_cache::{CheckEnvelope, ValidateEnvelope};
 use crate::statsd::RelayCounters;
 use crate::utils::{
     self, ApiErrorResponse, BufferError, BufferGuard, FormDataIter, ManagedEnvelope, MultipartError,
@@ -250,7 +250,7 @@ pub fn event_id_from_items(items: &Items) -> Result<Option<EventId>, BadStoreReq
 ///   queued and processed.
 /// - Sessions and Session batches are always queued separately. If they occur in the same envelope
 ///   as an event, they are split off. Their path is the same as other Envelopes.
-/// - Metrics are directly sent to the [`crate::actors::processor::EnvelopeProcessor`], bypassing the manager's queue and
+/// - Metrics are directly sent to the [`crate::services::processor::EnvelopeProcessor`], bypassing the manager's queue and
 ///   going straight into metrics aggregation. See [`ProcessMetrics`] for a full description.
 ///
 /// Queueing can fail if the queue exceeds `envelope_buffer_size`. In this case, `Err` is
