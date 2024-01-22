@@ -89,7 +89,7 @@ pub struct ProjectConfig {
     /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
-    /// Configuration for filtering metrics.
+    /// Configuration for metrics.
     #[serde(default, skip_serializing_if = "skip_metrics")]
     pub metrics: ErrorBoundary<Metrics>,
 }

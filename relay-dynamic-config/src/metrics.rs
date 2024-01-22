@@ -12,13 +12,21 @@ use crate::project::ProjectConfig;
 
 /// Configuration for metrics filtering.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct Metrics {
     /// List of patterns for blocking metrics based on their name.
     pub denied_names: GlobPatterns,
 }
 
 impl Metrics {
-    /// Returns `true` if it contains any names patterns to filter metric names.
+    /// Returns a new instance of [`Metrics`].
+    pub fn new(patterns: Vec<String>) -> Self {
+        Self {
+            denied_names: GlobPatterns::new(patterns),
+        }
+    }
+
+    /// Returns `true` if there are no blocked metrics.
     pub fn is_empty(&self) -> bool {
         self.denied_names.is_empty()
     }
