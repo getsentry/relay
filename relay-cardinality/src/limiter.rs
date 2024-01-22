@@ -1,7 +1,6 @@
 //! Relay Cardinality Limiter
 
-use std::collections::BTreeSet;
-
+use hashbrown::HashSet;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::ProjectId;
 use relay_statsd::metric;
@@ -20,19 +19,27 @@ pub struct Scoping {
     pub project_id: ProjectId,
 }
 
+/// Accumulator of all cardinality outcomes.
+pub trait Outcomes {
+    /// Called for ever [`Entry`] which was rejected from the [`Limiter`].
+    fn reject(&mut self, entry_id: EntryId);
+}
+
 /// Limiter responsible to enforce limits.
 pub trait Limiter {
     /// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    fn check_cardinality_limits<I>(
+    fn check_cardinality_limits<I, T>(
         &self,
         scoping: Scoping,
         limits: &[CardinalityLimit],
         entries: I,
-    ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+        outcomes: &mut T,
+    ) -> Result<()>
     where
-        I: IntoIterator<Item = Entry>;
+        I: IntoIterator<Item = Entry>,
+        T: Outcomes;
 }
 
 /// Unit of operation for the cardinality limiter.
@@ -77,19 +84,6 @@ impl Entry {
     }
 }
 
-/// Represents a from the cardinality limiter rejected [`Entry`].
-#[derive(Debug)]
-pub struct Rejection {
-    pub(crate) id: EntryId,
-}
-
-impl Rejection {
-    /// Creates a new rejection.
-    pub fn new(id: EntryId) -> Self {
-        Self { id }
-    }
-}
-
 /// Cardinality Limiter enforcing cardinality limits on buckets.
 ///
 /// Delegates enforcement to a [`Limiter`].
@@ -117,20 +111,39 @@ impl<T: Limiter> CardinalityLimiter<T> {
                 Some(Entry::new(EntryId(id), item.namespace()?, item.to_hash()))
             });
 
-            let result = self
-                .limiter
-                .check_cardinality_limits(scoping, limits, entries);
+            let mut rejections = Rejections::default();
+            if let Err(err) =
+                self.limiter
+                    .check_cardinality_limits(scoping, limits, entries, &mut rejections)
+            {
+                return Err((items, err));
+            }
 
-            let rejections = match result {
-                Ok(rejections) => rejections.map(|rejection| rejection.id.0).collect(),
-                Err(err) => return Err((items, err)),
-            };
+            if !rejections.0.is_empty() {
+                relay_log::debug!(
+                    scoping = ?scoping,
+                    "rejected {} metrics due to cardinality limit",
+                    rejections.0.len(),
+                );
+            }
 
             Ok(CardinalityLimits {
                 source: items,
-                rejections,
+                rejections: rejections.0,
             })
         })
+    }
+}
+
+/// Internal outcome accumulator tracking the raw value from an [`EntryId`].
+///
+/// The result can be used directly by [`CardinalityLimits`].
+#[derive(Debug, Default)]
+struct Rejections(HashSet<usize>);
+
+impl Outcomes for Rejections {
+    fn reject(&mut self, entry_id: EntryId) {
+        self.0.insert(entry_id.0);
     }
 }
 
@@ -138,7 +151,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
 #[derive(Debug)]
 pub struct CardinalityLimits<T> {
     source: Vec<T>,
-    rejections: BTreeSet<usize>,
+    rejections: HashSet<usize>,
 }
 
 impl<T> CardinalityLimits<T> {
@@ -228,28 +241,28 @@ mod tests {
             expected: impl IntoIterator<Item = char>,
         ) {
             assert_eq!(
-                limits.rejected().copied().collect::<Vec<char>>(),
-                expected.into_iter().collect::<Vec<char>>(),
+                limits.rejected().copied().collect::<HashSet<char>>(),
+                expected.into_iter().collect::<HashSet<char>>(),
             );
         }
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: BTreeSet::from([0, 1, 3]),
+            rejections: HashSet::from([0, 1, 3]),
         };
         assert_rejected(&limits, ['a', 'b', 'd']);
         assert_eq!(limits.into_accepted(), vec!['c', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: BTreeSet::from([]),
+            rejections: HashSet::from([]),
         };
         assert_rejected(&limits, []);
         assert_eq!(limits.into_accepted(), vec!['a', 'b', 'c', 'd', 'e']);
 
         let limits = CardinalityLimits {
             source: vec!['a', 'b', 'c', 'd', 'e'],
-            rejections: BTreeSet::from([0, 1, 2, 3, 4]),
+            rejections: HashSet::from([0, 1, 2, 3, 4]),
         };
         assert_rejected(&limits, ['a', 'b', 'c', 'd', 'e']);
         assert!(limits.into_accepted().is_empty());
@@ -260,21 +273,22 @@ mod tests {
         struct RejectAllLimiter;
 
         impl Limiter for RejectAllLimiter {
-            fn check_cardinality_limits<I>(
+            fn check_cardinality_limits<I, T>(
                 &self,
                 _scoping: Scoping,
                 _limits: &[CardinalityLimit],
                 entries: I,
-            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+                outcomes: &mut T,
+            ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
+                T: Outcomes,
             {
-                let rejections = entries
-                    .into_iter()
-                    .map(|entry| Rejection::new(entry.id))
-                    .collect::<Vec<_>>();
+                for entry in entries {
+                    outcomes.reject(entry.id);
+                }
 
-                Ok(Box::new(rejections.into_iter()))
+                Ok(())
             }
         }
 
@@ -299,16 +313,18 @@ mod tests {
         struct AcceptAllLimiter;
 
         impl Limiter for AcceptAllLimiter {
-            fn check_cardinality_limits<I>(
+            fn check_cardinality_limits<I, T>(
                 &self,
                 _scoping: Scoping,
                 _limits: &[CardinalityLimit],
                 _entries: I,
-            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+                _outcomes: &mut T,
+            ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
+                T: Outcomes,
             {
-                Ok(Box::new(Vec::new().into_iter()))
+                Ok(())
             }
         }
 
@@ -330,24 +346,27 @@ mod tests {
         struct RejectEvenLimiter;
 
         impl Limiter for RejectEvenLimiter {
-            fn check_cardinality_limits<I>(
+            fn check_cardinality_limits<I, T>(
                 &self,
                 scoping: Scoping,
                 limits: &[CardinalityLimit],
                 entries: I,
-            ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+                outcomes: &mut T,
+            ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
+                T: Outcomes,
             {
                 assert_eq!(scoping, build_scoping());
                 assert_eq!(limits, &build_limits());
 
-                let rejections = entries
-                    .into_iter()
-                    .filter_map(|entry| (entry.id.0 % 2 == 0).then_some(Rejection::new(entry.id)))
-                    .collect::<Vec<_>>();
+                for entry in entries {
+                    if entry.id.0 % 2 == 0 {
+                        outcomes.reject(entry.id);
+                    }
+                }
 
-                Ok(Box::new(rejections.into_iter()))
+                Ok(())
             }
         }
 
