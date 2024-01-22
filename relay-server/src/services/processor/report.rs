@@ -286,7 +286,7 @@ mod tests {
 
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::ProcessEnvelope;
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
@@ -445,6 +445,50 @@ mod tests {
 
         let envelope_response = processor.process(message).unwrap();
         assert!(envelope_response.envelope.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_user_report_only() {
+        relay_log::init_test!();
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let event_id = EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::UserReport);
+            item.set_payload(
+                ContentType::Json,
+                format!(r#"{{"event_id": "{event_id}"}}"#),
+            );
+            item
+        });
+
+        let mut envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store);
+        envelope.set_processing_group(ProcessingGroup::UserReport);
+
+        let message = ProcessEnvelope {
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        assert_eq!(new_envelope.len(), 1);
+        assert_eq!(
+            new_envelope.items().next().unwrap().ty(),
+            &ItemType::UserReport
+        );
     }
 
     #[tokio::test]
