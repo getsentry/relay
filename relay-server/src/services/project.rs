@@ -1498,9 +1498,10 @@ mod tests {
     ) -> Vec<String> {
         let mut buckets = get_test_buckets(&names);
         let patterns: Vec<String> = patterns.as_ref().iter().map(|s| (*s).to_owned()).collect();
-        let deny_list = Metrics::new(patterns);
+        let deny_list = ErrorBoundary::Ok(Metrics::new(patterns));
 
-        Project::apply_metrics_deny_list(&ErrorBoundary::Ok(deny_list), &mut buckets);
+        buckets.retain(|bucket| !Project::metric_name_denied(&deny_list, bucket));
+
         buckets.into_iter().map(|bucket| bucket.name).collect()
     }
 
