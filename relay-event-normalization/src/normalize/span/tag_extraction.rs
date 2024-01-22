@@ -307,8 +307,6 @@ pub fn extract_tags(
         }
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
-            // if let Some(domain) = span {
-            // }
             // HACK: Parse the normalized description to get the normalized domain.
             if let Some(scrubbed) = scrubbed_description.as_deref() {
                 let url = if let Some((_, url)) = scrubbed.split_once(' ') {
@@ -326,6 +324,23 @@ pub fn extract_tags(
                     })
                 })
             } else {
+                if let Some(url_scheme) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.get("url.scheme"))
+                    .and_then(|value| value.as_str())
+                {
+                    if let Some(server_host) = span
+                        .data
+                        .value()
+                        .and_then(|data| data.get("server.address"))
+                        .and_then(|value| value.as_str())
+                    {
+                        let host = server_host.to_lowercase();
+                        let scheme = url_scheme.to_lowercase();
+                        format!("{scheme}://{host}");
+                    }
+                }
                 None
             }
         } else if span_op.starts_with("db") {
