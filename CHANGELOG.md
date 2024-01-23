@@ -8,6 +8,7 @@
 - Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
 - Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
 - Add possiblity to block metrics with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954))
+- Enable periodic unspool of the buffered envelopes. ([#2993](https://github.com/getsentry/relay/pull/2993))
 
 **Bug Fixes**:
 
