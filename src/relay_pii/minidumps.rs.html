@@ -799,10 +799,6 @@
 <a href="#799" id="799">799</a>
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
-<a href="#804" id="804">804</a>
-<a href="#805" id="805">805</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Minidump scrubbing.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -1388,10 +1384,6 @@
         <span class="macro">assert_eq!</span>(main.debug_file().unwrap(), <span class="string">&quot;crash&quot;</span>);
 
         <span class="kw">let </span>modules = scrubber.other_modules(Which::Original);
-        <span class="kw">for </span>module <span class="kw">in </span>modules.iter() {
-            <span class="macro">dbg!</span>(module.code_file());
-            <span class="macro">dbg!</span>(module.debug_file());
-        }
         <span class="kw">for </span>module <span class="kw">in </span>modules {
             <span class="macro">assert!</span>(
                 module.code_file().matches(<span class="string">&#39;/&#39;</span>).count() &gt; <span class="number">1</span>,
