@@ -1,10 +1,13 @@
 from datetime import datetime
 import uuid
 import json
+from unittest import mock
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
+
+from .fixtures.mini_sentry import GLOBAL_CONFIG
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -598,10 +601,6 @@ def test_relay_chain(
     envelope.get_transaction_event()
 
 
-from unittest import mock
-from .fixtures.mini_sentry import GLOBAL_CONFIG
-
-
 @mock.patch.dict(
     GLOBAL_CONFIG,
     {
@@ -658,7 +657,7 @@ def test_relay_chain_keep_unsampled_profile(
         filter(lambda item: item.data_category == "profile", envelope.items)
     )
     assert len(profiles) == 1
-    assert profiles[0].headers.get("sampled") == False
+    assert not profiles[0].headers.get("sampled")
 
 
 def get_profile_payload(transaction):
