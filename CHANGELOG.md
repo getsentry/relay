@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Adds new legacy browser filters. ([#2950](https://github.com/getsentry/relay/pull/2950))
+- Add new legacy browser filters. ([#2950](https://github.com/getsentry/relay/pull/2950))
 
 **Internal**:
 
