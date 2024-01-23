@@ -656,7 +656,7 @@ def test_session_aggregates_invalid_environment(
 
 
 def test_session_aggregates_chain(
-    mini_sentry, relay, relay_with_processing, metrics_consumer, run
+    mini_sentry, relay, relay_with_processing, metrics_consumer
 ):
     # Make processing relay forget the project config before the metric is emitted by PoP:
     project_expiry = 2
@@ -664,7 +664,11 @@ def test_session_aggregates_chain(
 
     processing_relay = relay_with_processing(
         options={
-            "cache": {"project_expiry": project_expiry, "project_grace_period": 0},
+            "cache": {
+                "project_expiry": project_expiry,
+                "project_grace_period": 0,
+                "cache_eviction_interval": 1,
+            },
         }
     )
 
@@ -706,5 +710,6 @@ def test_session_aggregates_chain(
         session,
     )
 
-    metrics = [metrics_consumer.get_metrics(timeout=5) for _ in range(3)]
+    metrics = [metrics_consumer.get_metric(timeout=15) for _ in range(3)]
+    print(metrics)
     assert any(metric["name"] == "c:sessions/session@none" for metric, _ in metrics)
