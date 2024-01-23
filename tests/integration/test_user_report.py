@@ -57,10 +57,6 @@ def test_user_report_with_event(
     envelope.add_item(Item(PayloadRef(json=error_payload), type="event"))
     envelope.add_item(Item(PayloadRef(json=report_payload), type="user_report"))
 
-    from pprint import pp
-
-    pp(envelope)
-
     relay.send_envelope(project_id, envelope)
 
     attachments_consumer = attachments_consumer()
