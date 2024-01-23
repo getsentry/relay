@@ -1568,6 +1568,12 @@
 <a href="#1568" id="1568">1568</a>
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2701,12 +2707,18 @@
     ) -&gt; <span class="prelude-ty">Option</span>&lt;(Scoping, ProjectMetrics)&gt; {
         <span class="kw">let </span>len = buckets.len();
         <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.valid_state() <span class="kw">else </span>{
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no project state: dropping {len} buckets&quot;</span>,);
+            <span class="macro">relay_log::error!</span>(
+                tags.project_key = <span class="self">self</span>.project_key.as_str(),
+                <span class="string">&quot;there is no project state: dropping {len} buckets&quot;
+            </span>);
             <span class="kw">return </span><span class="prelude-val">None</span>;
         };
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no scoping: dropping {len} buckets&quot;</span>);
+            <span class="macro">relay_log::error!</span>(
+                tags.project_key = <span class="self">self</span>.project_key.as_str(),
+                <span class="string">&quot;there is no scoping: dropping {len} buckets&quot;
+            </span>);
             <span class="kw">return </span><span class="prelude-val">None</span>;
         };
 
