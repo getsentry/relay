@@ -5,7 +5,6 @@ use std::{fmt, mem};
 
 use hash32::{FnvHasher, Hasher as _};
 use relay_cardinality::CardinalityItem;
-use relay_common::glob3::GlobPatterns;
 use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
