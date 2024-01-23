@@ -241,6 +241,36 @@ def test_global_metrics(mini_sentry, relay):
     ]
 
 
+def test_global_metrics_no_config(mini_sentry, relay):
+    relay = relay(mini_sentry, TEST_CONFIG)
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics = [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/foo@none",
+            "value": 17.0,
+            "type": "c",
+        }
+    ]
+    relay.send_metrics_batch(
+        {"buckets": {public_key: metrics}},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    item = envelope.items[0]
+    assert item.headers["type"] == "metric_buckets"
+    metrics_batch = json.loads(item.payload.get_bytes())
+    received_metrics = sorted(metrics_batch, key=lambda x: x["name"])
+
+    assert received_metrics == metrics
+
+
 def test_global_metrics_batching(mini_sentry, relay):
     # See `test_metrics_max_batch_size`: 200 should lead to 2 batches
     MAX_FLUSH_SIZE = 200

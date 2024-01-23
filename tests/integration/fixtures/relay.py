@@ -127,12 +127,6 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                     "flush_interval": 0,
                 },
             },
-            "aggregator": {
-                "bucket_interval": 1,
-                "initial_delay": 0,
-                "debounce_delay": 0,
-                "shift_key": "none",
-            },
         }
 
         if static_relays is not None:

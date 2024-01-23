@@ -5,6 +5,8 @@ from requests.adapters import HTTPAdapter
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from urllib3.util import Retry
 
+from sentry_relay.auth import SecretKey
+
 session = Session()
 retries = Retry(total=5, backoff_factor=0.1)
 session.mount("http://", HTTPAdapter(max_retries=retries))
@@ -315,6 +317,20 @@ class SentryLike:
         envelope = Envelope()
         envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
         self.send_envelope(project_id, envelope)
+
+    def send_metrics_batch(self, payload):
+        packed, signature = SecretKey.parse(self.secret_key).pack(payload)
+
+        response = self.post(
+            "/api/0/relays/metrics/",
+            data=packed,
+            headers={
+                "X-Sentry-Relay-Id": self.relay_id,
+                "X-Sentry-Relay-Signature": signature,
+            },
+        )
+
+        response.raise_for_status()
 
     def send_security_report(
         self,
