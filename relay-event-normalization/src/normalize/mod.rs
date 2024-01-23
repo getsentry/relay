@@ -36,6 +36,12 @@ mod contexts;
 pub struct BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
+    #[serde(default, skip_serializing_if = "is_false")]
+    allow_negative: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !b
 }
 
 impl BuiltinMeasurementKey {
@@ -44,6 +50,7 @@ impl BuiltinMeasurementKey {
         Self {
             name: name.into(),
             unit,
+            allow_negative: false,
         }
     }
 
@@ -55,6 +62,11 @@ impl BuiltinMeasurementKey {
     /// Returns the unit of the built in measurement key.
     pub fn unit(&self) -> &MetricUnit {
         &self.unit
+    }
+
+    /// Return true if the built in measurement key allows negative values.
+    pub fn allow_negative(&self) -> &bool {
+        &self.allow_negative
     }
 }
 

@@ -725,9 +725,6 @@ pub fn normalize_measurements(
 ) {
     normalize_mobile_measurements(measurements);
     normalize_units(measurements);
-    if let Some(measurements_config) = measurements_config {
-        remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
-    }
 
     let duration_millis = match (start_timestamp, end_timestamp) {
         (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
@@ -735,7 +732,9 @@ pub fn normalize_measurements(
     };
 
     compute_measurements(duration_millis, measurements);
-    normalize_web_vital_measurements(measurements);
+    if let Some(measurements_config) = measurements_config {
+        remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
+    }
 }
 
 /// Computes performance score measurements.
@@ -1027,6 +1026,16 @@ fn remove_invalid_measurements(
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
             if builtin_measurement.name() == name {
+                let value = measurement.value.value().unwrap_or(&0.0);
+                // Drop negative values if the builtin measurement does not allow them.
+                if !builtin_measurement.allow_negative() && *value < 0.0 {
+                    meta.add_error(Error::invalid(format!(
+                        "Negative value for measurement {name} not allowed: {value}",
+                    )));
+                    removed_measurements
+                        .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                    return false;
+                }
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
                 // and just drop it instead.
@@ -1099,17 +1108,6 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
     }
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
         measurements.insert("app_start_warm".to_string(), app_start_warm_value);
-    }
-}
-
-// Drop any web vitals received that are negative values since they are invalid.
-fn normalize_web_vital_measurements(measurements: &mut Measurements) {
-    for key in ["fcp", "lcp", "fid", "cls", "ttfb"] {
-        if let Some(value) = measurements.get_value(key) {
-            if value < 0.0 {
-                measurements.remove(key);
-            }
-        }
     }
 }
 
@@ -2602,13 +2600,45 @@ mod tests {
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_event_measurements(&mut event, None, None);
+        // Allow ttfb as a builtinMeasurement with allow_negative defaulted to false.
+        let project_measurement_config: MeasurementsConfig = serde_json::from_value(json!({
+            "builtinMeasurements": [
+                {"name": "ttfb", "unit": "millisecond"},
+            ],
+        }))
+        .unwrap();
+
+        let dynamic_measurement_config =
+            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
+
+        normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
+          "measurements": {},
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "Negative value for measurement ttfb not allowed: -100",
+                    },
+                  ],
+                ],
+                val: Some({
+                  "ttfb": {
+                    "unit": "millisecond",
+                    "value": -100.0,
+                  },
+                }),
+              ))),
+            },
+          },
         }
         "###);
     }
