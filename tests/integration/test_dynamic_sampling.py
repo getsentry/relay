@@ -657,7 +657,7 @@ def test_relay_chain_keep_unsampled_profile(
         filter(lambda item: item.data_category == "profile", envelope.items)
     )
     assert len(profiles) == 1
-    assert not profiles[0].headers.get("sampled")
+    assert profiles[0].headers.get("sampled") is False
 
 
 def get_profile_payload(transaction):
