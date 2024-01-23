@@ -3461,7 +3461,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.41"
+version = "0.8.42"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3491,9 +3491,11 @@ version = "24.1.0"
 dependencies = [
  "criterion",
  "hashbrown 0.13.2",
+ "relay-base-schema",
  "relay-log",
  "relay-redis",
  "relay-statsd",
+ "serde",
  "thiserror",
 ]
 
@@ -3569,6 +3571,7 @@ dependencies = [
  "insta",
  "relay-auth",
  "relay-base-schema",
+ "relay-cardinality",
  "relay-common",
  "relay-event-normalization",
  "relay-filter",

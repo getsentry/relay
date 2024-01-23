@@ -1254,7 +1254,11 @@ impl EnvelopeProcessorService {
         span::filter(state);
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
-            span::process(state, self.inner.config.clone());
+            span::process(
+                state,
+                self.inner.config.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
+            );
         });
         Ok(())
     }
@@ -1318,7 +1322,11 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
             self.process_check_ins(state);
-            span::process(state, self.inner.config.clone());
+            span::process(
+                state,
+                self.inner.config.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
+            );
         });
 
         if state.has_event() {
