@@ -275,6 +275,14 @@ impl ProjectState {
         scoping
     }
 
+    /// Returns the transaction/profile extraction mode for this project.
+    pub fn get_extraction_mode(&self) -> ExtractionMode {
+        match self.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+            _ => ExtractionMode::Duration,
+        }
+    }
+
     /// Returns quotas declared in this project state.
     pub fn get_quotas(&self) -> &[Quota] {
         self.config.quotas.as_slice()
@@ -565,11 +573,7 @@ impl Project {
             return metrics;
         };
 
-        let mode = match state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
-        };
-
+        let mode = state.get_extraction_mode();
         match MetricsLimiter::create(metrics, &state.config.quotas, scoping, mode) {
             Ok(mut limiter) => {
                 limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
@@ -659,11 +663,7 @@ impl Project {
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
 
-        let extraction_mode = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
-        };
-
+        let extraction_mode = project_state.get_extraction_mode();
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
@@ -1152,11 +1152,7 @@ impl Project {
         if limits.is_limited() {
             relay_log::debug!("dropping {len} buckets due to rate limit");
 
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
-
+            let mode = project_state.get_extraction_mode();
             let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             utils::reject_metrics(
                 &outcome_aggregator,
