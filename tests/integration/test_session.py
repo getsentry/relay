@@ -653,3 +653,36 @@ def test_session_aggregates_invalid_environment(
 
     session = sessions_consumer.get_session()
     assert session.get("environment") is None
+
+
+def test_session_aggregates_chain(
+    mini_sentry, relay, relay_with_processing, metrics_consumer
+):
+    relay = relay(relay_with_processing(), options={"http": {"global_metrics": True}})
+    metrics_consumer = metrics_consumer()
+
+    now = datetime.now(tz=timezone.utc)
+
+    project_id = 42
+    config = mini_sentry.add_full_project_config(project_id)["config"]
+    config["sessionMetrics"] = {"version": 3, "drop": True}
+    relay.send_session_aggregates(
+        project_id,
+        {
+            "aggregates": [
+                {
+                    "started": now.isoformat(),
+                    "did": "foobarbaz",
+                    "exited": 2,
+                    "errored": 3,
+                },
+            ],
+            "attrs": {
+                "release": "sentry-test@1.0.0",
+                "environment": "production",
+            },
+        },
+    )
+
+    metrics = list(metrics_consumer.get_metrics())
+    assert any(metric["name"] == "c:sessions/session@none" for metric, _ in metrics)
