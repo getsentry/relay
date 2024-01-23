@@ -471,7 +471,7 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/webvital.inp@ratio".into(),
+            mri: "d:spans/webvital.inp@millescond".into(),
             field: Some("span.measurements.inp.value".into()),
             condition: Some(is_allowed_browser),
             tags: vec![
