@@ -1131,12 +1131,18 @@ impl Project {
     ) -> Option<(Scoping, ProjectMetrics)> {
         let len = buckets.len();
         let Some(project_state) = self.valid_state() else {
-            relay_log::trace!("there is no project state: dropping {len} buckets",);
+            relay_log::error!(
+                tags.project_key = self.project_key.as_str(),
+                "there is no project state: dropping {len} buckets"
+            );
             return None;
         };
 
         let Some(scoping) = self.scoping() else {
-            relay_log::trace!("there is no scoping: dropping {len} buckets");
+            relay_log::error!(
+                tags.project_key = self.project_key.as_str(),
+                "there is no scoping: dropping {len} buckets"
+            );
             return None;
         };
 
