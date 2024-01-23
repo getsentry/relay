@@ -105,24 +105,26 @@ pub enum ProcessingGroup {
     Transaction,
     /// All the items which require (have or create) events.
     ///
-    /// This includes: errors, NEL, security reports, user and clients reports, some of the
+    /// This includes: errors, NEL, security reports, user reports, some of the
     /// attachments.
     Error,
     /// Session events.
     Session,
-    /// Attachments (including UserReports) which can be sent alone without any event attached to it in the current
-    /// envelope.
-    StandaloneAttachment,
+    /// Standalone items which can be sent alone without any event attached to it in the current
+    /// envelope e.g. some attachments, user reports.
+    Standalone,
     /// Outcomes.
     ClientReport,
+    /// Replays and ReplayRecordings.
     Replay,
     /// Crons.
     CheckIn,
+    /// Spans.
     Span,
-    /// The unknow item types will be forwarded upstream (to processing Relay), where we will
-    /// decide what to do with it.
+    /// Unknown item types will be forwarded upstream (to processing Relay), where we will
+    /// decide what to do with them.
     ForwardUnknown,
-    /// All the events in the envelope we failed to group.
+    /// All the items in the envelope that could not be grouped.
     Ungrouped,
 }
 
@@ -144,25 +146,6 @@ impl ProcessingGroup {
                 (ProcessingGroup::Error, envelope)
             });
         grouped_envelopes.extend(nel_envelopes);
-
-        // Extract all standalone attachments and reports.
-        //
-        // Note: only if there are no items in the envelope which can create events, otherwise they
-        // will be in the same envelope with all require event items.
-        if !envelope.items().any(Item::creates_event) {
-            let standalone_attachment_items = envelope.take_items_by(|item| {
-                matches!(
-                    item.ty(),
-                    &ItemType::Attachment | &ItemType::FormData | &ItemType::UserReport
-                )
-            });
-            if !standalone_attachment_items.is_empty() {
-                grouped_envelopes.push((
-                    ProcessingGroup::StandaloneAttachment,
-                    Envelope::from_parts(headers.clone(), standalone_attachment_items),
-                ))
-            }
-        };
 
         // Extract replays.
         let replay_items = envelope.take_items_by(|item| {
@@ -197,6 +180,20 @@ impl ProcessingGroup {
                 Envelope::from_parts(headers.clone(), span_items),
             ))
         }
+
+        // Extract all standalone items.
+        //
+        // Note: only if there are no items in the envelope which can create events, otherwise they
+        // will be in the same envelope with all require event items.
+        if !envelope.items().any(Item::creates_event) {
+            let standalone_items = envelope.take_items_by(Item::requires_event);
+            if !standalone_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::Standalone,
+                    Envelope::from_parts(headers.clone(), standalone_items),
+                ))
+            }
+        };
 
         // Extract all the items which require an event into separate envelope.
         let require_event_items = envelope.take_items_by(Item::requires_event);
@@ -1201,6 +1198,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
+        profile::filter(state);
+
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
@@ -1360,7 +1359,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Error => self.process_errors(state)?,
             ProcessingGroup::Transaction => self.process_transactions(state)?,
             ProcessingGroup::Session => self.process_sessions(state)?,
-            ProcessingGroup::StandaloneAttachment => self.process_standalone_attachments(state)?,
+            ProcessingGroup::Standalone => self.process_standalone_attachments(state)?,
             ProcessingGroup::ClientReport => self.process_client_reports(state)?,
             ProcessingGroup::Replay => self.process_replays(state)?,
             ProcessingGroup::CheckIn => self.process_checkins(state)?,

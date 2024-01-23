@@ -451,7 +451,7 @@ mod tests {
         });
 
         let mut envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store);
-        envelope.set_processing_group(ProcessingGroup::StandaloneAttachment);
+        envelope.set_processing_group(ProcessingGroup::Standalone);
 
         let message = ProcessEnvelope {
             envelope,
