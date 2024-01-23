@@ -27,7 +27,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    /// Returns `true` if it contains any names patterns to filter metric names.
+    /// Returns `true` if there are no changes to the metrics config.
     pub fn is_empty(&self) -> bool {
         self.cardinality_limits.is_empty()
             && self.denied_names.is_empty()
@@ -40,7 +40,7 @@ impl Metrics {
 pub struct TagBlock {
     /// Name of metric of which we want to remove certain tags.
     pub name: GlobPatterns,
-    /// Key-value of tag that we want to remove given that the name matched.
+    /// Pattern to match keys of tags that we want to remove.
     pub tag: GlobPatterns,
 }
 

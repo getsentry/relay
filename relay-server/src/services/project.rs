@@ -601,19 +601,19 @@ impl Project {
     }
 
     /// Removes tags based on user configured deny list.
-    ///
-    /// The deny list has pattern-matching for both the metric where tags should be removed, and the
-    /// tags on that metric which should be removed. So for each tag we check if any configured stuff
-    /// matches on both the metric name and the tag key.
-    /// Time complexity: O(M * T * P) (Metric, Tag, Patterns).
     fn remove_tags(deny_list: &ErrorBoundary<Metrics>, bucket: &mut Bucket) {
         let ErrorBoundary::Ok(metrics) = deny_list else {
             return;
         };
 
-        for tag_blocker in &metrics.denied_tags {
-            if tag_blocker.name.is_match(&bucket.name) {
-                bucket.filter_tags(&tag_blocker.tag);
+        for tag_block_config in &metrics.denied_tags {
+            let name_pattern = &tag_block_config.name;
+            let tag_pattern = &tag_block_config.tag;
+
+            if name_pattern.is_match(&bucket.name) {
+                bucket
+                    .tags
+                    .retain(|tag_key, _| !tag_pattern.is_match(tag_key));
             }
         }
     }

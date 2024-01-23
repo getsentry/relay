@@ -648,11 +648,6 @@ impl Bucket {
         Some(bucket)
     }
 
-    /// Removes tags matching a certain pattern.
-    pub fn filter_tags(&mut self, pattern: &GlobPatterns) {
-        self.tags.retain(|key, _| !pattern.is_match(key));
-    }
-
     /// Parses a single metric aggregate from the raw protocol.
     ///
     /// See the [`Bucket`] for more information on the protocol.
