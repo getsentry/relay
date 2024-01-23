@@ -711,6 +711,10 @@ impl Project {
                         relay_log::debug!("sending metrics straight to aggregator");
                         let state = state.clone();
 
+                        // TODO: When the state is present but expired, we should send buckets
+                        // to the metrics buffer instead. In practice, the project state should be
+                        // refreshed at the time when the buckets emerge from the aggregator though.
+
                         self.rate_limit_and_merge_buckets(
                             state,
                             buckets,
