@@ -374,6 +374,15 @@ class AttachmentsConsumer(EventsConsumer):
         assert v["type"] == "attachment", v["type"]
         return v
 
+    def get_user_report(self, timeout=None):
+        message = self.poll(timeout)
+        assert message is not None
+        assert message.error() is None
+
+        v = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert v["type"] == "user_report", v["type"]
+        return v
+
 
 class ReplayRecordingsConsumer(EventsConsumer):
     def get_chunked_replay_chunk(self):
