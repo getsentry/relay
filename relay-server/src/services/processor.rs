@@ -1859,10 +1859,7 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
+            let mode = project_state.get_extraction_mode();
 
             if project_state.has_feature(Feature::CardinalityLimiter) {
                 buckets = self.cardinality_limit_buckets(scoping, buckets, mode);
@@ -1911,10 +1908,7 @@ impl EnvelopeProcessorService {
 
             let project_key = scoping.project_key;
             let dsn = PartialDsn::outbound(&scoping, upstream);
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
+            let mode = project_state.get_extraction_mode();
 
             let partitions = if let Some(count) = self.inner.config.metrics_partitions() {
                 let mut partitions: BTreeMap<Option<u64>, Vec<Bucket>> = BTreeMap::new();
@@ -2019,10 +2013,7 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
+            let mode = project_state.get_extraction_mode();
 
             for bucket in buckets {
                 let partition_key = partition_key(scoping.project_key, bucket, partition_count);
