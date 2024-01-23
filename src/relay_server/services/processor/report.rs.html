@@ -590,26 +590,6 @@
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
 <a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -646,104 +626,12 @@
     </span>ClientDiscard,
 }
 
-<span class="doccomment">/// Validates and normalizes:
-/// - all user reports items in the envelopes
-/// - all client reports
-///
-/// User feedback items are removed from the envelope if they contain invalid JSON or if the
-/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-/// is written back into the item.
-///
-/// At the moment client reports are primarily used to transfer outcomes from
-/// client SDKs.  The outcomes are removed here and sent directly to the outcomes
-/// system.
-</span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
-    config: <span class="kw-2">&amp;</span>Config,
-    outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-) {
-    process_client_reports(state, config, outcome_aggregator);
-    process_user_reports(state);
-}
-
-<span class="doccomment">/// Validates and normalizes all user report items in the envelope.
-///
-/// User feedback items are removed from the envelope if they contain invalid JSON or if the
-/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-/// is written back into the item.
-</span><span class="kw">fn </span>process_user_reports(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-    state.managed_envelope.retain_items(|item| {
-        <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::UserReport {
-            <span class="kw">return </span>ItemAction::Keep;
-        };
-
-        <span class="kw">let </span>payload = item.payload();
-        <span class="comment">// There is a customer SDK which sends invalid reports with a trailing `\n`,
-        // strip it here, even if they update/fix their SDK there will still be many old
-        // versions with the broken SDK out there.
-        </span><span class="kw">let </span>payload = trim_whitespaces(<span class="kw-2">&amp;</span>payload);
-        <span class="kw">let </span>report = <span class="kw">match </span>serde_json::from_slice::&lt;UserReport&gt;(payload) {
-            <span class="prelude-val">Ok</span>(session) =&gt; session,
-            <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to store user report&quot;</span>);
-                <span class="kw">return </span>ItemAction::DropSilently;
-            }
-        };
-
-        <span class="kw">let </span>json_string = <span class="kw">match </span>serde_json::to_string(<span class="kw-2">&amp;</span>report) {
-            <span class="prelude-val">Ok</span>(json) =&gt; json,
-            <span class="prelude-val">Err</span>(err) =&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    <span class="string">&quot;failed to serialize user report&quot;
-                </span>);
-                <span class="kw">return </span>ItemAction::DropSilently;
-            }
-        };
-
-        item.set_payload(ContentType::Json, json_string);
-        ItemAction::Keep
-    });
-}
-
-<span class="kw">fn </span>trim_whitespaces(data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="kw-2">&amp;</span>[u8] {
-    <span class="kw">let </span><span class="prelude-val">Some</span>(from) = data.iter().position(|x| !x.is_ascii_whitespace()) <span class="kw">else </span>{
-        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
-    };
-    <span class="kw">let </span><span class="prelude-val">Some</span>(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) <span class="kw">else </span>{
-        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
-    };
-    <span class="kw-2">&amp;</span>data[from..to + <span class="number">1</span>]
-}
-
-<span class="doccomment">/// Parse an outcome from an outcome ID and a reason string.
-///
-/// Currently only used to reconstruct outcomes encoded in client reports.
-</span><span class="kw">fn </span>outcome_from_parts(field: ClientReportField, reason: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Outcome, ()&gt; {
-    <span class="kw">match </span>field {
-        ClientReportField::FilteredSampling =&gt; <span class="kw">match </span>reason.strip_prefix(<span class="string">&quot;Sampled:&quot;</span>) {
-            <span class="prelude-val">Some</span>(rule_ids) =&gt; MatchedRuleIds::parse(rule_ids)
-                .map(Outcome::FilteredSampling)
-                .map_err(|<span class="kw">_</span>| ()),
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(()),
-        },
-        ClientReportField::ClientDiscard =&gt; <span class="prelude-val">Ok</span>(Outcome::ClientDiscard(reason.into())),
-        ClientReportField::Filtered =&gt; <span class="prelude-val">Ok</span>(Outcome::Filtered(
-            FilterStatKey::try_from(reason).map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>,
-        )),
-        ClientReportField::RateLimited =&gt; <span class="prelude-val">Ok</span>(Outcome::RateLimited(<span class="kw">match </span>reason {
-            <span class="string">&quot;&quot; </span>=&gt; <span class="prelude-val">None</span>,
-            other =&gt; <span class="prelude-val">Some</span>(ReasonCode::new(other)),
-        })),
-    }
-}
-
 <span class="doccomment">/// Validates and extracts client reports.
 ///
 /// At the moment client reports are primarily used to transfer outcomes from
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
-</span><span class="kw">fn </span>process_client_reports(
+</span><span class="kw">pub fn </span>process_client_reports(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     config: <span class="kw-2">&amp;</span>Config,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
@@ -884,6 +772,78 @@
             </span>category,
             quantity,
         });
+    }
+}
+
+<span class="doccomment">/// Validates and normalizes all user report items in the envelope.
+///
+/// User feedback items are removed from the envelope if they contain invalid JSON or if the
+/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
+/// is written back into the item.
+</span><span class="kw">pub fn </span>process_user_reports(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+    state.managed_envelope.retain_items(|item| {
+        <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::UserReport {
+            <span class="kw">return </span>ItemAction::Keep;
+        };
+
+        <span class="kw">let </span>payload = item.payload();
+        <span class="comment">// There is a customer SDK which sends invalid reports with a trailing `\n`,
+        // strip it here, even if they update/fix their SDK there will still be many old
+        // versions with the broken SDK out there.
+        </span><span class="kw">let </span>payload = trim_whitespaces(<span class="kw-2">&amp;</span>payload);
+        <span class="kw">let </span>report = <span class="kw">match </span>serde_json::from_slice::&lt;UserReport&gt;(payload) {
+            <span class="prelude-val">Ok</span>(session) =&gt; session,
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to store user report&quot;</span>);
+                <span class="kw">return </span>ItemAction::DropSilently;
+            }
+        };
+
+        <span class="kw">let </span>json_string = <span class="kw">match </span>serde_json::to_string(<span class="kw-2">&amp;</span>report) {
+            <span class="prelude-val">Ok</span>(json) =&gt; json,
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    <span class="string">&quot;failed to serialize user report&quot;
+                </span>);
+                <span class="kw">return </span>ItemAction::DropSilently;
+            }
+        };
+
+        item.set_payload(ContentType::Json, json_string);
+        ItemAction::Keep
+    });
+}
+
+<span class="kw">fn </span>trim_whitespaces(data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="kw-2">&amp;</span>[u8] {
+    <span class="kw">let </span><span class="prelude-val">Some</span>(from) = data.iter().position(|x| !x.is_ascii_whitespace()) <span class="kw">else </span>{
+        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
+    };
+    <span class="kw">let </span><span class="prelude-val">Some</span>(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) <span class="kw">else </span>{
+        <span class="kw">return </span><span class="kw-2">&amp;</span>[];
+    };
+    <span class="kw-2">&amp;</span>data[from..to + <span class="number">1</span>]
+}
+
+<span class="doccomment">/// Parse an outcome from an outcome ID and a reason string.
+///
+/// Currently only used to reconstruct outcomes encoded in client reports.
+</span><span class="kw">fn </span>outcome_from_parts(field: ClientReportField, reason: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Outcome, ()&gt; {
+    <span class="kw">match </span>field {
+        ClientReportField::FilteredSampling =&gt; <span class="kw">match </span>reason.strip_prefix(<span class="string">&quot;Sampled:&quot;</span>) {
+            <span class="prelude-val">Some</span>(rule_ids) =&gt; MatchedRuleIds::parse(rule_ids)
+                .map(Outcome::FilteredSampling)
+                .map_err(|<span class="kw">_</span>| ()),
+            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(()),
+        },
+        ClientReportField::ClientDiscard =&gt; <span class="prelude-val">Ok</span>(Outcome::ClientDiscard(reason.into())),
+        ClientReportField::Filtered =&gt; <span class="prelude-val">Ok</span>(Outcome::Filtered(
+            FilterStatKey::try_from(reason).map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>,
+        )),
+        ClientReportField::RateLimited =&gt; <span class="prelude-val">Ok</span>(Outcome::RateLimited(<span class="kw">match </span>reason {
+            <span class="string">&quot;&quot; </span>=&gt; <span class="prelude-val">None</span>,
+            other =&gt; <span class="prelude-val">Some</span>(ReasonCode::new(other)),
+        })),
     }
 }
 
@@ -1083,7 +1043,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store);
-        envelope.set_processing_group(ProcessingGroup::UserReport);
+        envelope.set_processing_group(ProcessingGroup::Standalone);
 
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
