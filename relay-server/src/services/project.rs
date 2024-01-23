@@ -4,7 +4,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
@@ -273,6 +273,14 @@ impl ProjectState {
         scoping.organization_id = self.organization_id.unwrap_or(0);
 
         scoping
+    }
+
+    /// Returns the transaction/profile extraction mode for this project.
+    pub fn get_extraction_mode(&self) -> ExtractionMode {
+        match self.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
+            _ => ExtractionMode::Duration,
+        }
     }
 
     /// Returns quotas declared in this project state.
@@ -565,11 +573,7 @@ impl Project {
             return metrics;
         };
 
-        let mode = match state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
-        };
-
+        let mode = state.get_extraction_mode();
         match MetricsLimiter::create(metrics, &state.config.quotas, scoping, mode) {
             Ok(mut limiter) => {
                 limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
@@ -585,6 +589,26 @@ impl Project {
             return;
         };
 
+        Self::apply_metrics_deny_list(&state.config.metrics, metrics);
+        Self::filter_disabled_namespace(state, metrics);
+    }
+
+    fn apply_metrics_deny_list(deny_list: &ErrorBoundary<Metrics>, buckets: &mut Vec<Bucket>) {
+        let ErrorBoundary::Ok(metrics) = deny_list else {
+            return;
+        };
+
+        buckets.retain(|bucket| {
+            if metrics.denied_names.is_match(&bucket.name) {
+                relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
+                false
+            } else {
+                true
+            }
+        });
+    }
+
+    fn filter_disabled_namespace(state: &ProjectState, metrics: &mut Vec<Bucket>) {
         metrics.retain(|metric| {
             let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
                 relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
@@ -639,11 +663,7 @@ impl Project {
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
 
-        let extraction_mode = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-            _ => ExtractionMode::Duration,
-        };
-
+        let extraction_mode = project_state.get_extraction_mode();
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, extraction_mode) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
@@ -1111,12 +1131,18 @@ impl Project {
     ) -> Option<(Scoping, ProjectMetrics)> {
         let len = buckets.len();
         let Some(project_state) = self.valid_state() else {
-            relay_log::trace!("there is no project state: dropping {len} buckets",);
+            relay_log::error!(
+                tags.project_key = self.project_key.as_str(),
+                "there is no project state: dropping {len} buckets"
+            );
             return None;
         };
 
         let Some(scoping) = self.scoping() else {
-            relay_log::trace!("there is no scoping: dropping {len} buckets");
+            relay_log::error!(
+                tags.project_key = self.project_key.as_str(),
+                "there is no scoping: dropping {len} buckets"
+            );
             return None;
         };
 
@@ -1132,11 +1158,7 @@ impl Project {
         if limits.is_limited() {
             relay_log::debug!("dropping {len} buckets due to rate limit");
 
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
-
+            let mode = project_state.get_extraction_mode();
             let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             utils::reject_metrics(
                 &outcome_aggregator,
@@ -1161,6 +1183,7 @@ impl Project {
 mod tests {
     use std::sync::{Arc, Mutex};
 
+    use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
@@ -1419,5 +1442,131 @@ mod tests {
         let metrics = project.rate_limit_metrics(vec![create_transaction_bucket()], addr);
 
         assert!(metrics.is_empty());
+    }
+
+    fn get_test_buckets(names: &[&str]) -> Vec<Bucket> {
+        let create_bucket = |name: &&str| -> Bucket {
+            let json = json!({
+                        "timestamp": 1615889440,
+                        "width": 10,
+                        "name": name,
+                        "type": "c",
+                        "value": 4.0,
+                        "tags": {
+                        "route": "user_index"
+            }});
+
+            serde_json::from_value(json).unwrap()
+        };
+
+        names.iter().map(create_bucket).collect()
+    }
+
+    fn get_test_bucket_names() -> Vec<&'static str> {
+        [
+            "g:transactions/foo@none",
+            "c:custom/foo@none",
+            "transactions/foo@second",
+            "transactions/foo",
+            "c:custom/foo_bar@none",
+            "endpoint.response_time",
+            "endpoint.hits",
+            "endpoint.parallel_requests",
+            "endpoint.users",
+        ]
+        .into()
+    }
+
+    fn apply_pattern_to_names(names: Vec<&str>, patterns: &[&str]) -> Vec<String> {
+        let metrics = Metrics {
+            denied_names: GlobPatterns::new(patterns.iter().map(|&s| s.to_owned()).collect()),
+            ..Default::default()
+        };
+
+        let mut buckets = get_test_buckets(&names);
+        Project::apply_metrics_deny_list(&ErrorBoundary::Ok(metrics), &mut buckets);
+        buckets.into_iter().map(|bucket| bucket.name).collect()
+    }
+
+    #[test]
+    fn test_metric_deny_list_exact() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(names, &["endpoint.parallel_requests"]);
+
+        // There's 1 bucket with that exact name.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_end_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(names, &["*foo"]);
+
+        // There's 1 bucket name with 'foo' in the end.
+        let buckets_to_remove = 1;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_middle_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(names, &["*foo*"]);
+
+        // There's 4 bucket names with 'foo' in the middle, and one with foo in the end.
+        let buckets_to_remove = 5;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_beginning_glob() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(names, &["endpoint*"]);
+
+        // There's 4 buckets starting with "endpoint".
+        let buckets_to_remove = 4;
+
+        assert_eq!(remaining_names.len(), input_qty - buckets_to_remove);
+    }
+
+    #[test]
+    fn test_metric_deny_list_everything() {
+        let names = get_test_bucket_names();
+        let remaining_names = apply_pattern_to_names(names, &["*"]);
+
+        assert_eq!(remaining_names.len(), 0);
+    }
+
+    #[test]
+    fn test_metric_deny_list_multiple() {
+        let names = get_test_bucket_names();
+        let input_qty = names.len();
+        let remaining_names = apply_pattern_to_names(names, &["endpoint*", "*transactions*"]);
+
+        let endpoint_buckets = 4;
+        let transaction_buckets = 3;
+
+        assert_eq!(
+            remaining_names.len(),
+            input_qty - endpoint_buckets - transaction_buckets
+        );
+    }
+
+    #[test]
+    fn test_serialize_metrics_config() {
+        let input_str = r#"{"deniedNames":["foo","bar"]}"#;
+
+        let deny_list: Metrics = serde_json::from_str(input_str).unwrap();
+
+        let back_to_str = serde_json::to_string(&deny_list).unwrap();
+
+        assert_eq!(input_str, back_to_str);
     }
 }

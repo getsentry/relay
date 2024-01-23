@@ -27,9 +27,7 @@ pub enum Feature {
     /// Allow ingestion of metrics in the "custom" namespace.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
-    /// Enable extracting spans for all modules.
-    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
-    SpanMetricsExtractionAllModules,
+
     /// Enable processing profiles
     #[serde(rename = "organizations:profiling")]
     Profiling,
@@ -61,6 +59,9 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "projects:span-metrics-extraction-resource")]
     Deprecated5,
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
+    Deprected6,
     /// Forward compatibility.
     #[serde(other)]
     Unknown,
