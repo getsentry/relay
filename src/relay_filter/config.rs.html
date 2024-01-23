@@ -512,6 +512,38 @@
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
 <a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Config structs for all filters.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -561,6 +593,22 @@
     </span>SafariPre6,
     <span class="doccomment">/// Edge legacy i.e. 12-18.
     </span>EdgePre79,
+    <span class="doccomment">/// Apply to Internet Explorer
+    </span>Ie,
+    <span class="doccomment">/// Apply to Safari
+    </span>Safari,
+    <span class="doccomment">/// Apply to Opera
+    </span>Opera,
+    <span class="doccomment">/// Apply to OperaMini
+    </span>OperaMini,
+    <span class="doccomment">/// Apply to Android Browser
+    </span>Android,
+    <span class="doccomment">/// Apply to Firefox
+    </span>Firefox,
+    <span class="doccomment">/// Apply to Chrome
+    </span>Chrome,
+    <span class="doccomment">/// Apply to Edge
+    </span>Edge,
     <span class="doccomment">/// An unknown browser configuration for forward compatibility.
     </span>Unknown(String),
 }
@@ -580,6 +628,14 @@
             <span class="string">&quot;android_pre_4&quot; </span>=&gt; LegacyBrowser::AndroidPre4,
             <span class="string">&quot;safari_pre_6&quot; </span>=&gt; LegacyBrowser::SafariPre6,
             <span class="string">&quot;edge_pre_79&quot; </span>=&gt; LegacyBrowser::EdgePre79,
+            <span class="string">&quot;ie&quot; </span>=&gt; LegacyBrowser::Ie,
+            <span class="string">&quot;safari&quot; </span>=&gt; LegacyBrowser::Safari,
+            <span class="string">&quot;opera&quot; </span>=&gt; LegacyBrowser::Opera,
+            <span class="string">&quot;opera_mini&quot; </span>=&gt; LegacyBrowser::OperaMini,
+            <span class="string">&quot;android&quot; </span>=&gt; LegacyBrowser::Android,
+            <span class="string">&quot;firefox&quot; </span>=&gt; LegacyBrowser::Firefox,
+            <span class="string">&quot;chrome&quot; </span>=&gt; LegacyBrowser::Chrome,
+            <span class="string">&quot;edge&quot; </span>=&gt; LegacyBrowser::Edge,
             <span class="kw">_ </span>=&gt; LegacyBrowser::Unknown(s.to_owned()),
         };
         <span class="prelude-val">Ok</span>(v)
@@ -612,6 +668,14 @@
             LegacyBrowser::AndroidPre4 =&gt; <span class="string">&quot;android_pre_4&quot;</span>,
             LegacyBrowser::SafariPre6 =&gt; <span class="string">&quot;safari_pre_6&quot;</span>,
             LegacyBrowser::EdgePre79 =&gt; <span class="string">&quot;edge_pre_79&quot;</span>,
+            LegacyBrowser::Ie =&gt; <span class="string">&quot;ie&quot;</span>,
+            LegacyBrowser::Safari =&gt; <span class="string">&quot;safari&quot;</span>,
+            LegacyBrowser::Opera =&gt; <span class="string">&quot;opera&quot;</span>,
+            LegacyBrowser::OperaMini =&gt; <span class="string">&quot;opera_mini&quot;</span>,
+            LegacyBrowser::Android =&gt; <span class="string">&quot;android&quot;</span>,
+            LegacyBrowser::Firefox =&gt; <span class="string">&quot;firefox&quot;</span>,
+            LegacyBrowser::Chrome =&gt; <span class="string">&quot;chrome&quot;</span>,
+            LegacyBrowser::Edge =&gt; <span class="string">&quot;edge&quot;</span>,
             LegacyBrowser::Unknown(string) =&gt; string,
         })
     }
