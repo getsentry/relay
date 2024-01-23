@@ -35,3 +35,34 @@ pub enum CardinalityScope {
     #[serde(other)]
     Unknown,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cardinality_limit_json() {
+        let limit = CardinalityLimit {
+            id: "some_id".to_string(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 200,
+            },
+            limit: 1337,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        };
+
+        let j = serde_json::to_string(&limit).unwrap();
+        assert_eq!(serde_json::from_str::<CardinalityLimit>(&j).unwrap(), limit);
+
+        let j = r#"{
+            "id":"some_id",
+            "window":{"windowSeconds":3600,"granularitySeconds":200},
+            "limit":1337,
+            "scope":"organization",
+            "namespace":"custom"
+        }"#;
+        assert_eq!(serde_json::from_str::<CardinalityLimit>(j).unwrap(), limit);
+    }
+}

@@ -3496,6 +3496,7 @@ dependencies = [
  "relay-redis",
  "relay-statsd",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 
