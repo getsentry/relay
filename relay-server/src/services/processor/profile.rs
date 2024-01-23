@@ -121,7 +121,7 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{Feature, ProcessEnvelope};
+    use crate::services::processor::{Feature, ProcessEnvelope, ProcessingGroup};
     use crate::services::project::ProjectState;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
@@ -217,5 +217,57 @@ mod tests {
             ),
         }
         "###);
+    }
+
+    #[tokio::test]
+    async fn filter_standalone_profile() {
+        relay_log::init_test!();
+
+        // Setup
+        let processor = create_test_processor(Default::default());
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        // Add a profile to the same envelope.
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Profile);
+            item.set_payload(
+                ContentType::Json,
+                r#"{
+                    "profile_id": "012d836b15bb49d7bbf99e64295d995b",
+                    "version": "1",
+                    "platform": "android",
+                    "os": {"name": "foo", "version": "bar"},
+                    "device": {"architecture": "zap"},
+                    "timestamp": "2023-10-10 00:00:00Z"
+                }"#,
+            );
+            item
+        });
+
+        let mut project_state = ProjectState::allowed();
+        project_state.config.features.0.insert(Feature::Profiling);
+
+        let envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+
+        let (group, envelope) = envelopes.first().unwrap();
+        let mut envelope =
+            ManagedEnvelope::standalone(envelope.clone(), Addr::dummy(), Addr::dummy());
+        envelope.set_processing_group(*group);
+
+        let message = ProcessEnvelope {
+            envelope,
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        assert!(envelope_response.envelope.is_none());
     }
 }
