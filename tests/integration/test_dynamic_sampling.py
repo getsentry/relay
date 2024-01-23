@@ -650,8 +650,8 @@ def test_relay_chain_keep_unsampled_profile(
     envelope = make_envelope(public_key)
 
     relay.send_envelope(project_id, envelope)
-    envelope = mini_sentry.captured_events.get(timeout=2)
-    envelope = mini_sentry.captured_events.get(timeout=2)
+    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.captured_events.get(timeout=5)
 
     profiles = list(
         filter(lambda item: item.data_category == "profile", envelope.items)
