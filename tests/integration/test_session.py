@@ -664,7 +664,7 @@ def test_session_aggregates_chain(
 
     processing_relay = relay_with_processing(
         options={
-            "cache": {"project_expiry": project_expiry, "project_grace_period": 5},
+            "cache": {"project_expiry": project_expiry, "project_grace_period": 0},
         }
     )
 
