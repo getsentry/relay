@@ -45,9 +45,7 @@ use tokio::sync::Semaphore;
 use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityScope, RedisSetLimiter, SlidingWindow,
-    },
+    relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -825,34 +823,6 @@ impl EnvelopeProcessorService {
         Self {
             inner: Arc::new(inner),
         }
-    }
-
-    /// Returns current cardinality limits built from the configuration.
-    ///
-    /// In the near future these limits will be coming from the project config.
-    #[cfg(feature = "processing")]
-    fn get_cardinality_limits(&self) -> [CardinalityLimit; 5] {
-        let limit = self.inner.config.cardinality_limit();
-        let window = SlidingWindow {
-            window_seconds: self.inner.config.cardinality_limiter_window(),
-            granularity_seconds: self.inner.config.cardinality_limiter_granularity(),
-        };
-        let scope = CardinalityScope::Organization;
-
-        [
-            MetricNamespace::Sessions,
-            MetricNamespace::Spans,
-            MetricNamespace::Transactions,
-            MetricNamespace::Custom,
-            MetricNamespace::Unsupported,
-        ]
-        .map(|ns| CardinalityLimit {
-            id: ns.as_str().to_owned(),
-            window,
-            limit,
-            scope,
-            namespace: Some(ns),
-        })
     }
 
     /// Normalize monitor check-ins and remove invalid ones.
@@ -1879,8 +1849,6 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
-        let limits = &self.get_cardinality_limits();
-
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 mut buckets,
@@ -1888,6 +1856,7 @@ impl EnvelopeProcessorService {
             } = message;
 
             let mode = project_state.get_extraction_mode();
+            let limits = project_state.get_cardinality_limits();
 
             if project_state.has_feature(Feature::CardinalityLimiter) {
                 buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);

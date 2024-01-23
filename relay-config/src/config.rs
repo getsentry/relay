@@ -1282,42 +1282,9 @@ pub struct GeoIpConfig {
 }
 
 /// Cardinality Limiter configuration options.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
-pub struct CardinalityLimiter {
-    /// The number of seconds to apply the limit to.
-    ///
-    /// Defaults to: 1 hour.
-    pub window_seconds: u64,
-    /// A number between 1 and `window_seconds`. Since `window_seconds` is a
-    /// sliding window, configure what the granularity of that window is.
-    ///
-    /// If this is equal to `window_seconds`, the quota resets to 0 every
-    /// `window_seconds`.  If this is a very small number, the window slides
-    /// "more smoothly" at the expense of having much more redis keys.
-    ///
-    /// The number of redis keys required to enforce a quota is `window_seconds /
-    /// granularity_seconds`.
-    ///
-    /// Defaults to: 10 minutes.
-    pub granularity_seconds: u64,
-    /// Cardinality limit per bucket.
-    ///
-    /// The current bucket scope is comprised of organization and namespace.
-    ///
-    /// Defaults to: 10_000.
-    pub limit: u64,
-}
-
-impl Default for CardinalityLimiter {
-    fn default() -> Self {
-        Self {
-            window_seconds: 3600,
-            granularity_seconds: 600,
-            limit: 10_000,
-        }
-    }
-}
+pub struct CardinalityLimiter {}
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
@@ -2168,21 +2135,6 @@ impl Config {
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
-    }
-
-    /// Cardinality limit per org and namespace.
-    pub fn cardinality_limit(&self) -> u64 {
-        self.values.cardinality_limiter.limit
-    }
-
-    /// Sliding window size to enforce cardinality limit.
-    pub fn cardinality_limiter_window(&self) -> u64 {
-        self.values.cardinality_limiter.window_seconds
-    }
-
-    /// Granularity of the sliding window to enforce cardinality limit.
-    pub fn cardinality_limiter_granularity(&self) -> u64 {
-        self.values.cardinality_limiter.granularity_seconds
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

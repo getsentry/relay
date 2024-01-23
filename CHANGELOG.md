@@ -9,6 +9,7 @@
 **Internal**:
 
 - Implement quota system for cardinality limiter. ([#2972](https://github.com/getsentry/relay/pull/2972))
+- Use cardinality limits from project config instead of Relay config. ([#2990](https://github.com/getsentry/relay/pull/2990))
 - Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
 - Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
 - Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
