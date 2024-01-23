@@ -7,7 +7,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 
 
-def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
+def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
     """
     Creates a transaction item that can be added to an envelope
 
@@ -30,6 +30,7 @@ def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
         },
         "spans": [],
         "extra": {"id": event_id},
+        **kwargs,
     }
     return item, trace_id, event_id
 
@@ -195,11 +196,16 @@ def _create_event_envelope(
 
 
 def _create_transaction_envelope(
-    public_key, client_sample_rate=None, trace_id=None, event_id=None, transaction=None
+    public_key,
+    client_sample_rate=None,
+    trace_id=None,
+    event_id=None,
+    transaction=None,
+    **kwargs,
 ):
     envelope = Envelope()
     transaction_event, trace_id, event_id = _create_transaction_item(
-        trace_id=trace_id, event_id=event_id, transaction=transaction
+        trace_id=trace_id, event_id=event_id, transaction=transaction, **kwargs
     )
     envelope.add_transaction(transaction_event)
     _add_trace_info(
@@ -599,11 +605,11 @@ from .fixtures.mini_sentry import GLOBAL_CONFIG
 @mock.patch.dict(
     GLOBAL_CONFIG,
     {
-        "options": [
-            {"profiling.profile_metrics.unsampled_profiles.platforms": ["python"]},
-            {"profiling.profile_metrics.unsampled_profiles.sample_rate": 1.0},
-            {"profiling.profile_metrics.unsampled_profiles.enabled": True},
-        ]
+        "options": {
+            "profiling.profile_metrics.unsampled_profiles.platforms": ["python"],
+            "profiling.profile_metrics.unsampled_profiles.sample_rate": 1.0,
+            "profiling.profile_metrics.unsampled_profiles.enabled": True,
+        }
     },
 )
 def test_relay_chain_keep_unsampled_profile(
@@ -620,6 +626,7 @@ def test_relay_chain_keep_unsampled_profile(
             public_key,
             trace_id=trace_uuid,
             event_id=transaction_uuid,
+            platform="python",
         )
         te = envelope.get_transaction_event()
         profile_payload = get_profile_payload(te)
@@ -642,16 +649,16 @@ def test_relay_chain_keep_unsampled_profile(
     _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="transaction")
 
     envelope = make_envelope(public_key)
-    print(f"\n\nConfig: {GLOBAL_CONFIG}\n\n")
 
     relay.send_envelope(project_id, envelope)
     envelope = mini_sentry.captured_events.get(timeout=1)
+    envelope = mini_sentry.captured_events.get(timeout=1)
 
-    print(f"Envelope: {envelope}")
-    # profiles = list(
-    #     filter(lambda item: item.data_category == "profile", envelope.items)
-    # )
-    # print(f"Profiles: {json.loads(profiles[0].payload.bytes.decode('utf-8'))}")
+    profiles = list(
+        filter(lambda item: item.data_category == "profile", envelope.items)
+    )
+    assert len(profiles) == 1
+    assert profiles[0].headers.get("sampled") == False
 
 
 def get_profile_payload(transaction):
