@@ -6,6 +6,7 @@
 
 - Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
 - Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
+- Forward profiles of non-sampled transactions ([#2940](https://github.com/getsentry/relay/pull/2940))
 
 **Bug Fixes**:
 
