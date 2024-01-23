@@ -651,7 +651,10 @@ mod tests {
     use relay_protocol::Annotated;
 
     use super::*;
-    use crate::{normalize_event, NormalizationConfig};
+    use crate::{
+        normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
+        NormalizationConfig, TransactionValidationConfig,
+    };
 
     #[test]
     fn test_truncate_string_no_panic() {
@@ -719,8 +722,14 @@ mod tests {
                     }
                 }
 
-                // Normalize first, to make sure that all things are correct as in the real pipeline:
-                let res = normalize_event(
+                // Validate and normalize first, to make sure that all things
+                // are correct as in the real pipeline:
+                let res = validate_transaction(&mut event, &TransactionValidationConfig::default());
+                assert!(res.is_ok());
+                let res = validate_event_timestamps(&mut event, &EventValidationConfig::default());
+                assert!(res.is_ok());
+
+                normalize_event(
                     &mut event,
                     &NormalizationConfig {
                         enrich_spans: true,
@@ -728,7 +737,6 @@ mod tests {
                         ..Default::default()
                     },
                 );
-                assert!(res.is_ok());
 
                 assert_eq!(
                     $expected_method,
