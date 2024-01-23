@@ -2813,15 +2813,6 @@
 <a href="#2813" id="2813">2813</a>
 <a href="#2814" id="2814">2814</a>
 <a href="#2815" id="2815">2815</a>
-<a href="#2816" id="2816">2816</a>
-<a href="#2817" id="2817">2817</a>
-<a href="#2818" id="2818">2818</a>
-<a href="#2819" id="2819">2819</a>
-<a href="#2820" id="2820">2820</a>
-<a href="#2821" id="2821">2821</a>
-<a href="#2822" id="2822">2822</a>
-<a href="#2823" id="2823">2823</a>
-<a href="#2824" id="2824">2824</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4683,10 +4674,7 @@
                 project_state,
             } = message;
 
-            <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
-                <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
-            };
+            <span class="kw">let </span>mode = project_state.get_extraction_mode();
 
             <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
                 buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, buckets, mode);
@@ -4735,10 +4723,7 @@
 
             <span class="kw">let </span>project_key = scoping.project_key;
             <span class="kw">let </span>dsn = PartialDsn::outbound(<span class="kw-2">&amp;</span>scoping, upstream);
-            <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
-                <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
-            };
+            <span class="kw">let </span>mode = project_state.get_extraction_mode();
 
             <span class="kw">let </span>partitions = <span class="kw">if let </span><span class="prelude-val">Some</span>(count) = <span class="self">self</span>.inner.config.metrics_partitions() {
                 <span class="kw">let </span><span class="kw-2">mut </span>partitions: BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, Vec&lt;Bucket&gt;&gt; = BTreeMap::new();
@@ -4843,10 +4828,7 @@
                 project_state,
             } = message;
 
-            <span class="kw">let </span>mode = <span class="kw">match </span>project_state.config.transaction_metrics {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) <span class="kw">if </span>c.usage_metric() =&gt; ExtractionMode::Usage,
-                <span class="kw">_ </span>=&gt; ExtractionMode::Duration,
-            };
+            <span class="kw">let </span>mode = project_state.get_extraction_mode();
 
             <span class="kw">for </span>bucket <span class="kw">in </span>buckets {
                 <span class="kw">let </span>partition_key = partition_key(scoping.project_key, bucket, partition_count);
