@@ -107,23 +107,26 @@ pub enum ProcessingGroup {
     Transaction,
     /// All the items which require (have or create) events.
     ///
-    /// This includes: errors, NEL, security reports, user and clients reports, some of the
+    /// This includes: errors, NEL, security reports, user reports, some of the
     /// attachments.
     Error,
     /// Session events.
     Session,
-    /// Attachments which can be sent alone without any event attached to it in the current
-    /// envelope.
-    StandaloneAttachment,
-    UserReport,
+    /// Standalone items which can be sent alone without any event attached to it in the current
+    /// envelope e.g. some attachments, user reports.
+    Standalone,
+    /// Outcomes.
+    ClientReport,
+    /// Replays and ReplayRecordings.
     Replay,
     /// Crons.
     CheckIn,
+    /// Spans.
     Span,
-    /// The unknow item types will be forwarded upstream (to processing Relay), where we will
-    /// decide what to do with it.
+    /// Unknown item types will be forwarded upstream (to processing Relay), where we will
+    /// decide what to do with them.
     ForwardUnknown,
-    /// All the events in the envelope we failed to group.
+    /// All the items in the envelope that could not be grouped.
     Ungrouped,
 }
 
@@ -145,20 +148,6 @@ impl ProcessingGroup {
                 (ProcessingGroup::Error, envelope)
             });
         grouped_envelopes.extend(nel_envelopes);
-
-        // Extract all standalone attachments.
-        // Note: only if there is no items in the envelope which can create events.
-        if !envelope.items().any(Item::creates_event) {
-            let standalone_attachment_items = envelope.take_items_by(|item| {
-                matches!(item.ty(), &ItemType::Attachment | &ItemType::FormData)
-            });
-            if !standalone_attachment_items.is_empty() {
-                grouped_envelopes.push((
-                    ProcessingGroup::StandaloneAttachment,
-                    Envelope::from_parts(headers.clone(), standalone_attachment_items),
-                ))
-            }
-        };
 
         // Extract replays.
         let replay_items = envelope.take_items_by(|item| {
@@ -194,6 +183,20 @@ impl ProcessingGroup {
             ))
         }
 
+        // Extract all standalone items.
+        //
+        // Note: only if there are no items in the envelope which can create events, otherwise they
+        // will be in the same envelope with all require event items.
+        if !envelope.items().any(Item::creates_event) {
+            let standalone_items = envelope.take_items_by(Item::requires_event);
+            if !standalone_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::Standalone,
+                    Envelope::from_parts(headers.clone(), standalone_items),
+                ))
+            }
+        };
+
         // Extract all the items which require an event into separate envelope.
         let require_event_items = envelope.take_items_by(Item::requires_event);
         if !require_event_items.is_empty() {
@@ -219,8 +222,8 @@ impl ProcessingGroup {
             let item_type = item.ty();
             let group = if matches!(item_type, &ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
-            } else if matches!(item_type, &ItemType::UserReport | &ItemType::ClientReport) {
-                ProcessingGroup::UserReport
+            } else if matches!(item.ty(), &ItemType::ClientReport) {
+                ProcessingGroup::ClientReport
             } else if matches!(item_type, &ItemType::Unknown(_)) {
                 ProcessingGroup::ForwardUnknown
             } else {
@@ -1132,11 +1135,7 @@ impl EnvelopeProcessorService {
     /// Processes the general errors, and the items which require or create the events.
     fn process_errors(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
-        report::process(
-            state,
-            &self.inner.config,
-            self.inner.outcome_aggregator.clone(),
-        );
+        report::process_user_reports(state);
 
         if_processing!(self.inner.config, {
             unreal::expand(state, &self.inner.config)?;
@@ -1215,11 +1214,17 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes standalone attachments.
-    fn process_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_standalone_attachments(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        profile::filter(state);
+
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
 
+        report::process_user_reports(state);
         attachment::scrub(state);
         Ok(())
     }
@@ -1234,7 +1239,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes user and client reports.
-    fn process_user_reports(
+    fn process_client_reports(
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
@@ -1242,7 +1247,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
         });
 
-        report::process(
+        report::process_client_reports(
             state,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
@@ -1274,7 +1279,11 @@ impl EnvelopeProcessorService {
         span::filter(state);
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
-            span::process(state, self.inner.config.clone());
+            span::process(
+                state,
+                self.inner.config.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
+            );
         });
         Ok(())
     }
@@ -1289,11 +1298,12 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
         session::process(state, &self.inner.config);
-        report::process(
+        report::process_client_reports(
             state,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
         );
+        report::process_user_reports(state);
         replay::process(state, &self.inner.config)?;
         profile::filter(state);
         span::filter(state);
@@ -1338,7 +1348,11 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
             self.process_check_ins(state);
-            span::process(state, self.inner.config.clone());
+            span::process(
+                state,
+                self.inner.config.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
+            );
         });
 
         if state.has_event() {
@@ -1365,8 +1379,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Error => self.process_errors(state)?,
             ProcessingGroup::Transaction => self.process_transactions(state)?,
             ProcessingGroup::Session => self.process_sessions(state)?,
-            ProcessingGroup::StandaloneAttachment => self.process_attachments(state)?,
-            ProcessingGroup::UserReport => self.process_user_reports(state)?,
+            ProcessingGroup::Standalone => self.process_standalone_attachments(state)?,
+            ProcessingGroup::ClientReport => self.process_client_reports(state)?,
             ProcessingGroup::Replay => self.process_replays(state)?,
             ProcessingGroup::CheckIn => self.process_checkins(state)?,
             ProcessingGroup::Span => self.process_spans(state)?,

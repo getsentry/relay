@@ -20,7 +20,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
-    SpanStatus, Tags, User,
+    SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -262,7 +262,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-    normalize_measurements(
+    normalize_event_measurements(
         event,
         config.measurements.clone(),
         config.max_name_and_unit_len,
@@ -693,8 +693,8 @@ fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) 
     }
 }
 
-/// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(
+/// Ensures measurements interface is only present for transaction events.
+fn normalize_event_measurements(
     event: &mut Event,
     measurements_config: Option<DynamicMeasurementsConfig>,
     max_mri_len: Option<usize>,
@@ -703,19 +703,38 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_mobile_measurements(measurements);
-        normalize_units(measurements);
-        if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
-        }
-
-        let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
-            (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
-            _ => 0.0,
-        };
-
-        compute_measurements(duration_millis, measurements);
+        normalize_measurements(
+            measurements,
+            meta,
+            measurements_config,
+            max_mri_len,
+            event.start_timestamp.0,
+            event.timestamp.0,
+        );
     }
+}
+
+/// Ensure only valid measurements are ingested.
+pub fn normalize_measurements(
+    measurements: &mut Measurements,
+    meta: &mut Meta,
+    measurements_config: Option<DynamicMeasurementsConfig>,
+    max_mri_len: Option<usize>,
+    start_timestamp: Option<Timestamp>,
+    end_timestamp: Option<Timestamp>,
+) {
+    normalize_mobile_measurements(measurements);
+    normalize_units(measurements);
+    if let Some(measurements_config) = measurements_config {
+        remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
+    }
+
+    let duration_millis = match (start_timestamp, end_timestamp) {
+        (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
+        _ => 0.0,
+    };
+
+    compute_measurements(duration_millis, measurements);
 }
 
 /// Computes performance score measurements.
@@ -767,7 +786,11 @@ fn normalize_performance_score(
                     let mut normalized_component_weight = 0.0;
                     if let Some(value) = measurements.get_value(component.measurement.as_str()) {
                         normalized_component_weight = component.weight / weight_total;
-                        let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+                        let cdf = utils::calculate_cdf_score(
+                            value.max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
+                            component.p10,
+                            component.p50,
+                        );
                         let component_score = cdf * normalized_component_weight;
                         score_total += component_score;
                         should_add_total = true;
@@ -1184,7 +1207,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, None, None);
+        normalize_event_measurements(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
@@ -1256,7 +1279,7 @@ mod tests {
         let dynamic_measurement_config =
             DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
 
-        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
+        normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
@@ -2426,6 +2449,71 @@ mod tests {
           "measurements": {
             "cls": {
               "value": 0.11,
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_negative_value() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "ttfb",
+                            "weight": 1.0,
+                            "p10": 100.0,
+                            "p50": 250.0
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "score.total": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "score.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "ttfb": {
+              "value": -100.0,
+              "unit": "millisecond",
             },
           },
         }
