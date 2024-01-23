@@ -658,7 +658,28 @@ def test_session_aggregates_invalid_environment(
 def test_session_aggregates_chain(
     mini_sentry, relay, relay_with_processing, metrics_consumer
 ):
-    relay = relay(relay_with_processing(), options={"http": {"global_metrics": True}})
+    # Make processing relay forget the project config before the metric is emitted by PoP:
+    project_expiry = 2
+    bucket_interval = 5
+
+    processing_relay = relay_with_processing(
+        options={
+            "cache": {"project_expiry": project_expiry, "project_grace_period": 5},
+        }
+    )
+
+    pop_relay = relay(
+        processing_relay,
+        options={
+            "http": {"global_metrics": True},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
     metrics_consumer = metrics_consumer()
 
     now = datetime.now(tz=timezone.utc)
@@ -666,7 +687,7 @@ def test_session_aggregates_chain(
     project_id = 42
     config = mini_sentry.add_full_project_config(project_id)["config"]
     config["sessionMetrics"] = {"version": 3, "drop": True}
-    relay.send_session_aggregates(
+    pop_relay.send_session_aggregates(
         project_id,
         {
             "aggregates": [
@@ -684,5 +705,6 @@ def test_session_aggregates_chain(
         },
     )
 
-    metrics = list(metrics_consumer.get_metrics())
+    metrics = list(metrics_consumer.get_metrics(timeout=5))
+    assert len(metrics) == 3
     assert any(metric["name"] == "c:sessions/session@none" for metric, _ in metrics)
