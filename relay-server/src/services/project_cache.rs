@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -28,7 +29,9 @@ use crate::services::test_store::TestStore;
 use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
+use crate::utils::{
+    self, BufferGuard, GarbageDisposal, ManagedEnvelope, RetryBackoff, SleepHandle,
+};
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -490,6 +493,8 @@ struct ProjectCacheBroker {
     buffer_guard: Arc<BufferGuard>,
     /// Index of the buffered project keys.
     index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
+    buffer_unspool_handle: SleepHandle,
+    buffer_unspool_backoff: RetryBackoff,
     buffer: Addr<Buffer>,
     global_config: GlobalConfigStatus,
 }
@@ -502,14 +507,8 @@ struct ProjectCacheBroker {
 enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
     Ready(Arc<GlobalConfig>),
-    /// Project keys waiting for global config to dequeue from buffer.
-    ///
-    /// These project keys were used to try to dequeue the buffer, but were blocked because we
-    /// lacked a global config. When global config arrives, we will request project states for these keys again
-    /// which will trigger another dequeue that should be succesful. The reason we don't dequeue
-    /// directly when we receive [`GlobalConfig`] is that the [`ProjectState`]s might have expired in the meantime,
-    /// which would drop the envelopes when they are sent to ProjectCacheBroker::handle_processing.
-    Pending(BTreeSet<ProjectKey>),
+    /// The global config us not fetched yet.
+    Pending,
 }
 
 impl GlobalConfigStatus {
@@ -520,36 +519,12 @@ impl GlobalConfigStatus {
 
 impl ProjectCacheBroker {
     fn set_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        let GlobalConfigStatus::Pending(project_keys) = std::mem::replace(
+        let GlobalConfigStatus::Pending = std::mem::replace(
             &mut self.global_config,
             GlobalConfigStatus::Ready(global_config),
         ) else {
             return;
         };
-
-        relay_log::info!(
-            "global config received: {} projects were pending",
-            project_keys.len()
-        );
-
-        // Check which of the pending projects can be dequeued now:
-        for project_key in project_keys {
-            let project_cache = self.services.project_cache.clone();
-
-            // Check for a cached state:
-            //  1. If the state is cached and valid, trigger an immediate dequeue. There could be a
-            //     fetch running in the background, but this is not guaranteed.
-            //  2. If the state is not cached, `get_cached_state` will trigger a fetch in the
-            //     background. Once the fetch completes, the project will automatically cause a
-            //     dequeue by sending `UpdateProjectState` to the broker.
-            let state = self
-                .get_or_create_project(project_key)
-                .get_cached_state(project_cache, false);
-
-            if state.map_or(false, |s| !s.invalid()) {
-                self.dequeue(project_key);
-            }
-        }
     }
 
     /// Adds the value to the queue for the provided key.
@@ -565,8 +540,13 @@ impl ProjectCacheBroker {
     /// forwarded to `handle_processing`.
     pub fn dequeue(&mut self, partial_key: ProjectKey) {
         // If we don't yet have the global config, we will defer dequeuing until we do.
-        if let GlobalConfigStatus::Pending(keys) = &mut self.global_config {
-            keys.insert(partial_key);
+        if let GlobalConfigStatus::Pending = self.global_config {
+            return;
+        }
+
+        // Do *not* attempt to unspool if there is more buffer guards are assigned than low
+        // watermark indicates.
+        if !self.buffer_guard.is_below_low_watermark() {
             return;
         }
 
@@ -683,8 +663,10 @@ impl ProjectCacheBroker {
             no_cache,
         );
 
-        if !state.invalid() {
-            self.dequeue(project_key);
+        // Schedule unspool if nothing is running at the moment.
+        if !self.buffer_unspool_backoff.started() {
+            self.buffer_unspool_backoff.reset();
+            self.schedule_unspool();
         }
     }
 
@@ -913,6 +895,48 @@ impl ProjectCacheBroker {
         }
     }
 
+    /// Returns backoff timeout for an unspool attempt.
+    fn next_unspool_attempt(&mut self) -> Duration {
+        self.config.spool_envelopes_unspool_interval() + self.buffer_unspool_backoff.next_backoff()
+    }
+
+    fn schedule_unspool(&mut self) {
+        if self.buffer_unspool_handle.is_idle() {
+            // Set the time for the next attempt.
+            let wait = self.next_unspool_attempt();
+            self.buffer_unspool_handle.set(wait);
+        }
+    }
+
+    /// Iterates the buffer index and tries to unspool the envelopes if the project state is still
+    /// valid.
+    ///
+    /// This makes sure we always moving the unspool forward, even if we do not fetch the project
+    /// states updates, but still can process data based on the existing cache.
+    fn handle_periodic_unspool(&mut self) {
+        self.buffer_unspool_handle.reset();
+        let keys = self.index.keys().cloned().collect::<Box<[_]>>();
+
+        // If there is nothing spooled, schedule the next check a little bit later.
+        if keys.is_empty() {
+            self.schedule_unspool();
+        }
+
+        for project_key in keys.iter() {
+            if self
+                .projects
+                .get(project_key)
+                .map_or(false, |state| state.valid_state().is_some())
+            {
+                self.dequeue(*project_key)
+            }
+        }
+
+        // Schedule unspool once we are done.
+        self.buffer_unspool_backoff.reset();
+        self.schedule_unspool();
+    }
+
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
@@ -1020,7 +1044,7 @@ impl Service for ProjectCacheService {
                 }
                 global_config::Status::Pending => {
                     relay_log::info!("waiting for global config");
-                    GlobalConfigStatus::Pending(BTreeSet::new())
+                    GlobalConfigStatus::Pending
                 }
             };
 
@@ -1033,12 +1057,18 @@ impl Service for ProjectCacheService {
                 config: config.clone(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
-                source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
+                source: ProjectSource::start(
+                    config.clone(),
+                    services.upstream_relay.clone(),
+                    redis,
+                ),
                 services,
                 state_tx,
                 buffer_tx,
                 buffer_guard,
                 index: BTreeMap::new(),
+                buffer_unspool_handle: SleepHandle::idle(),
+                buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
                 buffer,
                 global_config,
             };
@@ -1060,6 +1090,7 @@ impl Service for ProjectCacheService {
                     // permits in `BufferGuard` available. Currently this is 50%.
                     Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
+                    () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
                     Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,
                 }
@@ -1171,7 +1202,9 @@ mod tests {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer: buffer.clone(),
-                global_config: GlobalConfigStatus::Pending(BTreeSet::new()),
+                global_config: GlobalConfigStatus::Pending,
+                buffer_unspool_handle: SleepHandle::idle(),
+                buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
             },
             buffer,
         )
