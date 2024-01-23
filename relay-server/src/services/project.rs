@@ -585,14 +585,16 @@ impl Project {
             return;
         };
 
+        let metrics_config = &state.config.metrics;
+
         metrics.retain_mut(|bucket| {
-            if Self::metric_name_denied(&state.config.metrics, bucket) {
+            if Self::metric_name_denied(metrics_config, bucket) {
                 relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
                 false
             } else if Self::metric_namespace_invalid(state, bucket) {
                 false
             } else {
-                Self::remove_tags(&state.config.metrics, bucket);
+                Self::remove_tags(metrics_config, bucket);
                 true
             }
         });
@@ -609,7 +611,7 @@ impl Project {
             return;
         };
 
-        for tag_blocker in &metrics.blocked_tags {
+        for tag_blocker in &metrics.denied_tags {
             if tag_blocker.name.is_match(&bucket.name) {
                 bucket.filter_tags(&tag_blocker.tag);
             }
@@ -621,7 +623,7 @@ impl Project {
             return false;
         };
 
-        metrics.blocked_metrics.is_match(&bucket.name)
+        metrics.denied_names.is_match(&bucket.name)
     }
 
     fn metric_namespace_invalid(state: &ProjectState, metric: &Bucket) -> bool {
@@ -1199,6 +1201,7 @@ impl Project {
 mod tests {
     use std::sync::{Arc, Mutex};
 
+    use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
@@ -1498,7 +1501,10 @@ mod tests {
     ) -> Vec<String> {
         let mut buckets = get_test_buckets(&names);
         let patterns: Vec<String> = patterns.as_ref().iter().map(|s| (*s).to_owned()).collect();
-        let deny_list = ErrorBoundary::Ok(Metrics::new(patterns));
+        let deny_list = ErrorBoundary::Ok(Metrics {
+            denied_names: GlobPatterns::new(patterns),
+            ..Default::default()
+        });
 
         buckets.retain(|bucket| !Project::metric_name_denied(&deny_list, bucket));
 

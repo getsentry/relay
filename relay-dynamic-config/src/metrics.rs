@@ -18,35 +18,29 @@ pub struct Metrics {
     /// List of cardinality limits to enforce for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cardinality_limits: Vec<CardinalityLimit>,
-    /// Patterns of names of metrics that we want to filter.
-    pub blocked_metrics: GlobPatterns,
-    ///
-    pub blocked_tags: Vec<TagBlockConfig>,
+    /// List of patterns for blocking metrics based on their name.
+    #[serde(skip_serializing_if = "GlobPatterns::is_empty")]
+    pub denied_names: GlobPatterns,
+    /// List of patterns of tags to remove.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub denied_tags: Vec<TagBlock>,
 }
 
 impl Metrics {
-    /// Returns a new instance of [`Metrics`].
-    pub fn new(patterns: Vec<String>) -> Self {
-        Self {
-            blocked_metrics: GlobPatterns::new(patterns),
-            blocked_tags: vec![],
-            cardinality_limits: vec![],
-        }
-    }
     /// Returns `true` if it contains any names patterns to filter metric names.
     pub fn is_empty(&self) -> bool {
         self.cardinality_limits.is_empty()
-            && self.blocked_metrics.is_empty()
-            && self.blocked_tags.is_empty()
+            && self.denied_names.is_empty()
+            && self.denied_tags.is_empty()
     }
 }
 
 /// For metrics matching the 'name' pattern, we remove tags matching the 'tag' pattern.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
-pub struct TagBlockConfig {
-    ///
+pub struct TagBlock {
+    /// Name of metric of which we want to remove certain tags.
     pub name: GlobPatterns,
-    ///
+    /// Key-value of tag that we want to remove given that the name matched.
     pub tag: GlobPatterns,
 }
 
