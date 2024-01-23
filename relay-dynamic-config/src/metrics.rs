@@ -12,8 +12,12 @@ use serde::{Deserialize, Serialize};
 use crate::project::ProjectConfig;
 
 /// Configuration for metrics filtering.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
 pub struct Metrics {
+    /// List of cardinality limits to enforce for this project.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cardinality_limits: Vec<CardinalityLimit>,
     /// Patterns of names of metrics that we want to filter.
     pub blocked_metrics: GlobPatterns,
     ///
@@ -26,16 +30,19 @@ impl Metrics {
         Self {
             blocked_metrics: GlobPatterns::new(patterns),
             blocked_tags: vec![],
+            cardinality_limits: vec![],
         }
     }
     /// Returns `true` if it contains any names patterns to filter metric names.
     pub fn is_empty(&self) -> bool {
-        self.blocked_metrics.is_empty()
+        self.cardinality_limits.is_empty()
+            && self.blocked_metrics.is_empty()
+            && self.blocked_tags.is_empty()
     }
 }
 
 /// For metrics matching the 'name' pattern, we remove tags matching the 'tag' pattern.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TagBlockConfig {
     ///
     pub name: GlobPatterns,
