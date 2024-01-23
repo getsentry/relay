@@ -147,7 +147,7 @@ impl ProcessingGroup {
 
         // Extract all standalone attachments and reports.
         //
-        // Note: only if there is no items in the envelope which can create events, otherwise they
+        // Note: only if there are no items in the envelope which can create events, otherwise they
         // will be in the same envelope with all require event items.
         if !envelope.items().any(Item::creates_event) {
             let standalone_attachment_items = envelope.take_items_by(|item| {
