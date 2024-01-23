@@ -34,104 +34,12 @@ pub enum ClientReportField {
     ClientDiscard,
 }
 
-/// Validates and normalizes:
-/// - all user reports items in the envelopes
-/// - all client reports
-///
-/// User feedback items are removed from the envelope if they contain invalid JSON or if the
-/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-/// is written back into the item.
-///
-/// At the moment client reports are primarily used to transfer outcomes from
-/// client SDKs.  The outcomes are removed here and sent directly to the outcomes
-/// system.
-pub fn process(
-    state: &mut ProcessEnvelopeState,
-    config: &Config,
-    outcome_aggregator: Addr<TrackOutcome>,
-) {
-    process_client_reports(state, config, outcome_aggregator);
-    process_user_reports(state);
-}
-
-/// Validates and normalizes all user report items in the envelope.
-///
-/// User feedback items are removed from the envelope if they contain invalid JSON or if the
-/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-/// is written back into the item.
-fn process_user_reports(state: &mut ProcessEnvelopeState) {
-    state.managed_envelope.retain_items(|item| {
-        if item.ty() != &ItemType::UserReport {
-            return ItemAction::Keep;
-        };
-
-        let payload = item.payload();
-        // There is a customer SDK which sends invalid reports with a trailing `\n`,
-        // strip it here, even if they update/fix their SDK there will still be many old
-        // versions with the broken SDK out there.
-        let payload = trim_whitespaces(&payload);
-        let report = match serde_json::from_slice::<UserReport>(payload) {
-            Ok(session) => session,
-            Err(error) => {
-                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
-                return ItemAction::DropSilently;
-            }
-        };
-
-        let json_string = match serde_json::to_string(&report) {
-            Ok(json) => json,
-            Err(err) => {
-                relay_log::error!(
-                    error = &err as &dyn Error,
-                    "failed to serialize user report"
-                );
-                return ItemAction::DropSilently;
-            }
-        };
-
-        item.set_payload(ContentType::Json, json_string);
-        ItemAction::Keep
-    });
-}
-
-fn trim_whitespaces(data: &[u8]) -> &[u8] {
-    let Some(from) = data.iter().position(|x| !x.is_ascii_whitespace()) else {
-        return &[];
-    };
-    let Some(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) else {
-        return &[];
-    };
-    &data[from..to + 1]
-}
-
-/// Parse an outcome from an outcome ID and a reason string.
-///
-/// Currently only used to reconstruct outcomes encoded in client reports.
-fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
-    match field {
-        ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
-            Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
-                .map(Outcome::FilteredSampling)
-                .map_err(|_| ()),
-            None => Err(()),
-        },
-        ClientReportField::ClientDiscard => Ok(Outcome::ClientDiscard(reason.into())),
-        ClientReportField::Filtered => Ok(Outcome::Filtered(
-            FilterStatKey::try_from(reason).map_err(|_| ())?,
-        )),
-        ClientReportField::RateLimited => Ok(Outcome::RateLimited(match reason {
-            "" => None,
-            other => Some(ReasonCode::new(other)),
-        })),
-    }
-}
-
 /// Validates and extracts client reports.
 ///
 /// At the moment client reports are primarily used to transfer outcomes from
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
-fn process_client_reports(
+pub fn process_client_reports(
     state: &mut ProcessEnvelopeState,
     config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -272,6 +180,78 @@ fn process_client_reports(
             category,
             quantity,
         });
+    }
+}
+
+/// Validates and normalizes all user report items in the envelope.
+///
+/// User feedback items are removed from the envelope if they contain invalid JSON or if the
+/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
+/// is written back into the item.
+pub fn process_user_reports(state: &mut ProcessEnvelopeState) {
+    state.managed_envelope.retain_items(|item| {
+        if item.ty() != &ItemType::UserReport {
+            return ItemAction::Keep;
+        };
+
+        let payload = item.payload();
+        // There is a customer SDK which sends invalid reports with a trailing `\n`,
+        // strip it here, even if they update/fix their SDK there will still be many old
+        // versions with the broken SDK out there.
+        let payload = trim_whitespaces(&payload);
+        let report = match serde_json::from_slice::<UserReport>(payload) {
+            Ok(session) => session,
+            Err(error) => {
+                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
+                return ItemAction::DropSilently;
+            }
+        };
+
+        let json_string = match serde_json::to_string(&report) {
+            Ok(json) => json,
+            Err(err) => {
+                relay_log::error!(
+                    error = &err as &dyn Error,
+                    "failed to serialize user report"
+                );
+                return ItemAction::DropSilently;
+            }
+        };
+
+        item.set_payload(ContentType::Json, json_string);
+        ItemAction::Keep
+    });
+}
+
+fn trim_whitespaces(data: &[u8]) -> &[u8] {
+    let Some(from) = data.iter().position(|x| !x.is_ascii_whitespace()) else {
+        return &[];
+    };
+    let Some(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) else {
+        return &[];
+    };
+    &data[from..to + 1]
+}
+
+/// Parse an outcome from an outcome ID and a reason string.
+///
+/// Currently only used to reconstruct outcomes encoded in client reports.
+fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
+    match field {
+        ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
+            Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
+                .map(Outcome::FilteredSampling)
+                .map_err(|_| ()),
+            None => Err(()),
+        },
+        ClientReportField::ClientDiscard => Ok(Outcome::ClientDiscard(reason.into())),
+        ClientReportField::Filtered => Ok(Outcome::Filtered(
+            FilterStatKey::try_from(reason).map_err(|_| ())?,
+        )),
+        ClientReportField::RateLimited => Ok(Outcome::RateLimited(match reason {
+            "" => None,
+            other => Some(ReasonCode::new(other)),
+        })),
     }
 }
 
@@ -471,7 +451,7 @@ mod tests {
         });
 
         let mut envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store);
-        envelope.set_processing_group(ProcessingGroup::UserReport);
+        envelope.set_processing_group(ProcessingGroup::StandaloneAttachment);
 
         let message = ProcessEnvelope {
             envelope,
