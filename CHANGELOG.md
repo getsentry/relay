@@ -8,6 +8,7 @@
 - Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
 - Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
 - Add possiblity to block metrics with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954))
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
 
 **Bug Fixes**:
 
