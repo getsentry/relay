@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add new legacy browser filters. ([#2950](https://github.com/getsentry/relay/pull/2950))
+
 **Internal**:
 
 - Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
