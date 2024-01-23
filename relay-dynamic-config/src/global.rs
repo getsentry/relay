@@ -45,7 +45,7 @@ impl GlobalConfig {
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Options {
-    /// list of platform names for which we allow using unsampled profiles for the purpose
+    /// List of platform names for which we allow using unsampled profiles for the purpose
     /// of improving profile (function) metrics
     #[serde(
         default,
@@ -53,14 +53,14 @@ pub struct Options {
     )]
     pub profile_metrics_allowed_platforms: Vec<String>,
 
-    /// sample rate for tuning the amount of unsampled profiles that we "let through"
+    /// Sample rate for tuning the amount of unsampled profiles that we "let through"
     #[serde(
         default,
         rename = "profiling.profile_metrics.unsampled_profiles.sample_rate"
     )]
     pub profile_metrics_sample_rate: f32,
 
-    /// kill switch for shutting down profile metrics
+    /// Kill switch for shutting down profile metrics
     #[serde(
         default,
         rename = "profiling.profile_metrics.unsampled_profiles.enabled"
