@@ -2296,6 +2296,19 @@
 <a href="#2296" id="2296">2296</a>
 <a href="#2297" id="2297">2297</a>
 <a href="#2298" id="2298">2298</a>
+<a href="#2299" id="2299">2299</a>
+<a href="#2300" id="2300">2300</a>
+<a href="#2301" id="2301">2301</a>
+<a href="#2302" id="2302">2302</a>
+<a href="#2303" id="2303">2303</a>
+<a href="#2304" id="2304">2304</a>
+<a href="#2305" id="2305">2305</a>
+<a href="#2306" id="2306">2306</a>
+<a href="#2307" id="2307">2307</a>
+<a href="#2308" id="2308">2308</a>
+<a href="#2309" id="2309">2309</a>
+<a href="#2310" id="2310">2310</a>
+<a href="#2311" id="2311">2311</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2800,14 +2813,6 @@
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
     </span>sample_rate: f32,
-    <span class="doccomment">/// Code locations expiry in seconds.
-    ///
-    /// Defaults to 15 days.
-    </span>meta_locations_expiry: u64,
-    <span class="doccomment">/// Maximum amount of code locations to store per metric.
-    ///
-    /// Defaults to 5.
-    </span>meta_locations_max: usize,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Metrics {
@@ -2819,6 +2824,27 @@
             hostname_tag: <span class="prelude-val">None</span>,
             buffering: <span class="bool-val">true</span>,
             sample_rate: <span class="number">1.0</span>,
+        }
+    }
+}
+
+<span class="doccomment">/// Controls processing of Sentry metrics and metric metadata.
+</span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+</span><span class="kw">struct </span>SentryMetrics {
+    <span class="doccomment">/// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    </span><span class="kw">pub </span>meta_locations_expiry: u64,
+    <span class="doccomment">/// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    </span><span class="kw">pub </span>meta_locations_max: usize,
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>SentryMetrics {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
             meta_locations_expiry: <span class="number">15 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>,
             meta_locations_max: <span class="number">5</span>,
         }
@@ -3614,6 +3640,8 @@
     <span class="attr">#[serde(default)]
     </span>metrics: Metrics,
     <span class="attr">#[serde(default)]
+    </span>sentry_metrics: SentryMetrics,
+    <span class="attr">#[serde(default)]
     </span>sentry: relay_log::SentryConfig,
     <span class="attr">#[serde(default)]
     </span>processing: Processing,
@@ -4119,12 +4147,12 @@
 
     <span class="doccomment">/// Returns the maximum amount of code locations per metric.
     </span><span class="kw">pub fn </span>metrics_meta_locations_max(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.metrics.meta_locations_max
+        <span class="self">self</span>.values.sentry_metrics.meta_locations_max
     }
 
     <span class="doccomment">/// Returns the expiry for code locations.
     </span><span class="kw">pub fn </span>metrics_meta_locations_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_secs(<span class="self">self</span>.values.metrics.meta_locations_expiry)
+        Duration::from_secs(<span class="self">self</span>.values.sentry_metrics.meta_locations_expiry)
     }
 
     <span class="doccomment">/// Returns the default timeout for all upstream HTTP requests.
@@ -4420,14 +4448,12 @@
 
     <span class="doccomment">/// Amount of metric partitions.
     </span><span class="kw">pub fn </span>metrics_partitions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
-        <span class="comment">// TODO(dav1dde): move config to a better place
-        </span><span class="self">self</span>.values.aggregator.flush_partitions
+        <span class="self">self</span>.values.aggregator.flush_partitions
     }
 
     <span class="doccomment">/// Maximum metrics batch size in bytes.
     </span><span class="kw">pub fn </span>metrics_max_batch_size_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="comment">// TODO(dav1dde): move config to a better place
-        </span><span class="self">self</span>.values.aggregator.max_flush_bytes
+        <span class="self">self</span>.values.aggregator.max_flush_bytes
     }
 
     <span class="doccomment">/// Default prefix to use when looking up project configs in Redis. This is only done when
