@@ -184,7 +184,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
 /// Replaces snake_case app start spans op with dot.case op.
 ///
 /// This is done for the affected React Native SDK versions (from 3 to 4.4).
-fn normalize_app_start_spans(event: &mut Event) {
+pub fn normalize_app_start_spans(event: &mut Event) {
     if !event.sdk_name().eq("sentry.javascript.react-native")
         || !(event.sdk_version().starts_with("4.4")
             || event.sdk_version().starts_with("4.3")
