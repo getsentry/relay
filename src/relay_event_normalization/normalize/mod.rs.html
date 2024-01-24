@@ -2513,6 +2513,18 @@
 <a href="#2513" id="2513">2513</a>
 <a href="#2514" id="2514">2514</a>
 <a href="#2515" id="2515">2515</a>
+<a href="#2516" id="2516">2516</a>
+<a href="#2517" id="2517">2517</a>
+<a href="#2518" id="2518">2518</a>
+<a href="#2519" id="2519">2519</a>
+<a href="#2520" id="2520">2520</a>
+<a href="#2521" id="2521">2521</a>
+<a href="#2522" id="2522">2522</a>
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a>
+<a href="#2526" id="2526">2526</a>
+<a href="#2527" id="2527">2527</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -2551,6 +2563,12 @@
 </span><span class="kw">pub struct </span>BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
+    </span>allow_negative: bool,
+}
+
+<span class="kw">fn </span>is_false(b: <span class="kw-2">&amp;</span>bool) -&gt; bool {
+    !b
 }
 
 <span class="kw">impl </span>BuiltinMeasurementKey {
@@ -2559,6 +2577,7 @@
         <span class="self">Self </span>{
             name: name.into(),
             unit,
+            allow_negative: <span class="bool-val">false</span>,
         }
     }
 
@@ -2570,6 +2589,11 @@
     <span class="doccomment">/// Returns the unit of the built in measurement key.
     </span><span class="kw">pub fn </span>unit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>MetricUnit {
         <span class="kw-2">&amp;</span><span class="self">self</span>.unit
+    }
+
+    <span class="doccomment">/// Return true if the built in measurement key allows negative values.
+    </span><span class="kw">pub fn </span>allow_negative(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>bool {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.allow_negative
     }
 }
 
