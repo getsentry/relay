@@ -577,12 +577,12 @@
 }
 
 <span class="kw">fn </span>normalize_ip_address(replay: <span class="kw-2">&amp;mut </span>Replay, ip_address: <span class="prelude-ty">Option</span>&lt;StdIpAddr&gt;) {
-    <span class="kw">crate</span>::normalize_ip_addresses(
+    <span class="kw">crate</span>::event::normalize_ip_addresses(
         <span class="kw-2">&amp;mut </span>replay.request,
         <span class="kw-2">&amp;mut </span>replay.user,
         replay.platform.as_str(),
         ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
-    )
+    );
 }
 
 <span class="kw">fn </span>normalize_user_agent(replay: <span class="kw-2">&amp;mut </span>Replay, default_user_agent: <span class="kw-2">&amp;</span>RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt;) {
