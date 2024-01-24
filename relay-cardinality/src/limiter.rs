@@ -52,7 +52,7 @@ pub struct Entry {
     /// Opaque entry Id, used to keep track of indices and buckets.
     pub id: EntryId,
 
-    /// Cardinality scope.
+    /// Metric namespace to which the cardinality limit is scoped.
     pub namespace: MetricNamespace,
     /// Hash of the metric name and tags.
     pub hash: u32,

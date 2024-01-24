@@ -52,7 +52,7 @@ impl RedisSetLimiter {
         state: &mut LimitState<'_>,
         timestamp: u64,
     ) -> Result<CheckedLimits> {
-        let quota = state.quota;
+        let scope = state.scope;
         let limit = state.limit;
         let entries = state.take_entries();
 
@@ -61,14 +61,14 @@ impl RedisSetLimiter {
             id = &state.id,
         );
 
-        let keys = quota.slots(timestamp).map(|slot| quota.to_redis_key(slot));
+        let keys = scope.slots(timestamp).map(|slot| scope.to_redis_key(slot));
         let hashes = entries.iter().map(|entry| entry.hash);
 
         // The expiry is a off by `window.granularity_seconds`,
         // but since this is only used for cleanup, this is not an issue.
         let result = self
             .script
-            .invoke(con, limit, quota.window.window_seconds, hashes, keys)?;
+            .invoke(con, limit, scope.window.window_seconds, hashes, keys)?;
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
@@ -106,12 +106,12 @@ impl Limiter for RedisSetLimiter {
         let cache = self.cache.read(timestamp); // Acquire a read lock.
         for entry in entries {
             for state in states.iter_mut() {
-                if !state.quota.applies_to(&entry) {
+                if !state.scope.applies_to(&entry) {
                     // Entry not relevant for limit.
                     continue;
                 }
 
-                match cache.check(state.quota, entry.hash, state.limit) {
+                match cache.check(state.scope, entry.hash, state.limit) {
                     CacheOutcome::Accepted => {
                         // Accepted already, nothing to do.
                         state.cache_hit();
@@ -148,7 +148,7 @@ impl Limiter for RedisSetLimiter {
             // This always acquires a write lock, but we only hit this
             // if we previously didn't satisfy the request from the cache,
             // -> there is a very high chance we actually need the lock.
-            let mut cache = self.cache.update(state.quota, timestamp); // Acquire a write lock.
+            let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
             for (entry, status) in results {
                 if status.is_rejected() {
                     rejected.push(entry.rejection());
@@ -173,16 +173,19 @@ impl Limiter for RedisSetLimiter {
     }
 }
 
-/// A quota extracted from a [`CardinalityLimit`] and a [`Scoping`].
+/// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub(crate) struct RedisQuota {
+pub(crate) struct QuotaScoping {
     pub window: SlidingWindow,
     pub namespace: Option<MetricNamespace>,
     pub organization_id: Option<OrganizationId>,
     pub project_id: Option<ProjectId>,
 }
 
-impl RedisQuota {
+impl QuotaScoping {
+    /// Creates a new [`QuotaScoping`] from a [`Scoping`] and [`CardinalityLimit`].
+    ///
+    /// Returns `None` for limits with scope [`CardinalityScope::Unknown`].
     pub fn new(scoping: Scoping, limit: &CardinalityLimit) -> Option<Self> {
         let (organization_id, project_id) = match limit.scope {
             CardinalityScope::Organization => (Some(scoping.organization_id), None),
@@ -198,14 +201,17 @@ impl RedisQuota {
         })
     }
 
+    /// Wether the scoping applies to the passed entry.
     pub fn applies_to(&self, entry: &Entry) -> bool {
         self.namespace.is_none() || self.namespace == Some(entry.namespace)
     }
 
+    /// Returns all slots of the sliding window for a specific timestamp.
     pub fn slots(&self, timestamp: u64) -> impl Iterator<Item = u64> {
         self.window.iter(timestamp)
     }
 
+    /// Turns the scoping into a Redis key for the passed slot.
     fn to_redis_key(self, slot: u64) -> String {
         let organization_id = self.organization_id.unwrap_or(0);
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
@@ -215,20 +221,20 @@ impl RedisQuota {
     }
 }
 
-/// Internal state combining relevant entries for the respective quota and its limit.
+/// Internal state combining relevant entries for the respective quota.
 struct LimitState<'a> {
     /// Id of the original limit.
     pub id: &'a str,
     /// Entries which are relevant for the quota.
     pub entries: Vec<RedisEntry>,
-    /// The quota.
-    pub quota: RedisQuota,
+    /// Scoping of the quota.
+    pub scope: QuotaScoping,
     /// The limit of the quota.
     pub limit: u64,
 
     /// Amount of cache hits `(hits, misses)`.
     cache_hits: (i64, i64),
-    /// Amount of acceptions and rejetions `(acceptions, reiections)`.
+    /// Amount of accepts and rejections `(acceptions, rejections)`.
     acceptions_rejections: (i64, i64),
 }
 
@@ -237,7 +243,7 @@ impl<'a> LimitState<'a> {
         Some(Self {
             id: &limit.id,
             entries: Vec::new(),
-            quota: RedisQuota::new(scoping, limit)?,
+            scope: QuotaScoping::new(scoping, limit)?,
             limit: limit.limit,
             cache_hits: (0, 0),
             acceptions_rejections: (0, 0),
@@ -652,29 +658,29 @@ mod tests {
             limiter.time_offset = i * window.granularity_seconds;
 
             // Should accept the already inserted item.
-            let accepted = limiter
+            let rejected = limiter
                 .check_cardinality_limits(scoping, limits, entries1)
                 .unwrap();
-            assert_eq!(accepted.count(), 0);
+            assert_eq!(rejected.count(), 0);
             // Should reject the new item.
-            let accepted = limiter
+            let rejected = limiter
                 .check_cardinality_limits(scoping, limits, entries2)
                 .unwrap();
-            assert_eq!(accepted.count(), 1);
+            assert_eq!(rejected.count(), 1);
         }
 
         // Fast forward time to where we're in the next window.
         limiter.time_offset = window.window_seconds + 1;
         // Accept the new element.
-        let accepted = limiter
+        let rejected = limiter
             .check_cardinality_limits(scoping, limits, entries2)
             .unwrap();
-        assert_eq!(accepted.count(), 0);
+        assert_eq!(rejected.count(), 0);
         // Reject the old element now.
-        let accepted = limiter
+        let rejected = limiter
             .check_cardinality_limits(scoping, limits, entries1)
             .unwrap();
-        assert_eq!(accepted.count(), 1);
+        assert_eq!(rejected.count(), 1);
     }
 
     #[test]

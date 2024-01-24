@@ -1840,12 +1840,12 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let cs = relay_cardinality::Scoping {
+        let cardinality_scope = relay_cardinality::Scoping {
             organization_id: scoping.organization_id,
             project_id: scoping.project_id,
         };
 
-        let limits = match limiter.check_cardinality_limits(cs, limits, buckets) {
+        let limits = match limiter.check_cardinality_limits(cardinality_scope, limits, buckets) {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(

@@ -1,6 +1,6 @@
 use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::redis::RedisQuota;
+use crate::redis::QuotaScoping;
 
 /// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
 /// this hash.
@@ -36,7 +36,7 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    pub fn update(&self, quota: RedisQuota, slot: u64) -> CacheUpdate<'_> {
+    pub fn update(&self, scope: QuotaScoping, slot: u64) -> CacheUpdate<'_> {
         let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
 
         // If the slot is older don't do anything and give up the lock early.
@@ -50,7 +50,7 @@ impl Cache {
             inner.cache.clear();
         }
 
-        CacheUpdate::new(inner, quota)
+        CacheUpdate::new(inner, scope)
     }
 }
 
@@ -69,14 +69,14 @@ impl<'a> CacheRead<'a> {
         Self { inner, timestamp }
     }
 
-    pub fn check(&self, quota: RedisQuota, hash: u32, limit: u64) -> CacheOutcome {
-        if quota.window.active_slot(self.timestamp) < self.inner.current_slot {
+    pub fn check(&self, scope: QuotaScoping, hash: u32, limit: u64) -> CacheOutcome {
+        if scope.window.active_slot(self.timestamp) < self.inner.current_slot {
             return CacheOutcome::Unknown;
         }
 
         self.inner
             .cache
-            .get(&quota)
+            .get(&scope)
             .map_or(CacheOutcome::Unknown, |s| s.check(hash, limit))
     }
 }
@@ -91,13 +91,13 @@ enum CacheUpdateInner<'a> {
     Noop,
     Cache {
         inner: RwLockWriteGuard<'a, Inner>,
-        key: RedisQuota,
+        key: QuotaScoping,
     },
 }
 
 impl<'a> CacheUpdate<'a> {
     /// Creates a new [`CacheUpdate`] which operates on the passed cache.
-    fn new(inner: RwLockWriteGuard<'a, Inner>, key: RedisQuota) -> Self {
+    fn new(inner: RwLockWriteGuard<'a, Inner>, key: QuotaScoping) -> Self {
         Self(CacheUpdateInner::Cache { inner, key })
     }
 
@@ -118,7 +118,7 @@ impl<'a> CacheUpdate<'a> {
 /// Critical section of the [`Cache`].
 #[derive(Debug, Default)]
 struct Inner {
-    cache: hashbrown::HashMap<RedisQuota, ScopedCache>,
+    cache: hashbrown::HashMap<QuotaScoping, ScopedCache>,
     current_slot: u64,
 }
 
