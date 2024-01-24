@@ -1182,10 +1182,12 @@ fn is_metric_namespace_valid(state: &ProjectState, mri: &MetricResourceIdentifie
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::sync::{Arc, Mutex};
 
     use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
+    use relay_dynamic_config::TagBlock;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
@@ -1445,22 +1447,24 @@ mod tests {
         assert!(metrics.is_empty());
     }
 
+    fn get_test_bucket(name: &str, tags: BTreeMap<String, String>) -> Bucket {
+        let json = json!({
+                    "timestamp": 1615889440,
+                    "width": 10,
+                    "name": name,
+                    "type": "c",
+                    "value": 4.0,
+                    "tags": tags,
+        });
+
+        serde_json::from_value(json).unwrap()
+    }
+
     fn get_test_buckets(names: &[&str]) -> Vec<Bucket> {
-        let create_bucket = |name: &&str| -> Bucket {
-            let json = json!({
-                        "timestamp": 1615889440,
-                        "width": 10,
-                        "name": name,
-                        "type": "c",
-                        "value": 4.0,
-                        "tags": {
-                        "route": "user_index"
-            }});
-
-            serde_json::from_value(json).unwrap()
-        };
-
-        names.iter().map(create_bucket).collect()
+        names
+            .iter()
+            .map(|name| get_test_bucket(name, BTreeMap::default()))
+            .collect()
     }
 
     fn get_test_bucket_names() -> Vec<&'static str> {
@@ -1492,6 +1496,56 @@ mod tests {
         buckets.retain(|bucket| !deny_list.denied_names.is_match(&bucket.name));
 
         buckets.into_iter().map(|bucket| bucket.name).collect()
+    }
+
+    #[test]
+    fn test_remove_tags() {
+        let mut tags = BTreeMap::default();
+        tags.insert("foobazbar".to_string(), "val".to_string());
+        tags.insert("foobaz".to_string(), "val".to_string());
+        tags.insert("bazbar".to_string(), "val".to_string());
+
+        let mut bucket = get_test_bucket("foobar", tags);
+
+        let tag_block_pattern = "foobaz*";
+
+        let metric_config = Metrics {
+            denied_tags: vec![TagBlock {
+                name: GlobPatterns::new(vec!["foobar".to_string()]),
+                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+            }],
+            ..Default::default()
+        };
+
+        remove_matching_bucket_tags(&metric_config, &mut bucket);
+
+        // the tag_block_pattern should match on two of the tags.
+        assert_eq!(bucket.tags.len(), 1);
+    }
+
+    #[test]
+    fn test_dont_remove_tags_if_bucket_name_not_matching() {
+        let mut tags = BTreeMap::default();
+        tags.insert("foobazbar".to_string(), "val".to_string());
+        tags.insert("foobaz".to_string(), "val".to_string());
+        tags.insert("bazbar".to_string(), "val".to_string());
+
+        let mut bucket = get_test_bucket("foobar", tags);
+
+        let tag_block_pattern = "foobaz*";
+
+        let metric_config = Metrics {
+            denied_tags: vec![TagBlock {
+                // barfoo doesn't batch the 'foobar' bucket
+                name: GlobPatterns::new(vec!["barfoo".to_string()]),
+                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+            }],
+            ..Default::default()
+        };
+
+        remove_matching_bucket_tags(&metric_config, &mut bucket);
+
+        assert_eq!(bucket.tags.len(), 3);
     }
 
     #[test]
