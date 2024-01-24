@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+
 ## 0.8.44
 
 ### Various fixes & improvements
