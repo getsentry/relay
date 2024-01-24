@@ -1690,11 +1690,21 @@ def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
             "release": "sentry-test@1.0.0",
             "session.status": "init",
         }
+        if denied_names == "":
+            assert session_metrics[1]["tags"] == {
+                "environment": "production",
+                "release": "sentry-test@1.0.0",
+            }
     elif denied_tag == "release":
         assert session_metrics[0]["tags"] == {
             "sdk": "raven-node/2.6.3",
             "environment": "production",
             "session.status": "init",
         }
+        if denied_names == "":
+            assert session_metrics[1]["tags"] == {
+                "sdk": "raven-node/2.6.3",
+                "environment": "production",
+            }
     else:
         assert False, "add new else-branch if you add another denied tag"
