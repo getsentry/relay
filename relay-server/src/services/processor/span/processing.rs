@@ -8,6 +8,7 @@ use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
+use relay_event_normalization::{normalize_span_performance_score, PerformanceScoreConfig};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Span;
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
@@ -37,6 +38,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
+        performance_score: state.project_state.config.performance_score.as_ref(),
     };
 
     state.managed_envelope.retain_items(|item| {
@@ -220,13 +222,15 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
 
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
-struct NormalizeSpanConfig {
+struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
     /// Allowed time range for transactions.
     pub transaction_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
+    /// Configuration for generating performance score measurements for web vitals
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
 }
 
 /// Normalizes a standalone span.
@@ -242,6 +246,7 @@ fn normalize(
         received_at,
         transaction_range,
         max_tag_value_size,
+        performance_score,
     } = config;
 
     // This follows the steps of `NormalizeProcessor::process_event`.
@@ -287,6 +292,11 @@ fn normalize(
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
             .collect(),
     );
+
+    if let Some(measurements) = span.measurements.value_mut() {
+        // TODO: find the browser name by normalizing user-agent
+        normalize_span_performance_score("".to_string(), measurements, performance_score);
+    }
 
     tag_extraction::extract_measurements(span);
 

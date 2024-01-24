@@ -22,13 +22,14 @@ use relay_event_schema::protocol::{
     IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
     SpanStatus, Tags, User,
 };
-use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
+use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, RuleCondition, Value};
 use smallvec::SmallVec;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
+use crate::PerformanceScoreProfile;
 use crate::{
     breakdowns, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup,
@@ -267,7 +268,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         config.measurements.clone(),
         config.max_name_and_unit_len,
     ); // Measurements are part of the metric extraction
-    normalize_performance_score(event, config.performance_score);
+    normalize_event_performance_score(event, config.performance_score);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
     let _ = processor::apply(&mut event.request, |request, _| {
@@ -718,11 +719,11 @@ fn normalize_measurements(
     }
 }
 
-/// Computes performance score measurements.
+/// Computes performance score measurements for an event.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
-fn normalize_performance_score(
+fn normalize_event_performance_score(
     event: &mut Event,
     performance_score: Option<&PerformanceScoreConfig>,
 ) {
@@ -734,76 +735,113 @@ fn normalize_performance_score(
             if !condition.matches(event) {
                 continue;
             }
-            if let Some(measurements) = event.measurements.value_mut() {
-                let mut should_add_total = false;
-                if profile.score_components.iter().any(|c| {
-                    !measurements.contains_key(c.measurement.as_str())
-                        && c.weight.abs() >= f64::EPSILON
-                        && !c.optional
-                }) {
-                    // All non-optional measurements with a profile weight greater than 0 are
-                    // required to exist on the event. Skip calculating performance scores if
-                    // a measurement with weight is missing.
-                    break;
-                }
-                let mut score_total = 0.0;
-                let mut weight_total = 0.0;
-                for component in &profile.score_components {
-                    // Skip optional components if they are not present on the event.
-                    if component.optional
-                        && !measurements.contains_key(component.measurement.as_str())
-                    {
+            let Some(measurements) = event.measurements.value_mut() else {
+                return;
+            };
+            normalize_performance_score_inner(measurements, profile);
+        }
+    }
+}
+
+/// Computes performance score measurements for a span.
+///
+/// This computes score from vital measurements, using config options to define how it is
+/// calculated.
+pub fn normalize_span_performance_score(
+    browser_name: String,
+    measurements: &mut Measurements,
+    performance_score: Option<&PerformanceScoreConfig>,
+) {
+    let Some(performance_score) = performance_score else {
+        return;
+    };
+    for profile in &performance_score.profiles {
+        if let Some(condition) = &profile.condition {
+            // HACK: we support only checking browser name for spans
+            match condition {
+                RuleCondition::Eq(condition) => {
+                    if condition.name != "event.contexts.browser.name" {
                         continue;
                     }
-                    weight_total += component.weight;
-                }
-                if weight_total.abs() < f64::EPSILON {
-                    // All components are optional or have a weight of `0`. We cannot compute
-                    // component weights, so we bail.
-                    break;
-                }
-                for component in &profile.score_components {
-                    // Optional measurements that are not present are given a weight of 0.
-                    let mut normalized_component_weight = 0.0;
-                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
-                        normalized_component_weight = component.weight / weight_total;
-                        let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
-                        let component_score = cdf * normalized_component_weight;
-                        score_total += component_score;
-                        should_add_total = true;
-
-                        measurements.insert(
-                            format!("score.{}", component.measurement),
-                            Measurement {
-                                value: component_score.into(),
-                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                            }
-                            .into(),
-                        );
+                    if condition.value != browser_name {
+                        continue;
                     }
-                    measurements.insert(
-                        format!("score.weight.{}", component.measurement),
-                        Measurement {
-                            value: normalized_component_weight.into(),
-                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
-                    );
+                    normalize_performance_score_inner(measurements, profile);
                 }
-
-                if should_add_total {
-                    measurements.insert(
-                        "score.total".to_owned(),
-                        Measurement {
-                            value: score_total.into(),
-                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
-                    );
-                }
-                break; // Measurements have successfully been added, skip any other profiles.
+                // Condition not supported
+                _ => continue,
             }
         }
+    }
+}
+
+fn normalize_performance_score_inner(
+    measurements: &mut Measurements,
+    profile: &PerformanceScoreProfile,
+) {
+    let mut should_add_total = false;
+    if profile.score_components.iter().any(|c| {
+        !measurements.contains_key(c.measurement.as_str())
+            && c.weight.abs() >= f64::EPSILON
+            && !c.optional
+    }) {
+        // All non-optional measurements with a profile weight greater than 0 are
+        // required to exist on the event. Skip calculating performance scores if
+        // a measurement with weight is missing.
+        return;
+    }
+    let mut score_total = 0.0f64;
+    let mut weight_total = 0.0f64;
+    for component in &profile.score_components {
+        // Skip optional components if they are not present on the event.
+        if component.optional && !measurements.contains_key(component.measurement.as_str()) {
+            continue;
+        }
+        weight_total += component.weight;
+    }
+    if weight_total.abs() < f64::EPSILON {
+        // All components are optional or have a weight of `0`. We cannot compute
+        // component weights, so we bail.
+        return;
+    }
+    for component in &profile.score_components {
+        // Optional measurements that are not present are given a weight of 0.
+        let mut normalized_component_weight = 0.0f64;
+        if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+            normalized_component_weight = component.weight / weight_total;
+            let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+            let component_score = cdf * normalized_component_weight;
+            score_total += component_score;
+            should_add_total = true;
+
+            measurements.insert(
+                format!("score.{}", component.measurement),
+                Measurement {
+                    value: component_score.into(),
+                    unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                }
+                .into(),
+            );
+        }
+        measurements.insert(
+            format!("score.weight.{}", component.measurement),
+            Measurement {
+                value: normalized_component_weight.into(),
+                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+            }
+            .into(),
+        );
+    }
+
+    if should_add_total {
+        measurements.insert(
+            "score.total".to_owned(),
+            Measurement {
+                value: score_total.into(),
+                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+            }
+            .into(),
+        );
     }
 }
 
