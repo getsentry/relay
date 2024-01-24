@@ -1267,6 +1267,8 @@
 <a href="#1267" id="1267">1267</a>
 <a href="#1268" id="1268">1268</a>
 <a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2128,17 +2130,19 @@
     }
 
     <span class="kw">fn </span>handle_merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: MergeBuckets) {
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
         <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
-        <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        </span><span class="self">self</span>.get_or_create_project(message.project_key())
-            .merge_buckets(
-                aggregator,
-                outcome_aggregator,
-                envelope_processor,
-                message.buckets(),
-            );
+
+        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(message.project_key());
+        project.prefetch(project_cache, <span class="bool-val">false</span>);
+        project.merge_buckets(
+            aggregator,
+            outcome_aggregator,
+            envelope_processor,
+            message.buckets(),
+        );
     }
 
     <span class="kw">fn </span>handle_add_metric_meta(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: AddMetricMeta) {
