@@ -859,17 +859,19 @@ impl ProjectCacheBroker {
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
+        let project_cache = self.services.project_cache.clone();
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
-        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        self.get_or_create_project(message.project_key())
-            .merge_buckets(
-                aggregator,
-                outcome_aggregator,
-                envelope_processor,
-                message.buckets(),
-            );
+
+        let project = self.get_or_create_project(message.project_key());
+        project.prefetch(project_cache, false);
+        project.merge_buckets(
+            aggregator,
+            outcome_aggregator,
+            envelope_processor,
+            message.buckets(),
+        );
     }
 
     fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
