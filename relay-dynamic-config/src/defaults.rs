@@ -429,8 +429,8 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
             field: Some("span.measurements.score.inp.value".into()),
             condition: Some(is_allowed_browser.clone()),
             tags: vec![
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
                     .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
@@ -452,8 +452,8 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
             field: Some("span.measurements.score.weight.inp.value".into()),
             condition: Some(is_allowed_browser.clone()),
             tags: vec![
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
                     .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
@@ -475,8 +475,8 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
             field: Some("span.measurements.inp.value".into()),
             condition: Some(is_allowed_browser),
             tags: vec![
-                Tag::with_key("transaction.op")
-                    .from_field("span.sentry_tags.transaction.op")
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
                     .always(),
                 Tag::with_key("transaction")
                     .from_field("span.sentry_tags.transaction")
