@@ -252,18 +252,6 @@ fn normalize_all_metrics_summaries(event: &mut Event) {
     }
 }
 
-// Sets the user's GeoIp info based on user's IP address.
-fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
-    // Infer user.geo from user.ip_address
-    if user.geo.value().is_none() {
-        if let Some(ip_address) = user.ip_address.value() {
-            if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-                user.geo.set_value(Some(geo));
-            }
-        }
-    }
-}
-
 /// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
 /// the merging logic.
 #[derive(Clone, Debug)]
@@ -462,7 +450,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         // Infer user.geo from user.ip_address
         if let Some(geoip_lookup) = self.geoip_lookup {
-            normalize_user_geoinfo(geoip_lookup, user)
+            crate::event::normalize_user_geoinfo(geoip_lookup, user)
         }
 
         Ok(())
