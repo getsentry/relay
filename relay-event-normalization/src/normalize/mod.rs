@@ -10,8 +10,8 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, MetricSummaryMapping, NelContext, ReplayContext, Request, Stacktrace,
-    TraceContext, User, VALID_PLATFORMS,
+    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
+    VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
@@ -248,68 +248,6 @@ fn normalize_all_metrics_summaries(event: &mut Event) {
 
         if let Some(ms) = metrics_summary {
             ms.update_value(normalize_metrics_summary_mris);
-        }
-    }
-}
-
-/// Backfills IP addresses in various places.
-pub fn normalize_ip_addresses(
-    request: &mut Annotated<Request>,
-    user: &mut Annotated<User>,
-    platform: Option<&str>,
-    client_ip: Option<&IpAddr>,
-) {
-    // NOTE: This is highly order dependent, in the sense that both the statements within this
-    // function need to be executed in a certain order, and that other normalization code
-    // (geoip lookup) needs to run after this.
-    //
-    // After a series of regressions over the old Python spaghetti code we decided to put it
-    // back into one function. If a desire to split this code up overcomes you, put this in a
-    // new processor and make sure all of it runs before the rest of normalization.
-
-    // Resolve {{auto}}
-    if let Some(client_ip) = client_ip {
-        if let Some(ref mut request) = request.value_mut() {
-            if let Some(ref mut env) = request.env.value_mut() {
-                if let Some(&mut Value::String(ref mut http_ip)) = env
-                    .get_mut("REMOTE_ADDR")
-                    .and_then(|annotated| annotated.value_mut().as_mut())
-                {
-                    if http_ip == "{{auto}}" {
-                        *http_ip = client_ip.to_string();
-                    }
-                }
-            }
-        }
-
-        if let Some(ref mut user) = user.value_mut() {
-            if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                if user_ip.is_auto() {
-                    *user_ip = client_ip.to_owned();
-                }
-            }
-        }
-    }
-
-    // Copy IPs from request interface to user, and resolve platform-specific backfilling
-    let http_ip = request
-        .value()
-        .and_then(|request| request.env.value())
-        .and_then(|env| env.get("REMOTE_ADDR"))
-        .and_then(Annotated::<Value>::as_str)
-        .and_then(|ip| IpAddr::parse(ip).ok());
-
-    if let Some(http_ip) = http_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        user.ip_address.value_mut().get_or_insert(http_ip);
-    } else if let Some(client_ip) = client_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        // auto is already handled above
-        if user.ip_address.value().is_none() {
-            // In an ideal world all SDKs would set {{auto}} explicitly.
-            if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                user.ip_address = Annotated::new(client_ip.to_owned());
-            }
         }
     }
 }
@@ -759,8 +697,9 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, MetricSummary,
-        MetricsSummary, PairList, RawStacktrace, Span, SpanId, TagEntry, Tags, TraceId, Values,
+        ContextInner, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry, MetricSummary,
+        MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry, Tags, TraceId,
+        Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
