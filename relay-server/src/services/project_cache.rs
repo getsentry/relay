@@ -507,7 +507,7 @@ struct ProjectCacheBroker {
 enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
     Ready(Arc<GlobalConfig>),
-    /// The global config ss not fetched yet.
+    /// The global config is not fetched yet.
     Pending,
 }
 
@@ -907,23 +907,13 @@ impl ProjectCacheBroker {
     fn handle_periodic_unspool(&mut self) {
         self.buffer_unspool_handle.reset();
 
-        // Do *not* attempt to unspool if there are more permits are assigned than low
-        // watermark indicates.
-        //
-        // This is the first condition, and we do not want to event count spooled project keys at
-        // this point.
-        if !self.buffer_guard.is_below_low_watermark() {
+        // If there is nothing spooled, schedule the next check a little bit later.
+        if self.index.is_empty() {
             self.schedule_unspool();
             return;
         }
 
         let keys = self.index.keys().cloned().collect::<Box<[_]>>();
-
-        // If there is nothing spooled, schedule the next check a little bit later.
-        if keys.is_empty() || !self.buffer_guard.is_below_low_watermark() {
-            self.schedule_unspool();
-            return;
-        }
 
         for project_key in keys.iter() {
             if self
@@ -931,6 +921,13 @@ impl ProjectCacheBroker {
                 .get(project_key)
                 .map_or(false, |state| state.valid_state().is_some())
             {
+                // Do *not* attempt to unspool if there are more permits are assigned than low
+                // watermark indicates.
+                if !self.buffer_guard.is_below_low_watermark() {
+                    self.schedule_unspool();
+                    return;
+                }
+
                 self.dequeue(*project_key)
             }
         }
