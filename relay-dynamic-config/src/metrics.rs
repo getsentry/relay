@@ -3,11 +3,48 @@
 use std::collections::BTreeSet;
 
 use relay_base_schema::data_category::DataCategory;
+use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
+use relay_common::glob3::GlobPatterns;
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
+
+/// Configuration for metrics filtering.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Metrics {
+    /// List of cardinality limits to enforce for this project.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cardinality_limits: Vec<CardinalityLimit>,
+    /// List of patterns for blocking metrics based on their name.
+    #[serde(skip_serializing_if = "GlobPatterns::is_empty")]
+    pub denied_names: GlobPatterns,
+    /// Configuration for removing tags from a bucket.
+    ///
+    /// Note that removing tags does not drop the overall metric bucket.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub denied_tags: Vec<TagBlock>,
+}
+
+impl Metrics {
+    /// Returns `true` if there are no changes to the metrics config.
+    pub fn is_empty(&self) -> bool {
+        self.cardinality_limits.is_empty()
+            && self.denied_names.is_empty()
+            && self.denied_tags.is_empty()
+    }
+}
+
+/// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TagBlock {
+    /// Name of metric of which we want to remove certain tags.
+    pub name: GlobPatterns,
+    /// Pattern to match keys of tags that we want to remove.
+    pub tag: GlobPatterns,
+}
 
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +67,7 @@ const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
 
 /// Configuration for metric extraction from sessions.
-#[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SessionMetricsConfig {
     /// The revision of the extraction algorithm.
@@ -481,6 +518,13 @@ where
 mod tests {
     use super::*;
     use similar_asserts::assert_eq;
+
+    #[test]
+    fn test_empty_metrics_deserialize() {
+        let m: Metrics = serde_json::from_str("{}").unwrap();
+        assert!(m.is_empty());
+        assert_eq!(m, Metrics::default());
+    }
 
     #[test]
     fn parse_tag_spec_value() {

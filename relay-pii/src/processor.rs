@@ -1019,8 +1019,7 @@ mod tests {
                         "{formatted_selector}": ["@anything:remove"]
                     }}
                 }}
-                "##,
-                formatted_selector = dbg!(formatted_selector),
+                "##
             ))
             .unwrap();
 

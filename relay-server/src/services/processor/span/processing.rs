@@ -8,7 +8,10 @@ use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
-use relay_event_normalization::{normalize_span_performance_score, PerformanceScoreConfig};
+use relay_event_normalization::{
+    normalize_measurements, normalize_span_performance_score, DynamicMeasurementsConfig,
+    MeasurementsConfig, PerformanceScoreConfig,
+};
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Span;
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
@@ -21,7 +24,11 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils::ItemAction;
 
-pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
+pub fn process(
+    state: &mut ProcessEnvelopeState,
+    config: Arc<Config>,
+    global_measurements_config: Option<&MeasurementsConfig>,
+) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
@@ -29,17 +36,13 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
         _ => None,
     };
 
-    let config = NormalizeSpanConfig {
-        received_at: state.managed_envelope.received_at(),
-        transaction_range: AggregatorConfig::from(
-            config.aggregator_config_for(MetricNamespace::Transactions),
-        )
-        .timestamp_range(),
-        max_tag_value_size: config
-            .aggregator_config_for(MetricNamespace::Spans)
-            .max_tag_value_length,
-        performance_score: state.project_state.config.performance_score.as_ref(),
-    };
+    let normalize_span_config = get_normalize_span_config(
+        config,
+        state.managed_envelope.received_at(),
+        global_measurements_config,
+        state.project_state.config().measurements.as_ref(),
+        state.project_state.config().performance_score.as_ref(),
+    );
 
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
@@ -63,16 +66,15 @@ pub fn process(state: &mut ProcessEnvelopeState, config: Arc<Config>) {
             _ => return ItemAction::Keep,
         };
 
-        if let Err(e) = normalize(&mut annotated_span, config.clone()) {
+        if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
 
-        let Some(span) = annotated_span.value_mut() else {
-            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
-        };
-
         if let Some(config) = span_metrics_extraction_config {
+            let Some(span) = annotated_span.value_mut() else {
+                return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            };
             let metrics = extract_metrics(span, config);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
@@ -176,20 +178,12 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
     let mut transaction_span: Span = event.into();
 
     if extract_child_spans {
-        let all_modules_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionAllModules);
-
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
                 let Some(inner_span) = span.value() else {
                     continue;
                 };
-                // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled && !is_allowed(inner_span) {
-                    continue;
-                }
                 // HACK: clone the span to set the segment_id. This should happen
                 // as part of normalization once standalone spans reach wider adoption.
                 let mut new_span = inner_span.clone();
@@ -226,11 +220,51 @@ struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
     /// Allowed time range for transactions.
-    pub transaction_range: std::ops::Range<UnixTimestamp>,
+    pub timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
     /// Configuration for generating performance score measurements for web vitals
     pub performance_score: Option<&'a PerformanceScoreConfig>,
+    /// Configuration for measurement normalization in transaction events.
+    ///
+    /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
+    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
+    /// The maximum length for names of custom measurements.
+    ///
+    /// Measurements with longer names are removed from the transaction event and replaced with a
+    /// metadata entry.
+    pub max_name_and_unit_len: Option<usize>,
+}
+
+fn get_normalize_span_config<'a>(
+    config: Arc<Config>,
+    received_at: DateTime<Utc>,
+    global_measurements_config: Option<&'a MeasurementsConfig>,
+    project_measurements_config: Option<&'a MeasurementsConfig>,
+    performance_score: Option<&'a PerformanceScoreConfig>,
+) -> NormalizeSpanConfig<'a> {
+    let aggregator_config =
+        AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
+
+    NormalizeSpanConfig {
+        received_at,
+        timestamp_range: aggregator_config.timestamp_range(),
+        max_tag_value_size: config
+            .aggregator_config_for(MetricNamespace::Spans)
+            .max_tag_value_length,
+        measurements: Some(DynamicMeasurementsConfig::new(
+            project_measurements_config,
+            global_measurements_config,
+        )),
+        max_name_and_unit_len: Some(
+            aggregator_config
+                .max_name_length
+                .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+        ),
+        performance_score,
+    }
 }
 
 /// Normalizes a standalone span.
@@ -244,9 +278,11 @@ fn normalize(
 
     let NormalizeSpanConfig {
         received_at,
-        transaction_range,
+        timestamp_range,
         max_tag_value_size,
         performance_score,
+        measurements,
+        max_name_and_unit_len,
     } = config;
 
     // This follows the steps of `NormalizeProcessor::process_event`.
@@ -267,13 +303,24 @@ fn normalize(
 
     process_value(
         annotated_span,
-        &mut TransactionsProcessor::new(Default::default(), Some(transaction_range)),
+        &mut TransactionsProcessor::new(Default::default(), Some(timestamp_range)),
         ProcessingState::root(),
     )?;
 
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
+
+    if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
+        normalize_measurements(
+            measurement_values,
+            meta,
+            measurements,
+            max_name_and_unit_len,
+            span.start_timestamp.0,
+            span.timestamp.0,
+        );
+    }
 
     let is_segment = span.parent_span_id.is_empty();
     span.is_segment = Annotated::new(is_segment);
@@ -328,34 +375,6 @@ fn scrub(
     }
 
     Ok(())
-}
-
-fn is_allowed(span: &Span) -> bool {
-    let Some(op) = span.op.value() else {
-        return false;
-    };
-    let Some(description) = span.description.value() else {
-        return false;
-    };
-    let system: &str = span
-        .data
-        .value()
-        .and_then(|v| v.get("span.system"))
-        .and_then(|system| system.as_str())
-        .unwrap_or_default();
-    op.contains("resource.script")
-        || op.contains("resource.css")
-        || op == "resource.img"
-        || op == "http.client"
-        || op.starts_with("app.")
-        || op.starts_with("ui.load")
-        || op.starts_with("file")
-        || (op.starts_with("db")
-            && !(op.contains("clickhouse")
-                || op.contains("mongodb")
-                || op.contains("redis")
-                || op.contains("compiler"))
-            && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb")))
 }
 
 /// We do not extract or ingest spans with missing fields if those fields are required on the Kafka topic.

@@ -47,6 +47,22 @@ pub enum LegacyBrowser {
     SafariPre6,
     /// Edge legacy i.e. 12-18.
     EdgePre79,
+    /// Apply to Internet Explorer
+    Ie,
+    /// Apply to Safari
+    Safari,
+    /// Apply to Opera
+    Opera,
+    /// Apply to OperaMini
+    OperaMini,
+    /// Apply to Android Browser
+    Android,
+    /// Apply to Firefox
+    Firefox,
+    /// Apply to Chrome
+    Chrome,
+    /// Apply to Edge
+    Edge,
     /// An unknown browser configuration for forward compatibility.
     Unknown(String),
 }
@@ -66,6 +82,14 @@ impl FromStr for LegacyBrowser {
             "android_pre_4" => LegacyBrowser::AndroidPre4,
             "safari_pre_6" => LegacyBrowser::SafariPre6,
             "edge_pre_79" => LegacyBrowser::EdgePre79,
+            "ie" => LegacyBrowser::Ie,
+            "safari" => LegacyBrowser::Safari,
+            "opera" => LegacyBrowser::Opera,
+            "opera_mini" => LegacyBrowser::OperaMini,
+            "android" => LegacyBrowser::Android,
+            "firefox" => LegacyBrowser::Firefox,
+            "chrome" => LegacyBrowser::Chrome,
+            "edge" => LegacyBrowser::Edge,
             _ => LegacyBrowser::Unknown(s.to_owned()),
         };
         Ok(v)
@@ -98,6 +122,14 @@ impl Serialize for LegacyBrowser {
             LegacyBrowser::AndroidPre4 => "android_pre_4",
             LegacyBrowser::SafariPre6 => "safari_pre_6",
             LegacyBrowser::EdgePre79 => "edge_pre_79",
+            LegacyBrowser::Ie => "ie",
+            LegacyBrowser::Safari => "safari",
+            LegacyBrowser::Opera => "opera",
+            LegacyBrowser::OperaMini => "opera_mini",
+            LegacyBrowser::Android => "android",
+            LegacyBrowser::Firefox => "firefox",
+            LegacyBrowser::Chrome => "chrome",
+            LegacyBrowser::Edge => "edge",
             LegacyBrowser::Unknown(string) => string,
         })
     }

@@ -20,7 +20,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
-    SpanStatus, Tags, User,
+    SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, RuleCondition, Value};
 use smallvec::SmallVec;
@@ -228,7 +228,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     if let Some(geoip_lookup) = config.geoip_lookup {
         if let Some(user) = event.user.value_mut() {
-            normalize_user_geoinfo(geoip_lookup, user)
+            normalize_user_geoinfo(geoip_lookup, user);
         }
     }
 
@@ -263,7 +263,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-    normalize_measurements(
+    normalize_event_measurements(
         event,
         config.measurements.clone(),
         config.max_name_and_unit_len,
@@ -285,7 +285,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         // transactions don't have many spans, but if this is no longer the
         // case and we roll this flag out for most projects, we may want to
         // reconsider this approach.
-        normalize_app_start_spans(event);
+        crate::normalize::normalize_app_start_spans(event);
         span::attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
     }
 
@@ -420,7 +420,7 @@ pub fn normalize_ip_addresses(
 }
 
 /// Sets the user's GeoIp info based on user's IP address.
-fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
+pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     // Infer user.geo from user.ip_address
     if user.geo.value().is_none() {
         if let Some(ip_address) = user.ip_address.value() {
@@ -694,8 +694,8 @@ fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) 
     }
 }
 
-/// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(
+/// Ensures measurements interface is only present for transaction events.
+fn normalize_event_measurements(
     event: &mut Event,
     measurements_config: Option<DynamicMeasurementsConfig>,
     max_mri_len: Option<usize>,
@@ -704,18 +704,37 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_mobile_measurements(measurements);
-        normalize_units(measurements);
-        if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
-        }
+        normalize_measurements(
+            measurements,
+            meta,
+            measurements_config,
+            max_mri_len,
+            event.start_timestamp.0,
+            event.timestamp.0,
+        );
+    }
+}
 
-        let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
-            (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
-            _ => 0.0,
-        };
+/// Ensure only valid measurements are ingested.
+pub fn normalize_measurements(
+    measurements: &mut Measurements,
+    meta: &mut Meta,
+    measurements_config: Option<DynamicMeasurementsConfig>,
+    max_mri_len: Option<usize>,
+    start_timestamp: Option<Timestamp>,
+    end_timestamp: Option<Timestamp>,
+) {
+    normalize_mobile_measurements(measurements);
+    normalize_units(measurements);
 
-        compute_measurements(duration_millis, measurements);
+    let duration_millis = match (start_timestamp, end_timestamp) {
+        (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
+        _ => 0.0,
+    };
+
+    compute_measurements(duration_millis, measurements);
+    if let Some(measurements_config) = measurements_config {
+        remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
     }
 }
 
@@ -806,10 +825,14 @@ fn normalize_performance_score_inner(
     }
     for component in &profile.score_components {
         // Optional measurements that are not present are given a weight of 0.
-        let mut normalized_component_weight = 0.0f64;
+        let mut normalized_component_weight = 0.0;
         if let Some(value) = measurements.get_value(component.measurement.as_str()) {
             normalized_component_weight = component.weight / weight_total;
-            let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+            let cdf = utils::calculate_cdf_score(
+                value.max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
+                component.p10,
+                component.p50,
+            );
             let component_score = cdf * normalized_component_weight;
             score_total += component_score;
             should_add_total = true;
@@ -902,38 +925,6 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     match breakdowns_config {
         None => {}
         Some(config) => breakdowns::normalize_breakdowns(event, config),
-    }
-}
-
-/// Replaces snake_case app start spans op with dot.case op.
-///
-/// This is done for the affected React Native SDK versions (from 3 to 4.4).
-fn normalize_app_start_spans(event: &mut Event) {
-    if !event.sdk_name().eq("sentry.javascript.react-native")
-        || !(event.sdk_version().starts_with("4.4")
-            || event.sdk_version().starts_with("4.3")
-            || event.sdk_version().starts_with("4.2")
-            || event.sdk_version().starts_with("4.1")
-            || event.sdk_version().starts_with("4.0")
-            || event.sdk_version().starts_with('3'))
-    {
-        return;
-    }
-
-    if let Some(spans) = event.spans.value_mut() {
-        for span in spans {
-            if let Some(span) = span.value_mut() {
-                if let Some(op) = span.op.value() {
-                    if op == "app_start_cold" {
-                        span.op.set_value(Some("app.start.cold".to_string()));
-                        break;
-                    } else if op == "app_start_warm" {
-                        span.op.set_value(Some("app.start.warm".to_string()));
-                        break;
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1041,6 +1032,16 @@ fn remove_invalid_measurements(
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
             if builtin_measurement.name() == name {
+                let value = measurement.value.value().unwrap_or(&0.0);
+                // Drop negative values if the builtin measurement does not allow them.
+                if !builtin_measurement.allow_negative() && *value < 0.0 {
+                    meta.add_error(Error::invalid(format!(
+                        "Negative value for measurement {name} not allowed: {value}",
+                    )));
+                    removed_measurements
+                        .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                    return false;
+                }
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
                 // and just drop it instead.
@@ -1222,7 +1223,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, None, None);
+        normalize_event_measurements(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
@@ -1294,7 +1295,7 @@ mod tests {
         let dynamic_measurement_config =
             DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
 
-        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
+        normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
@@ -2470,6 +2471,71 @@ mod tests {
         "###);
     }
 
+    #[test]
+    fn test_computed_performance_score_negative_value() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "ttfb",
+                            "weight": 1.0,
+                            "p10": 100.0,
+                            "p50": 250.0
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "score.total": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "score.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "ttfb": {
+              "value": -100.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
+    }
+
     /// Test that timestamp normalization updates a transaction's timestamps to
     /// be acceptable, when both timestamps are similarly stale.
     #[test]
@@ -2524,5 +2590,62 @@ mod tests {
                 .to_string(),
             "invalid transaction event: timestamp is too stale"
         );
+    }
+
+    #[test]
+    fn test_filter_negative_web_vital_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        // Allow ttfb as a builtinMeasurement with allow_negative defaulted to false.
+        let project_measurement_config: MeasurementsConfig = serde_json::from_value(json!({
+            "builtinMeasurements": [
+                {"name": "ttfb", "unit": "millisecond"},
+            ],
+        }))
+        .unwrap();
+
+        let dynamic_measurement_config =
+            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
+
+        normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {},
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "Negative value for measurement ttfb not allowed: -100",
+                    },
+                  ],
+                ],
+                val: Some({
+                  "ttfb": {
+                    "unit": "millisecond",
+                    "value": -100.0,
+                  },
+                }),
+              ))),
+            },
+          },
+        }
+        "###);
     }
 }

@@ -105,23 +105,26 @@ pub enum ProcessingGroup {
     Transaction,
     /// All the items which require (have or create) events.
     ///
-    /// This includes: errors, NEL, security reports, user and clients reports, some of the
+    /// This includes: errors, NEL, security reports, user reports, some of the
     /// attachments.
     Error,
     /// Session events.
     Session,
-    /// Attachments which can be sent alone without any event attached to it in the current
-    /// envelope.
-    StandaloneAttachment,
-    UserReport,
+    /// Standalone items which can be sent alone without any event attached to it in the current
+    /// envelope e.g. some attachments, user reports.
+    Standalone,
+    /// Outcomes.
+    ClientReport,
+    /// Replays and ReplayRecordings.
     Replay,
     /// Crons.
     CheckIn,
+    /// Spans.
     Span,
-    /// The unknow item types will be forwarded upstream (to processing Relay), where we will
-    /// decide what to do with it.
+    /// Unknown item types will be forwarded upstream (to processing Relay), where we will
+    /// decide what to do with them.
     ForwardUnknown,
-    /// All the events in the envelope we failed to group.
+    /// All the items in the envelope that could not be grouped.
     Ungrouped,
 }
 
@@ -143,20 +146,6 @@ impl ProcessingGroup {
                 (ProcessingGroup::Error, envelope)
             });
         grouped_envelopes.extend(nel_envelopes);
-
-        // Extract all standalone attachments.
-        // Note: only if there is no items in the envelope which can create events.
-        if !envelope.items().any(Item::creates_event) {
-            let standalone_attachment_items = envelope.take_items_by(|item| {
-                matches!(item.ty(), &ItemType::Attachment | &ItemType::FormData)
-            });
-            if !standalone_attachment_items.is_empty() {
-                grouped_envelopes.push((
-                    ProcessingGroup::StandaloneAttachment,
-                    Envelope::from_parts(headers.clone(), standalone_attachment_items),
-                ))
-            }
-        };
 
         // Extract replays.
         let replay_items = envelope.take_items_by(|item| {
@@ -192,6 +181,20 @@ impl ProcessingGroup {
             ))
         }
 
+        // Extract all standalone items.
+        //
+        // Note: only if there are no items in the envelope which can create events, otherwise they
+        // will be in the same envelope with all require event items.
+        if !envelope.items().any(Item::creates_event) {
+            let standalone_items = envelope.take_items_by(Item::requires_event);
+            if !standalone_items.is_empty() {
+                grouped_envelopes.push((
+                    ProcessingGroup::Standalone,
+                    Envelope::from_parts(headers.clone(), standalone_items),
+                ))
+            }
+        };
+
         // Extract all the items which require an event into separate envelope.
         let require_event_items = envelope.take_items_by(Item::requires_event);
         if !require_event_items.is_empty() {
@@ -217,8 +220,8 @@ impl ProcessingGroup {
             let item_type = item.ty();
             let group = if matches!(item_type, &ItemType::CheckIn) {
                 ProcessingGroup::CheckIn
-            } else if matches!(item_type, &ItemType::UserReport | &ItemType::ClientReport) {
-                ProcessingGroup::UserReport
+            } else if matches!(item.ty(), &ItemType::ClientReport) {
+                ProcessingGroup::ClientReport
             } else if matches!(item_type, &ItemType::Unknown(_)) {
                 ProcessingGroup::ForwardUnknown
             } else {
@@ -578,7 +581,7 @@ pub struct ProcessMetricMeta {
 }
 
 /// Metric buckets with additional project.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProjectMetrics {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
@@ -589,7 +592,7 @@ pub struct ProjectMetrics {
 /// Encodes metrics into an envelope ready to be sent upstream.
 #[derive(Debug)]
 pub struct EncodeMetrics {
-    pub scopes: HashMap<Scoping, ProjectMetrics>,
+    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
 }
 
 /// Encodes metric meta into an [`Envelope`] and sends it upstream.
@@ -1112,11 +1115,7 @@ impl EnvelopeProcessorService {
     /// Processes the general errors, and the items which require or create the events.
     fn process_errors(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
-        report::process(
-            state,
-            &self.inner.config,
-            self.inner.outcome_aggregator.clone(),
-        );
+        report::process_user_reports(state);
 
         if_processing!(self.inner.config, {
             unreal::expand(state, &self.inner.config)?;
@@ -1195,11 +1194,17 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes standalone attachments.
-    fn process_attachments(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_standalone_attachments(
+        &self,
+        state: &mut ProcessEnvelopeState,
+    ) -> Result<(), ProcessingError> {
+        profile::filter(state);
+
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
 
+        report::process_user_reports(state);
         attachment::scrub(state);
         Ok(())
     }
@@ -1214,7 +1219,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes user and client reports.
-    fn process_user_reports(
+    fn process_client_reports(
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
@@ -1222,7 +1227,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
         });
 
-        report::process(
+        report::process_client_reports(
             state,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
@@ -1254,7 +1259,11 @@ impl EnvelopeProcessorService {
         span::filter(state);
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
-            span::process(state, self.inner.config.clone());
+            span::process(
+                state,
+                self.inner.config.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
+            );
         });
         Ok(())
     }
@@ -1269,11 +1278,12 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
         session::process(state, &self.inner.config);
-        report::process(
+        report::process_client_reports(
             state,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
         );
+        report::process_user_reports(state);
         replay::process(state, &self.inner.config)?;
         profile::filter(state);
         span::filter(state);
@@ -1318,7 +1328,11 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
             self.process_check_ins(state);
-            span::process(state, self.inner.config.clone());
+            span::process(
+                state,
+                self.inner.config.clone(),
+                self.inner.global_config.current().measurements.as_ref(),
+            );
         });
 
         if state.has_event() {
@@ -1345,8 +1359,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Error => self.process_errors(state)?,
             ProcessingGroup::Transaction => self.process_transactions(state)?,
             ProcessingGroup::Session => self.process_sessions(state)?,
-            ProcessingGroup::StandaloneAttachment => self.process_attachments(state)?,
-            ProcessingGroup::UserReport => self.process_user_reports(state)?,
+            ProcessingGroup::Standalone => self.process_standalone_attachments(state)?,
+            ProcessingGroup::ClientReport => self.process_client_reports(state)?,
             ProcessingGroup::Replay => self.process_replays(state)?,
             ProcessingGroup::CheckIn => self.process_checkins(state)?,
             ProcessingGroup::Span => self.process_spans(state)?,
@@ -1845,17 +1859,14 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
+            let mode = project_state.get_extraction_mode();
 
             if project_state.has_feature(Feature::CardinalityLimiter) {
                 buckets = self.cardinality_limit_buckets(scoping, buckets, mode);
             }
 
             if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
-                return;
+                continue;
             }
 
             let retention = project_state
@@ -1897,10 +1908,7 @@ impl EnvelopeProcessorService {
 
             let project_key = scoping.project_key;
             let dsn = PartialDsn::outbound(&scoping, upstream);
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
+            let mode = project_state.get_extraction_mode();
 
             let partitions = if let Some(count) = self.inner.config.metrics_partitions() {
                 let mut partitions: BTreeMap<Option<u64>, Vec<Bucket>> = BTreeMap::new();
@@ -2005,10 +2013,7 @@ impl EnvelopeProcessorService {
                 project_state,
             } = message;
 
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
+            let mode = project_state.get_extraction_mode();
 
             for bucket in buckets {
                 let partition_key = partition_key(scoping.project_key, bucket, partition_count);
@@ -2093,6 +2098,11 @@ impl EnvelopeProcessorService {
                 "failed to store metric meta in redis"
             )
         }
+    }
+
+    #[cfg(all(test, feature = "processing"))]
+    fn redis_rate_limiter_enabled(&self) -> bool {
+        self.inner.rate_limiter.is_some()
     }
 
     fn handle_message(&self, message: EnvelopeProcessor) {
@@ -2448,10 +2458,111 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-
     use crate::testutils::{self, create_test_processor};
 
+    #[cfg(feature = "processing")]
+    use {
+        relay_metrics::BucketValue,
+        relay_quotas::{Quota, ReasonCode},
+        relay_test::mock_service,
+    };
+
     use super::*;
+
+    /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
+    /// also ratelimit the next batches in the same message automatically.
+    #[cfg(feature = "processing")]
+    #[tokio::test]
+    async fn test_ratelimit_per_batch() {
+        let rate_limited_org = 1;
+        let not_ratelimited_org = 2;
+
+        let message = {
+            let project_state = {
+                let quota = Quota {
+                    id: Some("testing".into()),
+                    categories: vec![DataCategory::MetricBucket].into(),
+                    scope: relay_quotas::QuotaScope::Organization,
+                    scope_id: Some(rate_limited_org.to_string()),
+                    limit: Some(0),
+                    window: None,
+                    reason_code: Some(ReasonCode::new("test")),
+                };
+
+                let mut config = ProjectConfig::default();
+                config.quotas.push(quota);
+
+                let mut project_state = ProjectState::allowed();
+                project_state.config = config;
+                Arc::new(project_state)
+            };
+
+            let project_metrics = ProjectMetrics {
+                buckets: vec![Bucket {
+                    name: "d:transactions/bar".to_string(),
+                    value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
+                    timestamp: UnixTimestamp::now(),
+                    tags: Default::default(),
+                    width: 10,
+                }],
+                project_state,
+            };
+
+            let scoping_by_org_id = |org_id: u64| Scoping {
+                organization_id: org_id,
+                project_id: ProjectId::new(21),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(17),
+            };
+
+            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
+            scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
+            scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
+
+            EncodeMetrics { scopes }
+        };
+
+        // ensure the order of the map while iterating is as expected.
+        let mut iter = message.scopes.keys();
+        assert_eq!(iter.next().unwrap().organization_id, rate_limited_org);
+        assert_eq!(iter.next().unwrap().organization_id, not_ratelimited_org);
+        assert!(iter.next().is_none());
+
+        let config = {
+            let config_json = serde_json::json!({
+                "processing": {
+                    "enabled": true,
+                    "kafka_config": [],
+                    "redis": {
+                        "server": std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned()),
+                    }
+                }
+            });
+            Config::from_json_value(config_json).unwrap()
+        };
+
+        let (store, handle) = {
+            let f = |org_ids: &mut Vec<u64>, msg: Store| {
+                let org_id = match msg {
+                    Store::Metrics(x) => x.scoping.organization_id,
+                    Store::Envelope(_) => panic!("received envelope when expecting only metrics"),
+                };
+                org_ids.push(org_id);
+            };
+
+            mock_service("store_forwarder", vec![], f)
+        };
+
+        let processor = create_test_processor(config);
+        assert!(processor.redis_rate_limiter_enabled());
+
+        processor.encode_metrics_processing(message, &store);
+
+        drop(store);
+        let orgs_not_ratelimited = handle.await.unwrap();
+
+        assert_eq!(orgs_not_ratelimited, vec![not_ratelimited_org]);
+    }
 
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {

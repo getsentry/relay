@@ -18,7 +18,13 @@ const DISABLED_DATABASES: &[&str] = &[
 ];
 
 /// A list of `span.op` patterns we want to enable for mobile.
-const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
+const MOBILE_OPS: &[&str] = &[
+    "activity.load",
+    "app.*",
+    "application.load",
+    "contentprovider.load",
+    "ui.load*",
+];
 
 /// A list of span descriptions that indicate top-level app start spans.
 const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
@@ -47,11 +53,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let is_extract_all = project_config
-        .features
-        .has(Feature::SpanMetricsExtractionAllModules);
-
-    config.metrics.extend(span_metrics(is_extract_all));
+    config.metrics.extend(span_metrics());
 
     config._span_metrics_extended = true;
     if config.version == 0 {
@@ -60,22 +62,14 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 }
 
 /// Metrics with tags applied as required.
-fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
-    let flagged_mobile_ops = {
-        let mut ops = MOBILE_OPS.to_vec();
-        if is_extract_all {
-            ops.extend(["contentprovider.load", "application.load", "activity.load"]);
-        }
-        ops
-    };
-
+fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
             | RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
-    let is_mobile_op = RuleCondition::glob("span.op", flagged_mobile_ops);
+    let is_mobile_op = RuleCondition::glob("span.op", MOBILE_OPS);
 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
@@ -102,6 +96,8 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
         );
 
     let is_mobile = is_mobile_sdk.clone() & (is_mobile_op.clone() | is_screen);
+
+    let is_interaction = RuleCondition::glob("span.op", "ui.interaction.*");
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
     let duration_condition = RuleCondition::negate(is_mobile_op.clone())
@@ -187,7 +183,7 @@ fn span_metrics(is_extract_all: bool) -> impl IntoIterator<Item = MetricSpec> {
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
             condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone())
+                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
                     & duration_condition.clone(),
             ),
             tags: vec![

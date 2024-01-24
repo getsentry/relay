@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+
+## 0.8.44
+
+### Various fixes & improvements
+
+- release: 0.8.43 (9789f00a) by @getsentry-bot
+- release: 0.8.42 (b980275c) by @getsentry-bot
+- fix(pii): Enable PII scrubbing in logentry.params (#2956) by @iker-barriocanal
+
+## 0.8.43
+
+### Various fixes & improvements
+
+- release: 0.8.42 (b980275c) by @getsentry-bot
+- fix(pii): Enable PII scrubbing in logentry.params (#2956) by @iker-barriocanal
+
+## 0.8.42
+
 - Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
 
 ## 0.8.41
