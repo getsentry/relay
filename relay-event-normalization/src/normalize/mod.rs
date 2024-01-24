@@ -36,7 +36,7 @@ mod contexts;
 pub struct BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(skip_serializing_if = "is_false")]
     allow_negative: bool,
 }
 
