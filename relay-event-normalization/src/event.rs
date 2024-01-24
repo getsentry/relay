@@ -227,7 +227,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     if let Some(geoip_lookup) = config.geoip_lookup {
         if let Some(user) = event.user.value_mut() {
-            normalize_user_geoinfo(geoip_lookup, user)
+            normalize_user_geoinfo(geoip_lookup, user);
         }
     }
 
@@ -284,7 +284,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         // transactions don't have many spans, but if this is no longer the
         // case and we roll this flag out for most projects, we may want to
         // reconsider this approach.
-        normalize_app_start_spans(event);
+        crate::normalize::normalize_app_start_spans(event);
         span::attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
     }
 
@@ -419,7 +419,7 @@ pub fn normalize_ip_addresses(
 }
 
 /// Sets the user's GeoIp info based on user's IP address.
-fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
+pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     // Infer user.geo from user.ip_address
     if user.geo.value().is_none() {
         if let Some(ip_address) = user.ip_address.value() {
@@ -887,38 +887,6 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     match breakdowns_config {
         None => {}
         Some(config) => breakdowns::normalize_breakdowns(event, config),
-    }
-}
-
-/// Replaces snake_case app start spans op with dot.case op.
-///
-/// This is done for the affected React Native SDK versions (from 3 to 4.4).
-fn normalize_app_start_spans(event: &mut Event) {
-    if !event.sdk_name().eq("sentry.javascript.react-native")
-        || !(event.sdk_version().starts_with("4.4")
-            || event.sdk_version().starts_with("4.3")
-            || event.sdk_version().starts_with("4.2")
-            || event.sdk_version().starts_with("4.1")
-            || event.sdk_version().starts_with("4.0")
-            || event.sdk_version().starts_with('3'))
-    {
-        return;
-    }
-
-    if let Some(spans) = event.spans.value_mut() {
-        for span in spans {
-            if let Some(span) = span.value_mut() {
-                if let Some(op) = span.op.value() {
-                    if op == "app_start_cold" {
-                        span.op.set_value(Some("app.start.cold".to_string()));
-                        break;
-                    } else if op == "app_start_warm" {
-                        span.op.set_value(Some("app.start.warm".to_string()));
-                        break;
-                    }
-                }
-            }
-        }
     }
 }
 

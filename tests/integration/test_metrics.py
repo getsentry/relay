@@ -241,6 +241,36 @@ def test_global_metrics(mini_sentry, relay):
     ]
 
 
+def test_global_metrics_no_config(mini_sentry, relay):
+    relay = relay(mini_sentry, TEST_CONFIG)
+
+    project_id = 42
+    config = mini_sentry.add_basic_project_config(project_id)
+    public_key = config["publicKeys"][0]["publicKey"]
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics = [
+        {
+            "timestamp": timestamp,
+            "width": 1,
+            "name": "c:transactions/foo@none",
+            "value": 17.0,
+            "type": "c",
+        }
+    ]
+    relay.send_metrics_batch(
+        {"buckets": {public_key: metrics}},
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    item = envelope.items[0]
+    assert item.headers["type"] == "metric_buckets"
+    metrics_batch = json.loads(item.payload.get_bytes())
+    received_metrics = sorted(metrics_batch, key=lambda x: x["name"])
+
+    assert received_metrics == metrics
+
+
 def test_global_metrics_batching(mini_sentry, relay):
     # See `test_metrics_max_batch_size`: 200 should lead to 2 batches
     MAX_FLUSH_SIZE = 200
@@ -1593,3 +1623,88 @@ def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_con
 
     assert "c:transactions/foo@none" in metrics
     assert "c:custom/bar@second" not in metrics
+
+
+@pytest.mark.parametrize(
+    "denied_tag", ["sdk", "release"], ids=["remove sdk tag", "remove release tag"]
+)
+@pytest.mark.parametrize(
+    "denied_names", ["*user*", ""], ids=["deny user", "no denied names"]
+)
+def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    extra_config = {
+        "config": {
+            "sessionMetrics": {"version": 1},
+            "metrics": {
+                "deniedNames": [denied_names],
+                "deniedTags": [{"name": ["*"], "tag": [denied_tag]}],
+            },
+        }
+    }
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id, extra=extra_config)
+
+    timestamp = datetime.now(tz=timezone.utc)
+    started = timestamp - timedelta(hours=1)
+    session_payload = _session_payload(timestamp=timestamp, started=started)
+
+    relay.send_session(
+        project_id,
+        session_payload,
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=2)
+    assert len(envelope.items) == 1
+    first_item = envelope.items[0]
+
+    second_envelope = mini_sentry.captured_events.get(timeout=2)
+    assert len(second_envelope.items) == 1
+    second_item = second_envelope.items[0]
+
+    if first_item.type == "session":
+        metrics_item = second_item
+    else:
+        metrics_item = first_item
+
+    assert metrics_item.type == "metric_buckets"
+
+    session_metrics = json.loads(metrics_item.get_bytes().decode())
+    session_metrics = sorted(session_metrics, key=lambda x: x["name"])
+
+    if denied_names == "*user*":
+        assert len(session_metrics) == 1
+        assert session_metrics[0]["name"] == "c:sessions/session@none"
+    elif denied_names == "":
+        assert len(session_metrics) == 2
+        assert session_metrics[0]["name"] == "c:sessions/session@none"
+        assert session_metrics[1]["name"] == "s:sessions/user@none"
+    else:
+        assert False, "add new else-branch if you add another denied name"
+
+    if denied_tag == "sdk":
+        assert session_metrics[0]["tags"] == {
+            "environment": "production",
+            "release": "sentry-test@1.0.0",
+            "session.status": "init",
+        }
+        if denied_names == "":
+            assert session_metrics[1]["tags"] == {
+                "environment": "production",
+                "release": "sentry-test@1.0.0",
+            }
+    elif denied_tag == "release":
+        assert session_metrics[0]["tags"] == {
+            "sdk": "raven-node/2.6.3",
+            "environment": "production",
+            "session.status": "init",
+        }
+        if denied_names == "":
+            assert session_metrics[1]["tags"] == {
+                "sdk": "raven-node/2.6.3",
+                "environment": "production",
+            }
+    else:
+        assert False, "add new else-branch if you add another denied tag"
