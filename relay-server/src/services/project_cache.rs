@@ -507,7 +507,7 @@ struct ProjectCacheBroker {
 enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
     Ready(Arc<GlobalConfig>),
-    /// The global config us not fetched yet.
+    /// The global config ss not fetched yet.
     Pending,
 }
 
@@ -519,12 +519,7 @@ impl GlobalConfigStatus {
 
 impl ProjectCacheBroker {
     fn set_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        let GlobalConfigStatus::Pending = std::mem::replace(
-            &mut self.global_config,
-            GlobalConfigStatus::Ready(global_config),
-        ) else {
-            return;
-        };
+        self.global_config = GlobalConfigStatus::Ready(global_config);
     }
 
     /// Adds the value to the queue for the provided key.
@@ -541,12 +536,6 @@ impl ProjectCacheBroker {
     pub fn dequeue(&mut self, partial_key: ProjectKey) {
         // If we don't yet have the global config, we will defer dequeuing until we do.
         if let GlobalConfigStatus::Pending = self.global_config {
-            return;
-        }
-
-        // Do *not* attempt to unspool if there is more buffer guards are assigned than low
-        // watermark indicates.
-        if !self.buffer_guard.is_below_low_watermark() {
             return;
         }
 
@@ -917,11 +906,23 @@ impl ProjectCacheBroker {
     /// states updates, but still can process data based on the existing cache.
     fn handle_periodic_unspool(&mut self) {
         self.buffer_unspool_handle.reset();
+
+        // Do *not* attempt to unspool if there are more permits are assigned than low
+        // watermark indicates.
+        //
+        // This is the first condition, and we do not want to event count spooled project keys at
+        // this point.
+        if !self.buffer_guard.is_below_low_watermark() {
+            self.schedule_unspool();
+            return;
+        }
+
         let keys = self.index.keys().cloned().collect::<Box<[_]>>();
 
         // If there is nothing spooled, schedule the next check a little bit later.
-        if keys.is_empty() {
+        if keys.is_empty() || !self.buffer_guard.is_below_low_watermark() {
             self.schedule_unspool();
+            return;
         }
 
         for project_key in keys.iter() {
