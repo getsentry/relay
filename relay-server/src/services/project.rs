@@ -585,66 +585,28 @@ impl Project {
             return;
         };
 
-        let metrics_config = &state.config.metrics;
-
         metrics.retain_mut(|bucket| {
-            if Self::metric_name_denied(metrics_config, bucket) {
-                relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
-                false
-            } else if Self::metric_namespace_invalid(state, bucket) {
-                false
-            } else {
-                Self::remove_tags(metrics_config, bucket);
-                true
+            let Ok(mri) = MetricResourceIdentifier::parse(&bucket.name) else {
+                relay_log::trace!(mri = bucket.name, "dropping metrics with invalid MRI");
+                return false;
+            };
+
+            if !is_metric_namespace_valid(state, &mri) {
+                relay_log::trace!(mri = bucket.name, "dropping metric in disabled namespace");
+                return false;
+            };
+
+            if let ErrorBoundary::Ok(metric_config) = &state.config.metrics {
+                if metric_config.denied_names.is_match(&bucket.name) {
+                    relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
+                    return false;
+                }
+
+                remove_matching_bucket_tags(metric_config, bucket);
             }
+
+            true
         });
-    }
-
-    /// Removes tags based on user configured deny list.
-    fn remove_tags(deny_list: &ErrorBoundary<Metrics>, bucket: &mut Bucket) {
-        let ErrorBoundary::Ok(metrics) = deny_list else {
-            return;
-        };
-
-        for tag_block_config in &metrics.denied_tags {
-            let name_pattern = &tag_block_config.name;
-            let tag_pattern = &tag_block_config.tag;
-
-            if name_pattern.is_match(&bucket.name) {
-                bucket
-                    .tags
-                    .retain(|tag_key, _| !tag_pattern.is_match(tag_key));
-            }
-        }
-    }
-
-    fn metric_name_denied(deny_list: &ErrorBoundary<Metrics>, bucket: &Bucket) -> bool {
-        let ErrorBoundary::Ok(metrics) = deny_list else {
-            return false;
-        };
-
-        metrics.denied_names.is_match(&bucket.name)
-    }
-
-    fn metric_namespace_invalid(state: &ProjectState, metric: &Bucket) -> bool {
-        let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
-            relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
-            return false;
-        };
-
-        let verdict = match mri.namespace {
-            MetricNamespace::Sessions => false,
-            MetricNamespace::Transactions => false,
-            MetricNamespace::Spans => !state.has_feature(Feature::SpanMetricsExtraction),
-            MetricNamespace::Custom => !state.has_feature(Feature::CustomMetrics),
-            MetricNamespace::Unsupported => true,
-        };
-
-        if !verdict {
-            relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
-        }
-
-        verdict
     }
 
     fn rate_limit_and_merge_buckets(
@@ -1197,6 +1159,27 @@ impl Project {
     }
 }
 
+/// Removes tags based on user configured deny list.
+fn remove_matching_bucket_tags(deny_list: &Metrics, bucket: &mut Bucket) {
+    for tag_block in &deny_list.denied_tags {
+        if tag_block.name.is_match(&bucket.name) {
+            bucket
+                .tags
+                .retain(|tag_key, _| !tag_block.tag.is_match(tag_key));
+        }
+    }
+}
+
+fn is_metric_namespace_valid(state: &ProjectState, mri: &MetricResourceIdentifier) -> bool {
+    match mri.namespace {
+        MetricNamespace::Sessions => true,
+        MetricNamespace::Transactions => true,
+        MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
+        MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
+        MetricNamespace::Unsupported => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -1501,12 +1484,12 @@ mod tests {
     ) -> Vec<String> {
         let mut buckets = get_test_buckets(&names);
         let patterns: Vec<String> = patterns.as_ref().iter().map(|s| (*s).to_owned()).collect();
-        let deny_list = ErrorBoundary::Ok(Metrics {
+        let deny_list = Metrics {
             denied_names: GlobPatterns::new(patterns),
             ..Default::default()
-        });
+        };
 
-        buckets.retain(|bucket| !Project::metric_name_denied(&deny_list, bucket));
+        buckets.retain(|bucket| !deny_list.denied_names.is_match(&bucket.name));
 
         buckets.into_iter().map(|bucket| bucket.name).collect()
     }

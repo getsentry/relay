@@ -21,7 +21,9 @@ pub struct Metrics {
     /// List of patterns for blocking metrics based on their name.
     #[serde(skip_serializing_if = "GlobPatterns::is_empty")]
     pub denied_names: GlobPatterns,
-    /// List of patterns of tags to remove.
+    /// Configuration for removing tags from a bucket.
+    ///
+    /// Note that removing tags does not drop the overall metric bucket.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub denied_tags: Vec<TagBlock>,
 }
@@ -35,7 +37,7 @@ impl Metrics {
     }
 }
 
-/// For metrics matching the 'name' pattern, we remove tags matching the 'tag' pattern.
+/// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TagBlock {
     /// Name of metric of which we want to remove certain tags.
