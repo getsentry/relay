@@ -851,7 +851,7 @@ impl EnvelopeProcessorService {
             window,
             limit,
             scope,
-            namespace: Some(MetricNamespace::Sessions),
+            namespace: Some(ns),
         })
     }
 
