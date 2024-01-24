@@ -1160,8 +1160,8 @@ impl Project {
 }
 
 /// Removes tags based on user configured deny list.
-fn remove_matching_bucket_tags(deny_list: &Metrics, bucket: &mut Bucket) {
-    for tag_block in &deny_list.denied_tags {
+fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
+    for tag_block in &metric_config.denied_tags {
         if tag_block.name.is_match(&bucket.name) {
             bucket
                 .tags
