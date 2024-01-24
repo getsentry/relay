@@ -583,51 +583,33 @@ impl Project {
         }
     }
 
-    /// Remove metric buckets that are not allowed to be ingested.
+    /// Remove metric buckets or tags that are not allowed to be ingested.
     fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
         let Some(state) = &self.state_value() else {
             return;
         };
 
-        Self::apply_metrics_deny_list(&state.config.metrics, metrics);
-        Self::filter_disabled_namespace(state, metrics);
-    }
-
-    fn apply_metrics_deny_list(deny_list: &ErrorBoundary<Metrics>, buckets: &mut Vec<Bucket>) {
-        let ErrorBoundary::Ok(metrics) = deny_list else {
-            return;
-        };
-
-        buckets.retain(|bucket| {
-            if metrics.denied_names.is_match(&bucket.name) {
-                relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
-                false
-            } else {
-                true
-            }
-        });
-    }
-
-    fn filter_disabled_namespace(state: &ProjectState, metrics: &mut Vec<Bucket>) {
-        metrics.retain(|metric| {
-            let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
-                relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
+        metrics.retain_mut(|bucket| {
+            let Ok(mri) = MetricResourceIdentifier::parse(&bucket.name) else {
+                relay_log::trace!(mri = bucket.name, "dropping metrics with invalid MRI");
                 return false;
             };
 
-            let verdict = match mri.namespace {
-                MetricNamespace::Sessions => true,
-                MetricNamespace::Transactions => true,
-                MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
-                MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
-                MetricNamespace::Unsupported => false,
+            if !is_metric_namespace_valid(state, &mri) {
+                relay_log::trace!(mri = bucket.name, "dropping metric in disabled namespace");
+                return false;
             };
 
-            if !verdict {
-                relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
+            if let ErrorBoundary::Ok(metric_config) = &state.config.metrics {
+                if metric_config.denied_names.is_match(&bucket.name) {
+                    relay_log::trace!(mri = bucket.name, "dropping metrics due to block list");
+                    return false;
+                }
+
+                remove_matching_bucket_tags(metric_config, bucket);
             }
 
-            verdict
+            true
         });
     }
 
@@ -1183,12 +1165,35 @@ impl Project {
     }
 }
 
+/// Removes tags based on user configured deny list.
+fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
+    for tag_block in &metric_config.denied_tags {
+        if tag_block.name.is_match(&bucket.name) {
+            bucket
+                .tags
+                .retain(|tag_key, _| !tag_block.tag.is_match(tag_key));
+        }
+    }
+}
+
+fn is_metric_namespace_valid(state: &ProjectState, mri: &MetricResourceIdentifier) -> bool {
+    match mri.namespace {
+        MetricNamespace::Sessions => true,
+        MetricNamespace::Transactions => true,
+        MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
+        MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
+        MetricNamespace::Unsupported => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::sync::{Arc, Mutex};
 
     use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
+    use relay_dynamic_config::TagBlock;
     use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
@@ -1448,25 +1453,20 @@ mod tests {
         assert!(metrics.is_empty());
     }
 
-    fn get_test_buckets(names: &[&str]) -> Vec<Bucket> {
-        let create_bucket = |name: &&str| -> Bucket {
-            let json = json!({
-                        "timestamp": 1615889440,
-                        "width": 10,
-                        "name": name,
-                        "type": "c",
-                        "value": 4.0,
-                        "tags": {
-                        "route": "user_index"
-            }});
+    fn get_test_bucket(name: &str, tags: BTreeMap<String, String>) -> Bucket {
+        let json = json!({
+                    "timestamp": 1615889440,
+                    "width": 10,
+                    "name": name,
+                    "type": "c",
+                    "value": 4.0,
+                    "tags": tags,
+        });
 
-            serde_json::from_value(json).unwrap()
-        };
-
-        names.iter().map(create_bucket).collect()
+        serde_json::from_value(json).unwrap()
     }
 
-    fn get_test_bucket_names() -> Vec<&'static str> {
+    fn get_test_buckets() -> Vec<Bucket> {
         [
             "g:transactions/foo@none",
             "c:custom/foo@none",
@@ -1478,25 +1478,81 @@ mod tests {
             "endpoint.parallel_requests",
             "endpoint.users",
         ]
-        .into()
+        .iter()
+        .map(|name| get_test_bucket(name, BTreeMap::default()))
+        .collect()
     }
 
-    fn apply_pattern_to_names(names: Vec<&str>, patterns: &[&str]) -> Vec<String> {
-        let metrics = Metrics {
-            denied_names: GlobPatterns::new(patterns.iter().map(|&s| s.to_owned()).collect()),
+    fn apply_denied_names_to_buckets<'a>(
+        mut buckets: Vec<Bucket>,
+        patterns: impl AsRef<[&'a str]>,
+    ) -> Vec<Bucket> {
+        let patterns: Vec<String> = patterns.as_ref().iter().map(|s| (*s).to_owned()).collect();
+        let deny_list = Metrics {
+            denied_names: GlobPatterns::new(patterns),
             ..Default::default()
         };
 
-        let mut buckets = get_test_buckets(&names);
-        Project::apply_metrics_deny_list(&ErrorBoundary::Ok(metrics), &mut buckets);
-        buckets.into_iter().map(|bucket| bucket.name).collect()
+        buckets.retain(|bucket| !deny_list.denied_names.is_match(&bucket.name));
+        buckets
+    }
+
+    #[test]
+    fn test_remove_tags() {
+        let mut tags = BTreeMap::default();
+        tags.insert("foobazbar".to_string(), "val".to_string());
+        tags.insert("foobaz".to_string(), "val".to_string());
+        tags.insert("bazbar".to_string(), "val".to_string());
+
+        let mut bucket = get_test_bucket("foobar", tags);
+
+        let tag_block_pattern = "foobaz*";
+
+        let metric_config = Metrics {
+            denied_tags: vec![TagBlock {
+                name: GlobPatterns::new(vec!["foobar".to_string()]),
+                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+            }],
+            ..Default::default()
+        };
+
+        remove_matching_bucket_tags(&metric_config, &mut bucket);
+
+        // the tag_block_pattern should match on two of the tags.
+        assert_eq!(bucket.tags.len(), 1);
+    }
+
+    #[test]
+    fn test_dont_remove_tags_if_bucket_name_not_matching() {
+        let mut tags = BTreeMap::default();
+        tags.insert("foobazbar".to_string(), "val".to_string());
+        tags.insert("foobaz".to_string(), "val".to_string());
+        tags.insert("bazbar".to_string(), "val".to_string());
+
+        let mut bucket = get_test_bucket("foobar", tags);
+
+        let tag_block_pattern = "foobaz*";
+
+        let metric_config = Metrics {
+            denied_tags: vec![TagBlock {
+                // barfoo doesn't batch the 'foobar' bucket
+                name: GlobPatterns::new(vec!["barfoo".to_string()]),
+                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+            }],
+            ..Default::default()
+        };
+
+        remove_matching_bucket_tags(&metric_config, &mut bucket);
+
+        assert_eq!(bucket.tags.len(), 3);
     }
 
     #[test]
     fn test_metric_deny_list_exact() {
-        let names = get_test_bucket_names();
-        let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, &["endpoint.parallel_requests"]);
+        let buckets = get_test_buckets();
+        let input_qty = buckets.len();
+        let remaining_names =
+            apply_denied_names_to_buckets(buckets, ["endpoint.parallel_requests"]);
 
         // There's 1 bucket with that exact name.
         let buckets_to_remove = 1;
@@ -1506,9 +1562,9 @@ mod tests {
 
     #[test]
     fn test_metric_deny_list_end_glob() {
-        let names = get_test_bucket_names();
-        let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, &["*foo"]);
+        let buckets = get_test_buckets();
+        let input_qty = buckets.len();
+        let remaining_names = apply_denied_names_to_buckets(buckets, ["*foo"]);
 
         // There's 1 bucket name with 'foo' in the end.
         let buckets_to_remove = 1;
@@ -1518,9 +1574,9 @@ mod tests {
 
     #[test]
     fn test_metric_deny_list_middle_glob() {
-        let names = get_test_bucket_names();
-        let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, &["*foo*"]);
+        let buckets = get_test_buckets();
+        let input_qty = buckets.len();
+        let remaining_names = apply_denied_names_to_buckets(buckets, ["*foo*"]);
 
         // There's 4 bucket names with 'foo' in the middle, and one with foo in the end.
         let buckets_to_remove = 5;
@@ -1530,9 +1586,9 @@ mod tests {
 
     #[test]
     fn test_metric_deny_list_beginning_glob() {
-        let names = get_test_bucket_names();
-        let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, &["endpoint*"]);
+        let buckets = get_test_buckets();
+        let input_qty = buckets.len();
+        let remaining_names = apply_denied_names_to_buckets(buckets, ["endpoint*"]);
 
         // There's 4 buckets starting with "endpoint".
         let buckets_to_remove = 4;
@@ -1542,17 +1598,18 @@ mod tests {
 
     #[test]
     fn test_metric_deny_list_everything() {
-        let names = get_test_bucket_names();
-        let remaining_names = apply_pattern_to_names(names, &["*"]);
+        let buckets = get_test_buckets();
+        let remaining_names = apply_denied_names_to_buckets(buckets, ["*"]);
 
         assert_eq!(remaining_names.len(), 0);
     }
 
     #[test]
     fn test_metric_deny_list_multiple() {
-        let names = get_test_bucket_names();
-        let input_qty = names.len();
-        let remaining_names = apply_pattern_to_names(names, &["endpoint*", "*transactions*"]);
+        let buckets = get_test_buckets();
+        let input_qty = buckets.len();
+        let remaining_names =
+            apply_denied_names_to_buckets(buckets, ["endpoint*", "*transactions*"]);
 
         let endpoint_buckets = 4;
         let transaction_buckets = 3;
