@@ -1863,7 +1863,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize_event_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2011,7 +2011,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize_event_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2159,7 +2159,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize_event_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2284,7 +2284,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize_event_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2367,7 +2367,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize_event_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2455,7 +2455,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize_event_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2507,7 +2507,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score));
+        normalize_event_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
