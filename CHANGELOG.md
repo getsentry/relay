@@ -13,6 +13,7 @@
 - Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
 - Add possiblity to block metrics with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954))
 - Enable periodic unspool of the buffered envelopes. ([#2993](https://github.com/getsentry/relay/pull/2993))
+- Add possiblity to block metrics or their tags with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954), [#2973](https://github.com/getsentry/relay/pull/2973))
 
 **Bug Fixes**:
 
