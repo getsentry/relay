@@ -1,14 +1,15 @@
 //! Profiles related processor code.
 
 #[cfg(feature = "processing")]
-use {crate::envelope::ContentType, relay_config::Config, relay_dynamic_config::Feature};
+use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
+use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::Annotated;
 
-use crate::envelope::{Item, ItemType};
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::ItemAction;
