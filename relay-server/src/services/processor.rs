@@ -45,7 +45,9 @@ use tokio::sync::Semaphore;
 use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
+    relay_cardinality::{
+        CardinalityLimit, CardinalityLimiter, CardinalityScope, RedisSetLimiter, SlidingWindow,
+    },
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -811,20 +813,10 @@ impl EnvelopeProcessorService {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
             }),
             #[cfg(feature = "processing")]
-            cardinality_limiter: redis.clone().map(|pool| {
-                CardinalityLimiter::new(
-                    RedisSetLimiter::new(
-                        pool,
-                        SlidingWindow {
-                            window_seconds: config.cardinality_limiter_window(),
-                            granularity_seconds: config.cardinality_limiter_granularity(),
-                        },
-                    ),
-                    relay_cardinality::CardinalityLimiterConfig {
-                        cardinality_limit: config.cardinality_limit(),
-                    },
-                )
-            }),
+            cardinality_limiter: redis
+                .clone()
+                .map(RedisSetLimiter::new)
+                .map(CardinalityLimiter::new),
             #[cfg(feature = "processing")]
             store_forwarder,
             config,
@@ -833,6 +825,34 @@ impl EnvelopeProcessorService {
         Self {
             inner: Arc::new(inner),
         }
+    }
+
+    /// Returns current cardinality limits built from the configuration.
+    ///
+    /// In the near future these limits will be coming from the project config.
+    #[cfg(feature = "processing")]
+    fn get_cardinality_limits(&self) -> [CardinalityLimit; 5] {
+        let limit = self.inner.config.cardinality_limit();
+        let window = SlidingWindow {
+            window_seconds: self.inner.config.cardinality_limiter_window(),
+            granularity_seconds: self.inner.config.cardinality_limiter_granularity(),
+        };
+        let scope = CardinalityScope::Organization;
+
+        [
+            MetricNamespace::Sessions,
+            MetricNamespace::Spans,
+            MetricNamespace::Transactions,
+            MetricNamespace::Custom,
+            MetricNamespace::Unsupported,
+        ]
+        .map(|ns| CardinalityLimit {
+            id: ns.as_str().to_owned(),
+            window,
+            limit,
+            scope,
+            namespace: Some(ns),
+        })
     }
 
     /// Normalize monitor check-ins and remove invalid ones.
@@ -1812,6 +1832,7 @@ impl EnvelopeProcessorService {
     fn cardinality_limit_buckets(
         &self,
         scoping: Scoping,
+        limits: &[CardinalityLimit],
         buckets: Vec<Bucket>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
@@ -1819,7 +1840,12 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let limits = match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+        let cardinality_scope = relay_cardinality::Scoping {
+            organization_id: scoping.organization_id,
+            project_id: scoping.project_id,
+        };
+
+        let limits = match limiter.check_cardinality_limits(cardinality_scope, limits, buckets) {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
@@ -1853,6 +1879,8 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
+        let limits = &self.get_cardinality_limits();
+
         for (scoping, message) in message.scopes {
             let ProjectMetrics {
                 mut buckets,
@@ -1862,7 +1890,7 @@ impl EnvelopeProcessorService {
             let mode = project_state.get_extraction_mode();
 
             if project_state.has_feature(Feature::CardinalityLimiter) {
-                buckets = self.cardinality_limit_buckets(scoping, buckets, mode);
+                buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
             }
 
             if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
