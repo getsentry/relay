@@ -49,11 +49,6 @@ impl GlobPatterns {
         is_match(globs, message)
     }
 
-    /// Returns the raw patterns.
-    pub fn inner(&self) -> &Vec<String> {
-        &self.patterns
-    }
-
     /// Parses valid patterns from the list.
     fn parse_globs(&self) -> Vec<Regex> {
         let mut globs = Vec::with_capacity(self.patterns.len());
