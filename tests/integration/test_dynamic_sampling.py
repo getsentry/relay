@@ -612,9 +612,10 @@ def test_relay_chain(
     },
 )
 def test_relay_chain_keep_unsampled_profile(
-    mini_sentry,
-    relay,
+    mini_sentry, relay, relay_with_processing, profiles_consumer
 ):
+    profiles_consumer = profiles_consumer()
+
     # Create an envelope with a profile:
     def make_envelope(public_key):
         trace_uuid = "414e119d37694a32869f9d81b76a0bbb"
@@ -638,7 +639,7 @@ def test_relay_chain_keep_unsampled_profile(
         return envelope
 
     project_id = 42
-    relay = relay(relay(mini_sentry))
+    relay = relay(relay_with_processing())
     config = mini_sentry.add_basic_project_config(project_id)
     config["config"]["transactionMetrics"] = {"version": 1}
     config["config"]["features"] = ["projects:profiling-ingest-unsampled-profiles"]
@@ -649,21 +650,14 @@ def test_relay_chain_keep_unsampled_profile(
     envelope = make_envelope(public_key)
 
     relay.send_envelope(project_id, envelope)
-    envelope_items = []
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    envelope_items.extend(envelope.items)
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    envelope_items.extend(envelope.items)
 
-    profiles = [item for item in envelope_items if item.data_category == "profile"]
-    (profile_item,) = profiles
+    profile, headers = profiles_consumer.get_profile()
 
-    assert profile_item.headers.get("sampled") is False
-
-    profile = json.loads(profile_item.payload.bytes)
-
-    # Assert that transaction fields have been set:
-    assert profile["transaction_metadata"]["transaction"] == "my_first_transaction"
+    assert headers == [("sampled", b"false")]
+    profile_payload = json.loads(profile["payload"])
+    assert (
+        profile_payload["transaction_metadata"]["transaction"] == "my_first_transaction"
+    )
 
 
 def get_profile_payload(transaction):
