@@ -913,11 +913,8 @@ impl ProjectCacheBroker {
             return;
         }
 
-        relay_log::trace!("index contains {} keys", self.index.len());
-
         let keys = self.index.keys().cloned().collect::<Box<[_]>>();
 
-        let mut dequeued = false;
         for project_key in keys.iter() {
             if self.projects.get_mut(project_key).map_or(false, |project| {
                 // Returns `Some` if the project is cache otherwise None and also triggers refresh
@@ -933,16 +930,11 @@ impl ProjectCacheBroker {
                 }
 
                 self.dequeue(*project_key);
-                dequeued = true;
             }
         }
 
-        // If there was at least one dequeuded project, reset backoff and try again, if all the
-        // projects are still pending or invalid, wait a bit longer before the next try.
-        if dequeued {
-            self.buffer_unspool_backoff.reset();
-        }
         // Schedule unspool once we are done.
+        self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
     }
 
