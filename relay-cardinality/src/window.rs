@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 /// A sliding window.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SlidingWindow {
     /// The number of seconds to apply the limit to.
     pub window_seconds: u64,

@@ -11,6 +11,10 @@ local region_pops = {
     'us-pop-2',
     'us-pop-3',
     'us-pop-4',
+    'us-pop-regional-1',
+    'us-pop-regional-2',
+    'us-pop-regional-3',
+    'us-pop-regional-4',
   ],
 };
 

@@ -78,13 +78,13 @@ mod tests {
 
     #[test]
     fn parses_metric() {
-        let metric = "service.back_pressure:0|g|#service:relay_server::actors::processor::EnvelopeProcessorService";
+        let metric = "service.back_pressure:0|g|#service:relay_server::services::processor::EnvelopeProcessorService";
         assert_eq!(
             parse_metric(metric),
             Metric {
                 ty: "g",
                 name: "service.back_pressure",
-                tags: "#service:relay_server::actors::processor::EnvelopeProcessorService",
+                tags: "#service:relay_server::services::processor::EnvelopeProcessorService",
                 value: 0.0
             }
         )

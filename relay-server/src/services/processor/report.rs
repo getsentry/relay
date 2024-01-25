@@ -13,9 +13,9 @@ use relay_quotas::ReasonCode;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_system::Addr;
 
-use crate::actors::outcome::{Outcome, TrackOutcome};
-use crate::actors::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::envelope::{ContentType, ItemType};
+use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
 use crate::utils::ItemAction;
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -34,104 +34,12 @@ pub enum ClientReportField {
     ClientDiscard,
 }
 
-/// Validates and normalizes:
-/// - all user reports items in the envelopes
-/// - all client reports
-///
-/// User feedback items are removed from the envelope if they contain invalid JSON or if the
-/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-/// is written back into the item.
-///
-/// At the moment client reports are primarily used to transfer outcomes from
-/// client SDKs.  The outcomes are removed here and sent directly to the outcomes
-/// system.
-pub fn process(
-    state: &mut ProcessEnvelopeState,
-    config: &Config,
-    outcome_aggregator: Addr<TrackOutcome>,
-) {
-    process_client_reports(state, config, outcome_aggregator);
-    process_user_reports(state);
-}
-
-/// Validates and normalizes all user report items in the envelope.
-///
-/// User feedback items are removed from the envelope if they contain invalid JSON or if the
-/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
-/// is written back into the item.
-fn process_user_reports(state: &mut ProcessEnvelopeState) {
-    state.managed_envelope.retain_items(|item| {
-        if item.ty() != &ItemType::UserReport {
-            return ItemAction::Keep;
-        };
-
-        let payload = item.payload();
-        // There is a customer SDK which sends invalid reports with a trailing `\n`,
-        // strip it here, even if they update/fix their SDK there will still be many old
-        // versions with the broken SDK out there.
-        let payload = trim_whitespaces(&payload);
-        let report = match serde_json::from_slice::<UserReport>(payload) {
-            Ok(session) => session,
-            Err(error) => {
-                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
-                return ItemAction::DropSilently;
-            }
-        };
-
-        let json_string = match serde_json::to_string(&report) {
-            Ok(json) => json,
-            Err(err) => {
-                relay_log::error!(
-                    error = &err as &dyn Error,
-                    "failed to serialize user report"
-                );
-                return ItemAction::DropSilently;
-            }
-        };
-
-        item.set_payload(ContentType::Json, json_string);
-        ItemAction::Keep
-    });
-}
-
-fn trim_whitespaces(data: &[u8]) -> &[u8] {
-    let Some(from) = data.iter().position(|x| !x.is_ascii_whitespace()) else {
-        return &[];
-    };
-    let Some(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) else {
-        return &[];
-    };
-    &data[from..to + 1]
-}
-
-/// Parse an outcome from an outcome ID and a reason string.
-///
-/// Currently only used to reconstruct outcomes encoded in client reports.
-fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
-    match field {
-        ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
-            Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
-                .map(Outcome::FilteredSampling)
-                .map_err(|_| ()),
-            None => Err(()),
-        },
-        ClientReportField::ClientDiscard => Ok(Outcome::ClientDiscard(reason.into())),
-        ClientReportField::Filtered => Ok(Outcome::Filtered(
-            FilterStatKey::try_from(reason).map_err(|_| ())?,
-        )),
-        ClientReportField::RateLimited => Ok(Outcome::RateLimited(match reason {
-            "" => None,
-            other => Some(ReasonCode::new(other)),
-        })),
-    }
-}
-
 /// Validates and extracts client reports.
 ///
 /// At the moment client reports are primarily used to transfer outcomes from
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
-fn process_client_reports(
+pub fn process_client_reports(
     state: &mut ProcessEnvelopeState,
     config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -275,6 +183,78 @@ fn process_client_reports(
     }
 }
 
+/// Validates and normalizes all user report items in the envelope.
+///
+/// User feedback items are removed from the envelope if they contain invalid JSON or if the
+/// JSON violates the schema (basic type validation). Otherwise, their normalized representation
+/// is written back into the item.
+pub fn process_user_reports(state: &mut ProcessEnvelopeState) {
+    state.managed_envelope.retain_items(|item| {
+        if item.ty() != &ItemType::UserReport {
+            return ItemAction::Keep;
+        };
+
+        let payload = item.payload();
+        // There is a customer SDK which sends invalid reports with a trailing `\n`,
+        // strip it here, even if they update/fix their SDK there will still be many old
+        // versions with the broken SDK out there.
+        let payload = trim_whitespaces(&payload);
+        let report = match serde_json::from_slice::<UserReport>(payload) {
+            Ok(session) => session,
+            Err(error) => {
+                relay_log::error!(error = &error as &dyn Error, "failed to store user report");
+                return ItemAction::DropSilently;
+            }
+        };
+
+        let json_string = match serde_json::to_string(&report) {
+            Ok(json) => json,
+            Err(err) => {
+                relay_log::error!(
+                    error = &err as &dyn Error,
+                    "failed to serialize user report"
+                );
+                return ItemAction::DropSilently;
+            }
+        };
+
+        item.set_payload(ContentType::Json, json_string);
+        ItemAction::Keep
+    });
+}
+
+fn trim_whitespaces(data: &[u8]) -> &[u8] {
+    let Some(from) = data.iter().position(|x| !x.is_ascii_whitespace()) else {
+        return &[];
+    };
+    let Some(to) = data.iter().rposition(|x| !x.is_ascii_whitespace()) else {
+        return &[];
+    };
+    &data[from..to + 1]
+}
+
+/// Parse an outcome from an outcome ID and a reason string.
+///
+/// Currently only used to reconstruct outcomes encoded in client reports.
+fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
+    match field {
+        ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
+            Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
+                .map(Outcome::FilteredSampling)
+                .map_err(|_| ()),
+            None => Err(()),
+        },
+        ClientReportField::ClientDiscard => Ok(Outcome::ClientDiscard(reason.into())),
+        ClientReportField::Filtered => Ok(Outcome::Filtered(
+            FilterStatKey::try_from(reason).map_err(|_| ())?,
+        )),
+        ClientReportField::RateLimited => Ok(Outcome::RateLimited(match reason {
+            "" => None,
+            other => Some(ReasonCode::new(other)),
+        })),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -284,10 +264,10 @@ mod tests {
     use relay_sampling::config::RuleId;
     use relay_sampling::evaluation::ReservoirCounters;
 
-    use crate::actors::processor::ProcessEnvelope;
-    use crate::actors::project::ProjectState;
     use crate::envelope::{Envelope, Item};
     use crate::extractors::RequestMeta;
+    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::project::ProjectState;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
 
@@ -335,7 +315,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -385,7 +364,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -443,11 +421,54 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
         assert!(envelope_response.envelope.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_user_report_only() {
+        relay_log::init_test!();
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = testutils::processor_services();
+        let event_id = EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::UserReport);
+            item.set_payload(
+                ContentType::Json,
+                format!(r#"{{"event_id": "{event_id}"}}"#),
+            );
+            item
+        });
+
+        let mut envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store);
+        envelope.set_processing_group(ProcessingGroup::Standalone);
+
+        let message = ProcessEnvelope {
+            envelope,
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        assert_eq!(new_envelope.len(), 1);
+        assert_eq!(
+            new_envelope.items().next().unwrap().ty(),
+            &ItemType::UserReport
+        );
     }
 
     #[tokio::test]
@@ -480,7 +501,6 @@ mod tests {
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
-            global_config: Arc::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();

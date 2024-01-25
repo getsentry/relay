@@ -2,7 +2,7 @@
 
 use relay_dynamic_config::Feature;
 
-use crate::{actors::processor::ProcessEnvelopeState, envelope::ItemType, utils::ItemAction};
+use crate::{envelope::ItemType, services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
 mod processing;

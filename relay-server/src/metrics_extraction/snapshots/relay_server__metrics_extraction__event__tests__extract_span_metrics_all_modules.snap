@@ -951,4 +951,30 @@ expression: metrics
             "span.op": "resource.script",
         },
     },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "span.description": "my-component-name",
+            "span.group": "e674f9eca1d88a4d",
+            "span.op": "ui.interaction.click",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.op": "ui.interaction.click",
+        },
+    },
 ]

@@ -54,7 +54,7 @@ pub struct ItemScoping<'a> {
     /// Scoping of the data.
     pub scoping: &'a Scoping,
 
-    ///
+    /// Namespace if applicable. `None` matches any namespace.
     pub namespace: Option<MetricNamespace>,
 }
 

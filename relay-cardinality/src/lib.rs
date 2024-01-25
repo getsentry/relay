@@ -8,6 +8,7 @@
 
 #[cfg(feature = "redis")]
 mod cache;
+mod config;
 mod error;
 pub mod limiter;
 #[cfg(feature = "redis")]
@@ -17,6 +18,7 @@ mod statsd;
 mod utils;
 mod window;
 
+pub use self::config::*;
 pub use self::error::*;
 pub use self::limiter::{
     CardinalityItem, CardinalityLimits, CardinalityScope, Config as CardinalityLimiterConfig,

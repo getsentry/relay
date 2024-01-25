@@ -7,11 +7,11 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::processor::ProcessingGroup;
-use crate::actors::test_store::{Capture, TestStore};
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::ProcessingGroup;
+use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
@@ -113,6 +113,11 @@ impl ManagedEnvelope {
             outcome_aggregator,
             test_store,
         }
+    }
+
+    #[cfg(test)]
+    pub fn set_processing_group(&mut self, group: ProcessingGroup) {
+        self.context.group = group
     }
 
     #[cfg(test)]
@@ -251,6 +256,16 @@ impl ManagedEnvelope {
     pub fn scope(&mut self, scoping: Scoping) -> &mut Self {
         self.context.scoping = scoping;
         self
+    }
+
+    /// Removes event item(s) and log an outcome.
+    ///
+    /// Note: This function relies on the envelope summary being correct.
+    pub fn reject_event(&mut self, outcome: Outcome) {
+        if let Some(event_category) = self.event_category() {
+            self.envelope.retain_items(|item| !item.creates_event());
+            self.track_outcome(outcome, event_category, 1);
+        }
     }
 
     /// Records an outcome scoped to this envelope's context.

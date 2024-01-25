@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::sync::Arc;
 
@@ -13,19 +13,19 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
-use crate::actors::outcome::{DiscardReason, TrackOutcome};
-use crate::actors::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
-use crate::actors::project::{Project, ProjectSender, ProjectState};
-use crate::actors::project_local::{LocalProjectSource, LocalProjectSourceService};
+use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
+use crate::services::outcome::{DiscardReason, TrackOutcome};
+use crate::services::processor::{EncodeMetrics, EnvelopeProcessor, ProcessEnvelope};
+use crate::services::project::{Project, ProjectSender, ProjectState};
+use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
-use crate::actors::project_redis::RedisProjectSource;
-use crate::actors::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
-use crate::actors::spooler::{
-    self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany,
+use crate::services::project_redis::RedisProjectSource;
+use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::spooler::{
+    self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
 };
-use crate::actors::test_store::TestStore;
-use crate::actors::upstream::UpstreamRelay;
+use crate::services::test_store::TestStore;
+use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
@@ -140,7 +140,7 @@ impl CheckEnvelope {
 ///  date, the envelopes is spooled and we continue when the state is fetched.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
 ///
-/// [`EnvelopeProcessor`]: crate::actors::processor::EnvelopeProcessor
+/// [`EnvelopeProcessor`]: crate::services::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
     envelope: ManagedEnvelope,
@@ -180,12 +180,12 @@ pub struct AddMetricMeta {
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
-pub struct UpdateBufferIndex {
+pub struct UpdateSpoolIndex {
     project_key: ProjectKey,
     keys: BTreeSet<QueueKey>,
 }
 
-impl UpdateBufferIndex {
+impl UpdateSpoolIndex {
     pub fn new(project_key: ProjectKey, keys: BTreeSet<QueueKey>) -> Self {
         Self { project_key, keys }
     }
@@ -194,6 +194,13 @@ impl UpdateBufferIndex {
 /// Checks the status of underlying buffer spool.
 #[derive(Debug)]
 pub struct SpoolHealth;
+
+/// The current envelopes index fetched from the underlying buffer spool.
+///
+/// This index will be received only once shortly after startup and will trigger refresh for the
+/// project states for the project keys returned in the message.
+#[derive(Debug)]
+pub struct RefreshIndexCache(pub BTreeMap<ProjectKey, BTreeSet<QueueKey>>);
 
 /// A cache for [`ProjectState`]s.
 ///
@@ -223,17 +230,26 @@ pub enum ProjectCache {
     MergeBuckets(MergeBuckets),
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
-    UpdateBufferIndex(UpdateBufferIndex),
+    UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
+    RefreshIndexCache(RefreshIndexCache),
 }
 
 impl Interface for ProjectCache {}
 
-impl FromMessage<UpdateBufferIndex> for ProjectCache {
+impl FromMessage<UpdateSpoolIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: UpdateBufferIndex, _: ()) -> Self {
-        Self::UpdateBufferIndex(message)
+    fn from_message(message: UpdateSpoolIndex, _: ()) -> Self {
+        Self::UpdateSpoolIndex(message)
+    }
+}
+
+impl FromMessage<RefreshIndexCache> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: RefreshIndexCache, _: ()) -> Self {
+        Self::RefreshIndexCache(message)
     }
 }
 
@@ -536,13 +552,6 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn global_config(&self) -> Option<Arc<GlobalConfig>> {
-        match &self.global_config {
-            GlobalConfigStatus::Ready(gc) => Some(gc.clone()),
-            GlobalConfigStatus::Pending(_) => None,
-        }
-    }
-
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
         self.index.entry(key.own_key).or_default().insert(key);
@@ -756,13 +765,6 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
-        let Some(global_config) = self.global_config() else {
-            // This indicates a logical error in our approach, this function should only
-            // be called when we have a global config.
-            relay_log::error!("attempted to process envelope without global config");
-            return;
-        };
-
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::error!(
                 tags.project_key = %project_key,
@@ -798,7 +800,6 @@ impl ProjectCacheBroker {
                 project_state: own_project_state,
                 sampling_project_state,
                 reservoir_counters,
-                global_config,
             };
 
             self.services.envelope_processor.send(process);
@@ -858,17 +859,19 @@ impl ProjectCacheBroker {
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
+        let project_cache = self.services.project_cache.clone();
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
         let envelope_processor = self.services.envelope_processor.clone();
-        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        self.get_or_create_project(message.project_key())
-            .merge_buckets(
-                aggregator,
-                outcome_aggregator,
-                envelope_processor,
-                message.buckets(),
-            );
+
+        let project = self.get_or_create_project(message.project_key());
+        project.prefetch(project_cache, false);
+        project.merge_buckets(
+            aggregator,
+            outcome_aggregator,
+            envelope_processor,
+            message.buckets(),
+        );
     }
 
     fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
@@ -879,7 +882,7 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let mut output = HashMap::new();
+        let mut output = BTreeMap::new();
         for (project_key, buckets) in message.buckets {
             let outcome_aggregator = self.services.outcome_aggregator.clone();
             let project = self.get_or_create_project(project_key);
@@ -893,12 +896,23 @@ impl ProjectCacheBroker {
             .send(EncodeMetrics { scopes: output })
     }
 
-    fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {
+    fn handle_buffer_index(&mut self, message: UpdateSpoolIndex) {
         self.index.insert(message.project_key, message.keys);
     }
 
     fn handle_spool_health(&mut self, sender: Sender<bool>) {
         self.buffer.send(spooler::Health(sender))
+    }
+
+    fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
+        let RefreshIndexCache(index) = message;
+        let project_cache = self.services.project_cache.clone();
+
+        for (key, values) in index {
+            self.index.entry(key).or_default().extend(values);
+            self.get_or_create_project(key)
+                .prefetch(project_cache.clone(), false);
+        }
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -916,8 +930,9 @@ impl ProjectCacheBroker {
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
-            ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
+            ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
+            ProjectCache::RefreshIndexCache(message) => self.handle_refresh_index_cache(message),
         }
     }
 }
@@ -1011,6 +1026,9 @@ impl Service for ProjectCacheService {
                 }
             };
 
+            // Request the existing index from the spooler.
+            buffer.send(RestoreIndex);
+
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
@@ -1081,7 +1099,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
-    use crate::actors::processor::ProcessingGroup;
+    use crate::services::processor::ProcessingGroup;
     use crate::testutils::empty_envelope;
 
     use super::*;
@@ -1163,6 +1181,8 @@ mod tests {
 
     #[tokio::test]
     async fn always_spools() {
+        relay_log::init_test!();
+
         let num_permits = 5;
         let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
@@ -1209,7 +1229,7 @@ mod tests {
         ));
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // We should be able to unspool once since we have 1 permit.
+        // We should be able to unspool 5 envelopes since we have 5 permits.
         let mut envelopes = vec![];
         while let Ok(envelope) = rx.try_recv() {
             envelopes.push(envelope)

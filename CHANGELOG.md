@@ -4,6 +4,27 @@
 
 **Features**:
 
+- Add new legacy browser filters. ([#2950](https://github.com/getsentry/relay/pull/2950))
+
+**Internal**:
+
+- Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
+- Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
+- Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+- Add possiblity to block metrics or their tags with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954), [#2973](https://github.com/getsentry/relay/pull/2973))
+
+**Bug Fixes**:
+
+- Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
+- Avoid producing `null` values in metric data. These values were the result of Infinity or NaN values extracted from event data. The values are now discarded during extraction. ([#2958](https://github.com/getsentry/relay/pull/2958))
+- Fix processing of user reports. ([#2981](https://github.com/getsentry/relay/pull/2981), [#2984](https://github.com/getsentry/relay/pull/2984))
+- Fetch project config when metrics are received. ([#2987](https://github.com/getsentry/relay/pull/2987))
+
+## 24.1.0
+
+**Features**:
+
 - Add a global throughput rate limiter for metric buckets. ([#2928](https://github.com/getsentry/relay/pull/2928))
 - Group db spans with repeating logical conditions together. ([#2929](https://github.com/getsentry/relay/pull/2929))
 
@@ -24,6 +45,7 @@
 - Validate error_id and trace_id vectors in replay deserializer. ([#2931](https://github.com/getsentry/relay/pull/2931))
 - Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
 - Add nested Android app start span ops to span ingestion ([#2927](https://github.com/getsentry/relay/pull/2927))
+- Create rate limited outcomes for cardinality limited metrics ([#2947](https://github.com/getsentry/relay/pull/2947))
 
 ## 23.12.1
 

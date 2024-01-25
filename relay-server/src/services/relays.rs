@@ -11,7 +11,7 @@ use relay_system::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
-use crate::actors::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::services::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::utils::{RetryBackoff, SleepHandle};
 
 /// Resolves [`RelayInfo`] by it's [identifier](RelayId).
