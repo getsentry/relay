@@ -914,6 +914,7 @@ impl ProjectCacheBroker {
         }
 
         let keys = self.index.keys().cloned().collect::<Box<[_]>>();
+        let mut dequeued = false;
 
         for project_key in keys.iter() {
             if self.projects.get_mut(project_key).map_or(false, |project| {
@@ -921,7 +922,8 @@ impl ProjectCacheBroker {
                 // in background.
                 project
                     .get_cached_state(self.services.project_cache.clone(), false)
-                    .is_some()
+                    // Makes sure that the state also is valid.
+                    .map_or(false, |state| !state.invalid())
             }) {
                 // Do *not* attempt to unspool if the assigned permits over low watermark.
                 if !self.buffer_guard.is_below_low_watermark() {
@@ -930,11 +932,15 @@ impl ProjectCacheBroker {
                 }
 
                 self.dequeue(*project_key);
+                dequeued = true;
             }
         }
 
+        // If cannot dequeue for some reason, back off the next retry.
+        if dequeued {
+            self.buffer_unspool_backoff.reset();
+        }
         // Schedule unspool once we are done.
-        self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
     }
 
