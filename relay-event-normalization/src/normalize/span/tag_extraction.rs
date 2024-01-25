@@ -341,9 +341,12 @@ pub fn extract_tags(
                         .data
                         .value()
                         .and_then(|data| data.get("url.scheme"))
-                        .and_then(|value| value.as_str()) {
-                        span_tags.insert(SpanTagKey::RawDomain, format!("{}://{}", url_scheme, domain));
-
+                        .and_then(|value| value.as_str())
+                    {
+                        span_tags.insert(
+                            SpanTagKey::RawDomain,
+                            format!("{}://{}", url_scheme, domain),
+                        );
                     }
                     normalize_domain(domain, port)
                 } else {
