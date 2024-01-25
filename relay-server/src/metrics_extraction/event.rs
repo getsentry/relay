@@ -1007,7 +1007,7 @@ mod tests {
                     "timestamp": 1694732408.3145,
                     "start_timestamp": 1694732407.8367,
                     "exclusive_time": 477.800131,
-                    "description": "/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.js",
+                    "description": "/static/myscript-v1.9.23.js",
                     "op": "resource.script",
                     "span_id": "97c0ef9770a02f9d",
                     "parent_span_id": "9756d8d7b2b364ff",
