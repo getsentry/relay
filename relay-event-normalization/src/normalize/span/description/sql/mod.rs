@@ -190,7 +190,7 @@ mod tests {
     use super::*;
 
     macro_rules! scrub_sql_test {
-        ($name:ident, $description_in:literal, $output:literal) => {
+        ($name:ident, $description_in:expr, $output:literal) => {
             #[test]
             fn $name() {
                 let scrubbed = scrub_queries(None, $description_in);
@@ -723,6 +723,16 @@ mod tests {
             OR (a.id = %s OR a.org = %s)
             OR (a.id = %s OR a.org = %s)
         )"#,
+        "SELECT * FROM a WHERE status = %s OR (id = %s OR org = %s)"
+    );
+
+    scrub_sql_test!(
+        duplicate_conditions_or_long,
+        {
+            let repeated = ["(a.id = %s OR a.org = %s)"].repeat(64);
+            let repeated = itertools::join(repeated, " OR ");
+            format!("SELECT * FROM a WHERE a.status = %s OR {repeated}").as_str()
+        },
         "SELECT * FROM a WHERE status = %s OR (id = %s OR org = %s)"
     );
 
