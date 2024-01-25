@@ -799,11 +799,7 @@
 <a href="#799" id="799">799</a>
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::time::SystemTime;
-
-<span class="kw">use </span>relay_redis::{
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::{
     redis::{<span class="self">self</span>, FromRedisValue, Script},
     Connection, RedisPool,
 };
@@ -813,10 +809,12 @@
     cache::{Cache, CacheOutcome},
     limiter::{EntryId, Limiter, Rejection},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
+    window::Slot,
     <span class="prelude-ty">Result</span>,
 };
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
+<span class="kw">use </span>relay_common::time::UnixTimestamp;
 
 <span class="kw">use </span><span class="kw">crate</span>::limiter::{Entry, Scoping};
 <span class="kw">use crate</span>::{CardinalityLimit, CardinalityScope, OrganizationId, SlidingWindow};
@@ -830,7 +828,7 @@
     script: CardinalityScript,
     cache: Cache,
     <span class="attr">#[cfg(test)]
-    </span>time_offset: u64,
+    </span>time_offset: std::time::Duration,
 }
 
 <span class="doccomment">/// A Redis based limiter using Redis sets to track cardinality and membership.
@@ -842,7 +840,7 @@
             script: CardinalityScript::load(),
             cache: Cache::default(),
             <span class="attr">#[cfg(test)]
-            </span>time_offset: <span class="number">0</span>,
+            </span>time_offset: std::time::Duration::from_secs(<span class="number">0</span>),
         }
     }
 
@@ -853,7 +851,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         con: <span class="kw-2">&amp;mut </span>Connection,
         state: <span class="kw-2">&amp;mut </span>LimitState&lt;<span class="lifetime">&#39;_</span>&gt;,
-        timestamp: u64,
+        timestamp: UnixTimestamp,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CheckedLimits&gt; {
         <span class="kw">let </span>scope = state.scope;
         <span class="kw">let </span>limit = state.limit;
@@ -897,10 +895,7 @@
     <span class="kw">where
         </span>I: IntoIterator&lt;Item = Entry&gt;,
     {
-        <span class="kw">let </span>timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        <span class="kw">let </span>timestamp = UnixTimestamp::now();
         <span class="comment">// Allows to fast forward time in tests.
         </span><span class="attr">#[cfg(test)]
         </span><span class="kw">let </span>timestamp = timestamp + <span class="self">self</span>.time_offset;
@@ -1012,12 +1007,12 @@
     }
 
     <span class="doccomment">/// Returns all slots of the sliding window for a specific timestamp.
-    </span><span class="kw">pub fn </span>slots(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: u64) -&gt; <span class="kw">impl </span>Iterator&lt;Item = u64&gt; {
+    </span><span class="kw">pub fn </span>slots(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp) -&gt; <span class="kw">impl </span>Iterator&lt;Item = Slot&gt; {
         <span class="self">self</span>.window.iter(timestamp)
     }
 
     <span class="doccomment">/// Turns the scoping into a Redis key for the passed slot.
-    </span><span class="kw">fn </span>into_redis_key(<span class="self">self</span>, slot: u64) -&gt; String {
+    </span><span class="kw">fn </span>into_redis_key(<span class="self">self</span>, slot: Slot) -&gt; String {
         <span class="kw">let </span>organization_id = <span class="self">self</span>.organization_id.unwrap_or(<span class="number">0</span>);
         <span class="kw">let </span>project_id = <span class="self">self</span>.project_id.map(|p| p.value()).unwrap_or(<span class="number">0</span>);
         <span class="kw">let </span>namespace = <span class="self">self</span>.namespace.map(|ns| ns.as_str()).unwrap_or(<span class="string">&quot;&quot;</span>);
@@ -1263,6 +1258,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::collections::HashSet;
     <span class="kw">use </span>std::sync::atomic::AtomicU64;
+    <span class="kw">use </span>std::time::Duration;
 
     <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -1460,7 +1456,7 @@
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..window.window_seconds / window.granularity_seconds {
             <span class="comment">// Fast forward time.
-            </span>limiter.time_offset = i * window.granularity_seconds;
+            </span>limiter.time_offset = Duration::from_secs(i * window.granularity_seconds);
 
             <span class="comment">// Should accept the already inserted item.
             </span><span class="kw">let </span>rejected = limiter
@@ -1475,7 +1471,7 @@
         }
 
         <span class="comment">// Fast forward time to where we&#39;re in the next window.
-        </span>limiter.time_offset = window.window_seconds + <span class="number">1</span>;
+        </span>limiter.time_offset = Duration::from_secs(window.window_seconds + <span class="number">1</span>);
         <span class="comment">// Accept the new element.
         </span><span class="kw">let </span>rejected = limiter
             .check_cardinality_limits(scoping, limits, entries2)
