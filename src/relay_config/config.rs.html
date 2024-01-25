@@ -2309,6 +2309,20 @@
 <a href="#2309" id="2309">2309</a>
 <a href="#2310" id="2310">2310</a>
 <a href="#2311" id="2311">2311</a>
+<a href="#2312" id="2312">2312</a>
+<a href="#2313" id="2313">2313</a>
+<a href="#2314" id="2314">2314</a>
+<a href="#2315" id="2315">2315</a>
+<a href="#2316" id="2316">2316</a>
+<a href="#2317" id="2317">2317</a>
+<a href="#2318" id="2318">2318</a>
+<a href="#2319" id="2319">2319</a>
+<a href="#2320" id="2320">2320</a>
+<a href="#2321" id="2321">2321</a>
+<a href="#2322" id="2322">2322</a>
+<a href="#2323" id="2323">2323</a>
+<a href="#2324" id="2324">2324</a>
+<a href="#2325" id="2325">2325</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -3137,6 +3151,11 @@
     <span class="number">20
 </span>}
 
+<span class="doccomment">/// Default interval to unspool buffered envelopes, 100ms.
+</span><span class="kw">fn </span>spool_envelopes_unspool_interval() -&gt; u64 {
+    <span class="number">100
+</span>}
+
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
@@ -3160,6 +3179,9 @@
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_max_memory_size&quot;</span>)]
     </span>max_memory_size: ByteSize,
+    <span class="doccomment">/// The interval in milliseconds to trigger unspool.
+    </span><span class="attr">#[serde(default = <span class="string">&quot;spool_envelopes_unspool_interval&quot;</span>)]
+    </span>unspool_interval: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>EnvelopeSpool {
@@ -3170,7 +3192,8 @@
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-        }
+            unspool_interval: spool_envelopes_unspool_interval(), <span class="comment">// 100ms
+        </span>}
     }
 }
 
@@ -4245,6 +4268,11 @@
     <span class="doccomment">/// Minimum number of connections to create to buffer file.
     </span><span class="kw">pub fn </span>spool_envelopes_min_connections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
         <span class="self">self</span>.values.spool.envelopes.min_connections
+    }
+
+    <span class="doccomment">/// Unspool interval in milliseconds.
+    </span><span class="kw">pub fn </span>spool_envelopes_unspool_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_millis(<span class="self">self</span>.values.spool.envelopes.unspool_interval)
     }
 
     <span class="doccomment">/// The maximum size of the buffer, in bytes.
