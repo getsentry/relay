@@ -615,7 +615,6 @@ def test_relay_chain_keep_unsampled_profile(
     mini_sentry,
     relay,
 ):
-
     # Create an envelope with a profile:
     def make_envelope(public_key):
         trace_uuid = "414e119d37694a32869f9d81b76a0bbb"
@@ -625,10 +624,11 @@ def test_relay_chain_keep_unsampled_profile(
             public_key,
             trace_id=trace_uuid,
             event_id=transaction_uuid,
+            transaction="my_first_transaction",
             platform="python",
         )
-        te = envelope.get_transaction_event()
-        profile_payload = get_profile_payload(te)
+        transaction = envelope.get_transaction_event()
+        profile_payload = get_profile_payload(transaction["start_timestamp"])
         envelope.add_item(
             Item(
                 payload=PayloadRef(bytes=json.dumps(profile_payload).encode()),
@@ -644,8 +644,7 @@ def test_relay_chain_keep_unsampled_profile(
     config["config"]["features"] = ["projects:profiling-ingest-unsampled-profiles"]
 
     public_key = config["publicKeys"][0]["publicKey"]
-    SAMPLE_RATE = 0.0
-    _add_sampling_config(config, sample_rate=SAMPLE_RATE, rule_type="transaction")
+    _add_sampling_config(config, sample_rate=0.0, rule_type="transaction")
 
     envelope = make_envelope(public_key)
 
@@ -656,14 +655,18 @@ def test_relay_chain_keep_unsampled_profile(
     envelope = mini_sentry.captured_events.get(timeout=1)
     envelope_items.extend(envelope.items)
 
-    profiles = list(
-        filter(lambda item: item.data_category == "profile", envelope_items)
-    )
-    assert len(profiles) == 1
-    assert profiles[0].headers.get("sampled") is False
+    profiles = [item for item in envelope_items if item.data_category == "profile"]
+    (profile_item,) = profiles
+
+    assert profile_item.headers.get("sampled") is False
+
+    profile = json.loads(profile_item.payload.bytes)
+
+    # Assert that transaction fields have been set:
+    assert profile["transaction_metadata"]["transaction"] == "my_first_transaction"
 
 
-def get_profile_payload(transaction):
+def get_profile_payload(start_time):
     return {
         "debug_meta": {"images": []},
         "device": {
@@ -673,18 +676,17 @@ def get_profile_payload(transaction):
             "manufacturer": "",
             "model": "",
         },
-        "environment": "prod",
+        # "environment": "prod",
         "event_id": "429c1ffa194f41f5b6a6650929744177",
         "os": {"build_number": "", "name": "Linux", "version": "5.15.107+"},
         "organization_id": 1,
         "platform": "python",
         "project_id": 1,
-        "received": transaction["start_timestamp"],
-        "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
+        # "received": transaction["start_timestamp"],
+        # "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
         "retention_days": 90,
         "runtime": {"name": "CPython", "version": "3.8.18"},
-        "timestamp": datetime.fromtimestamp(transaction["start_timestamp"]).isoformat()
-        + "Z",
+        "timestamp": datetime.fromtimestamp(start_time).isoformat() + "Z",
         "profile": {
             "frames": [
                 {
@@ -770,30 +772,30 @@ def get_profile_payload(transaction):
                 "140514768926528": {"name": "uWSGIWorker6Core0"},
             },
         },
-        "transaction": {
-            "active_thread_id": 140512539440896,
-            "id": transaction["event_id"],
-            "name": "/api/0/organizations/{organization_slug}/broadcasts/",
-            "trace_id": transaction["contexts"]["trace"]["trace_id"],
-        },
-        "transaction_metadata": {
-            "environment": "prod",
-            "http.method": "GET",
-            "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
-            "transaction": "/api/0/organizations/{organization_slug}/broadcasts/",
-            "transaction.end": datetime.fromtimestamp(
-                transaction["timestamp"]
-            ).isoformat(),
-            "transaction.op": "http.server",
-            "transaction.start": datetime.fromtimestamp(
-                transaction["start_timestamp"]
-            ).isoformat(),
-            "transaction.status": "ok",
-        },
-        "transaction_tags": {
-            "http.status_code": "200",
-            "organization": "4506315662819328",
-            "organization.slug": "uta-inc",
-        },
+        # "transaction": {
+        #     "active_thread_id": 140512539440896,
+        #     "id": transaction["event_id"],
+        #     "name": "/api/0/organizations/{organization_slug}/broadcasts/",
+        #     "trace_id": transaction["contexts"]["trace"]["trace_id"],
+        # },
+        # "transaction_metadata": {
+        #     "environment": "prod",
+        #     "http.method": "GET",
+        #     "release": "backend@c2a460502d5e5e785525d59479d665aa04320a6b",
+        #     "transaction": "/api/0/organizations/{organization_slug}/broadcasts/",
+        #     "transaction.end": datetime.fromtimestamp(
+        #         transaction["timestamp"]
+        #     ).isoformat(),
+        #     "transaction.op": "http.server",
+        #     "transaction.start": datetime.fromtimestamp(
+        #         transaction["start_timestamp"]
+        #     ).isoformat(),
+        #     "transaction.status": "ok",
+        # },
+        # "transaction_tags": {
+        #     "http.status_code": "200",
+        #     "organization": "4506315662819328",
+        #     "organization.slug": "uta-inc",
+        # },
         "version": "1",
     }
