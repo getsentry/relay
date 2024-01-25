@@ -1248,7 +1248,6 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
-            // profile::process(state, &self.inner.config); // TODO:
         });
 
         report::process_user_reports(state);

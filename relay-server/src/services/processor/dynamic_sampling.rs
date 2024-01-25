@@ -115,7 +115,6 @@ pub fn sample_envelope_items(
             state.managed_envelope.retain_items(|item| {
                 if unsampled_profiles_enabled && item.ty() == &ItemType::Profile {
                     item.set_sampled(false);
-
                     // Transfer metadata to the profile before the transaction gets dropped:
                     let (_, item_action) = profile::expand_profile(item, event, config);
                     item_action
