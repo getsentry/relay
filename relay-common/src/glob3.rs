@@ -12,6 +12,50 @@ fn is_match(globs: &[Regex], message: &[u8]) -> bool {
     globs.iter().any(|regex| regex.is_match(message.as_ref()))
 }
 
+/// A singular glob-pattern.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct GlobPattern(GlobPatterns);
+
+impl GlobPattern {
+    /// Returns a new instance of [`GlobPattern`].
+    pub fn new(pattern: impl Into<String>) -> Self {
+        Self(GlobPatterns::new(vec![pattern.into()]))
+    }
+
+    /// Returns `true` if the pattern match the given message.
+    pub fn is_match<S>(&self, message: S) -> bool
+    where
+        S: AsRef<[u8]>,
+    {
+        self.0.is_match(message)
+    }
+}
+
+impl Serialize for GlobPattern {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        debug_assert_eq!(self.0.patterns.len(), 1);
+
+        match self.0.patterns.first() {
+            Some(first_element) => serializer.serialize_str(first_element),
+            None => Err(serde::ser::Error::custom("No patterns found")),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for GlobPattern {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let single_string: String = Deserialize::deserialize(deserializer)?;
+        let glob_patterns = GlobPatterns::new(vec![single_string]);
+        Ok(Self(glob_patterns))
+    }
+}
+
 /// A list of patterns for glob matching.
 #[derive(Clone, Default)]
 pub struct GlobPatterns {
@@ -97,33 +141,6 @@ impl<'de> Deserialize<'de> for GlobPatterns {
         let patterns = Deserialize::deserialize(deserializer)?;
         Ok(GlobPatterns::new(patterns))
     }
-}
-
-/// Deserializes the [`GlobPatterns`] to a singular string.
-///
-/// This assumes there's only one pattern. Use in conjunction with [`deserialize_singular_pattern`].
-pub fn serialize_singular_pattern<S>(name: &GlobPatterns, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    debug_assert_eq!(name.patterns.len(), 1);
-
-    match name.patterns.first() {
-        Some(first_element) => serializer.serialize_str(first_element),
-        None => Err(serde::ser::Error::custom("No patterns found")),
-    }
-}
-
-/// Serializes a single pattern to a [`GlobPatterns`].
-///
-/// This is for simplifying the API when you know you only need a singular pattern.
-pub fn deserialize_singular_pattern<'de, D>(deserializer: D) -> Result<GlobPatterns, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let single_string: String = Deserialize::deserialize(deserializer)?;
-    let glob_patterns = GlobPatterns::new(vec![single_string]);
-    Ok(glob_patterns)
 }
 
 impl PartialEq for GlobPatterns {
