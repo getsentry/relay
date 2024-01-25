@@ -1510,7 +1510,7 @@ mod tests {
 
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
-                name: GlobPattern::new("foobar"),
+                name: GlobPattern::new("foobar".to_string()),
                 tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
@@ -1536,7 +1536,7 @@ mod tests {
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
                 // barfoo doesn't batch the 'foobar' bucket
-                name: GlobPattern::new("barfoo"),
+                name: GlobPattern::new("barfoo".to_string()),
                 tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()

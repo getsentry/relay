@@ -18,8 +18,8 @@ pub struct GlobPattern(GlobPatterns);
 
 impl GlobPattern {
     /// Returns a new instance of [`GlobPattern`].
-    pub fn new(pattern: impl Into<String>) -> Self {
-        Self(GlobPatterns::new(vec![pattern.into()]))
+    pub fn new(pattern: String) -> Self {
+        Self(GlobPatterns::new(vec![pattern]))
     }
 
     /// Returns `true` if the pattern matches the given message.
@@ -50,7 +50,7 @@ impl<'de> Deserialize<'de> for GlobPattern {
     where
         D: Deserializer<'de>,
     {
-        let pattern: String = Deserialize::deserialize(deserializer)?;
+        let pattern: String = dbg!(Deserialize::deserialize(deserializer))?;
         let glob_patterns = GlobPatterns::new(vec![pattern]);
         Ok(Self(glob_patterns))
     }
@@ -159,6 +159,28 @@ mod tests {
                 $($pattern.to_string()),*
             ])
         };
+    }
+
+    #[test]
+    fn test_serialize_glob_pattern() {
+        let pattern = "foobar";
+        let quoted_pattern = "\"foobar\"";
+
+        let glob_pattern: GlobPattern = serde_json::from_str(quoted_pattern).unwrap();
+
+        assert_eq!(glob_pattern, GlobPattern::new(pattern.to_string()));
+        assert_eq!(
+            serde_json::to_string(&glob_pattern).unwrap(),
+            quoted_pattern
+        );
+    }
+
+    #[test]
+    fn test_glob_pattern_match() {
+        assert!(GlobPattern::new("foo".to_string()).is_match("foo"));
+        assert!(!GlobPattern::new("foo".to_string()).is_match("nope"));
+        assert!(GlobPattern::new("foo*".to_string()).is_match("foobarblub"));
+        assert!(GlobPattern::new("*blub".to_string()).is_match("foobarblub"));
     }
 
     #[test]
