@@ -3608,7 +3608,7 @@
     /// The current bucket scope is comprised of organization and namespace.
     ///
     /// Defaults to: 10_000.
-    </span><span class="kw">pub </span>limit: usize,
+    </span><span class="kw">pub </span>limit: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>CardinalityLimiter {
@@ -4468,7 +4468,7 @@
     }
 
     <span class="doccomment">/// Cardinality limit per org and namespace.
-    </span><span class="kw">pub fn </span>cardinality_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+    </span><span class="kw">pub fn </span>cardinality_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="self">self</span>.values.cardinality_limiter.limit
     }
 

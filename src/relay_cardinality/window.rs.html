@@ -77,7 +77,7 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// A sliding window.
-</span><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+</span><span class="attr">#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>SlidingWindow {
     <span class="doccomment">/// The number of seconds to apply the limit to.
@@ -116,7 +116,7 @@
     }
 
     <span class="doccomment">/// The active bucket is the oldest active granule.
-    </span><span class="kw">pub fn </span>active_time_bucket(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: u64) -&gt; u64 {
+    </span><span class="kw">pub fn </span>active_slot(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: u64) -&gt; u64 {
         <span class="self">self</span>.iter(timestamp).last().unwrap_or(<span class="number">0</span>)
     }
 }
@@ -139,7 +139,7 @@
             window.window_seconds / window.granularity_seconds
         );
         <span class="macro">assert_eq!</span>(r, <span class="macro">vec!</span>[<span class="number">2363575</span>, <span class="number">2363574</span>, <span class="number">2363573</span>, <span class="number">2363572</span>, <span class="number">2363571</span>]);
-        <span class="macro">assert_eq!</span>(window.active_time_bucket(timestamp), <span class="kw-2">*</span>r.last().unwrap());
+        <span class="macro">assert_eq!</span>(window.active_slot(timestamp), <span class="kw-2">*</span>r.last().unwrap());
 
         <span class="kw">let </span>r2 = window.iter(timestamp + <span class="number">10</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_eq!</span>(r2, r);

@@ -8,7 +8,7 @@ var srcIndex = JSON.parse('{\
 "relay_aws_extension":["",[],["aws_extension.rs","lib.rs"]],\
 "relay_base_schema":["",[["metrics",[],["mod.rs","mri.rs","units.rs"]]],["data_category.rs","events.rs","lib.rs","project.rs","spans.rs"]],\
 "relay_cabi":["",[],["auth.rs","codeowners.rs","constants.rs","core.rs","ffi.rs","lib.rs","processing.rs"]],\
-"relay_cardinality":["",[],["cache.rs","config.rs","error.rs","lib.rs","limiter.rs","redis.rs","statsd.rs","utils.rs","window.rs"]],\
+"relay_cardinality":["",[],["cache.rs","config.rs","error.rs","lib.rs","limiter.rs","redis.rs","statsd.rs","window.rs"]],\
 "relay_common":["",[],["glob.rs","glob2.rs","glob3.rs","lib.rs","macros.rs","time.rs"]],\
 "relay_config":["",[],["byte_size.rs","config.rs","lib.rs","upstream.rs"]],\
 "relay_crash":["",[],["lib.rs"]],\

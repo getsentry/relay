@@ -108,13 +108,13 @@
     <span class="doccomment">/// Incremented for every hash which was served from the in memory cache.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The id of the enforced limit.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>RedisCacheHit,
     <span class="doccomment">/// Incremented for every hash which was not served from the in memory cache.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The id of the enforced limit.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>RedisCacheMiss,
 }
@@ -140,7 +140,7 @@
     <span class="doccomment">/// Timer for the duration of the Redis call.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of the check operation.
+    ///  - `id`: The id of the enforced limit.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>Redis,
 }
@@ -159,13 +159,13 @@
     <span class="doccomment">/// Amount of hashes sent to Redis to check the cardinality.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The id of the enforced limit.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>RedisCheckHashes,
     <span class="doccomment">/// Redis stored set cardinality.
     ///
     /// This metric is tagged with:
-    ///  - `scope`: The scope of check operation.
+    ///  - `id`: The id of the enforced limit.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>RedisSetCardinality,
 }

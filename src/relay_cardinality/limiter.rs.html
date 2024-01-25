@@ -362,58 +362,77 @@
 <a href="#362" id="362">362</a>
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
-<span class="kw">use </span>std::fmt::{Debug, Display};
-<span class="kw">use </span>std::hash::Hash;
 
+<span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
+<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::CardinalityLimiterTimers;
-<span class="kw">use crate</span>::{Error, OrganizationId, <span class="prelude-ty">Result</span>};
+<span class="kw">use crate</span>::{CardinalityLimit, Error, OrganizationId, <span class="prelude-ty">Result</span>};
+
+<span class="doccomment">/// Data scoping information.
+///
+/// This structure holds information of all scopes required for attributing entries to limits.
+</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+</span><span class="kw">pub struct </span>Scoping {
+    <span class="doccomment">/// The organization id.
+    </span><span class="kw">pub </span>organization_id: OrganizationId,
+    <span class="doccomment">/// The project id.
+    </span><span class="kw">pub </span>project_id: ProjectId,
+}
 
 <span class="doccomment">/// Limiter responsible to enforce limits.
 </span><span class="kw">pub trait </span>Limiter {
     <span class="doccomment">/// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    </span><span class="kw">fn </span>check_cardinality_limits&lt;I, T&gt;(
+    </span><span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization: OrganizationId,
+        scoping: Scoping,
+        limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
         entries: I,
-        limit: usize,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
     <span class="kw">where
-        </span>I: IntoIterator&lt;Item = Entry&lt;T&gt;&gt;,
-        T: CardinalityScope;
+        </span>I: IntoIterator&lt;Item = Entry&gt;;
 }
-
-<span class="doccomment">/// The scope of a [`CardinalityItem`].
-</span><span class="kw">pub trait </span>CardinalityScope: Debug + Display + Hash + PartialEq + Eq + <span class="lifetime">&#39;static </span>{}
-
-<span class="kw">impl</span>&lt;T&gt; CardinalityScope <span class="kw">for </span>T <span class="kw">where </span>T: Debug + Display + Hash + PartialEq + Eq + <span class="lifetime">&#39;static </span>{}
 
 <span class="doccomment">/// Unit of operation for the cardinality limiter.
 </span><span class="kw">pub trait </span>CardinalityItem {
-    <span class="doccomment">/// The cardinality limit scope.
-    </span><span class="kw">type </span>Scope: CardinalityScope;
-
     <span class="doccomment">/// Transforms this item into a consistent hash.
     </span><span class="kw">fn </span>to_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32;
 
-    <span class="doccomment">/// Extracts a scope to check cardinality limits for from this item.
-    </span><span class="kw">fn </span>to_scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Scope&gt;;
+    <span class="doccomment">/// Metric namespace of the item.
+    ///
+    /// If this method returns `None` the item is automatically rejected.
+    </span><span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;;
 }
 
 <span class="doccomment">/// A single entry to check cardinality for.
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>Entry&lt;T: CardinalityScope&gt; {
+</span><span class="kw">pub struct </span>Entry {
     <span class="doccomment">/// Opaque entry Id, used to keep track of indices and buckets.
     </span><span class="kw">pub </span>id: EntryId,
 
-    <span class="doccomment">/// Cardinality scope.
-    </span><span class="kw">pub </span>scope: T,
+    <span class="doccomment">/// Metric namespace to which the cardinality limit is scoped.
+    </span><span class="kw">pub </span>namespace: MetricNamespace,
     <span class="doccomment">/// Hash of the metric name and tags.
     </span><span class="kw">pub </span>hash: u32,
 }
@@ -426,10 +445,14 @@
 </span><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 </span><span class="kw">pub struct </span>EntryId(<span class="kw">pub </span>usize);
 
-<span class="kw">impl</span>&lt;T: CardinalityScope&gt; Entry&lt;T&gt; {
+<span class="kw">impl </span>Entry {
     <span class="doccomment">/// Creates a new entry.
-    </span><span class="kw">pub fn </span>new(id: EntryId, scope: T, hash: u32) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ id, scope, hash }
+    </span><span class="kw">pub fn </span>new(id: EntryId, namespace: MetricNamespace, hash: u32) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            id,
+            namespace,
+            hash,
+        }
     }
 }
 
@@ -446,25 +469,17 @@
     }
 }
 
-<span class="doccomment">/// CardinalityLimiter configuration.
-</span><span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>Config {
-    <span class="doccomment">/// The cardinality limit to enforce.
-    </span><span class="kw">pub </span>cardinality_limit: usize,
-}
-
 <span class="doccomment">/// Cardinality Limiter enforcing cardinality limits on buckets.
 ///
 /// Delegates enforcement to a [`Limiter`].
 </span><span class="kw">pub struct </span>CardinalityLimiter&lt;T: Limiter&gt; {
     limiter: T,
-    config: Config,
 }
 
 <span class="kw">impl</span>&lt;T: Limiter&gt; CardinalityLimiter&lt;T&gt; {
     <span class="doccomment">/// Creates a new cardinality limiter.
-    </span><span class="kw">pub fn </span>new(limiter: T, config: Config) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ limiter, config }
+    </span><span class="kw">pub fn </span>new(limiter: T) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ limiter }
     }
 
     <span class="doccomment">/// Checks cardinality limits of a list of buckets.
@@ -472,19 +487,18 @@
     /// Returns an iterator of all buckets that have been accepted.
     </span><span class="kw">pub fn </span>check_cardinality_limits&lt;I: CardinalityItem&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization: OrganizationId,
+        scoping: Scoping,
+        limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
         items: Vec&lt;I&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CardinalityLimits&lt;I&gt;, (Vec&lt;I&gt;, Error)&gt; {
         <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             <span class="kw">let </span>entries = items.iter().enumerate().filter_map(|(id, item)| {
-                <span class="prelude-val">Some</span>(Entry::new(EntryId(id), item.to_scope()<span class="question-mark">?</span>, item.to_hash()))
+                <span class="prelude-val">Some</span>(Entry::new(EntryId(id), item.namespace()<span class="question-mark">?</span>, item.to_hash()))
             });
 
-            <span class="kw">let </span>result = <span class="self">self</span>.limiter.check_cardinality_limits(
-                organization,
-                entries,
-                <span class="self">self</span>.config.cardinality_limit,
-            );
+            <span class="kw">let </span>result = <span class="self">self
+                </span>.limiter
+                .check_cardinality_limits(scoping, limits, entries);
 
             <span class="kw">let </span>rejections = <span class="kw">match </span>result {
                 <span class="prelude-val">Ok</span>(rejections) =&gt; rejections.map(|rejection| rejection.id.<span class="number">0</span>).collect(),
@@ -536,32 +550,52 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use crate</span>::{CardinalityScope, SlidingWindow};
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
     </span><span class="kw">struct </span>Item {
         hash: u32,
-        scope: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt;,
+        namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
     }
 
     <span class="kw">impl </span>Item {
-        <span class="kw">fn </span>new(hash: u32, scope: <span class="kw">impl </span>Into&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">fn </span>new(hash: u32, namespace: <span class="kw">impl </span>Into&lt;<span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;&gt;) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{
                 hash,
-                scope: scope.into(),
+                namespace: namespace.into(),
             }
         }
     }
 
     <span class="kw">impl </span>CardinalityItem <span class="kw">for </span>Item {
-        <span class="kw">type </span>Scope = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
-
         <span class="kw">fn </span>to_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
             <span class="self">self</span>.hash
         }
 
-        <span class="kw">fn </span>to_scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Scope&gt; {
-            <span class="self">self</span>.scope
+        <span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt; {
+            <span class="self">self</span>.namespace
+        }
+    }
+
+    <span class="kw">fn </span>build_limits() -&gt; [CardinalityLimit; <span class="number">1</span>] {
+        [CardinalityLimit {
+            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            window: SlidingWindow {
+                window_seconds: <span class="number">3600</span>,
+                granularity_seconds: <span class="number">360</span>,
+            },
+            limit: <span class="number">10_000</span>,
+            scope: CardinalityScope::Organization,
+            namespace: <span class="prelude-val">None</span>,
+        }]
+    }
+
+    <span class="kw">fn </span>build_scoping() -&gt; Scoping {
+        Scoping {
+            organization_id: <span class="number">1</span>,
+            project_id: ProjectId::new(<span class="number">1</span>),
         }
     }
 
@@ -605,17 +639,15 @@
         <span class="kw">struct </span>RejectAllLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectAllLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;I, T&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
-                _organization: OrganizationId,
+                _scoping: Scoping,
+                _limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
                 entries: I,
-                limit: usize,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;T&gt;&gt;,
-                T: CardinalityScope,
+                </span>I: IntoIterator&lt;Item = Entry&gt;,
             {
-                <span class="macro">assert_eq!</span>(limit, <span class="number">1000</span>);
                 <span class="kw">let </span>rejections = entries
                     .into_iter()
                     .map(|entry| Rejection::new(entry.id))
@@ -625,15 +657,17 @@
             }
         }
 
-        <span class="kw">let </span>limiter = CardinalityLimiter::new(
-            RejectAllLimiter,
-            Config {
-                cardinality_limit: <span class="number">1000</span>,
-            },
-        );
+        <span class="kw">let </span>limiter = CardinalityLimiter::new(RejectAllLimiter);
 
         <span class="kw">let </span>result = limiter
-            .check_cardinality_limits(<span class="number">1</span>, <span class="macro">vec!</span>[Item::new(<span class="number">0</span>, <span class="string">&quot;a&quot;</span>), Item::new(<span class="number">1</span>, <span class="string">&quot;b&quot;</span>)])
+            .check_cardinality_limits(
+                build_scoping(),
+                <span class="kw-2">&amp;</span>build_limits(),
+                <span class="macro">vec!</span>[
+                    Item::new(<span class="number">0</span>, MetricNamespace::Transactions),
+                    Item::new(<span class="number">1</span>, MetricNamespace::Transactions),
+                ],
+            )
             .unwrap();
 
         <span class="macro">assert!</span>(result.into_accepted().is_empty());
@@ -644,30 +678,28 @@
         <span class="kw">struct </span>AcceptAllLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>AcceptAllLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;I, T&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
-                _organization: OrganizationId,
+                _scoping: Scoping,
+                _limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
                 _entries: I,
-                limit: usize,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;T&gt;&gt;,
-                T: CardinalityScope,
+                </span>I: IntoIterator&lt;Item = Entry&gt;,
             {
-                <span class="macro">assert_eq!</span>(limit, <span class="number">100</span>);
                 <span class="prelude-val">Ok</span>(Box::new(Vec::new().into_iter()))
             }
         }
 
-        <span class="kw">let </span>limiter = CardinalityLimiter::new(
-            AcceptAllLimiter,
-            Config {
-                cardinality_limit: <span class="number">100</span>,
-            },
-        );
+        <span class="kw">let </span>limiter = CardinalityLimiter::new(AcceptAllLimiter);
 
-        <span class="kw">let </span>items = <span class="macro">vec!</span>[Item::new(<span class="number">0</span>, <span class="string">&quot;a&quot;</span>), Item::new(<span class="number">1</span>, <span class="string">&quot;b&quot;</span>)];
-        <span class="kw">let </span>result = limiter.check_cardinality_limits(<span class="number">1</span>, items.clone()).unwrap();
+        <span class="kw">let </span>items = <span class="macro">vec!</span>[
+            Item::new(<span class="number">0</span>, MetricNamespace::Transactions),
+            Item::new(<span class="number">1</span>, MetricNamespace::Spans),
+        ];
+        <span class="kw">let </span>result = limiter
+            .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>build_limits(), items.clone())
+            .unwrap();
 
         <span class="macro">assert_eq!</span>(result.into_accepted(), items);
     }
@@ -677,18 +709,17 @@
         <span class="kw">struct </span>RejectEvenLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectEvenLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;I, T&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
-                organization: OrganizationId,
+                scoping: Scoping,
+                limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
                 entries: I,
-                limit: usize,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
             <span class="kw">where
-                </span>I: IntoIterator&lt;Item = Entry&lt;T&gt;&gt;,
-                T: CardinalityScope,
+                </span>I: IntoIterator&lt;Item = Entry&gt;,
             {
-                <span class="macro">assert_eq!</span>(limit, <span class="number">100</span>);
-                <span class="macro">assert_eq!</span>(organization, <span class="number">3</span>);
+                <span class="macro">assert_eq!</span>(scoping, build_scoping());
+                <span class="macro">assert_eq!</span>(limits, <span class="kw-2">&amp;</span>build_limits());
 
                 <span class="kw">let </span>rejections = entries
                     .into_iter()
@@ -699,30 +730,29 @@
             }
         }
 
-        <span class="kw">let </span>limiter = CardinalityLimiter::new(
-            RejectEvenLimiter,
-            Config {
-                cardinality_limit: <span class="number">100</span>,
-            },
-        );
+        <span class="kw">let </span>limiter = CardinalityLimiter::new(RejectEvenLimiter);
 
         <span class="kw">let </span>items = <span class="macro">vec!</span>[
-            Item::new(<span class="number">0</span>, <span class="string">&quot;a&quot;</span>),
-            Item::new(<span class="number">1</span>, <span class="string">&quot;b&quot;</span>),
-            Item::new(<span class="number">2</span>, <span class="string">&quot;c&quot;</span>),
-            Item::new(<span class="number">3</span>, <span class="string">&quot;d&quot;</span>),
-            Item::new(<span class="number">4</span>, <span class="string">&quot;e&quot;</span>),
-            Item::new(<span class="number">5</span>, <span class="string">&quot;f&quot;</span>),
-            Item::new(<span class="number">6</span>, <span class="string">&quot;g&quot;</span>),
+            Item::new(<span class="number">0</span>, MetricNamespace::Sessions),
+            Item::new(<span class="number">1</span>, MetricNamespace::Transactions),
+            Item::new(<span class="number">2</span>, MetricNamespace::Spans),
+            Item::new(<span class="number">3</span>, MetricNamespace::Custom),
+            Item::new(<span class="number">4</span>, MetricNamespace::Custom),
+            Item::new(<span class="number">5</span>, MetricNamespace::Transactions),
+            Item::new(<span class="number">6</span>, MetricNamespace::Spans),
         ];
         <span class="kw">let </span>accepted = limiter
-            .check_cardinality_limits(<span class="number">3</span>, items)
+            .check_cardinality_limits(build_scoping(), <span class="kw-2">&amp;</span>build_limits(), items)
             .unwrap()
             .into_accepted();
 
         <span class="macro">assert_eq!</span>(
             accepted,
-            <span class="macro">vec!</span>[Item::new(<span class="number">1</span>, <span class="string">&quot;b&quot;</span>), Item::new(<span class="number">3</span>, <span class="string">&quot;d&quot;</span>), Item::new(<span class="number">5</span>, <span class="string">&quot;f&quot;</span>),]
+            <span class="macro">vec!</span>[
+                Item::new(<span class="number">1</span>, MetricNamespace::Transactions),
+                Item::new(<span class="number">3</span>, MetricNamespace::Custom),
+                Item::new(<span class="number">5</span>, MetricNamespace::Transactions),
+            ]
         );
     }
 }
