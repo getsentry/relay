@@ -351,15 +351,16 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: None,
           categories: [],
           scope: organization,
           limit: Some(0),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -372,7 +373,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: None,
           categories: [
@@ -380,9 +381,10 @@ mod tests {
           ],
           scope: organization,
           limit: Some(0),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -396,16 +398,17 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("o"),
           categories: [],
           scope: organization,
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -421,7 +424,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("p"),
           categories: [],
@@ -429,9 +432,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -447,7 +451,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("p"),
           categories: [],
@@ -455,9 +459,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4294967296),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -473,7 +478,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("k"),
           categories: [],
@@ -481,9 +486,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -500,7 +506,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("f"),
           categories: [
@@ -510,9 +516,10 @@ mod tests {
           scopeId: Some("1"),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -524,15 +531,16 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r#"
+        insta::assert_ron_snapshot!(quota, @r###"
         Quota(
           id: Some("o"),
           categories: [],
           scope: organization,
           limit: None,
           window: Some(42),
+          namespace: None,
         )
-        "#);
+        "###);
     }
 
     #[test]

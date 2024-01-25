@@ -1893,11 +1893,6 @@ impl EnvelopeProcessorService {
                 buckets = self.cardinality_limit_buckets(scoping, buckets, mode);
             }
 
-            let mode = match project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref c)) if c.usage_metric() => ExtractionMode::Usage,
-                _ => ExtractionMode::Duration,
-            };
-
             let buckets = self.rate_limit_buckets_by_namespace(
                 scoping,
                 buckets,
