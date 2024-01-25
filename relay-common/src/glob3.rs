@@ -22,7 +22,7 @@ impl GlobPattern {
         Self(GlobPatterns::new(vec![pattern.into()]))
     }
 
-    /// Returns `true` if the pattern match the given message.
+    /// Returns `true` if the pattern matches the given message.
     pub fn is_match<S>(&self, message: S) -> bool
     where
         S: AsRef<[u8]>,
@@ -40,7 +40,7 @@ impl Serialize for GlobPattern {
 
         match self.0.patterns.first() {
             Some(first_element) => serializer.serialize_str(first_element),
-            None => Err(serde::ser::Error::custom("No patterns found")),
+            None => Err(serde::ser::Error::custom("pattern not found")),
         }
     }
 }
@@ -50,8 +50,8 @@ impl<'de> Deserialize<'de> for GlobPattern {
     where
         D: Deserializer<'de>,
     {
-        let single_string: String = Deserialize::deserialize(deserializer)?;
-        let glob_patterns = GlobPatterns::new(vec![single_string]);
+        let pattern: String = Deserialize::deserialize(deserializer)?;
+        let glob_patterns = GlobPatterns::new(vec![pattern]);
         Ok(Self(glob_patterns))
     }
 }
