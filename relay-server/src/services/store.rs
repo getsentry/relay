@@ -723,11 +723,10 @@ impl StoreService {
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
-            headers: if !item.sampled() {
-                BTreeMap::from([("sampled".to_owned(), "false".to_owned())])
-            } else {
-                BTreeMap::new()
-            },
+            headers: BTreeMap::from([(
+                "sampled".to_string(),
+                if item.sampled() { "true" } else { "false" }.to_owned(),
+            )]),
             payload: item.payload(),
         };
         self.produce(
