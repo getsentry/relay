@@ -1171,7 +1171,7 @@ fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
         if tag_block.name.is_match(&bucket.name) {
             bucket
                 .tags
-                .retain(|tag_key, _| !tag_block.tag.is_match(tag_key));
+                .retain(|tag_key, _| !tag_block.tags.is_match(tag_key));
         }
     }
 }
@@ -1511,7 +1511,7 @@ mod tests {
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
                 name: GlobPatterns::new(vec!["foobar".to_string()]),
-                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };
@@ -1537,7 +1537,7 @@ mod tests {
             denied_tags: vec![TagBlock {
                 // barfoo doesn't batch the 'foobar' bucket
                 name: GlobPatterns::new(vec!["barfoo".to_string()]),
-                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };
@@ -1618,16 +1618,5 @@ mod tests {
             remaining_names.len(),
             input_qty - endpoint_buckets - transaction_buckets
         );
-    }
-
-    #[test]
-    fn test_serialize_metrics_config() {
-        let input_str = r#"{"deniedNames":["foo","bar"]}"#;
-
-        let deny_list: Metrics = serde_json::from_str(input_str).unwrap();
-
-        let back_to_str = serde_json::to_string(&deny_list).unwrap();
-
-        assert_eq!(input_str, back_to_str);
     }
 }

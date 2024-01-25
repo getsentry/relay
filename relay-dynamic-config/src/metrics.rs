@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use relay_base_schema::data_category::DataCategory;
 use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
-use relay_common::glob3::GlobPatterns;
+use relay_common::glob3::{deserialize_singular_pattern, serialize_singular_pattern, GlobPatterns};
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -41,9 +41,16 @@ impl Metrics {
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TagBlock {
     /// Name of metric of which we want to remove certain tags.
+    ///
+    /// The name should only consist of one pattern, which is why we use custom serializer
+    /// functions to support using a single string rather than a list.
+    #[serde(
+        serialize_with = "serialize_singular_pattern",
+        deserialize_with = "deserialize_singular_pattern"
+    )]
     pub name: GlobPatterns,
     /// Pattern to match keys of tags that we want to remove.
-    pub tag: GlobPatterns,
+    pub tags: GlobPatterns,
 }
 
 /// Rule defining when a target tag should be set on a metric.
@@ -518,6 +525,18 @@ where
 mod tests {
     use super::*;
     use similar_asserts::assert_eq;
+
+    #[test]
+    fn test_serialize_metrics_config() {
+        let input_str =
+            r#"{"deniedNames":["foo","bar"],"deniedTags":[{"name":"foo","tag":["bar"]}]}"#;
+
+        let deny_list: Metrics = serde_json::from_str(input_str).expect("Failed to deserialize");
+
+        let back_to_str = serde_json::to_string(&deny_list).expect("Failed to serialize");
+
+        assert_eq!(input_str, back_to_str);
+    }
 
     #[test]
     fn test_empty_metrics_deserialize() {

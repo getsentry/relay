@@ -1639,7 +1639,7 @@ def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
             "sessionMetrics": {"version": 1},
             "metrics": {
                 "deniedNames": [denied_names],
-                "deniedTags": [{"name": ["*"], "tag": [denied_tag]}],
+                "deniedTags": [{"name": "*", "tags": [denied_tag]}],
             },
         }
     }

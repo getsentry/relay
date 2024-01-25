@@ -49,6 +49,11 @@ impl GlobPatterns {
         is_match(globs, message)
     }
 
+    /// Returns the raw patterns.
+    pub fn inner(&self) -> &Vec<String> {
+        &self.patterns
+    }
+
     /// Parses valid patterns from the list.
     fn parse_globs(&self) -> Vec<Regex> {
         let mut globs = Vec::with_capacity(self.patterns.len());
@@ -97,6 +102,33 @@ impl<'de> Deserialize<'de> for GlobPatterns {
         let patterns = Deserialize::deserialize(deserializer)?;
         Ok(GlobPatterns::new(patterns))
     }
+}
+
+/// Deserializes the [`GlobPatterns`] to a singular string.
+///
+/// This assumes there's only one pattern. Use in conjunction with [`deserialize_singular_pattern`].
+pub fn serialize_singular_pattern<S>(name: &GlobPatterns, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    debug_assert_eq!(name.patterns.len(), 1);
+
+    match name.patterns.first() {
+        Some(first_element) => serializer.serialize_str(first_element),
+        None => Err(serde::ser::Error::custom("No patterns found")),
+    }
+}
+
+/// Serializes a single pattern to a [`GlobPatterns`].
+///
+/// This is for simplifying the API when you know you only need a singular pattern.
+pub fn deserialize_singular_pattern<'de, D>(deserializer: D) -> Result<GlobPatterns, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let single_string: String = Deserialize::deserialize(deserializer)?;
+    let glob_patterns = GlobPatterns::new(vec![single_string]);
+    Ok(glob_patterns)
 }
 
 impl PartialEq for GlobPatterns {
