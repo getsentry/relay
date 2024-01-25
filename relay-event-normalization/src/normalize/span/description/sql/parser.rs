@@ -41,8 +41,8 @@ pub fn parse_query(
 /// Tries to parse a series of SQL queries into an AST and normalize it.
 pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result<String, ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
-    let mut visitor = NormalizeVisitor::new();
-    parsed.visit(&mut visitor);
+    parsed.visit(&mut NormalizeVisitor);
+    parsed.visit(&mut MaxDepthVisitor::new());
 
     let concatenated = parsed
         .iter()
@@ -58,18 +58,9 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
 /// A visitor that normalizes the SQL AST in-place.
 ///
 /// Used for span description normalization.
-struct NormalizeVisitor {
-    /// The current depth of an expression.
-    current_expr_depth: usize,
-}
+struct NormalizeVisitor;
 
 impl NormalizeVisitor {
-    pub fn new() -> Self {
-        Self {
-            current_expr_depth: 0,
-        }
-    }
-
     /// Placeholder for string and numerical literals.
     fn placeholder() -> Value {
         Value::Number("%s".into(), false)
@@ -219,11 +210,6 @@ impl VisitorMut for NormalizeVisitor {
     }
 
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
-        if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
-            *expr = Expr::Value(Value::Placeholder("..".to_owned()));
-            return ControlFlow::Continue(());
-        }
-        self.current_expr_depth += 1;
         match expr {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
@@ -310,7 +296,6 @@ impl VisitorMut for NormalizeVisitor {
             _ => (),
         }
 
-        self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
         ControlFlow::Continue(())
     }
 
@@ -463,6 +448,40 @@ fn take_expr(expr: &mut Expr) -> Expr {
     let mut swapped = Expr::Value(Value::Null);
     std::mem::swap(&mut swapped, expr);
     swapped
+}
+
+/// Limits the maximum expression depth of an SQL statement.
+///
+/// This prevents stack overflows when serializing the query back to a string.
+struct MaxDepthVisitor {
+    /// The current depth of an expression.
+    current_expr_depth: usize,
+}
+
+impl MaxDepthVisitor {
+    pub fn new() -> Self {
+        Self {
+            current_expr_depth: 0,
+        }
+    }
+}
+
+impl VisitorMut for MaxDepthVisitor {
+    type Break = ();
+
+    fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
+        if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
+            *expr = Expr::Value(Value::Placeholder("..".to_owned()));
+            return ControlFlow::Continue(());
+        }
+        self.current_expr_depth += 1;
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_expr(&mut self, _expr: &mut Expr) -> ControlFlow<Self::Break> {
+        self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
+        ControlFlow::Continue(())
+    }
 }
 
 /// An extension of an SQL dialect that accepts `?`, `%s`, `:c0` as valid input.
