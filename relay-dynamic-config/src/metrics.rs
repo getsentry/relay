@@ -529,7 +529,7 @@ mod tests {
     #[test]
     fn test_serialize_metrics_config() {
         let input_str =
-            r#"{"deniedNames":["foo","bar"],"deniedTags":[{"name":"foo","tag":["bar"]}]}"#;
+            r#"{"deniedNames":["foo","bar"],"deniedTags":[{"name":"foo","tags":["bar"]}]}"#;
 
         let deny_list: Metrics = serde_json::from_str(input_str).expect("Failed to deserialize");
 
