@@ -47,24 +47,15 @@ impl GlobalConfig {
 pub struct Options {
     /// List of platform names for which we allow using unsampled profiles for the purpose
     /// of improving profile (function) metrics
-    #[serde(
-        default,
-        rename = "profiling.profile_metrics.unsampled_profiles.platforms"
-    )]
+    #[serde(rename = "profiling.profile_metrics.unsampled_profiles.platforms")]
     pub profile_metrics_allowed_platforms: Vec<String>,
 
     /// Sample rate for tuning the amount of unsampled profiles that we "let through"
-    #[serde(
-        default,
-        rename = "profiling.profile_metrics.unsampled_profiles.sample_rate"
-    )]
+    #[serde(rename = "profiling.profile_metrics.unsampled_profiles.sample_rate")]
     pub profile_metrics_sample_rate: f32,
 
     /// Kill switch for shutting down profile metrics
-    #[serde(
-        default,
-        rename = "profiling.profile_metrics.unsampled_profiles.enabled"
-    )]
+    #[serde(rename = "profiling.profile_metrics.unsampled_profiles.enabled")]
     pub unsampled_profiles_enabled: bool,
 
     /// All other unknown options.

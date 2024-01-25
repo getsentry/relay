@@ -5,7 +5,7 @@ use std::ops::ControlFlow;
 use chrono::Utc;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::{RuleType, SamplingMode};
@@ -108,7 +108,7 @@ pub fn sample_envelope_items(
             return;
         };
         if event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop() {
-            let unsampled_profiles_enabled = state.forward_unsampled_profiles(global_config);
+            let unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
 
             let matched_rules = sampling_match.into_matched_rules();
             let outcome = Outcome::FilteredSampling(matched_rules.clone());
@@ -239,6 +239,32 @@ pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config
         relay_log::trace!("tagged error with `sampled = {}` flag", sampled);
         context.sampled = Annotated::new(sampled);
     }
+}
+
+/// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
+fn forward_unsampled_profiles(state: &ProcessEnvelopeState, global_config: &GlobalConfig) -> bool {
+    let Some(global_options) = &global_config.options else {
+        return false;
+    };
+
+    if !global_options.unsampled_profiles_enabled {
+        return false;
+    }
+
+    let event_platform = state
+        .event
+        .value()
+        .and_then(|e| e.platform.as_str())
+        .unwrap_or("");
+
+    state
+        .project_state
+        .has_feature(Feature::IngestUnsampledProfiles)
+        && global_options
+            .profile_metrics_allowed_platforms
+            .iter()
+            .any(|s| s == event_platform)
+        && rand::random::<f32>() < global_options.profile_metrics_sample_rate
 }
 
 #[cfg(test)]
