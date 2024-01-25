@@ -1708,3 +1708,7 @@ def test_block_metrics_and_tags(mini_sentry, relay, denied_names, denied_tag):
             }
     else:
         assert False, "add new else-branch if you add another denied tag"
+
+
+def test_ratelimit_by_namespace():
+    pass

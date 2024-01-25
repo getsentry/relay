@@ -1927,3 +1927,101 @@ def test_span_outcomes_invalid(
         outcome.pop("event_id")
 
     assert outcomes == expected_outcomes, outcomes
+
+
+def test_global_rate_limit_by_namespace(
+    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
+):
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metric_bucket_limit = 9
+    transaction_limit = 5
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    global_reason_code = "global rate limit hit"
+    transaction_reason_code = "global rate limit for transactions hit"
+
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "test_rate_limiting" + str(uuid.uuid4()),
+            "scope": "global",
+            "categories": ["metric_bucket"],
+            "limit": metric_bucket_limit,
+            "window": 1000,
+            "reasonCode": global_reason_code,
+        },
+        {
+            "id": "test_rate_limiting" + str(uuid.uuid4()),
+            "scope": "global",
+            "categories": ["metric_bucket"],
+            "limit": transaction_limit,
+            "window": 1000,
+            "reasonCode": transaction_reason_code,
+        },
+    ]
+
+    ts = datetime.utcnow().timestamp()
+
+    def send_buckets(n, name, value):
+        buckets = [
+            {
+                "org_id": 1,
+                "project_id": project_id,
+                "timestamp": ts,
+                "name": name,
+                "type": "d",
+                "value": value,
+                "width": bucket_interval,
+                "tags": {"foo": str(i)},
+            }
+            for i in range(n)
+        ]
+
+        relay.send_metrics_buckets(project_id, buckets)
+        time.sleep(5)
+
+    def assert_metrics_outcomes(n_metrics, n_outcomes, outcome):
+        produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
+        outcomes = outcomes_consumer.get_outcomes()
+
+        assert len(outcomes) == n_outcomes
+        assert len(produced_buckets) == n_metrics
+
+        for outcome in outcomes:
+            assert outcome["reason"] == outcome
+
+    transaction_name = "d:transactions/measurements.lcp@millisecond"
+    transaction_value = [1.0]
+
+    session_name = "d:sessions/session@none"
+    session_value = 1
+
+    # send one too many transaction
+    send_buckets(transaction_limit + 1, transaction_name, transaction_value)
+    assert_metrics_outcomes(transaction_limit, 1, transaction_reason_code)
+
+    rest = metric_bucket_limit - transaction_limit
+    send_buckets(rest, session_name, session_value)
+    assert_metrics_outcomes(rest + 1, 1, global_reason_code)
+
+    # Send more once the limit is hit and make sure they are rejected.
+    for _ in range(2):
+        send_buckets(1)
+        assert_metrics_outcomes(0, 1)
+    assert False
