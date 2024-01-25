@@ -14,7 +14,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
-use crate::services::processor::ProcessEnvelopeState;
+use crate::services::processor::{profile, ProcessEnvelopeState};
 use crate::utils::{self, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -97,10 +97,17 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn sample_envelope_items(state: &mut ProcessEnvelopeState, global_config: &GlobalConfig) {
+pub fn sample_envelope_items(
+    state: &mut ProcessEnvelopeState,
+    config: &Config,
+    global_config: &GlobalConfig,
+) {
     if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
         // We assume that sampling is only supposed to work on transactions.
-        if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
+        let Some(event) = state.event.value() else {
+            return;
+        };
+        if event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop() {
             let unsampled_profiles_enabled = state.forward_unsampled_profiles(global_config);
 
             let matched_rules = sampling_match.into_matched_rules();
@@ -108,7 +115,10 @@ pub fn sample_envelope_items(state: &mut ProcessEnvelopeState, global_config: &G
             state.managed_envelope.retain_items(|item| {
                 if unsampled_profiles_enabled && item.ty() == &ItemType::Profile {
                     item.set_sampled(false);
-                    ItemAction::Keep
+
+                    // Transfer metadata to the profile before the transaction gets dropped:
+                    let (_, item_action) = profile::expand_profile(item, event, config);
+                    item_action
                 } else {
                     ItemAction::Drop(outcome.clone())
                 }

@@ -1197,7 +1197,11 @@ impl EnvelopeProcessorService {
             self.extract_metrics(state)?;
         }
 
-        dynamic_sampling::sample_envelope_items(state, &self.inner.global_config.current());
+        dynamic_sampling::sample_envelope_items(
+            state,
+            &self.inner.config,
+            &self.inner.global_config.current(),
+        );
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1339,7 +1343,11 @@ impl EnvelopeProcessorService {
                 self.extract_metrics(state)?;
             }
 
-            dynamic_sampling::sample_envelope_items(state, &self.inner.global_config.current());
+            dynamic_sampling::sample_envelope_items(
+                state,
+                &self.inner.config,
+                &self.inner.global_config.current(),
+            );
 
             if_processing!(self.inner.config, {
                 event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
