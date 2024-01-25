@@ -899,8 +899,8 @@ impl ProjectCacheBroker {
         }
     }
 
-    /// Iterates the buffer index and tries to unspool the envelopes if the project state is still
-    /// valid.
+    /// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
+    /// state.
     ///
     /// This makes sure we always moving the unspool forward, even if we do not fetch the project
     /// states updates, but still can process data based on the existing cache.
@@ -923,8 +923,7 @@ impl ProjectCacheBroker {
                     .get_cached_state(self.services.project_cache.clone(), false)
                     .is_some()
             }) {
-                // Do *not* attempt to unspool if there are more permits are assigned than low
-                // watermark indicates.
+                // Do *not* attempt to unspool if the assigned permits over low watermark.
                 if !self.buffer_guard.is_below_low_watermark() {
                     self.schedule_unspool();
                     return;
@@ -1275,7 +1274,7 @@ mod tests {
         envelopes.pop().unwrap();
         assert_eq!(buffer_guard.available(), 1);
 
-        // Till now we should have enqueued 5 envleopes and dequeued only 1, it means the index is
+        // Till now we should have enqueued 5 envelopes and dequeued only 1, it means the index is
         // still populated with same keys and values.
         assert_eq!(broker.index.keys().len(), 1);
         assert_eq!(broker.index.values().count(), 1);
