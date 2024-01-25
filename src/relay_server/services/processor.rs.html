@@ -2810,37 +2810,6 @@
 <a href="#2810" id="2810">2810</a>
 <a href="#2811" id="2811">2811</a>
 <a href="#2812" id="2812">2812</a>
-<a href="#2813" id="2813">2813</a>
-<a href="#2814" id="2814">2814</a>
-<a href="#2815" id="2815">2815</a>
-<a href="#2816" id="2816">2816</a>
-<a href="#2817" id="2817">2817</a>
-<a href="#2818" id="2818">2818</a>
-<a href="#2819" id="2819">2819</a>
-<a href="#2820" id="2820">2820</a>
-<a href="#2821" id="2821">2821</a>
-<a href="#2822" id="2822">2822</a>
-<a href="#2823" id="2823">2823</a>
-<a href="#2824" id="2824">2824</a>
-<a href="#2825" id="2825">2825</a>
-<a href="#2826" id="2826">2826</a>
-<a href="#2827" id="2827">2827</a>
-<a href="#2828" id="2828">2828</a>
-<a href="#2829" id="2829">2829</a>
-<a href="#2830" id="2830">2830</a>
-<a href="#2831" id="2831">2831</a>
-<a href="#2832" id="2832">2832</a>
-<a href="#2833" id="2833">2833</a>
-<a href="#2834" id="2834">2834</a>
-<a href="#2835" id="2835">2835</a>
-<a href="#2836" id="2836">2836</a>
-<a href="#2837" id="2837">2837</a>
-<a href="#2838" id="2838">2838</a>
-<a href="#2839" id="2839">2839</a>
-<a href="#2840" id="2840">2840</a>
-<a href="#2841" id="2841">2841</a>
-<a href="#2842" id="2842">2842</a>
-<a href="#2843" id="2843">2843</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2888,9 +2857,7 @@
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityScope, RedisSetLimiter, SlidingWindow,
-    },
+    relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -3668,34 +3635,6 @@
         <span class="self">Self </span>{
             inner: Arc::new(inner),
         }
-    }
-
-    <span class="doccomment">/// Returns current cardinality limits built from the configuration.
-    ///
-    /// In the near future these limits will be coming from the project config.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span><span class="kw">fn </span>get_cardinality_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [CardinalityLimit; <span class="number">5</span>] {
-        <span class="kw">let </span>limit = <span class="self">self</span>.inner.config.cardinality_limit();
-        <span class="kw">let </span>window = SlidingWindow {
-            window_seconds: <span class="self">self</span>.inner.config.cardinality_limiter_window(),
-            granularity_seconds: <span class="self">self</span>.inner.config.cardinality_limiter_granularity(),
-        };
-        <span class="kw">let </span>scope = CardinalityScope::Organization;
-
-        [
-            MetricNamespace::Sessions,
-            MetricNamespace::Spans,
-            MetricNamespace::Transactions,
-            MetricNamespace::Custom,
-            MetricNamespace::Unsupported,
-        ]
-        .map(|ns| CardinalityLimit {
-            id: ns.as_str().to_owned(),
-            window,
-            limit,
-            scope,
-            namespace: <span class="prelude-val">Some</span>(ns),
-        })
     }
 
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
@@ -4722,8 +4661,6 @@
         <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
         <span class="kw">use </span><span class="kw">crate</span>::services::store::StoreMetrics;
 
-        <span class="kw">let </span>limits = <span class="kw-2">&amp;</span><span class="self">self</span>.get_cardinality_limits();
-
         <span class="kw">for </span>(scoping, message) <span class="kw">in </span>message.scopes {
             <span class="kw">let </span>ProjectMetrics {
                 <span class="kw-2">mut </span>buckets,
@@ -4731,6 +4668,7 @@
             } = message;
 
             <span class="kw">let </span>mode = project_state.get_extraction_mode();
+            <span class="kw">let </span>limits = project_state.get_cardinality_limits();
 
             <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
                 buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets, mode);

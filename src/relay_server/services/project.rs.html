@@ -1631,11 +1631,24 @@
 <a href="#1631" id="1631">1631</a>
 <a href="#1632" id="1632">1632</a>
 <a href="#1633" id="1633">1633</a>
+<a href="#1634" id="1634">1634</a>
+<a href="#1635" id="1635">1635</a>
+<a href="#1636" id="1636">1636</a>
+<a href="#1637" id="1637">1637</a>
+<a href="#1638" id="1638">1638</a>
+<a href="#1639" id="1639">1639</a>
+<a href="#1640" id="1640">1640</a>
+<a href="#1641" id="1641">1641</a>
+<a href="#1642" id="1642">1642</a>
+<a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
+<span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+</span><span class="kw">use </span>relay_cardinality::CardinalityLimit;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 <span class="kw">use </span>relay_filter::matches_any_origin;
@@ -1919,6 +1932,15 @@
     <span class="doccomment">/// Returns quotas declared in this project state.
     </span><span class="kw">pub fn </span>get_quotas(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Quota] {
         <span class="self">self</span>.config.quotas.as_slice()
+    }
+
+    <span class="doccomment">/// Returns cardinality limits declared in this project state.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">pub fn </span>get_cardinality_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[CardinalityLimit] {
+        <span class="kw">match </span><span class="self">self</span>.config.metrics {
+            ErrorBoundary::Ok(<span class="kw-2">ref </span>m) =&gt; m.cardinality_limits.as_slice(),
+            <span class="kw">_ </span>=&gt; <span class="kw-2">&amp;</span>[],
+        }
     }
 
     <span class="doccomment">/// Returns `Err` if the project is known to be invalid or disabled.
