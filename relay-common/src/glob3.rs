@@ -38,10 +38,8 @@ impl Serialize for GlobPattern {
     {
         debug_assert_eq!(self.0.patterns.len(), 1);
 
-        match self.0.patterns.first() {
-            Some(first_element) => serializer.serialize_str(first_element),
-            None => Err(serde::ser::Error::custom("pattern not found")),
-        }
+        let pattern = self.0.patterns.first().unwrap();
+        serializer.serialize_str(pattern)
     }
 }
 
@@ -50,9 +48,7 @@ impl<'de> Deserialize<'de> for GlobPattern {
     where
         D: Deserializer<'de>,
     {
-        let pattern: String = dbg!(Deserialize::deserialize(deserializer))?;
-        let glob_patterns = GlobPatterns::new(vec![pattern]);
-        Ok(Self(glob_patterns))
+        Deserialize::deserialize(deserializer).map(Self::new)
     }
 }
 
