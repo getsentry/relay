@@ -1297,7 +1297,7 @@ pub struct CardinalityLimiter {
     /// The current bucket scope is comprised of organization and namespace.
     ///
     /// Defaults to: 10_000.
-    pub limit: usize,
+    pub limit: u64,
 }
 
 impl Default for CardinalityLimiter {
@@ -2157,7 +2157,7 @@ impl Config {
     }
 
     /// Cardinality limit per org and namespace.
-    pub fn cardinality_limit(&self) -> usize {
+    pub fn cardinality_limit(&self) -> u64 {
         self.values.cardinality_limiter.limit
     }
 

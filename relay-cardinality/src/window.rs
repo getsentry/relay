@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A sliding window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlidingWindow {
     /// The number of seconds to apply the limit to.
@@ -40,7 +40,7 @@ impl SlidingWindow {
     }
 
     /// The active bucket is the oldest active granule.
-    pub fn active_time_bucket(&self, timestamp: u64) -> u64 {
+    pub fn active_slot(&self, timestamp: u64) -> u64 {
         self.iter(timestamp).last().unwrap_or(0)
     }
 }
@@ -63,7 +63,7 @@ mod tests {
             window.window_seconds / window.granularity_seconds
         );
         assert_eq!(r, vec![2363575, 2363574, 2363573, 2363572, 2363571]);
-        assert_eq!(window.active_time_bucket(timestamp), *r.last().unwrap());
+        assert_eq!(window.active_slot(timestamp), *r.last().unwrap());
 
         let r2 = window.iter(timestamp + 10).collect::<Vec<_>>();
         assert_eq!(r2, r);

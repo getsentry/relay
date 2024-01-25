@@ -14,15 +14,11 @@ pub mod limiter;
 #[cfg(feature = "redis")]
 mod redis;
 mod statsd;
-#[cfg(feature = "redis")]
-mod utils;
 mod window;
 
 pub use self::config::*;
 pub use self::error::*;
-pub use self::limiter::{
-    CardinalityItem, CardinalityLimits, CardinalityScope, Config as CardinalityLimiterConfig,
-};
+pub use self::limiter::{CardinalityItem, CardinalityLimits, Scoping};
 #[cfg(feature = "redis")]
 pub use self::redis::RedisSetLimiter;
 pub use self::window::SlidingWindow;

@@ -706,9 +706,7 @@ impl Bucket {
 }
 
 impl CardinalityItem for Bucket {
-    type Scope = MetricNamespace;
-
-    fn to_scope(&self) -> Option<Self::Scope> {
+    fn namespace(&self) -> Option<MetricNamespace> {
         let mri = match MetricResourceIdentifier::parse(&self.name) {
             Err(error) => {
                 relay_log::debug!(

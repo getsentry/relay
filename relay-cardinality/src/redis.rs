@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::time::SystemTime;
 
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
@@ -8,22 +8,22 @@ use relay_statsd::metric;
 
 use crate::{
     cache::{Cache, CacheOutcome},
-    limiter::{CardinalityScope, Entry, EntryId, Limiter, Rejection},
+    limiter::{EntryId, Limiter, Rejection},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
-    utils::HitCounter,
-    OrganizationId, Result, SlidingWindow,
+    Result,
 };
+use relay_base_schema::metrics::MetricNamespace;
+use relay_base_schema::project::ProjectId;
+
+use crate::limiter::{Entry, Scoping};
+use crate::{CardinalityLimit, CardinalityScope, OrganizationId, SlidingWindow};
 
 /// Key prefix used for Redis keys.
 const KEY_PREFIX: &str = "relay:cardinality";
-// There are currently 5 metric namespaces and we know the cardinality scope is currently only the
-// metric namespace. Use this information to pre-allocate a few datastructures.
-const EXPECTED_SCOPE_COUNT: usize = 5;
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
     redis: RedisPool,
-    window: SlidingWindow,
     script: CardinalityScript,
     cache: Cache,
     #[cfg(test)]
@@ -33,10 +33,9 @@ pub struct RedisSetLimiter {
 /// A Redis based limiter using Redis sets to track cardinality and membership.
 impl RedisSetLimiter {
     /// Creates a new [`RedisSetLimiter`].
-    pub fn new(redis: RedisPool, window: SlidingWindow) -> Self {
+    pub fn new(redis: RedisPool) -> Self {
         Self {
             redis,
-            window,
             script: CardinalityScript::load(),
             cache: Cache::default(),
             #[cfg(test)]
@@ -50,33 +49,32 @@ impl RedisSetLimiter {
     fn check_limits(
         &self,
         con: &mut Connection,
-        organization_id: OrganizationId,
-        item_scope: String,
-        entries: Vec<RedisEntry>,
+        state: &mut LimitState<'_>,
         timestamp: u64,
-        limit: usize,
     ) -> Result<CheckedLimits> {
+        let scope = state.scope;
+        let limit = state.limit;
+        let entries = state.take_entries();
+
         metric!(
             histogram(CardinalityLimiterHistograms::RedisCheckHashes) = entries.len() as u64,
-            scope = &item_scope,
+            id = &state.id,
         );
 
-        let keys = self
-            .window
-            .iter(timestamp)
-            .map(|time_bucket| self.to_redis_key(organization_id, &item_scope, time_bucket));
-
+        let keys = scope
+            .slots(timestamp)
+            .map(|slot| scope.into_redis_key(slot));
         let hashes = entries.iter().map(|entry| entry.hash);
 
         // The expiry is a off by `window.granularity_seconds`,
         // but since this is only used for cleanup, this is not an issue.
         let result = self
             .script
-            .invoke(con, limit, self.window.window_seconds, hashes, keys)?;
+            .invoke(con, limit, scope.window.window_seconds, hashes, keys)?;
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
-            scope = &item_scope,
+            id = &state.id,
         );
 
         Ok(CheckedLimits {
@@ -84,31 +82,18 @@ impl RedisSetLimiter {
             statuses: result.statuses,
         })
     }
-
-    fn to_redis_key(
-        &self,
-        organization_id: OrganizationId,
-        item_scope: &str,
-        window: u64,
-    ) -> String {
-        format!("{KEY_PREFIX}:scope-{{{organization_id}}}-{item_scope}-{window}",)
-    }
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<I, T>(
+    fn check_cardinality_limits<I>(
         &self,
-        organization_id: u64,
+        scoping: Scoping,
+        limits: &[CardinalityLimit],
         entries: I,
-        limit: usize,
     ) -> Result<Box<dyn Iterator<Item = Rejection>>>
     where
-        I: IntoIterator<Item = Entry<T>>,
-        T: CardinalityScope,
+        I: IntoIterator<Item = Entry>,
     {
-        let mut cache_hits = HitCounter::with_capacity(EXPECTED_SCOPE_COUNT);
-        let mut acceptions_rejections = HitCounter::with_capacity(EXPECTED_SCOPE_COUNT);
-
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
@@ -116,102 +101,203 @@ impl Limiter for RedisSetLimiter {
         // Allows to fast forward time in tests.
         #[cfg(test)]
         let timestamp = timestamp + self.time_offset;
-        let cache_window = self.window.active_time_bucket(timestamp);
 
+        let mut states = LimitState::from_limits(scoping, limits);
         let mut rejected = Vec::new();
-        let mut entries_by_scope = HashMap::with_capacity(EXPECTED_SCOPE_COUNT);
 
-        let cache = self.cache.read(organization_id, cache_window, limit);
-        for Entry { id, scope, hash } in entries {
-            let item_scope = scope.to_string();
-            match cache.check(&item_scope, hash) {
-                CacheOutcome::Accepted => {
-                    // Accepted already, nothing to do.
-                    cache_hits.hit(&item_scope);
-                    acceptions_rejections.hit(&item_scope);
+        let cache = self.cache.read(timestamp); // Acquire a read lock.
+        for entry in entries {
+            for state in states.iter_mut() {
+                if !state.scope.matches(&entry) {
+                    // Entry not relevant for limit.
+                    continue;
                 }
-                CacheOutcome::Rejected => {
-                    // Rejected, add it to the rejected list and move on.
-                    rejected.push(Rejection::new(id));
-                    cache_hits.hit(&item_scope);
-                    acceptions_rejections.miss(&item_scope);
-                }
-                CacheOutcome::Unknown => {
-                    cache_hits.miss(&item_scope);
 
-                    let key = (organization_id, item_scope);
-                    let entry = RedisEntry::new(id, hash);
-
-                    entries_by_scope
-                        .entry(key)
-                        .or_insert_with(Vec::new)
-                        .push(entry)
+                match cache.check(state.scope, entry.hash, state.limit) {
+                    CacheOutcome::Accepted => {
+                        // Accepted already, nothing to do.
+                        state.cache_hit();
+                        state.accepted();
+                    }
+                    CacheOutcome::Rejected => {
+                        // Rejected, add it to the rejected list and move on.
+                        rejected.push(Rejection::new(entry.id));
+                        state.cache_hit();
+                        state.rejected();
+                    }
+                    CacheOutcome::Unknown => {
+                        // Add the entry to the state -> needs to be checked with Redis.
+                        state.entries.push(RedisEntry::new(entry.id, entry.hash));
+                        state.cache_miss();
+                    }
                 }
             }
         }
-        // Give up cache lock!
-        drop(cache);
-
-        cache_hits.report(
-            CardinalityLimiterCounters::RedisCacheHit,
-            CardinalityLimiterCounters::RedisCacheMiss,
-        );
+        drop(cache); // Give up the cache lock!
 
         let mut client = self.redis.client()?;
         let mut connection = client.connection()?;
 
-        for ((organization_id, item_scope), entries) in entries_by_scope {
-            if entries.is_empty() {
+        for mut state in states {
+            if state.entries.is_empty() {
                 continue;
             }
 
-            let results = metric!(
-                timer(CardinalityLimiterTimers::Redis),
-                scope = &item_scope,
-                {
-                    self.check_limits(
-                        &mut connection,
-                        organization_id,
-                        item_scope.clone(),
-                        entries,
-                        timestamp,
-                        limit,
-                    )
-                }
-            )?;
+            let results = metric!(timer(CardinalityLimiterTimers::Redis), id = state.id, {
+                self.check_limits(&mut connection, &mut state, timestamp)
+            })?;
 
             // This always acquires a write lock, but we only hit this
             // if we previously didn't satisfy the request from the cache,
             // -> there is a very high chance we actually need the lock.
-            let mut cache = self
-                .cache
-                .update(organization_id, &item_scope, cache_window);
-
+            let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
             for (entry, status) in results {
                 if status.is_rejected() {
-                    acceptions_rejections.miss(&item_scope);
                     rejected.push(entry.rejection());
+                    state.rejected();
                 } else {
-                    acceptions_rejections.hit(&item_scope);
                     cache.accept(entry.hash);
+                    state.accepted();
                 }
             }
+            drop(cache); // Give up the cache lock!
         }
 
         if !rejected.is_empty() {
             relay_log::debug!(
-                organization_id = organization_id,
+                scoping = ?scoping,
                 "rejected {} metrics due to cardinality limit",
                 rejected.len(),
             );
         }
 
-        acceptions_rejections.report(
-            CardinalityLimiterCounters::Accepted,
-            CardinalityLimiterCounters::Rejected,
-        );
-
         Ok(Box::new(rejected.into_iter()))
+    }
+}
+
+/// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub(crate) struct QuotaScoping {
+    pub window: SlidingWindow,
+    pub namespace: Option<MetricNamespace>,
+    pub organization_id: Option<OrganizationId>,
+    pub project_id: Option<ProjectId>,
+}
+
+impl QuotaScoping {
+    /// Creates a new [`QuotaScoping`] from a [`Scoping`] and [`CardinalityLimit`].
+    ///
+    /// Returns `None` for limits with scope [`CardinalityScope::Unknown`].
+    pub fn new(scoping: Scoping, limit: &CardinalityLimit) -> Option<Self> {
+        let (organization_id, project_id) = match limit.scope {
+            CardinalityScope::Organization => (Some(scoping.organization_id), None),
+            // Invalid/unknown scope -> ignore the limit.
+            CardinalityScope::Unknown => return None,
+        };
+
+        Some(Self {
+            window: limit.window,
+            namespace: limit.namespace,
+            organization_id,
+            project_id,
+        })
+    }
+
+    /// Wether the scoping applies to the passed entry.
+    pub fn matches(&self, entry: &Entry) -> bool {
+        self.namespace.is_none() || self.namespace == Some(entry.namespace)
+    }
+
+    /// Returns all slots of the sliding window for a specific timestamp.
+    pub fn slots(&self, timestamp: u64) -> impl Iterator<Item = u64> {
+        self.window.iter(timestamp)
+    }
+
+    /// Turns the scoping into a Redis key for the passed slot.
+    fn into_redis_key(self, slot: u64) -> String {
+        let organization_id = self.organization_id.unwrap_or(0);
+        let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
+        let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
+
+        format!("{KEY_PREFIX}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
+    }
+}
+
+/// Internal state combining relevant entries for the respective quota.
+struct LimitState<'a> {
+    /// Id of the original limit.
+    pub id: &'a str,
+    /// Entries which are relevant for the quota.
+    pub entries: Vec<RedisEntry>,
+    /// Scoping of the quota.
+    pub scope: QuotaScoping,
+    /// The limit of the quota.
+    pub limit: u64,
+
+    /// Amount of cache hits `(hits, misses)`.
+    cache_hits: (i64, i64),
+    /// Amount of accepts and rejections `(accepts, rejections)`.
+    accepts_rejections: (i64, i64),
+}
+
+impl<'a> LimitState<'a> {
+    pub fn new(scoping: Scoping, limit: &'a CardinalityLimit) -> Option<Self> {
+        Some(Self {
+            id: &limit.id,
+            entries: Vec::new(),
+            scope: QuotaScoping::new(scoping, limit)?,
+            limit: limit.limit,
+            cache_hits: (0, 0),
+            accepts_rejections: (0, 0),
+        })
+    }
+
+    pub fn from_limits(scoping: Scoping, limits: &'a [CardinalityLimit]) -> Vec<Self> {
+        limits
+            .iter()
+            .filter_map(|limit| LimitState::new(scoping, limit))
+            .collect::<Vec<_>>()
+    }
+
+    pub fn take_entries(&mut self) -> Vec<RedisEntry> {
+        std::mem::take(&mut self.entries)
+    }
+
+    pub fn cache_hit(&mut self) {
+        self.cache_hits.0 += 1;
+    }
+
+    pub fn cache_miss(&mut self) {
+        self.cache_hits.1 += 1;
+    }
+
+    pub fn accepted(&mut self) {
+        self.accepts_rejections.0 += 1;
+    }
+
+    pub fn rejected(&mut self) {
+        self.accepts_rejections.1 += 1;
+    }
+}
+
+impl<'a> Drop for LimitState<'a> {
+    fn drop(&mut self) {
+        metric!(
+            counter(CardinalityLimiterCounters::RedisCacheHit) += self.cache_hits.0,
+            id = self.id
+        );
+        metric!(
+            counter(CardinalityLimiterCounters::RedisCacheMiss) += self.cache_hits.1,
+            id = self.id
+        );
+        metric!(
+            counter(CardinalityLimiterCounters::Accepted) += self.accepts_rejections.0,
+            id = self.id
+        );
+        metric!(
+            counter(CardinalityLimiterCounters::Rejected) += self.accepts_rejections.1,
+            id = self.id
+        );
     }
 }
 
@@ -311,7 +397,7 @@ impl CardinalityScript {
     fn invoke(
         &self,
         con: &mut Connection,
-        limit: usize,
+        limit: u64,
         expire: u64,
         hashes: impl Iterator<Item = u32>,
         keys: impl Iterator<Item = String>,
@@ -375,10 +461,12 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::atomic::AtomicU64;
 
+    use relay_base_schema::metrics::MetricNamespace;
+    use relay_base_schema::project::ProjectId;
     use relay_redis::RedisConfigOptions;
 
     use crate::limiter::EntryId;
-    use crate::OrganizationId;
+    use crate::{CardinalityScope, SlidingWindow};
 
     use super::*;
 
@@ -388,24 +476,27 @@ mod tests {
 
         let redis = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
 
-        let window = SlidingWindow {
-            window_seconds: 3600,
-            granularity_seconds: 360,
-        };
-        RedisSetLimiter::new(redis, window)
+        RedisSetLimiter::new(redis)
     }
 
-    fn new_org(limiter: &RedisSetLimiter) -> OrganizationId {
+    fn new_scoping(limiter: &RedisSetLimiter) -> Scoping {
         static ORGS: AtomicU64 = AtomicU64::new(100);
-        let organization_id = ORGS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        limiter.flush_org(organization_id);
-        organization_id
+
+        let scoping = Scoping {
+            organization_id: ORGS.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+            project_id: ProjectId::new(1),
+        };
+
+        limiter.flush(scoping);
+
+        scoping
     }
 
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
-        fn flush_org(&self, organization_id: OrganizationId) {
-            let pattern = format!("{KEY_PREFIX}:scope-{{{organization_id}}}-*");
+        fn flush(&self, scoping: Scoping) {
+            let organization_id = scoping.organization_id;
+            let pattern = format!("{KEY_PREFIX}:scope-{{{organization_id}-*");
 
             let mut client = self.redis.client().unwrap();
             let mut connection = client.connection().unwrap();
@@ -430,19 +521,30 @@ mod tests {
     fn test_limiter_accept_previously_seen() {
         let limiter = build_limiter();
 
-        let org = new_org(&limiter);
         let entries = [
-            Entry::new(EntryId(0), "custom", 0),
-            Entry::new(EntryId(1), "custom", 1),
-            Entry::new(EntryId(2), "custom", 2),
-            Entry::new(EntryId(3), "custom", 3),
-            Entry::new(EntryId(4), "custom", 4),
-            Entry::new(EntryId(5), "custom", 5),
+            Entry::new(EntryId(0), MetricNamespace::Custom, 0),
+            Entry::new(EntryId(1), MetricNamespace::Custom, 1),
+            Entry::new(EntryId(2), MetricNamespace::Custom, 2),
+            Entry::new(EntryId(3), MetricNamespace::Custom, 3),
+            Entry::new(EntryId(4), MetricNamespace::Custom, 4),
+            Entry::new(EntryId(5), MetricNamespace::Custom, 5),
         ];
+
+        let scoping = new_scoping(&limiter);
+        let mut limit = CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 5,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        };
 
         // 6 items, limit is 5 -> 1 rejection.
         let rejected = limiter
-            .check_cardinality_limits(org, entries, 5)
+            .check_cardinality_limits(scoping, &[limit.clone()], entries)
             .unwrap()
             .map(|e| e.id)
             .collect::<HashSet<_>>();
@@ -450,16 +552,18 @@ mod tests {
 
         // We're at the limit but it should still accept already accepted elements, even with a
         // samller limit than previously accepted.
+        limit.limit = 3;
         let rejected2 = limiter
-            .check_cardinality_limits(org, entries, 3)
+            .check_cardinality_limits(scoping, &[limit.clone()], entries)
             .unwrap()
             .map(|e| e.id)
             .collect::<HashSet<_>>();
         assert_eq!(rejected2, rejected);
 
         // A higher limit should accept everthing
+        limit.limit = 6;
         let rejected3 = limiter
-            .check_cardinality_limits(org, entries, 10)
+            .check_cardinality_limits(scoping, &[limit], entries)
             .unwrap()
             .map(|e| e.id)
             .collect::<HashSet<_>>();
@@ -469,21 +573,32 @@ mod tests {
     #[test]
     fn test_limiter_small_within_limits() {
         let limiter = build_limiter();
-        let org = new_org(&limiter);
+        let scoping = new_scoping(&limiter);
+
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 10_000,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
 
         let entries = (0..50)
-            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
+            .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
             .collect::<Vec<_>>();
         let rejected = limiter
-            .check_cardinality_limits(org, entries, 10_000)
+            .check_cardinality_limits(scoping, limits, entries)
             .unwrap();
         assert_eq!(rejected.count(), 0);
 
         let entries = (100..150)
-            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
+            .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
             .collect::<Vec<_>>();
         let rejected = limiter
-            .check_cardinality_limits(org, entries, 10_000)
+            .check_cardinality_limits(scoping, limits, entries)
             .unwrap();
         assert_eq!(rejected.count(), 0);
     }
@@ -492,13 +607,24 @@ mod tests {
     fn test_limiter_big_limit() {
         let limiter = build_limiter();
 
-        let org = new_org(&limiter);
+        let scoping = new_scoping(&limiter);
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 80_000,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
+
         let entries = (0..100_000)
-            .map(|i| Entry::new(EntryId(i as usize), "custom", i))
+            .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
             .collect::<Vec<_>>();
 
         let rejected = limiter
-            .check_cardinality_limits(org, entries, 80_000)
+            .check_cardinality_limits(scoping, limits, entries)
             .unwrap();
         assert_eq!(rejected.count(), 20_000);
     }
@@ -507,33 +633,171 @@ mod tests {
     fn test_limiter_sliding_window() {
         let mut limiter = build_limiter();
 
-        let org = new_org(&limiter);
-        let entries1 = [Entry::new(EntryId(0), "custom", 0)];
-        let entries2 = [Entry::new(EntryId(1), "custom", 1)];
+        let scoping = new_scoping(&limiter);
+        let window = SlidingWindow {
+            window_seconds: 3600,
+            granularity_seconds: 360,
+        };
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window,
+            limit: 1,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
+
+        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
+        let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
 
         // 1 item and limit is 1 -> No rejections.
-        let rejected = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
+        let rejected = limiter
+            .check_cardinality_limits(scoping, limits, entries1)
+            .unwrap();
         assert_eq!(rejected.count(), 0);
 
-        for i in 0..limiter.window.window_seconds / limiter.window.granularity_seconds {
+        for i in 0..window.window_seconds / window.granularity_seconds {
             // Fast forward time.
-            limiter.time_offset = i * limiter.window.granularity_seconds;
+            limiter.time_offset = i * window.granularity_seconds;
 
             // Should accept the already inserted item.
-            let accepted = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
-            assert_eq!(accepted.count(), 0);
+            let rejected = limiter
+                .check_cardinality_limits(scoping, limits, entries1)
+                .unwrap();
+            assert_eq!(rejected.count(), 0);
             // Should reject the new item.
-            let accepted = limiter.check_cardinality_limits(org, entries2, 1).unwrap();
-            assert_eq!(accepted.count(), 1);
+            let rejected = limiter
+                .check_cardinality_limits(scoping, limits, entries2)
+                .unwrap();
+            assert_eq!(rejected.count(), 1);
         }
 
         // Fast forward time to where we're in the next window.
-        limiter.time_offset = limiter.window.window_seconds + 1;
+        limiter.time_offset = window.window_seconds + 1;
         // Accept the new element.
-        let accepted = limiter.check_cardinality_limits(org, entries2, 1).unwrap();
-        assert_eq!(accepted.count(), 0);
+        let rejected = limiter
+            .check_cardinality_limits(scoping, limits, entries2)
+            .unwrap();
+        assert_eq!(rejected.count(), 0);
         // Reject the old element now.
-        let accepted = limiter.check_cardinality_limits(org, entries1, 1).unwrap();
-        assert_eq!(accepted.count(), 1);
+        let rejected = limiter
+            .check_cardinality_limits(scoping, limits, entries1)
+            .unwrap();
+        assert_eq!(rejected.count(), 1);
+    }
+
+    #[test]
+    fn test_limiter_no_namespace_limit_is_shared_limit() {
+        let limiter = build_limiter();
+        let scoping = new_scoping(&limiter);
+
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 2,
+            scope: CardinalityScope::Organization,
+            namespace: None,
+        }];
+
+        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
+        let entries2 = [Entry::new(EntryId(0), MetricNamespace::Spans, 1)];
+        let entries3 = [Entry::new(EntryId(0), MetricNamespace::Transactions, 2)];
+
+        let rejected = limiter
+            .check_cardinality_limits(scoping, limits, entries1)
+            .unwrap()
+            .count();
+        assert_eq!(rejected, 0);
+
+        let rejected = limiter
+            .check_cardinality_limits(scoping, limits, entries2)
+            .unwrap()
+            .count();
+        assert_eq!(rejected, 0);
+
+        let rejected = limiter
+            .check_cardinality_limits(scoping, limits, entries3)
+            .unwrap()
+            .count();
+        assert_eq!(rejected, 1);
+    }
+
+    #[test]
+    fn test_limiter_multiple_limits() {
+        let limiter = build_limiter();
+        let scoping = new_scoping(&limiter);
+
+        let limits = &[
+            CardinalityLimit {
+                id: "limit1".to_owned(),
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 1,
+                scope: CardinalityScope::Organization,
+                namespace: Some(MetricNamespace::Custom),
+            },
+            CardinalityLimit {
+                id: "limit2".to_owned(),
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 1,
+                scope: CardinalityScope::Organization,
+                namespace: Some(MetricNamespace::Custom),
+            },
+            CardinalityLimit {
+                id: "limit3".to_owned(),
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 1,
+                scope: CardinalityScope::Organization,
+                namespace: Some(MetricNamespace::Spans),
+            },
+            CardinalityLimit {
+                id: "unknown_skipped".to_owned(),
+                window: SlidingWindow {
+                    window_seconds: 3600,
+                    granularity_seconds: 360,
+                },
+                limit: 1,
+                scope: CardinalityScope::Unknown,
+                namespace: Some(MetricNamespace::Transactions),
+            },
+        ];
+
+        let entries = [
+            Entry::new(EntryId(0), MetricNamespace::Custom, 0),
+            Entry::new(EntryId(1), MetricNamespace::Custom, 1),
+            Entry::new(EntryId(2), MetricNamespace::Spans, 2),
+            Entry::new(EntryId(3), MetricNamespace::Spans, 3),
+            Entry::new(EntryId(4), MetricNamespace::Transactions, 4),
+            Entry::new(EntryId(5), MetricNamespace::Transactions, 5),
+        ];
+
+        // Run multiple times to make sure caching does not interfere.
+        for _ in 0..3 {
+            let rejected = limiter
+                .check_cardinality_limits(scoping, limits, entries)
+                .unwrap()
+                .map(|e| e.id)
+                .collect::<HashSet<_>>();
+
+            // 2 transactions + 1 span + 1 custom (4) accepted -> 2 (6-4) rejected.
+            assert_eq!(rejected.len(), 2);
+            // 1 custom rejected.
+            assert!(rejected.contains(&EntryId(0)) || rejected.contains(&EntryId(1)));
+            // 1 span rejected.
+            assert!(rejected.contains(&EntryId(2)) || rejected.contains(&EntryId(3)));
+            // 2 transactions accepted -> no rejections.
+            assert!(!rejected.contains(&EntryId(4)));
+            assert!(!rejected.contains(&EntryId(5)));
+        }
     }
 }
