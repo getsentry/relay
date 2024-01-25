@@ -15,7 +15,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{parse_query, scrub_span_description};
+use crate::span::description::{normalize_domain, parse_query, scrub_span_description};
 use crate::utils::{
     extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
     MOBILE_SDKS,
@@ -43,6 +43,7 @@ pub enum SpanTagKey {
     Category,
     Description,
     Domain,
+    RawDomain,
     Group,
     HttpDecodedResponseContentLength,
     HttpResponseContentLength,
@@ -80,6 +81,7 @@ impl SpanTagKey {
             SpanTagKey::Category => "category",
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
+            SpanTagKey::RawDomain => "raw_domain",
             SpanTagKey::Group => "group",
             SpanTagKey::HttpDecodedResponseContentLength => "http.decoded_response_content_length",
             SpanTagKey::HttpResponseContentLength => "http.response_content_length",
@@ -314,7 +316,7 @@ pub fn extract_tags(
                 } else {
                     scrubbed
                 };
-                Url::parse(url).ok().and_then(|url| {
+                if let Some(domain) = Url::parse(url).ok().and_then(|url| {
                     url.domain().map(|d| {
                         let mut domain = d.to_lowercase();
                         if let Some(port) = url.port() {
@@ -322,25 +324,32 @@ pub fn extract_tags(
                         }
                         domain
                     })
-                })
-            } else {
-                if let Some(url_scheme) = span
+                }) {
+                    Some(domain)
+                } else if let Some(server_host) = span
                     .data
                     .value()
-                    .and_then(|data| data.get("url.scheme"))
+                    .and_then(|data| data.get("server.address"))
                     .and_then(|value| value.as_str())
                 {
-                    if let Some(server_host) = span
+                    let lowercase_host = server_host.to_lowercase();
+                    let mut parts = lowercase_host.split(':');
+
+                    let domain = parts.next().unwrap_or("");
+                    let port = parts.next().and_then(|s| s.parse::<u16>().ok());
+                    if let Some(url_scheme) = span
                         .data
                         .value()
-                        .and_then(|data| data.get("server.address"))
-                        .and_then(|value| value.as_str())
-                    {
-                        let host = server_host.to_lowercase();
-                        let scheme = url_scheme.to_lowercase();
-                        format!("{scheme}://{host}");
+                        .and_then(|data| data.get("url.scheme"))
+                        .and_then(|value| value.as_str()) {
+                        span_tags.insert(SpanTagKey::RawDomain, format!("{}://{}", url_scheme, domain));
+
                     }
+                    normalize_domain(domain, port)
+                } else {
+                    None
                 }
+            } else {
                 None
             }
         } else if span_op.starts_with("db") {

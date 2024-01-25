@@ -168,7 +168,7 @@ fn scrub_file(description: &str) -> Option<String> {
     }
 }
 
-fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
+pub fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
     if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
         return Some(allow_listed);
     }

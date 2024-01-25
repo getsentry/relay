@@ -1002,7 +1002,7 @@ mod tests {
                         "resource.render_blocking_status": "blocking"
                     },
                     "hash": "e2fae740cccd3789"
-                }
+                },
                 {
                     "timestamp": 1694732408.3145,
                     "start_timestamp": 1694732407.8367,
@@ -1017,7 +1017,7 @@ mod tests {
                         "http.response_content_length": 36170,
                         "http.response_transfer_size": 36470,
                         "resource.render_blocking_status": "blocking",
-                        "server.address": "example.com",
+                        "server.address": "subdomain.example.com:5688",
                         "url.same_origin": true,
                         "url.scheme": "https"
                     },
