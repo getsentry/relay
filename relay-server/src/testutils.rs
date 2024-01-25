@@ -98,9 +98,11 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
 }
 
 pub fn empty_envelope() -> Box<Envelope> {
-    let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-        .parse()
-        .unwrap();
+    empty_envelope_with_dsn("e12d836b15bb49d7bbf99e64295d995b")
+}
+
+pub fn empty_envelope_with_dsn(dsn: &str) -> Box<Envelope> {
+    let dsn = format!("https://{dsn}:@sentry.io/42").parse().unwrap();
 
     let mut envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
     envelope.add_item(Item::new(ItemType::Event));

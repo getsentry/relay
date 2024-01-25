@@ -913,8 +913,11 @@ impl ProjectCacheBroker {
             return;
         }
 
+        relay_log::trace!("index contains {} keys", self.index.len());
+
         let keys = self.index.keys().cloned().collect::<Box<[_]>>();
 
+        let mut dequeued = false;
         for project_key in keys.iter() {
             if self.projects.get_mut(project_key).map_or(false, |project| {
                 // Returns `Some` if the project is cache otherwise None and also triggers refresh
@@ -929,12 +932,17 @@ impl ProjectCacheBroker {
                     return;
                 }
 
-                self.dequeue(*project_key)
+                self.dequeue(*project_key);
+                dequeued = true;
             }
         }
 
+        // If there was at least one dequeuded project, reset backoff and try again, if all the
+        // projects are still pending or invalid, wait a bit longer before the next try.
+        if dequeued {
+            self.buffer_unspool_backoff.reset();
+        }
         // Schedule unspool once we are done.
-        self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
     }
 
@@ -1127,10 +1135,11 @@ mod tests {
     use std::time::Duration;
 
     use relay_test::mock_service;
+    use tokio::select;
     use uuid::Uuid;
 
     use crate::services::processor::ProcessingGroup;
-    use crate::testutils::empty_envelope;
+    use crate::testutils::{empty_envelope, empty_envelope_with_dsn};
 
     use super::*;
 
@@ -1299,5 +1308,90 @@ mod tests {
             // Nothing will be dequeued.
             assert!(buffer_rx.try_recv().is_err())
         }
+    }
+
+    #[tokio::test]
+    async fn periodic_unspool() {
+        relay_log::init_test!();
+
+        let num_permits = 50;
+        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+        let services = mocked_services();
+        let (state_tx, _) = mpsc::unbounded_channel();
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let (mut broker, _buffer_svc) =
+            project_cache_broker_setup(services.clone(), buffer_guard.clone(), state_tx, buffer_tx)
+                .await;
+
+        broker.global_config = GlobalConfigStatus::Ready(Default::default());
+        let (tx_update, mut rx_update) = mpsc::unbounded_channel();
+        let (tx_assert, mut rx_assert) = mpsc::unbounded_channel();
+
+        let dsn1 = "111d836b15bb49d7bbf99e64295d995b";
+        let dsn2 = "eeed836b15bb49d7bbf99e64295d995b";
+
+        // Send and spool some envelopes.
+        for dsn in [dsn1, dsn2] {
+            let envelope = buffer_guard
+                .enter(
+                    empty_envelope_with_dsn(dsn),
+                    services.outcome_aggregator.clone(),
+                    services.test_store.clone(),
+                    ProcessingGroup::Ungrouped,
+                )
+                .unwrap();
+
+            let message = ValidateEnvelope { envelope };
+
+            broker.handle_validate_envelope(message);
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Nothing will be dequeued.
+            assert!(buffer_rx.try_recv().is_err())
+        }
+
+        // Emulate the project cache service loop.
+        tokio::task::spawn(async move {
+            loop {
+                select! {
+
+                    Some(assert) = rx_assert.recv() => {
+                        assert_eq!(broker.index.keys().len(), assert);
+                        assert_eq!(broker.index.values().count(), assert);
+                    },
+                    Some(update) = rx_update.recv() => broker.merge_state(update),
+                    () = &mut broker.buffer_unspool_handle => broker.handle_periodic_unspool(),
+                }
+            }
+        });
+
+        // Before updating any project states.
+        tx_assert.send(2).unwrap();
+
+        let update_dsn1_project_state = UpdateProjectState {
+            project_key: ProjectKey::parse(dsn1).unwrap(),
+            state: ProjectState::allowed().into(),
+            no_cache: false,
+        };
+
+        tx_update.send(update_dsn1_project_state).unwrap();
+        assert!(buffer_rx.recv().await.is_some());
+        // One of the project should be unspooled.
+        tx_assert.send(1).unwrap();
+
+        // Schedule some work...
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let update_dsn2_project_state = UpdateProjectState {
+            project_key: ProjectKey::parse(dsn2).unwrap(),
+            state: ProjectState::allowed().into(),
+            no_cache: false,
+        };
+
+        tx_update.send(update_dsn2_project_state).unwrap();
+        assert!(buffer_rx.recv().await.is_some());
+        // The last project should be unspooled.
+        tx_assert.send(0).unwrap();
+        // Make sure the last assert is tested.
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
