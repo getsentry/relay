@@ -307,8 +307,10 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
-        if self.namespace != scoping.namespace {
-            return false;
+        if let Some(ns) = self.namespace {
+            if Some(ns) != scoping.namespace {
+                return false;
+            }
         }
 
         // Check for a scope identifier constraint. If there is no constraint, this means that the
