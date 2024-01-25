@@ -133,9 +133,6 @@ impl<'a> Default for NormalizationConfig<'a> {
 ///
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
-///
-/// The returned [`ProcessingResult`] indicates whether the passed event should
-/// be ingested or dropped.
 pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
     let Annotated(Some(ref mut event), ref mut meta) = event else {
         return;
@@ -149,9 +146,6 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
 }
 
 /// Normalizes the given event based on the given config.
-///
-/// The returned [`ProcessingResult`] indicates whether the passed event should
-/// be ingested or dropped.
 fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Normalize the transaction.
     // (internally noops for non-transaction events).
