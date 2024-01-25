@@ -215,7 +215,6 @@ impl QuotaScoping {
         let organization_id = self.organization_id.unwrap_or(0);
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
-        let slot = slot.0;
 
         format!("{KEY_PREFIX}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
     }

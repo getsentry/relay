@@ -1,3 +1,5 @@
+use std::fmt;
+
 use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +51,13 @@ impl SlidingWindow {
 
 /// A single slot from a [`SlidingWindow`].
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Slot(pub u64);
+pub struct Slot(u64);
+
+impl fmt::Display for Slot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[cfg(test)]
 mod tests {
