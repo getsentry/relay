@@ -36,10 +36,7 @@ impl Serialize for GlobPattern {
     where
         S: Serializer,
     {
-        debug_assert_eq!(self.0.patterns.len(), 1);
-
-        let pattern = self.0.patterns.first().unwrap();
-        serializer.serialize_str(pattern)
+        serializer.serialize_str(&self.0.patterns[0])
     }
 }
 
