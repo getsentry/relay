@@ -505,6 +505,7 @@ impl<'a> ProcessEnvelopeState<'a> {
         self.managed_envelope.reject_event(outcome);
     }
 
+    /// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
     fn forward_unsampled_profiles(&self, global_config: &GlobalConfig) -> bool {
         let Some(global_options) = &global_config.options else {
             return false;
