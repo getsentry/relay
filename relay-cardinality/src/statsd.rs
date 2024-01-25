@@ -17,13 +17,13 @@ pub enum CardinalityLimiterCounters {
     /// Incremented for every hash which was served from the in memory cache.
     ///
     /// This metric is tagged with:
-    ///  - `id`: The id of the enfored limit.
+    ///  - `id`: The id of the enforced limit.
     #[cfg(feature = "redis")]
     RedisCacheHit,
     /// Incremented for every hash which was not served from the in memory cache.
     ///
     /// This metric is tagged with:
-    ///  - `id`: The id of the enfored limit.
+    ///  - `id`: The id of the enforced limit.
     #[cfg(feature = "redis")]
     RedisCacheMiss,
 }
@@ -49,7 +49,7 @@ pub enum CardinalityLimiterTimers {
     /// Timer for the duration of the Redis call.
     ///
     /// This metric is tagged with:
-    ///  - `id`: The id of the enfored limit.
+    ///  - `id`: The id of the enforced limit.
     #[cfg(feature = "redis")]
     Redis,
 }
@@ -68,13 +68,13 @@ pub enum CardinalityLimiterHistograms {
     /// Amount of hashes sent to Redis to check the cardinality.
     ///
     /// This metric is tagged with:
-    ///  - `id`: The id of the enfored limit.
+    ///  - `id`: The id of the enforced limit.
     #[cfg(feature = "redis")]
     RedisCheckHashes,
     /// Redis stored set cardinality.
     ///
     /// This metric is tagged with:
-    ///  - `id`: The id of the enfored limit.
+    ///  - `id`: The id of the enforced limit.
     #[cfg(feature = "redis")]
     RedisSetCardinality,
 }

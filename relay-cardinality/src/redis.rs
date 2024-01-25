@@ -61,7 +61,9 @@ impl RedisSetLimiter {
             id = &state.id,
         );
 
-        let keys = scope.slots(timestamp).map(|slot| scope.to_redis_key(slot));
+        let keys = scope
+            .slots(timestamp)
+            .map(|slot| scope.into_redis_key(slot));
         let hashes = entries.iter().map(|entry| entry.hash);
 
         // The expiry is a off by `window.granularity_seconds`,
@@ -106,7 +108,7 @@ impl Limiter for RedisSetLimiter {
         let cache = self.cache.read(timestamp); // Acquire a read lock.
         for entry in entries {
             for state in states.iter_mut() {
-                if !state.scope.applies_to(&entry) {
+                if !state.scope.matches(&entry) {
                     // Entry not relevant for limit.
                     continue;
                 }
@@ -202,7 +204,7 @@ impl QuotaScoping {
     }
 
     /// Wether the scoping applies to the passed entry.
-    pub fn applies_to(&self, entry: &Entry) -> bool {
+    pub fn matches(&self, entry: &Entry) -> bool {
         self.namespace.is_none() || self.namespace == Some(entry.namespace)
     }
 
@@ -212,7 +214,7 @@ impl QuotaScoping {
     }
 
     /// Turns the scoping into a Redis key for the passed slot.
-    fn to_redis_key(self, slot: u64) -> String {
+    fn into_redis_key(self, slot: u64) -> String {
         let organization_id = self.organization_id.unwrap_or(0);
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
@@ -234,8 +236,8 @@ struct LimitState<'a> {
 
     /// Amount of cache hits `(hits, misses)`.
     cache_hits: (i64, i64),
-    /// Amount of accepts and rejections `(acceptions, rejections)`.
-    acceptions_rejections: (i64, i64),
+    /// Amount of accepts and rejections `(accepts, rejections)`.
+    accepts_rejections: (i64, i64),
 }
 
 impl<'a> LimitState<'a> {
@@ -246,7 +248,7 @@ impl<'a> LimitState<'a> {
             scope: QuotaScoping::new(scoping, limit)?,
             limit: limit.limit,
             cache_hits: (0, 0),
-            acceptions_rejections: (0, 0),
+            accepts_rejections: (0, 0),
         })
     }
 
@@ -270,11 +272,11 @@ impl<'a> LimitState<'a> {
     }
 
     pub fn accepted(&mut self) {
-        self.acceptions_rejections.0 += 1;
+        self.accepts_rejections.0 += 1;
     }
 
     pub fn rejected(&mut self) {
-        self.acceptions_rejections.1 += 1;
+        self.accepts_rejections.1 += 1;
     }
 }
 
@@ -289,11 +291,11 @@ impl<'a> Drop for LimitState<'a> {
             id = self.id
         );
         metric!(
-            counter(CardinalityLimiterCounters::Accepted) += self.acceptions_rejections.0,
+            counter(CardinalityLimiterCounters::Accepted) += self.accepts_rejections.0,
             id = self.id
         );
         metric!(
-            counter(CardinalityLimiterCounters::Rejected) += self.acceptions_rejections.1,
+            counter(CardinalityLimiterCounters::Rejected) += self.accepts_rejections.1,
             id = self.id
         );
     }
