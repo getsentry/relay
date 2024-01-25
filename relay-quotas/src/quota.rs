@@ -307,8 +307,8 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
-        if let Some(ns) = self.namespace {
-            if Some(ns) != scoping.namespace {
+        if let ns @ Some(_) = self.namespace {
+            if ns != scoping.namespace {
                 return false;
             }
         }
@@ -335,8 +335,6 @@ impl Quota {
         self.matches_scope(scoping) && scoping.matches_categories(&self.categories)
     }
 }
-
-/*
 
 #[cfg(test)]
 mod tests {
@@ -547,6 +545,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.is_valid());
@@ -562,6 +561,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(!quota.is_valid());
@@ -577,6 +577,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.is_valid());
@@ -592,6 +593,7 @@ mod tests {
             limit: Some(1000),
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         // This category is limited and counted, but has multiple units.
@@ -608,6 +610,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         // This category is unlimited and counted, but has multiple units.
@@ -624,6 +627,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -633,7 +637,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -647,6 +652,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(!quota.matches(ItemScoping {
@@ -656,7 +662,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -670,6 +677,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -679,7 +687,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -689,7 +698,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -703,6 +713,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(!quota.matches(ItemScoping {
@@ -712,7 +723,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -726,6 +738,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -735,7 +748,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -745,7 +759,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -759,6 +774,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -768,7 +784,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -778,7 +795,8 @@ mod tests {
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -792,6 +810,7 @@ mod tests {
             limit: None,
             window: None,
             reason_code: None,
+            namespace: None,
         };
 
         assert!(quota.matches(ItemScoping {
@@ -801,7 +820,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -811,7 +831,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(0),
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!quota.matches(ItemScoping {
@@ -821,9 +842,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 }
-
-*/

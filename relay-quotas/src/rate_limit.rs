@@ -345,8 +345,6 @@ impl<'a> IntoIterator for &'a RateLimits {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use smallvec::smallvec;
@@ -415,7 +413,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -425,7 +424,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -445,7 +445,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -455,7 +456,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -475,7 +477,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -485,7 +488,8 @@ mod tests {
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -507,7 +511,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
 
         assert!(!rate_limit.matches(ItemScoping {
@@ -517,7 +522,8 @@ mod tests {
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("deadbeefdeadbeefdeadbeefdeadbeef").unwrap(),
                 key_id: None,
-            }
+            },
+            namespace: None,
         }));
     }
 
@@ -754,6 +760,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            namespace: None,
         });
 
         // Check that the error limit is applied
@@ -801,6 +808,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            namespace: None,
         };
 
         let quotas = &[Quota {
@@ -811,6 +819,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: Some(ReasonCode::new("zero")),
+            namespace: None,
         }];
 
         let applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
@@ -883,5 +892,3 @@ mod tests {
         "#);
     }
 }
-
-*/

@@ -298,8 +298,6 @@ impl RedisRateLimiter {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -336,6 +334,7 @@ mod tests {
                 limit: Some(0),
                 window: None,
                 reason_code: Some(ReasonCode::new("get_lost")),
+                namespace: None,
             },
             Quota {
                 id: Some("42".to_owned()),
@@ -345,6 +344,7 @@ mod tests {
                 limit: None,
                 window: Some(42),
                 reason_code: Some(ReasonCode::new("unlimited")),
+                namespace: None,
             },
         ];
 
@@ -356,6 +356,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -385,6 +386,7 @@ mod tests {
             limit: Some(5),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -395,6 +397,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -432,6 +435,7 @@ mod tests {
             limit: Some(5),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -442,6 +446,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -479,6 +484,7 @@ mod tests {
             limit: Some(1),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -489,6 +495,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -528,6 +535,7 @@ mod tests {
             limit: Some(2),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -538,6 +546,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -581,6 +590,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limits: Vec<RateLimit> = build_rate_limiter()
@@ -603,6 +613,7 @@ mod tests {
                 limit: None,
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota0")),
+                namespace: None,
             },
             Quota {
                 id: Some("q1".to_string()),
@@ -612,6 +623,7 @@ mod tests {
                 limit: Some(1),
                 window: Some(1),
                 reason_code: Some(ReasonCode::new("project_quota1")),
+                namespace: None,
             },
         ];
 
@@ -623,6 +635,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -660,6 +673,7 @@ mod tests {
             limit: Some(500),
             window: Some(60),
             reason_code: Some(ReasonCode::new("get_lost")),
+            namespace: None,
         }];
 
         let scoping = ItemScoping {
@@ -670,6 +684,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
             },
+            namespace: None,
         };
 
         let rate_limiter = build_rate_limiter();
@@ -707,6 +722,7 @@ mod tests {
             window: Some(2),
             limit: Some(0),
             reason_code: None,
+            namespace: None,
         };
 
         let scoping = ItemScoping {
@@ -717,6 +733,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
+            namespace: None,
         };
 
         let timestamp = UnixTimestamp::from_secs(123_123_123);
@@ -734,6 +751,7 @@ mod tests {
             window: Some(10),
             limit: Some(0),
             reason_code: None,
+            namespace: None,
         };
 
         let scoping = ItemScoping {
@@ -744,6 +762,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
+            namespace: None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
@@ -761,6 +780,7 @@ mod tests {
             window: Some(10),
             limit: Some(9223372036854775808), // i64::MAX + 1
             reason_code: None,
+            namespace: None,
         };
 
         let scoping = ItemScoping {
@@ -771,6 +791,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
             },
+            namespace: None,
         };
 
         let timestamp = UnixTimestamp::from_secs(234_531);
@@ -891,5 +912,3 @@ mod tests {
         );
     }
 }
-
-*/

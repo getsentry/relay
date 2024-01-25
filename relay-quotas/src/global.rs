@@ -253,8 +253,6 @@ impl Default for GlobalRateLimit {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -284,6 +282,7 @@ mod tests {
             window: Some(window),
             limit: limit.into(),
             reason_code: None,
+            namespace: None,
         }
     }
 
@@ -300,6 +299,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::MetricBucket,
             scoping,
+            namespace: None,
         };
         RedisQuota::new(quota, scoping, UnixTimestamp::now()).unwrap()
     }
@@ -405,6 +405,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &scoping,
+            namespace: None,
         };
         let redis_quota = RedisQuota::new(&quota, scoping, ts).unwrap();
 
@@ -433,6 +434,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: &build_scoping(),
+            namespace: None,
         };
         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
 
@@ -461,5 +463,3 @@ mod tests {
             .unwrap());
     }
 }
-
-*/

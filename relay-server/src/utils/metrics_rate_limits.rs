@@ -329,8 +329,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -392,6 +390,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         }];
         let (outcome_sink, mut rx) = Addr::custom();
 
@@ -480,6 +479,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         }];
         let (outcome_sink, mut rx) = Addr::custom();
 
@@ -524,5 +524,3 @@ mod tests {
         );
     }
 }
-
-*/
