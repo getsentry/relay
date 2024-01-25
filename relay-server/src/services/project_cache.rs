@@ -916,11 +916,13 @@ impl ProjectCacheBroker {
         let keys = self.index.keys().cloned().collect::<Box<[_]>>();
 
         for project_key in keys.iter() {
-            if self
-                .projects
-                .get(project_key)
-                .map_or(false, |state| state.valid_state().is_some())
-            {
+            if self.projects.get_mut(project_key).map_or(false, |project| {
+                // Returns `Some` if the project is cache otherwise None and also triggers refresh
+                // in background.
+                project
+                    .get_cached_state(self.services.project_cache.clone(), false)
+                    .is_some()
+            }) {
                 // Do *not* attempt to unspool if there are more permits are assigned than low
                 // watermark indicates.
                 if !self.buffer_guard.is_below_low_watermark() {
