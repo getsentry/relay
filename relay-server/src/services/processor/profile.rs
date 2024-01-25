@@ -27,7 +27,7 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
             // Drop profile without a transaction in the same envelope.
-            let profile_allowed = transaction_count > 0 || matches!(item.sampled(), Some(false));
+            let profile_allowed = transaction_count > 0 || !item.sampled();
             if !profile_allowed {
                 return ItemAction::DropSilently;
             }
