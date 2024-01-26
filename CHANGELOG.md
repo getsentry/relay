@@ -15,6 +15,7 @@
 - Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
 - Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
 - Add possiblity to block metrics or their tags with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954), [#2973](https://github.com/getsentry/relay/pull/2973))
+- Forward profiles of non-sampled transactions. ([#2940](https://github.com/getsentry/relay/pull/2940))
 - Enable throttled periodic unspool of the buffered envelopes. ([#2993](https://github.com/getsentry/relay/pull/2993))
 
 **Bug Fixes**:

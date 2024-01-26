@@ -1163,7 +1163,11 @@ impl EnvelopeProcessorService {
             self.extract_metrics(state)?;
         }
 
-        dynamic_sampling::sample_envelope_items(state);
+        dynamic_sampling::sample_envelope_items(
+            state,
+            &self.inner.config,
+            &self.inner.global_config.current(),
+        );
 
         if_processing!(self.inner.config, {
             event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1183,11 +1187,8 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Processes standalone attachments.
-    fn process_standalone_attachments(
-        &self,
-        state: &mut ProcessEnvelopeState,
-    ) -> Result<(), ProcessingError> {
+    /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
+    fn process_standalone(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         profile::filter(state);
 
         if_processing!(self.inner.config, {
@@ -1307,7 +1308,11 @@ impl EnvelopeProcessorService {
                 self.extract_metrics(state)?;
             }
 
-            dynamic_sampling::sample_envelope_items(state);
+            dynamic_sampling::sample_envelope_items(
+                state,
+                &self.inner.config,
+                &self.inner.global_config.current(),
+            );
 
             if_processing!(self.inner.config, {
                 event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
@@ -1349,7 +1354,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Error => self.process_errors(state)?,
             ProcessingGroup::Transaction => self.process_transactions(state)?,
             ProcessingGroup::Session => self.process_sessions(state)?,
-            ProcessingGroup::Standalone => self.process_standalone_attachments(state)?,
+            ProcessingGroup::Standalone => self.process_standalone(state)?,
             ProcessingGroup::ClientReport => self.process_client_reports(state)?,
             ProcessingGroup::Replay => self.process_replays(state)?,
             ProcessingGroup::CheckIn => self.process_checkins(state)?,

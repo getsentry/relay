@@ -3941,6 +3941,7 @@ dependencies = [
  "minidump",
  "multer",
  "once_cell",
+ "rand",
  "regex",
  "relay-auth",
  "relay-aws-extension",

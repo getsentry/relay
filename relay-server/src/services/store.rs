@@ -16,6 +16,7 @@ use relay_config::Config;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
+
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
@@ -722,6 +723,10 @@ impl StoreService {
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            headers: BTreeMap::from([(
+                "sampled".to_string(),
+                if item.sampled() { "true" } else { "false" }.to_owned(),
+            )]),
             payload: item.payload(),
         };
         self.produce(
@@ -1163,6 +1168,8 @@ struct ProfileKafkaMessage {
     project_id: ProjectId,
     key_id: Option<u64>,
     received: u64,
+    #[serde(skip)]
+    headers: BTreeMap<String, String>,
     payload: Bytes,
 }
 
@@ -1344,12 +1351,21 @@ impl Message for KafkaMessage<'_> {
     }
 
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
-        if let KafkaMessage::Metric { headers, .. } = &self {
-            if !headers.is_empty() {
-                return Some(headers);
+        match &self {
+            KafkaMessage::Metric { headers, .. } => {
+                if !headers.is_empty() {
+                    return Some(headers);
+                }
+                None
             }
+            KafkaMessage::Profile(profile) => {
+                if !profile.headers.is_empty() {
+                    return Some(&profile.headers);
+                }
+                None
+            }
+            _ => None,
         }
-        None
     }
 
     /// Serializes the message into its binary format.
