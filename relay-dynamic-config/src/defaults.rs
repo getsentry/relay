@@ -53,7 +53,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    config.metrics.extend(span_metrics(todo!()));
+    config.metrics.extend(span_metrics());
 
     config._span_metrics_extended = true;
     if config.version == 0 {
@@ -62,7 +62,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 }
 
 /// Metrics with tags applied as required.
-fn span_metrics(usage_metric: bool) -> impl IntoIterator<Item = MetricSpec> {
+fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !(RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.op", DISABLED_DATABASES)
@@ -104,18 +104,12 @@ fn span_metrics(usage_metric: bool) -> impl IntoIterator<Item = MetricSpec> {
     let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    let usage_condition = if usage_metric {
-        RuleCondition::all()
-    } else {
-        RuleCondition::never()
-    };
-
     [
         MetricSpec {
             category: DataCategory::Span,
             mri: "c:spans/usage@none".into(),
             field: None,
-            condition: Some(usage_condition & duration_condition.clone()), // same as for count_per_op
+            condition: Some(duration_condition.clone()), // same as for count_per_op
             tags: vec![],
         },
         MetricSpec {

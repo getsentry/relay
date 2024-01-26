@@ -6,7 +6,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
     normalize_measurements, DynamicMeasurementsConfig, MeasurementsConfig,
@@ -26,7 +26,7 @@ use crate::utils::ItemAction;
 pub fn process(
     state: &mut ProcessEnvelopeState,
     config: Arc<Config>,
-    global_measurements_config: Option<&MeasurementsConfig>,
+    global_config: &GlobalConfig,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -37,7 +37,7 @@ pub fn process(
     let normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
-        global_measurements_config,
+        global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
     );
 
@@ -72,7 +72,8 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            let metrics = extract_metrics(span, config);
+            let global_options = global_config.options.as_ref();
+            let metrics = extract_metrics(span, config, global_options);
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }

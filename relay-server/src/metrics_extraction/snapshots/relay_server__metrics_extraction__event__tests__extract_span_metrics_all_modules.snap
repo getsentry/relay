@@ -6,15 +6,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -27,11 +18,14 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
         ),
-        tags: {},
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -48,11 +42,14 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
         ),
-        tags: {},
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -69,11 +66,14 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
         ),
-        tags: {},
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -90,11 +90,14 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
         ),
-        tags: {},
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -111,15 +114,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -132,15 +126,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -149,99 +134,6 @@ expression: metrics
             "span.category": "http",
             "span.op": "http.client",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "http",
-            "span.op": "http.client",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "http",
-            "span.op": "http.client",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "http",
-            "span.op": "http.client",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "http",
-            "span.op": "http.client",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -299,15 +191,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -356,15 +239,6 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -414,15 +288,6 @@ expression: metrics
             "span.op": "db.sql.query",
             "span.system": "postgresql",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -480,15 +345,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -533,15 +389,6 @@ expression: metrics
             "span.category": "db",
             "span.op": "db",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -599,15 +446,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -661,15 +499,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -715,15 +544,6 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -777,15 +597,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -833,15 +644,6 @@ expression: metrics
             "span.op": "db",
             "span.system": "mydatabase",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -858,11 +660,14 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
+        name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
         ),
-        tags: {},
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -879,15 +684,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -896,36 +692,6 @@ expression: metrics
             "span.category": "db",
             "span.op": "db.redis",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/count_per_op@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {
-            "span.category": "db",
-            "span.op": "db.redis",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1597976302),
@@ -979,15 +745,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1597976302),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1035,15 +792,6 @@ expression: metrics
             "span.category": "resource",
             "span.op": "resource.script",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1694732408),
@@ -1159,15 +907,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
@@ -1211,15 +950,6 @@ expression: metrics
             "span.category": "resource",
             "span.op": "resource.script",
         },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1702474613),
-        width: 0,
-        name: "c:spans/usage@none",
-        value: Counter(
-            1.0,
-        ),
-        tags: {},
     },
     Bucket {
         timestamp: UnixTimestamp(1702474613),
