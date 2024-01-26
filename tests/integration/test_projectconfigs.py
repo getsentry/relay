@@ -389,6 +389,16 @@ def test_get_global_config(mini_sentry, relay):
     relay_config = {
         "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
     }
+
+    mini_sentry.global_config = {
+        "measurements": {
+            "builtinMeasurements": [
+                {"name": "app_start_cold", "unit": "millisecond"},
+                {"name": "app_start_warm", "unit": "millisecond"},
+            ],
+            "maxCustomMeasurements": 10,
+        }
+    }
     relay = relay(mini_sentry, relay_config, wait_health_check=True)
     mini_sentry.add_full_project_config(project_key)
 
@@ -396,4 +406,4 @@ def test_get_global_config(mini_sentry, relay):
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
     data = get_response(relay, packed, signature, version="3")
 
-    assert data["global"] == GLOBAL_CONFIG
+    assert data["global"] == mini_sentry.global_config

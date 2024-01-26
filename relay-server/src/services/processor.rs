@@ -46,6 +46,7 @@ use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
+    relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -1811,8 +1812,6 @@ impl EnvelopeProcessorService {
         buckets: Vec<Bucket>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
-        use relay_dynamic_config::CardinalityLimiterMode;
-
         let global_config = self.inner.global_config.current();
         let cardinality_limiter_mode = global_config.cardinality_limiter_mode();
 
