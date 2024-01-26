@@ -2826,7 +2826,7 @@
         <span class="kw">if </span>tag_block.name.is_match(<span class="kw-2">&amp;</span>bucket.name) {
             bucket
                 .tags
-                .retain(|tag_key, <span class="kw">_</span>| !tag_block.tag.is_match(tag_key));
+                .retain(|tag_key, <span class="kw">_</span>| !tag_block.tags.is_match(tag_key));
         }
     }
 }
@@ -3166,7 +3166,7 @@
         <span class="kw">let </span>metric_config = Metrics {
             denied_tags: <span class="macro">vec!</span>[TagBlock {
                 name: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;foobar&quot;</span>.to_string()]),
-                tag: GlobPatterns::new(<span class="macro">vec!</span>[tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(<span class="macro">vec!</span>[tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };
@@ -3192,7 +3192,7 @@
             denied_tags: <span class="macro">vec!</span>[TagBlock {
                 <span class="comment">// barfoo doesn&#39;t batch the &#39;foobar&#39; bucket
                 </span>name: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;barfoo&quot;</span>.to_string()]),
-                tag: GlobPatterns::new(<span class="macro">vec!</span>[tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(<span class="macro">vec!</span>[tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };
