@@ -1960,9 +1960,10 @@ def test_global_rate_limit_by_namespace(
     global_reason_code = "global rate limit hit"
     transaction_reason_code = "global rate limit for transactions hit"
 
+    unique_id = str(uuid.uuid4())
     projectconfig["config"]["quotas"] = [
         {
-            "id": "global rate limit" + str(uuid.uuid4()),
+            "id": "testlimit" + unique_id,
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
@@ -1970,7 +1971,7 @@ def test_global_rate_limit_by_namespace(
             "reasonCode": global_reason_code,
         },
         {
-            "id": "transaction rate limit" + str(uuid.uuid4()),
+            "id": "testlimit" + unique_id,
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": transaction_limit,
@@ -1982,21 +1983,26 @@ def test_global_rate_limit_by_namespace(
     ts = datetime.utcnow().timestamp()
 
     def send_buckets(n, name, value):
-        buckets = [
-            {
-                "org_id": 1,
-                "project_id": project_id,
-                "timestamp": ts,
-                "name": name,
-                "type": "d",
-                "value": value,
-                "width": bucket_interval,
-                "tags": {"foo": str(i)},
-            }
-            for i in range(n)
-        ]
+        for i in range(n):
+            bucket = [
+                {
+                    "org_id": 1,
+                    "project_id": project_id,
+                    "timestamp": ts,
+                    "name": name,
+                    "type": "d",
+                    "value": value,
+                    "width": bucket_interval,
+                    "tags": {"foo": str(i)},
+                }
+            ]
 
-        relay.send_metrics_buckets(project_id, buckets)
+            envelope = Envelope()
+            envelope.add_item(
+                Item(payload=PayloadRef(json=bucket), type="metric_buckets")
+            )
+            relay.send_envelope(project_id, envelope)
+
         time.sleep(5)
 
     transaction_name = "d:transactions/measurements.lcp@millisecond"
@@ -2005,17 +2011,31 @@ def test_global_rate_limit_by_namespace(
     session_name = "d:sessions/session@none"
     session_value = 1
 
-    # send one too many transaction
-    send_buckets(transaction_limit + 1, transaction_name, transaction_value)
+    # Send as many transcations as we can.
+    send_buckets(transaction_limit - 1, transaction_name, transaction_value)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    print(outcomes)
+    assert len(outcomes) == 0
+    assert outcomes[0]["reason"] == transaction_reason_code
+
+    send_buckets(1, transaction_name, transaction_value)
 
     # assert we hit the transaction throughput limit configured.
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == transaction_reason_code
 
-    # Send one too many sesssion counts than the configured global limit.
+    # Fill up the global limit
     global_quota_remaining = metric_bucket_limit - transaction_limit
-    send_buckets(global_quota_remaining + 1, session_name, session_value)
+    send_buckets(global_quota_remaining, session_name, session_value)
+
+    # Assert we didn't get ratelimited
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+
+    # Send more than we have of global quota.
+    send_buckets(1, session_name, session_value)
 
     # Assert we hit the global limit
     outcomes = outcomes_consumer.get_outcomes()

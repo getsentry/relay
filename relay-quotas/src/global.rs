@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use crate::{QuotaScope, RedisQuota};
@@ -30,24 +31,30 @@ impl GlobalRateLimits {
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, RedisError> {
+        dbg!(&quota);
+        dbg!(quantity);
         let keys = KeyRef::new(quota);
+        dbg!(&keys);
 
         let mut should_ratelimit = false;
 
         for key in keys {
             let val = {
                 let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
+                dbg!(&key);
+                dbg!(limits.contains_key(&key));
                 Arc::clone(limits.entry_ref(&key).or_default())
             };
 
             let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
+            dbg!(&val);
 
             if val.is_rate_limited(client, quota, key, quantity as u64)? {
                 should_ratelimit = true;
             }
         }
 
-        Ok(should_ratelimit)
+        dbg!(Ok(should_ratelimit))
     }
 }
 
@@ -71,6 +78,7 @@ impl From<&KeyRef<'_>> for Key {
     }
 }
 
+#[derive(Debug)]
 struct RedisKey(String);
 
 impl RedisKey {
@@ -88,7 +96,7 @@ impl RedisKey {
 /// Used to look up a hashmap of [`keys`](Key) without a string allocation.
 ///
 /// This works due to the [`hashbrown::Equivalent`] trait.
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash, Debug)]
 struct KeyRef<'a> {
     prefix: &'a str,
     window: u64,
@@ -150,6 +158,7 @@ impl hashbrown::Equivalent<Key> for KeyRef<'_> {
 /// a global counter. We put the amount we pre-incremented into this local cache and count down until
 /// we have no more budget, then we ask for more from Redis. If we find the global counter is above
 /// the quota limit, we will ratelimit the item.
+#[derive(Debug)]
 struct GlobalRateLimit {
     budget: u64,
     last_seen_redis_value: u64,
@@ -194,7 +203,8 @@ impl GlobalRateLimit {
         }
 
         let redis_key = key.redis_key(quota_slot);
-        let reserved = self.try_reserve(client, quantity, quota, redis_key)?;
+        let reserved = dbg!(self.try_reserve(client, quantity, quota, redis_key)?);
+        dbg!(self.budget);
         self.budget += reserved;
 
         if self.budget >= quantity {
@@ -212,17 +222,24 @@ impl GlobalRateLimit {
         quota: &RedisQuota,
         redis_key: RedisKey,
     ) -> Result<u64, RedisError> {
+        dbg!(&self);
+        dbg!(&redis_key);
+
         let min_required_budget = quantity.saturating_sub(self.budget);
         let max_available_budget = quota
             .limit
             .unwrap_or(u64::MAX)
             .saturating_sub(self.last_seen_redis_value);
 
+        dbg!(min_required_budget);
+        dbg!(max_available_budget);
+
         if min_required_budget > max_available_budget {
             return Ok(0);
         }
 
         let budget_to_reserve = min_required_budget.max(self.default_request_size(quantity, quota));
+        dbg!(budget_to_reserve);
 
         let (budget, value): (u64, u64) = load_global_lua_script()
             .prepare_invoke()
