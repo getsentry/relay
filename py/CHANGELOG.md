@@ -3,8 +3,11 @@
 ## Unreleased
 
 - Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+- Add ability to block metric tags matching a glob pattern. ([#2973](https://github.com/getsentry/relay/pull/2973))
 
 ## 0.8.44
+
+- Add ability to block metrics matching a glob pattern. ([#2954](https://github.com/getsentry/relay/pull/2954))
 
 ### Various fixes & improvements
 
