@@ -1100,7 +1100,8 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                validate_transaction(event, &tx_validation_config)?;
+                validate_transaction(event, &tx_validation_config)
+                    .map_err(|_| ProcessingError::InvalidTransaction)?;
                 validate_event_timestamps(event, &event_validation_config)
                     .map_err(|_| ProcessingError::InvalidTransaction)?;
                 normalize_event(event, &normalization_config);
