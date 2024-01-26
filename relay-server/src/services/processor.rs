@@ -1811,6 +1811,15 @@ impl EnvelopeProcessorService {
         buckets: Vec<Bucket>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
+        use relay_dynamic_config::CardinalityLimiterMode;
+
+        let global_config = self.inner.global_config.current();
+        let cardinality_limiter_mode = global_config.cardinality_limiter_mode();
+
+        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
+            return buckets;
+        }
+
         let Some(ref limiter) = self.inner.cardinality_limiter else {
             return buckets;
         };
@@ -1831,6 +1840,10 @@ impl EnvelopeProcessorService {
                 return buckets;
             }
         };
+
+        if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
+            return limits.into_source();
+        }
 
         // Log outcomes for rejected buckets.
         utils::reject_metrics(

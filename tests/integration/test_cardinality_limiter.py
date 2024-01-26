@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from .test_metrics import metrics_by_name
+from .fixtures.mini_sentry import GLOBAL_CONFIG
 
 TEST_CONFIG = {
     "aggregator": {
@@ -75,3 +76,17 @@ def test_cardinality_limits(mini_sentry, relay_with_processing, metrics_consumer
     assert len(metrics["custom"]) == 2
     assert len(metrics["sessions"]) == 1
     assert len(metrics["transactions"]) == 1
+
+
+@mock.patch.dict(
+    GLOBAL_CONFIG,
+    {
+        "options": {
+            "relay.cardinality-limiter.mode": "passive",
+        }
+    },
+)
+def test_cardinality_limits_passive(
+    mini_sentry, relay_with_processing, metrics_consumer
+):
+    pass

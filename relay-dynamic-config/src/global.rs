@@ -38,6 +38,14 @@ impl GlobalConfig {
             Ok(None)
         }
     }
+
+    /// Returns the [`Options::cardinality_limiter_mode`] option.
+    pub fn cardinality_limiter_mode(&self) -> CardinalityLimiterMode {
+        self.options
+            .as_ref()
+            .map(|o| o.cardinality_limiter_mode)
+            .unwrap_or_default()
+    }
 }
 
 /// All options passed down from Sentry to Relay.
@@ -58,9 +66,27 @@ pub struct Options {
     #[serde(rename = "profiling.profile_metrics.unsampled_profiles.enabled")]
     pub unsampled_profiles_enabled: bool,
 
+    /// Kill switch for controlling the cardinality limiter.
+    #[serde(rename = "relay.cardinality-limiter.mode")]
+    pub cardinality_limiter_mode: CardinalityLimiterMode,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
+}
+
+/// Kill switch for controlling the cardinality limiter.
+#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub enum CardinalityLimiterMode {
+    /// Cardinality limiter is enabled.
+    #[default]
+    Enabled,
+    /// Cardinality limiter is enabled but no actions are taken.
+    Passive,
+    /// Cardinality limiter is disabled.
+    Disabled,
 }
 
 #[cfg(test)]
