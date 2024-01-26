@@ -270,7 +270,9 @@ pub struct Quota {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<u64>,
 
+    /// The namespace the quota applies to.
     ///
+    /// If `None`, it will match any namespace.
     pub namespace: Option<MetricNamespace>,
 
     /// A machine readable reason returned when this quota is exceeded. Required in all cases except
