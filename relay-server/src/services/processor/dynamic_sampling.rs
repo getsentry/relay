@@ -5,16 +5,17 @@ use std::ops::ControlFlow;
 use chrono::Utc;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
+use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
-use crate::services::processor::ProcessEnvelopeState;
-use crate::utils::{self, SamplingResult};
+use crate::services::processor::{profile, ProcessEnvelopeState};
+use crate::utils::{self, ItemAction, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -96,17 +97,31 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn sample_envelope_items(state: &mut ProcessEnvelopeState) {
+pub fn sample_envelope_items(
+    state: &mut ProcessEnvelopeState,
+    config: &Config,
+    global_config: &GlobalConfig,
+) {
     if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
         // We assume that sampling is only supposed to work on transactions.
-        if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
+        let Some(event) = state.event.value() else {
+            return;
+        };
+        if event.ty.value() == Some(&EventType::Transaction) && sampling_match.should_drop() {
+            let unsampled_profiles_enabled = forward_unsampled_profiles(state, global_config);
+
             let matched_rules = sampling_match.into_matched_rules();
-
             let outcome = Outcome::FilteredSampling(matched_rules.clone());
-            state
-                .managed_envelope
-                .retain_items(|_| utils::ItemAction::Drop(outcome.clone()));
-
+            state.managed_envelope.retain_items(|item| {
+                if unsampled_profiles_enabled && item.ty() == &ItemType::Profile {
+                    item.set_sampled(false);
+                    // Transfer metadata to the profile before the transaction gets dropped:
+                    let (_, item_action) = profile::expand_profile(item, event, config);
+                    item_action
+                } else {
+                    ItemAction::Drop(outcome.clone())
+                }
+            });
             // The event is no longer in the envelope, so we need to handle it separately:
             state.reject_event(outcome);
         }
@@ -224,6 +239,32 @@ pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config
         relay_log::trace!("tagged error with `sampled = {}` flag", sampled);
         context.sampled = Annotated::new(sampled);
     }
+}
+
+/// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
+fn forward_unsampled_profiles(state: &ProcessEnvelopeState, global_config: &GlobalConfig) -> bool {
+    let Some(global_options) = &global_config.options else {
+        return false;
+    };
+
+    if !global_options.unsampled_profiles_enabled {
+        return false;
+    }
+
+    let event_platform = state
+        .event
+        .value()
+        .and_then(|e| e.platform.as_str())
+        .unwrap_or("");
+
+    state
+        .project_state
+        .has_feature(Feature::IngestUnsampledProfiles)
+        && global_options
+            .profile_metrics_allowed_platforms
+            .iter()
+            .any(|s| s == event_platform)
+        && rand::random::<f32>() < global_options.profile_metrics_sample_rate
 }
 
 #[cfg(test)]

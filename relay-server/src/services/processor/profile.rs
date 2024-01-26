@@ -1,14 +1,15 @@
 //! Profiles related processor code.
 
 #[cfg(feature = "processing")]
-use {crate::envelope::ContentType, relay_config::Config, relay_dynamic_config::Feature};
+use relay_dynamic_config::Feature;
 
 use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::{Contexts, ProfileContext};
-use relay_profiling::ProfileError;
+use relay_config::Config;
+use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
+use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::Annotated;
 
-use crate::envelope::ItemType;
+use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::ItemAction;
@@ -23,10 +24,14 @@ pub fn filter(state: &mut ProcessEnvelopeState) {
         .count();
     let mut profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {
-        // Drop profile without a transaction in the same envelope.
-        ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
+            // Drop profile without a transaction in the same envelope.
+            let profile_allowed = transaction_count > 0 || !item.sampled();
+            if !profile_allowed {
+                return ItemAction::DropSilently;
+            }
+
             match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
                 Ok(id) => {
                     profile_id = Some(id);
@@ -77,24 +82,9 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
             let Some(event) = state.event.value() else {
                 return ItemAction::DropSilently;
             };
-            match relay_profiling::expand_profile(&item.payload(), event) {
-                Ok((profile_id, payload)) => {
-                    if payload.len() <= config.max_profile_size() {
-                        found_profile_id = Some(profile_id);
-                        item.set_payload(ContentType::Json, payload);
-                        ItemAction::Keep
-                    } else {
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(
-                                relay_profiling::ProfileError::ExceedSizeLimit,
-                            ),
-                        )))
-                    }
-                }
-                Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
-                ))),
-            }
+            let (profile_id, action) = expand_profile(item, event, config);
+            found_profile_id = profile_id;
+            action
         }
         _ => ItemAction::Keep,
     });
@@ -108,6 +98,32 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
             }
         }
     }
+}
+
+/// Transfers transaction metadata to profile and check its size.
+pub fn expand_profile(
+    item: &mut Item,
+    event: &Event,
+    config: &Config,
+) -> (Option<ProfileId>, ItemAction) {
+    let mut profile_id = None;
+    let item_action = match relay_profiling::expand_profile(&item.payload(), event) {
+        Ok((id, payload)) => {
+            profile_id = Some(id);
+            if payload.len() <= config.max_profile_size() {
+                item.set_payload(ContentType::Json, payload);
+                ItemAction::Keep
+            } else {
+                ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                    relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
+                )))
+            }
+        }
+        Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+            relay_profiling::discard_reason(err),
+        ))),
+    };
+    (profile_id, item_action)
 }
 
 #[cfg(test)]

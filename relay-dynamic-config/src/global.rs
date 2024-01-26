@@ -45,11 +45,19 @@ impl GlobalConfig {
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Options {
-    // Example:
-    // ```rs
-    // #[serde(default, rename = "relay.some-option.name")]
-    // pub some_option: Vec<u32>,
-    // ```
+    /// List of platform names for which we allow using unsampled profiles for the purpose
+    /// of improving profile (function) metrics
+    #[serde(rename = "profiling.profile_metrics.unsampled_profiles.platforms")]
+    pub profile_metrics_allowed_platforms: Vec<String>,
+
+    /// Sample rate for tuning the amount of unsampled profiles that we "let through"
+    #[serde(rename = "profiling.profile_metrics.unsampled_profiles.sample_rate")]
+    pub profile_metrics_sample_rate: f32,
+
+    /// Kill switch for shutting down profile metrics
+    #[serde(rename = "profiling.profile_metrics.unsampled_profiles.enabled")]
+    pub unsampled_profiles_enabled: bool,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
@@ -75,6 +83,7 @@ mod tests {
             }),
             options: Some(Options {
                 other: HashMap::from([("relay.unknown".to_owned(), Value::Bool(true))]),
+                ..Default::default()
             }),
         };
 
