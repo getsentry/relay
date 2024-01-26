@@ -1929,6 +1929,12 @@ def test_span_outcomes_invalid(
     assert outcomes == expected_outcomes, outcomes
 
 
+# lets goo
+# first, hit the namespace ratelimit with transactions or smth.
+# then, show we can send a few more sessions.
+# then, hit the global limit with sessions.
+
+
 def test_global_rate_limit_by_namespace(
     mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
@@ -1959,7 +1965,7 @@ def test_global_rate_limit_by_namespace(
 
     projectconfig["config"]["quotas"] = [
         {
-            "id": "test_rate_limiting" + str(uuid.uuid4()),
+            "id": "global rate limit" + str(uuid.uuid4()),
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": metric_bucket_limit,
@@ -1967,7 +1973,7 @@ def test_global_rate_limit_by_namespace(
             "reasonCode": global_reason_code,
         },
         {
-            "id": "test_rate_limiting" + str(uuid.uuid4()),
+            "id": "transaction rate limit" + str(uuid.uuid4()),
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": transaction_limit,
@@ -2014,11 +2020,19 @@ def test_global_rate_limit_by_namespace(
 
     # send one too many transaction
     send_buckets(transaction_limit + 1, transaction_name, transaction_value)
+
+    # assert we hit the transaction throughput limit configured.
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == transaction_reason_code
+
+    global_quota_remaining = metric_bucket_limit - transaction_limit
+    send_buckets(global_quota_remaining, session_name, session_value)
+
     assert_metrics_outcomes(transaction_limit, 1, transaction_reason_code)
 
     rest = metric_bucket_limit - transaction_limit
     send_buckets(rest, session_name, session_value)
-    assert_metrics_outcomes(rest + 1, 1, global_reason_code)
 
     # Send more once the limit is hit and make sure they are rejected.
     for _ in range(2):
