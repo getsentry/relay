@@ -284,7 +284,12 @@ mod tests {
         let (outcome_aggregator, test_store) = testutils::processor_services();
 
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope: ManagedEnvelope::standalone(
+                envelope,
+                outcome_aggregator,
+                test_store,
+                ProcessingGroup::Transaction,
+            ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),

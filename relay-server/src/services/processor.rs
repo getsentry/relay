@@ -121,6 +121,8 @@ pub enum ProcessingGroup {
     CheckIn,
     /// Spans.
     Span,
+    /// Metrics.
+    Metrics,
     /// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
     ForwardUnknown,
@@ -1265,12 +1267,20 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Replay => self.process_replays(state)?,
             ProcessingGroup::CheckIn => self.process_checkins(state)?,
             ProcessingGroup::Span => self.process_spans(state)?,
+            // Currently is not used.
+            ProcessingGroup::Metrics => {
+                relay_log::error!(
+                    tags.project = %state.project_id,
+                    items = ?state.envelope().items().next().map(Item::ty),
+                    "received metrics in the process_state"
+                );
+            }
             // Fallback to the legacy process_state implementation for Ungrouped events.
             ProcessingGroup::Ungrouped => {
                 relay_log::error!(
                     tags.project = %state.project_id,
                     items = ?state.envelope().items().next().map(Item::ty),
-                    "Could not identify the processing group based on the envelope's items"
+                    "could not identify the processing group based on the envelope's items"
                 );
             }
             // Leave this group unchanged.
@@ -1595,6 +1605,7 @@ impl EnvelopeProcessorService {
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
+            ProcessingGroup::ClientReport,
         );
         self.handle_submit_envelope(SubmitEnvelope { envelope });
     }
@@ -1845,6 +1856,7 @@ impl EnvelopeProcessorService {
                         envelope,
                         self.inner.outcome_aggregator.clone(),
                         self.inner.test_store.clone(),
+                        ProcessingGroup::Metrics,
                     );
                     envelope.set_partition_key(partition_key).scope(scoping);
 
@@ -1984,6 +1996,7 @@ impl EnvelopeProcessorService {
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
+            ProcessingGroup::Metrics,
         );
         self.handle_submit_envelope(SubmitEnvelope { envelope });
     }
@@ -2516,8 +2529,15 @@ mod tests {
 
         let mut project_state = ProjectState::allowed();
         project_state.config = config;
+
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),

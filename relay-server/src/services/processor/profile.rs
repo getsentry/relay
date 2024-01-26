@@ -188,8 +188,14 @@ mod tests {
         let mut project_state = ProjectState::allowed();
         project_state.config.features.0.insert(Feature::Profiling);
 
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope = ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy(), group);
+
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy()),
+            envelope,
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
@@ -252,13 +258,12 @@ mod tests {
         let mut project_state = ProjectState::allowed();
         project_state.config.features.0.insert(Feature::Profiling);
 
-        let envelopes = ProcessingGroup::split_envelope(*envelope);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
         assert_eq!(envelopes.len(), 1);
 
-        let (group, envelope) = envelopes.first().unwrap();
-        let mut envelope =
-            ManagedEnvelope::standalone(envelope.clone(), Addr::dummy(), Addr::dummy());
-        envelope.set_processing_group(*group);
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope =
+            ManagedEnvelope::standalone(envelope.clone(), Addr::dummy(), Addr::dummy(), group);
 
         let message = ProcessEnvelope {
             envelope,
