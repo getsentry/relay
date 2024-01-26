@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- Add `raw_group` field to span indexed ([#2975](https://github.com/getsentry/relay/pull/2975))
-- Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Add `raw_domain` tag to indexed spans. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
 
 **Features**:
 

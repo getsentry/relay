@@ -345,7 +345,7 @@ pub fn extract_tags(
                     {
                         span_tags.insert(
                             SpanTagKey::RawDomain,
-                            format!("{}://{}", url_scheme, domain),
+                            format!("{}://{}", url_scheme, server_host),
                         );
                     }
                     normalize_domain(domain, port)
