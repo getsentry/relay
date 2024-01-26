@@ -58,6 +58,12 @@ pub struct Options {
     #[serde(rename = "profiling.profile_metrics.unsampled_profiles.enabled")]
     pub unsampled_profiles_enabled: bool,
 
+    /// Kill switch for disabling the span usage metric.
+    ///
+    /// This metric is converted into outcomes in a sentry-side consumer.
+    #[serde(rename = "relay.span-usage-metric")]
+    pub span_usage_metric: bool,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,

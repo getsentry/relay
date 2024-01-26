@@ -292,6 +292,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976302),
             width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
                 [
@@ -353,6 +362,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
                 [
@@ -407,6 +425,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
             },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
@@ -495,6 +522,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "c:spans/count_per_op@none",
             value: Counter(
                 1.0,
@@ -518,6 +554,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
                 [
@@ -580,6 +625,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
         Bucket {
             timestamp: UnixTimestamp(1597976303),
             width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
                 [
@@ -638,6 +692,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "release": "1.2.3",
                 "transaction": "gEt /api/:version/users/",
             },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976303),
+            width: 0,
+            name: "c:spans/usage@none",
+            value: Counter(
+                1.0,
+            ),
+            tags: {},
         },
         Bucket {
             timestamp: UnixTimestamp(1597976303),
