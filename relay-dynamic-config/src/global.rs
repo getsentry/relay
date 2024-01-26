@@ -83,7 +83,7 @@ pub enum CardinalityLimiterMode {
     /// Cardinality limiter is enabled.
     #[default]
     Enabled,
-    /// Cardinality limiter is enabled but no actions are taken.
+    /// Cardinality limiter is enabled but cardinality limits are not enforced.
     Passive,
     /// Cardinality limiter is disabled.
     Disabled,

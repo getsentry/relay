@@ -9,7 +9,6 @@ from collections import namedtuple
 import tempfile
 import os
 
-from .fixtures.mini_sentry import GLOBAL_CONFIG
 from sentry_relay.auth import PublicKey, SecretKey, generate_key_pair
 
 RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal"])
