@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from .test_metrics import metrics_by_name
-from .fixtures.mini_sentry import GLOBAL_CONFIG
 
 TEST_CONFIG = {
     "aggregator": {
@@ -78,15 +79,35 @@ def test_cardinality_limits(mini_sentry, relay_with_processing, metrics_consumer
     assert len(metrics["transactions"]) == 1
 
 
-@mock.patch.dict(
-    GLOBAL_CONFIG,
-    {
-        "options": {
-            "relay.cardinality-limiter.mode": "passive",
-        }
-    },
-)
-def test_cardinality_limits_passive(
-    mini_sentry, relay_with_processing, metrics_consumer
+@pytest.mark.parametrize("mode", [None, "enabled", "disabled", "passive"])
+def test_cardinality_limits_global_config_mode(
+    mini_sentry, relay_with_processing, metrics_consumer, mode
 ):
-    pass
+    if mode is not None:
+        mini_sentry.global_config["options"]["relay.cardinality-limiter.mode"] = mode
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    cardinality_limits = [
+        {
+            "id": "transactions",
+            "window": {"windowSeconds": 3600, "granularitySeconds": 600},
+            "limit": 1,
+            "scope": "organization",
+            "namespace": "transactions",
+        },
+    ]
+
+    add_project_config(mini_sentry, project_id, cardinality_limits)
+
+    metrics_payload = "transactions/foo@second:12|c\ntransactions/bar@second:23|c"
+    relay.send_metrics(project_id, metrics_payload)
+
+    if mode in [None, "enabled"]:
+        metrics = metrics_by_namespace(metrics_consumer, 1)
+        assert len(metrics["transactions"]) == 1
+    else:
+        metrics = metrics_by_namespace(metrics_consumer, 2)
+        assert len(metrics["transactions"]) == 2
