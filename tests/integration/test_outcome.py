@@ -1929,15 +1929,12 @@ def test_span_outcomes_invalid(
     assert outcomes == expected_outcomes, outcomes
 
 
-# lets goo
-# first, hit the namespace ratelimit with transactions or smth.
-# then, show we can send a few more sessions.
-# then, hit the global limit with sessions.
-
-
 def test_global_rate_limit_by_namespace(
     mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
+    """
+    Checks that we can hit a namespace quota first, and then have more quota left for the global limit.
+    """
     metrics_consumer = metrics_consumer()
     outcomes_consumer = outcomes_consumer()
 
@@ -2002,16 +1999,6 @@ def test_global_rate_limit_by_namespace(
         relay.send_metrics_buckets(project_id, buckets)
         time.sleep(5)
 
-    def assert_metrics_outcomes(n_metrics, n_outcomes, outcome):
-        produced_buckets = [m for m, _ in metrics_consumer.get_metrics()]
-        outcomes = outcomes_consumer.get_outcomes()
-
-        assert len(outcomes) == n_outcomes
-        assert len(produced_buckets) == n_metrics
-
-        for outcome in outcomes:
-            assert outcome["reason"] == outcome
-
     transaction_name = "d:transactions/measurements.lcp@millisecond"
     transaction_value = [1.0]
 
@@ -2026,16 +2013,11 @@ def test_global_rate_limit_by_namespace(
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == transaction_reason_code
 
+    # Send one too many sesssion counts than the configured global limit.
     global_quota_remaining = metric_bucket_limit - transaction_limit
-    send_buckets(global_quota_remaining, session_name, session_value)
+    send_buckets(global_quota_remaining + 1, session_name, session_value)
 
-    assert_metrics_outcomes(transaction_limit, 1, transaction_reason_code)
-
-    rest = metric_bucket_limit - transaction_limit
-    send_buckets(rest, session_name, session_value)
-
-    # Send more once the limit is hit and make sure they are rejected.
-    for _ in range(2):
-        send_buckets(1)
-        assert_metrics_outcomes(0, 1)
-    assert False
+    # Assert we hit the global limit
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == metric_bucket_limit
