@@ -3,6 +3,8 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
+#[cfg(feature = "processing")]
+use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
@@ -286,6 +288,15 @@ impl ProjectState {
     /// Returns quotas declared in this project state.
     pub fn get_quotas(&self) -> &[Quota] {
         self.config.quotas.as_slice()
+    }
+
+    /// Returns cardinality limits declared in this project state.
+    #[cfg(feature = "processing")]
+    pub fn get_cardinality_limits(&self) -> &[CardinalityLimit] {
+        match self.config.metrics {
+            ErrorBoundary::Ok(ref m) => m.cardinality_limits.as_slice(),
+            _ => &[],
+        }
     }
 
     /// Returns `Err` if the project is known to be invalid or disabled.
