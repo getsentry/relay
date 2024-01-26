@@ -45,7 +45,7 @@ use tokio::sync::Semaphore;
 use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_cardinality::{CardinalityLimiter, RedisSetLimiter, SlidingWindow},
+    relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -811,20 +811,10 @@ impl EnvelopeProcessorService {
                 RedisMetricMetaStore::new(pool, config.metrics_meta_locations_expiry())
             }),
             #[cfg(feature = "processing")]
-            cardinality_limiter: redis.clone().map(|pool| {
-                CardinalityLimiter::new(
-                    RedisSetLimiter::new(
-                        pool,
-                        SlidingWindow {
-                            window_seconds: config.cardinality_limiter_window(),
-                            granularity_seconds: config.cardinality_limiter_granularity(),
-                        },
-                    ),
-                    relay_cardinality::CardinalityLimiterConfig {
-                        cardinality_limit: config.cardinality_limit(),
-                    },
-                )
-            }),
+            cardinality_limiter: redis
+                .clone()
+                .map(RedisSetLimiter::new)
+                .map(CardinalityLimiter::new),
             #[cfg(feature = "processing")]
             store_forwarder,
             config,
@@ -1842,6 +1832,7 @@ impl EnvelopeProcessorService {
     fn cardinality_limit_buckets(
         &self,
         scoping: Scoping,
+        limits: &[CardinalityLimit],
         buckets: Vec<Bucket>,
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
@@ -1849,7 +1840,12 @@ impl EnvelopeProcessorService {
             return buckets;
         };
 
-        let limits = match limiter.check_cardinality_limits(scoping.organization_id, buckets) {
+        let cardinality_scope = relay_cardinality::Scoping {
+            organization_id: scoping.organization_id,
+            project_id: scoping.project_id,
+        };
+
+        let limits = match limiter.check_cardinality_limits(cardinality_scope, limits, buckets) {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
@@ -1890,9 +1886,10 @@ impl EnvelopeProcessorService {
             } = message;
 
             let mode = project_state.get_extraction_mode();
+            let limits = project_state.get_cardinality_limits();
 
             if project_state.has_feature(Feature::CardinalityLimiter) {
-                buckets = self.cardinality_limit_buckets(scoping, buckets, mode);
+                buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
             }
 
             let buckets = self.rate_limit_buckets_by_namespace(

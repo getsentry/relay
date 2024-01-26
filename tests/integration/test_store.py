@@ -491,7 +491,7 @@ def test_processing_quotas(
             relay.send_event(
                 project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
             )
-        event, _ = events_consumer.get_event()
+        event, _ = events_consumer.get_event(timeout=5)
 
         if event_type == "nel":
             assert event["logentry"]["formatted"] == "application / http.error"
@@ -1647,7 +1647,7 @@ def test_span_ingestion(
     ]
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
-    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items())))
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:
             metric["value"].sort()

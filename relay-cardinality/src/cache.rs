@@ -1,11 +1,14 @@
-use std::hash::Hash;
+use std::fmt;
 use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::OrganizationId;
+use relay_common::time::UnixTimestamp;
+
+use crate::redis::QuotaScoping;
+use crate::window::Slot;
 
 /// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
 /// this hash.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CacheOutcome {
     /// Hash accepted by cache.
     Accepted,
@@ -28,102 +31,64 @@ impl Cache {
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheRead`] must be dropped.
-    pub fn read(
-        &self,
-        organization_id: OrganizationId,
-        window: u64,
-        limit: usize,
-    ) -> CacheRead<'_> {
+    pub fn read(&self, timestamp: UnixTimestamp) -> CacheRead<'_> {
         let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
-
-        // If the window does not match, we can already release the lock.
-        if window != inner.current_window {
-            return CacheRead::noop();
-        }
-
-        CacheRead::new(inner, organization_id, limit)
+        CacheRead::new(inner, timestamp)
     }
 
     /// Acquires a write lock from the cache and returns an update handle.
     ///
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
-    pub fn update<'a>(
-        &'a self,
-        organization_id: OrganizationId,
-        item_scope: &'a str,
-        window: u64,
-    ) -> CacheUpdate<'a> {
+    pub fn update(&self, scope: QuotaScoping, timestamp: UnixTimestamp) -> CacheUpdate<'_> {
         let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
 
-        // If the window is older don't do anything and give up the lock early.
-        if window < inner.current_window {
+        let slot = scope.window.active_slot(timestamp);
+        let cache = inner.cache.entry(scope).or_default();
+
+        // If the slot is older, don't do anything and give up the lock early.
+        if slot < cache.current_slot {
             return CacheUpdate::noop();
         }
 
-        // If the window is newer then the current window, reset the cache to the new window.
-        if window > inner.current_window {
-            inner.current_window = window;
-            inner.cache.clear();
+        // If the slot is newer than the current slot, reset the cache to the new slot.
+        if slot > cache.current_slot {
+            cache.reset(slot);
         }
 
-        let key = KeyRef {
-            organization_id,
-            item_scope,
-        };
-        CacheUpdate::new(inner, key)
+        CacheUpdate::new(inner, scope)
+    }
+}
+
+impl fmt::Debug for Cache {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
+        f.debug_tuple("Cache").field(&inner.cache).finish()
     }
 }
 
 /// Cache read handle.
 ///
 /// Holds a cache read lock, the lock is released on drop.
-pub struct CacheRead<'a>(CacheReadInner<'a>);
-
-/// Internal state for [`CacheRead`].
-enum CacheReadInner<'a> {
-    Noop,
-    Cache {
-        inner: RwLockReadGuard<'a, Inner>,
-        organization_id: OrganizationId,
-        limit: usize,
-    },
+pub struct CacheRead<'a> {
+    inner: RwLockReadGuard<'a, Inner>,
+    timestamp: UnixTimestamp,
 }
 
+/// Internal state for [`CacheRead`].
 impl<'a> CacheRead<'a> {
     /// Creates a new [`CacheRead`] which reads from the cache.
-    fn new(
-        inner: RwLockReadGuard<'a, Inner>,
-        organization_id: OrganizationId,
-        limit: usize,
-    ) -> Self {
-        Self(CacheReadInner::Cache {
-            inner,
-            organization_id,
-            limit,
-        })
+    fn new(inner: RwLockReadGuard<'a, Inner>, timestamp: UnixTimestamp) -> Self {
+        Self { inner, timestamp }
     }
 
-    /// Creates a new noop [`CacheRead`] which does not require a lock.
-    fn noop() -> Self {
-        Self(CacheReadInner::Noop)
-    }
+    pub fn check(&self, scope: QuotaScoping, hash: u32, limit: u64) -> CacheOutcome {
+        let Some(cache) = self.inner.cache.get(&scope) else {
+            return CacheOutcome::Unknown;
+        };
 
-    pub fn check(&self, item_scope: &str, hash: u32) -> CacheOutcome {
-        match &self.0 {
-            CacheReadInner::Noop => CacheOutcome::Unknown,
-            CacheReadInner::Cache {
-                inner,
-                organization_id,
-                limit,
-            } => inner
-                .cache
-                .get(&KeyRef {
-                    organization_id: *organization_id,
-                    item_scope,
-                })
-                .map_or(CacheOutcome::Unknown, |s| s.check(hash, *limit)),
-        }
+        let slot = scope.window.active_slot(self.timestamp);
+        cache.check(slot, hash, limit)
     }
 }
 
@@ -137,13 +102,13 @@ enum CacheUpdateInner<'a> {
     Noop,
     Cache {
         inner: RwLockWriteGuard<'a, Inner>,
-        key: KeyRef<'a>,
+        key: QuotaScoping,
     },
 }
 
 impl<'a> CacheUpdate<'a> {
     /// Creates a new [`CacheUpdate`] which operates on the passed cache.
-    fn new(inner: RwLockWriteGuard<'a, Inner>, key: KeyRef<'a>) -> Self {
+    fn new(inner: RwLockWriteGuard<'a, Inner>, key: QuotaScoping) -> Self {
         Self(CacheUpdateInner::Cache { inner, key })
     }
 
@@ -156,7 +121,9 @@ impl<'a> CacheUpdate<'a> {
     /// item as accepted.
     pub fn accept(&mut self, hash: u32) {
         if let CacheUpdateInner::Cache { inner, key } = &mut self.0 {
-            inner.cache.entry_ref(key).or_default().insert(hash);
+            if let Some(cache) = inner.cache.get_mut(key) {
+                cache.insert(hash);
+            }
         }
     }
 }
@@ -164,23 +131,27 @@ impl<'a> CacheUpdate<'a> {
 /// Critical section of the [`Cache`].
 #[derive(Debug, Default)]
 struct Inner {
-    cache: hashbrown::HashMap<Key, ScopedCache>,
-    current_window: u64,
+    cache: hashbrown::HashMap<QuotaScoping, ScopedCache>,
 }
 
 /// Scope specific information of the cache.
 #[derive(Debug, Default)]
-struct ScopedCache(
+struct ScopedCache {
     // Uses hashbrown for a faster hasher `ahash`, benchmarks show about 10% speedup.
-    hashbrown::HashSet<u32>,
-);
+    hashes: hashbrown::HashSet<u32>,
+    current_slot: Slot,
+}
 
 impl ScopedCache {
-    fn check(&self, hash: u32, limit: usize) -> CacheOutcome {
-        if self.0.contains(&hash) {
+    fn check(&self, slot: Slot, hash: u32, limit: u64) -> CacheOutcome {
+        if slot != self.current_slot {
+            return CacheOutcome::Unknown;
+        }
+
+        if self.hashes.contains(&hash) {
             // Local cache copy contains the hash -> accept it straight away
             CacheOutcome::Accepted
-        } else if self.0.len() >= limit {
+        } else if self.hashes.len() as u64 >= limit {
             // We have more or the same amount of items in the local cache as the cardinality
             // limit -> this new item/hash is rejected.
             CacheOutcome::Rejected
@@ -191,61 +162,127 @@ impl ScopedCache {
     }
 
     fn insert(&mut self, hash: u32) {
-        self.0.insert(hash);
+        self.hashes.insert(hash);
+    }
+
+    fn reset(&mut self, slot: Slot) {
+        self.current_slot = slot;
+        self.hashes.clear();
     }
 }
 
-/// Key/scoping for the cardinality cache.
-#[derive(Debug, PartialEq, Eq)]
-struct Key {
-    organization_id: OrganizationId,
-    item_scope: String,
-}
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
 
-impl Hash for Key {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        KeyRef {
-            organization_id: self.organization_id,
-            item_scope: &self.item_scope,
+    use crate::SlidingWindow;
+
+    use super::*;
+
+    #[test]
+    fn test_cache() {
+        let cache = Cache::default();
+
+        let scope = QuotaScoping {
+            window: SlidingWindow {
+                window_seconds: 100,
+                granularity_seconds: 10,
+            },
+            namespace: None,
+            organization_id: None,
+            project_id: None,
+        };
+        let now = UnixTimestamp::now();
+        let future = now + Duration::from_secs(scope.window.granularity_seconds + 1);
+
+        {
+            let cache = cache.read(now);
+            assert_eq!(cache.check(scope, 1, 1), CacheOutcome::Unknown);
         }
-        .hash(state)
-    }
-}
 
-impl hashbrown::Equivalent<KeyRef<'_>> for Key {
-    fn equivalent(&self, key: &KeyRef<'_>) -> bool {
-        let KeyRef {
-            organization_id,
-            item_scope,
-        } = key;
+        {
+            let mut cache = cache.update(scope, now);
+            cache.accept(1);
+            cache.accept(2);
+        }
 
-        self.organization_id == *organization_id && &self.item_scope == item_scope
-    }
-}
+        {
+            let r1 = cache.read(now);
+            // All in cache, no matter the limit.
+            assert_eq!(r1.check(scope, 1, 1), CacheOutcome::Accepted);
+            assert_eq!(r1.check(scope, 1, 2), CacheOutcome::Accepted);
+            assert_eq!(r1.check(scope, 2, 1), CacheOutcome::Accepted);
 
-impl From<&KeyRef<'_>> for Key {
-    fn from(value: &KeyRef<'_>) -> Self {
-        Self {
-            organization_id: value.organization_id,
-            item_scope: value.item_scope.to_owned(),
+            // Not in cache, depends on limit and amount of items in the cache.
+            assert_eq!(r1.check(scope, 3, 3), CacheOutcome::Unknown);
+            assert_eq!(r1.check(scope, 3, 2), CacheOutcome::Rejected);
+
+            // Read concurrently from a future slot.
+            let r2 = cache.read(future);
+            assert_eq!(r2.check(scope, 1, 1), CacheOutcome::Unknown);
+            assert_eq!(r2.check(scope, 2, 2), CacheOutcome::Unknown);
+        }
+
+        {
+            // Move the cache into the future.
+            let mut cache = cache.update(scope, future);
+            cache.accept(1);
+        }
+
+        {
+            let future = cache.read(future);
+            // The future only contains `1`.
+            assert_eq!(future.check(scope, 1, 1), CacheOutcome::Accepted);
+            assert_eq!(future.check(scope, 2, 1), CacheOutcome::Rejected);
+
+            let past = cache.read(now);
+            // The cache has no information about the past.
+            assert_eq!(past.check(scope, 1, 1), CacheOutcome::Unknown);
+            assert_eq!(past.check(scope, 2, 1), CacheOutcome::Unknown);
+            assert_eq!(past.check(scope, 3, 99), CacheOutcome::Unknown);
         }
     }
-}
 
-/// A borrowed [`Key`].
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct KeyRef<'a> {
-    organization_id: OrganizationId,
-    item_scope: &'a str,
-}
+    #[test]
+    fn test_cache_different_scopings() {
+        let cache = Cache::default();
 
-impl hashbrown::Equivalent<Key> for KeyRef<'_> {
-    fn equivalent(&self, key: &Key) -> bool {
-        let Key {
-            organization_id,
-            item_scope,
-        } = key;
+        let scope1 = QuotaScoping {
+            window: SlidingWindow {
+                window_seconds: 100,
+                granularity_seconds: 10,
+            },
+            namespace: None,
+            organization_id: None,
+            project_id: None,
+        };
+        let scope2 = QuotaScoping {
+            organization_id: Some(100),
+            ..scope1
+        };
+        let now = UnixTimestamp::now();
 
-        self.organization_id == *organization_id && self.item_scope == item_scope
+        {
+            let mut cache = cache.update(scope1, now);
+            cache.accept(1);
+        }
+
+        {
+            let mut cache = cache.update(scope2, now);
+            cache.accept(1);
+            cache.accept(2);
+        }
+
+        {
+            let cache = cache.read(now);
+            assert_eq!(cache.check(scope1, 1, 99), CacheOutcome::Accepted);
+            assert_eq!(cache.check(scope1, 2, 99), CacheOutcome::Unknown);
+            assert_eq!(cache.check(scope1, 3, 99), CacheOutcome::Unknown);
+            assert_eq!(cache.check(scope2, 3, 1), CacheOutcome::Rejected);
+            assert_eq!(cache.check(scope2, 1, 99), CacheOutcome::Accepted);
+            assert_eq!(cache.check(scope2, 2, 99), CacheOutcome::Accepted);
+            assert_eq!(cache.check(scope2, 3, 99), CacheOutcome::Unknown);
+            assert_eq!(cache.check(scope2, 3, 2), CacheOutcome::Rejected);
+        }
     }
 }
