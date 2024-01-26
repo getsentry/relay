@@ -522,7 +522,7 @@ pub struct ItemHeaders {
     /// In the most common use case, the item is dropped when the sampling decision is "drop".
     /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
     /// for which the transaction was dropped as `sampled: false`.
-    #[serde(default = "true_", skip_serializing_if = "is_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     sampled: bool,
 
     /// Other attributes for forward compatibility.
@@ -530,7 +530,7 @@ pub struct ItemHeaders {
     other: BTreeMap<String, Value>,
 }
 
-fn true_() -> bool {
+fn default_true() -> bool {
     true
 }
 
