@@ -1191,7 +1191,8 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::{Arc, Mutex};
 
-    use relay_common::glob3::{GlobPattern, GlobPatterns};
+    use relay_common::glob2::LazyGlob;
+    use relay_common::glob3::GlobPatterns;
     use relay_common::time::UnixTimestamp;
     use relay_dynamic_config::TagBlock;
     use relay_metrics::BucketValue;
@@ -1510,7 +1511,7 @@ mod tests {
 
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
-                name: GlobPattern::new("foobar".to_string()),
+                name: LazyGlob::new("foobar".to_string()),
                 tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
@@ -1536,7 +1537,7 @@ mod tests {
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
                 // barfoo doesn't batch the 'foobar' bucket
-                name: GlobPattern::new("barfoo".to_string()),
+                name: LazyGlob::new("barfoo".to_string()),
                 tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
