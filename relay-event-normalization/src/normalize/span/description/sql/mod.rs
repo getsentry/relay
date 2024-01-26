@@ -709,7 +709,7 @@ mod tests {
             OR (a.id = %s AND a.org = %s)
             OR (a.id = %s AND a.org = %s)
         )"#,
-        "SELECT * FROM a WHERE status = %s AND (id = %s AND org = %s)"
+        "SELECT * FROM a WHERE status = %s AND id = %s AND org = %s"
     );
 
     scrub_sql_test!(
@@ -723,17 +723,19 @@ mod tests {
             OR (a.id = %s OR a.org = %s)
             OR (a.id = %s OR a.org = %s)
         )"#,
-        "SELECT * FROM a WHERE status = %s OR (id = %s OR org = %s)"
+        "SELECT * FROM a WHERE status = %s OR id = %s OR org = %s"
     );
 
     scrub_sql_test!(
         duplicate_conditions_or_long,
+        // Repeating conditions that violate the max query depth
+        // are simplified before applying the limit.
         {
             let repeated = ["(a.id = %s OR a.org = %s)"].repeat(64);
             let repeated = itertools::join(repeated, " OR ");
             format!("SELECT * FROM a WHERE a.status = %s OR {repeated}").as_str()
         },
-        "SELECT * FROM a WHERE status = %s OR (id = %s OR org = %s)"
+        "SELECT * FROM a WHERE status = %s OR id = %s OR org = %s"
     );
 
     scrub_sql_test!(
@@ -746,6 +748,22 @@ mod tests {
         duplicate_conditions_right,
         r#"SELECT * FROM t WHERE a = %s OR b = %s OR b = %s"#,
         "SELECT * FROM t WHERE a = %s OR b = %s"
+    );
+
+    scrub_sql_test!(
+        redudant_parentheses,
+        r#"SELECT * FROM t WHERE (
+            (a = %s AND b = %s)
+            OR
+            (a = %s AND b = %s)
+        ) AND c = %s"#,
+        "SELECT * FROM t WHERE a = %s AND b = %s AND c = %s"
+    );
+
+    scrub_sql_test!(
+        not_redudant_parentheses,
+        "SELECT * FROM t WHERE (a OR b) AND c",
+        "SELECT * FROM t WHERE (a OR b) AND c"
     );
 
     scrub_sql_test!(

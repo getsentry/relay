@@ -261,8 +261,10 @@ impl VisitorMut for NormalizeVisitor {
             Expr::BinaryOp {
                 ref mut left,
                 op: op @ (BinaryOperator::Or | BinaryOperator::And),
-                ref right,
+                ref mut right,
             } => {
+                remove_redundant_parentheses(op, left);
+                remove_redundant_parentheses(op, right);
                 if left == right {
                     //     /\
                     //    /  \
@@ -448,6 +450,20 @@ fn take_expr(expr: &mut Expr) -> Expr {
     let mut swapped = Expr::Value(Value::Null);
     std::mem::swap(&mut swapped, expr);
     swapped
+}
+
+/// Remove parentheses for equal operators, e.g. `(a OR b) OR c`.
+///
+/// Only use this function on operations which have the
+/// [associative property](https://en.wikipedia.org/wiki/Associative_property).
+fn remove_redundant_parentheses(outer_op: &BinaryOperator, expr: &mut Expr) {
+    if let Expr::Nested(inner) = expr {
+        if let Expr::BinaryOp { op, .. } = inner.as_ref() {
+            if op == outer_op {
+                *expr = take_expr(inner.as_mut());
+            }
+        }
+    }
 }
 
 /// Limits the maximum expression depth of an SQL statement.
