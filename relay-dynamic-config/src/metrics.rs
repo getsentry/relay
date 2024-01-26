@@ -43,7 +43,7 @@ pub struct TagBlock {
     /// Name of metric of which we want to remove certain tags.
     pub name: GlobPatterns,
     /// Pattern to match keys of tags that we want to remove.
-    pub tag: GlobPatterns,
+    pub tags: GlobPatterns,
 }
 
 /// Rule defining when a target tag should be set on a metric.
