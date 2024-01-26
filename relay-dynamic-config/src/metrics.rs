@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use relay_base_schema::data_category::DataCategory;
 use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
-use relay_common::glob3::{GlobPattern, GlobPatterns};
+use relay_common::glob3::GlobPatterns;
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -38,10 +38,10 @@ impl Metrics {
 }
 
 /// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TagBlock {
     /// Name of metric of which we want to remove certain tags.
-    pub name: GlobPattern,
+    pub name: LazyGlob,
     /// Pattern to match keys of tags that we want to remove.
     pub tags: GlobPatterns,
 }

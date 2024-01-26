@@ -12,43 +12,6 @@ fn is_match(globs: &[Regex], message: &[u8]) -> bool {
     globs.iter().any(|regex| regex.is_match(message.as_ref()))
 }
 
-/// A singular glob-pattern.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct GlobPattern(GlobPatterns);
-
-impl GlobPattern {
-    /// Returns a new instance of [`GlobPattern`].
-    pub fn new(pattern: String) -> Self {
-        Self(GlobPatterns::new(vec![pattern]))
-    }
-
-    /// Returns `true` if the pattern matches the given message.
-    pub fn is_match<S>(&self, message: S) -> bool
-    where
-        S: AsRef<[u8]>,
-    {
-        self.0.is_match(message)
-    }
-}
-
-impl Serialize for GlobPattern {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.0.patterns[0])
-    }
-}
-
-impl<'de> Deserialize<'de> for GlobPattern {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Deserialize::deserialize(deserializer).map(Self::new)
-    }
-}
-
 /// A list of patterns for glob matching.
 #[derive(Clone, Default)]
 pub struct GlobPatterns {
@@ -152,28 +115,6 @@ mod tests {
                 $($pattern.to_string()),*
             ])
         };
-    }
-
-    #[test]
-    fn test_serialize_glob_pattern() {
-        let pattern = "foobar";
-        let quoted_pattern = "\"foobar\"";
-
-        let glob_pattern: GlobPattern = serde_json::from_str(quoted_pattern).unwrap();
-
-        assert_eq!(glob_pattern, GlobPattern::new(pattern.to_string()));
-        assert_eq!(
-            serde_json::to_string(&glob_pattern).unwrap(),
-            quoted_pattern
-        );
-    }
-
-    #[test]
-    fn test_glob_pattern_match() {
-        assert!(GlobPattern::new("foo".to_string()).is_match("foo"));
-        assert!(!GlobPattern::new("foo".to_string()).is_match("nope"));
-        assert!(GlobPattern::new("foo*".to_string()).is_match("foobarblub"));
-        assert!(GlobPattern::new("*blub".to_string()).is_match("foobarblub"));
     }
 
     #[test]

@@ -3513,7 +3513,6 @@ dependencies = [
  "regex",
  "sentry-types",
  "serde",
- "serde_json",
  "serde_test",
 ]
 
