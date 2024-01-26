@@ -112,6 +112,11 @@
 <a href="#112" id="112">112</a>
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -154,6 +159,11 @@
     <span class="doccomment">/// Enable the Relay cardinality limiter.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:relay-cardinality-limiter&quot;</span>)]
     </span>CardinalityLimiter,
+    <span class="doccomment">/// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
+    ///
+    /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:profiling-ingest-unsampled-profiles&quot;</span>)]
+    </span>IngestUnsampledProfiles,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]

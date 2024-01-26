@@ -1859,6 +1859,33 @@
 <a href="#1859" id="1859">1859</a>
 <a href="#1860" id="1860">1860</a>
 <a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
+<a href="#1863" id="1863">1863</a>
+<a href="#1864" id="1864">1864</a>
+<a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
+<a href="#1867" id="1867">1867</a>
+<a href="#1868" id="1868">1868</a>
+<a href="#1869" id="1869">1869</a>
+<a href="#1870" id="1870">1870</a>
+<a href="#1871" id="1871">1871</a>
+<a href="#1872" id="1872">1872</a>
+<a href="#1873" id="1873">1873</a>
+<a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
+<a href="#1881" id="1881">1881</a>
+<a href="#1882" id="1882">1882</a>
+<a href="#1883" id="1883">1883</a>
+<a href="#1884" id="1884">1884</a>
+<a href="#1885" id="1885">1885</a>
+<a href="#1886" id="1886">1886</a>
+<a href="#1887" id="1887">1887</a>
+<a href="#1888" id="1888">1888</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2378,9 +2405,25 @@
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
     </span>metrics_extracted: bool,
 
+    <span class="doccomment">/// `false` if the sampling decision is &quot;drop&quot;.
+    ///
+    /// In the most common use case, the item is dropped when the sampling decision is &quot;drop&quot;.
+    /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
+    /// for which the transaction was dropped as `sampled: false`.
+    </span><span class="attr">#[serde(default = <span class="string">&quot;default_true&quot;</span>, skip_serializing_if = <span class="string">&quot;is_true&quot;</span>)]
+    </span>sampled: bool,
+
     <span class="doccomment">/// Other attributes for forward compatibility.
     </span><span class="attr">#[serde(flatten)]
     </span>other: BTreeMap&lt;String, Value&gt;,
+}
+
+<span class="kw">fn </span>default_true() -&gt; bool {
+    <span class="bool-val">true
+</span>}
+
+<span class="kw">fn </span>is_true(value: <span class="kw-2">&amp;</span>bool) -&gt; bool {
+    <span class="kw-2">*</span>value
 }
 
 <span class="doccomment">/// Container for item quantities that the item was derived from.
@@ -2425,6 +2468,7 @@
                 sample_rates: <span class="prelude-val">None</span>,
                 other: BTreeMap::new(),
                 metrics_extracted: <span class="bool-val">false</span>,
+                sampled: <span class="bool-val">true</span>,
             },
             payload: Bytes::new(),
         }
@@ -2598,6 +2642,16 @@
     <span class="doccomment">/// Sets the metrics extracted flag.
     </span><span class="kw">pub fn </span>set_metrics_extracted(<span class="kw-2">&amp;mut </span><span class="self">self</span>, metrics_extracted: bool) {
         <span class="self">self</span>.headers.metrics_extracted = metrics_extracted;
+    }
+
+    <span class="doccomment">/// Gets the `sampled` flag.
+    </span><span class="kw">pub fn </span>sampled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.headers.sampled
+    }
+
+    <span class="doccomment">/// Sets the `sampled` flag.
+    </span><span class="kw">pub fn </span>set_sampled(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sampled: bool) {
+        <span class="self">self</span>.headers.sampled = sampled;
     }
 
     <span class="doccomment">/// Returns the specified header value, if present.

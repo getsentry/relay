@@ -2810,6 +2810,11 @@
 <a href="#2810" id="2810">2810</a>
 <a href="#2811" id="2811">2811</a>
 <a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3975,7 +3980,11 @@
             <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
         }
 
-        dynamic_sampling::sample_envelope_items(state);
+        dynamic_sampling::sample_envelope_items(
+            state,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+        );
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="self">self</span>.inner.geoip_lookup.as_ref())<span class="question-mark">?</span>;
@@ -3995,11 +4004,8 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Processes standalone attachments.
-    </span><span class="kw">fn </span>process_standalone_attachments(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+    <span class="doccomment">/// Processes standalone items that require an event ID, but do not have an event on the same envelope.
+    </span><span class="kw">fn </span>process_standalone(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         profile::filter(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
@@ -4119,7 +4125,11 @@
                 <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
             }
 
-            dynamic_sampling::sample_envelope_items(state);
+            dynamic_sampling::sample_envelope_items(
+                state,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+            );
 
             <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
                 event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="self">self</span>.inner.geoip_lookup.as_ref())<span class="question-mark">?</span>;
@@ -4161,7 +4171,7 @@
             ProcessingGroup::Error =&gt; <span class="self">self</span>.process_errors(state)<span class="question-mark">?</span>,
             ProcessingGroup::Transaction =&gt; <span class="self">self</span>.process_transactions(state)<span class="question-mark">?</span>,
             ProcessingGroup::Session =&gt; <span class="self">self</span>.process_sessions(state)<span class="question-mark">?</span>,
-            ProcessingGroup::Standalone =&gt; <span class="self">self</span>.process_standalone_attachments(state)<span class="question-mark">?</span>,
+            ProcessingGroup::Standalone =&gt; <span class="self">self</span>.process_standalone(state)<span class="question-mark">?</span>,
             ProcessingGroup::ClientReport =&gt; <span class="self">self</span>.process_client_reports(state)<span class="question-mark">?</span>,
             ProcessingGroup::Replay =&gt; <span class="self">self</span>.process_replays(state)<span class="question-mark">?</span>,
             ProcessingGroup::CheckIn =&gt; <span class="self">self</span>.process_checkins(state)<span class="question-mark">?</span>,

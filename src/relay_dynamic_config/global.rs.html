@@ -87,6 +87,15 @@
 <a href="#87" id="87">87</a>
 <a href="#88" id="88">88</a>
 <a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -134,12 +143,20 @@
 #[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Options {
-    <span class="comment">// Example:
-    // ```rs
-    // #[serde(default, rename = &quot;relay.some-option.name&quot;)]
-    // pub some_option: Vec&lt;u32&gt;,
-    // ```
-    </span><span class="doccomment">/// All other unknown options.
+    <span class="doccomment">/// List of platform names for which we allow using unsampled profiles for the purpose
+    /// of improving profile (function) metrics
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.platforms&quot;</span>)]
+    </span><span class="kw">pub </span>profile_metrics_allowed_platforms: Vec&lt;String&gt;,
+
+    <span class="doccomment">/// Sample rate for tuning the amount of unsampled profiles that we &quot;let through&quot;
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.sample_rate&quot;</span>)]
+    </span><span class="kw">pub </span>profile_metrics_sample_rate: f32,
+
+    <span class="doccomment">/// Kill switch for shutting down profile metrics
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.enabled&quot;</span>)]
+    </span><span class="kw">pub </span>unsampled_profiles_enabled: bool,
+
+    <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]
     </span>other: HashMap&lt;String, Value&gt;,
 }
@@ -164,6 +181,7 @@
             }),
             options: <span class="prelude-val">Some</span>(Options {
                 other: HashMap::from([(<span class="string">&quot;relay.unknown&quot;</span>.to_owned(), Value::Bool(<span class="bool-val">true</span>))]),
+                ..Default::default()
             }),
         };
 

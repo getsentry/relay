@@ -1515,6 +1515,22 @@
 <a href="#1515" id="1515">1515</a>
 <a href="#1516" id="1516">1516</a>
 <a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1533,6 +1549,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{
     <span class="self">self</span>, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
+
 <span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 <span class="kw">use </span>relay_metrics::{
     Bucket, BucketViewValue, BucketsView, MetricNamespace, MetricResourceIdentifier,
@@ -2239,6 +2256,10 @@
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            headers: BTreeMap::from([(
+                <span class="string">&quot;sampled&quot;</span>.to_string(),
+                <span class="kw">if </span>item.sampled() { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>}.to_owned(),
+            )]),
             payload: item.payload(),
         };
         <span class="self">self</span>.produce(
@@ -2680,6 +2701,8 @@
     project_id: ProjectId,
     key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     received: u64,
+    <span class="attr">#[serde(skip)]
+    </span>headers: BTreeMap&lt;String, String&gt;,
     payload: Bytes,
 }
 
@@ -2861,13 +2884,22 @@
     }
 
     <span class="kw">fn </span>headers(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;&gt; {
-        <span class="kw">if let </span>KafkaMessage::Metric { headers, .. } = <span class="kw-2">&amp;</span><span class="self">self </span>{
-            <span class="kw">if </span>!headers.is_empty() {
-                <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
-            }
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
+            KafkaMessage::Metric { headers, .. } =&gt; {
+                <span class="kw">if </span>!headers.is_empty() {
+                    <span class="kw">return </span><span class="prelude-val">Some</span>(headers);
+                }
+                <span class="prelude-val">None
+            </span>}
+            KafkaMessage::Profile(profile) =&gt; {
+                <span class="kw">if </span>!profile.headers.is_empty() {
+                    <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>profile.headers);
+                }
+                <span class="prelude-val">None
+            </span>}
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
-        <span class="prelude-val">None
-    </span>}
+    }
 
     <span class="doccomment">/// Serializes the message into its binary format.
     </span><span class="kw">fn </span>serialize(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, ClientError&gt; {

@@ -271,17 +271,34 @@
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 
 </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span>{<span class="kw">crate</span>::envelope::ContentType, relay_config::Config, relay_dynamic_config::Feature};
+</span><span class="kw">use </span>relay_dynamic_config::Feature;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
-<span class="kw">use </span>relay_event_schema::protocol::{Contexts, ProfileContext};
-<span class="kw">use </span>relay_profiling::ProfileError;
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_event_schema::protocol::{Contexts, Event, ProfileContext};
+<span class="kw">use </span>relay_profiling::{ProfileError, ProfileId};
 <span class="kw">use </span>relay_protocol::Annotated;
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessEnvelopeState;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
@@ -296,10 +313,14 @@
         .count();
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
-        <span class="comment">// Drop profile without a transaction in the same envelope.
-        </span>ItemType::Profile <span class="kw">if </span>transaction_count == <span class="number">0 </span>=&gt; ItemAction::DropSilently,
         <span class="comment">// First profile found in the envelope, we&#39;ll keep it if metadata are valid.
         </span>ItemType::Profile <span class="kw">if </span>profile_id.is_none() =&gt; {
+            <span class="comment">// Drop profile without a transaction in the same envelope.
+            </span><span class="kw">let </span>profile_allowed = transaction_count &gt; <span class="number">0 </span>|| !item.sampled();
+            <span class="kw">if </span>!profile_allowed {
+                <span class="kw">return </span>ItemAction::DropSilently;
+            }
+
             <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload(), state.project_id) {
                 <span class="prelude-val">Ok</span>(id) =&gt; {
                     profile_id = <span class="prelude-val">Some</span>(id);
@@ -350,24 +371,9 @@
             </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
                 <span class="kw">return </span>ItemAction::DropSilently;
             };
-            <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload(), event) {
-                <span class="prelude-val">Ok</span>((profile_id, payload)) =&gt; {
-                    <span class="kw">if </span>payload.len() &lt;= config.max_profile_size() {
-                        found_profile_id = <span class="prelude-val">Some</span>(profile_id);
-                        item.set_payload(ContentType::Json, payload);
-                        ItemAction::Keep
-                    } <span class="kw">else </span>{
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(
-                                relay_profiling::ProfileError::ExceedSizeLimit,
-                            ),
-                        )))
-                    }
-                }
-                <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
-                ))),
-            }
+            <span class="kw">let </span>(profile_id, action) = expand_profile(item, event, config);
+            found_profile_id = profile_id;
+            action
         }
         <span class="kw">_ </span>=&gt; ItemAction::Keep,
     });
@@ -381,6 +387,32 @@
             }
         }
     }
+}
+
+<span class="doccomment">/// Transfers transaction metadata to profile and check its size.
+</span><span class="kw">pub fn </span>expand_profile(
+    item: <span class="kw-2">&amp;mut </span>Item,
+    event: <span class="kw-2">&amp;</span>Event,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; (<span class="prelude-ty">Option</span>&lt;ProfileId&gt;, ItemAction) {
+    <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
+    <span class="kw">let </span>item_action = <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload(), event) {
+        <span class="prelude-val">Ok</span>((id, payload)) =&gt; {
+            profile_id = <span class="prelude-val">Some</span>(id);
+            <span class="kw">if </span>payload.len() &lt;= config.max_profile_size() {
+                item.set_payload(ContentType::Json, payload);
+                ItemAction::Keep
+            } <span class="kw">else </span>{
+                ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                    relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
+                )))
+            }
+        }
+        <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+            relay_profiling::discard_reason(err),
+        ))),
+    };
+    (profile_id, item_action)
 }
 
 <span class="attr">#[cfg(test)]
