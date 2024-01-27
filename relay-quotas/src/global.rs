@@ -33,28 +33,19 @@ impl GlobalRateLimits {
     ) -> Result<bool, RedisError> {
         dbg!(&quota);
         dbg!(quantity);
-        let keys = KeyRef::new(quota);
-        dbg!(&keys);
+        let key = KeyRef::new(quota);
 
-        let mut should_ratelimit = false;
+        let val = {
+            let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
+            dbg!(&key);
+            dbg!(limits.contains_key(&key));
+            Arc::clone(limits.entry_ref(&key).or_default())
+        };
 
-        for key in keys {
-            let val = {
-                let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
-                dbg!(&key);
-                dbg!(limits.contains_key(&key));
-                Arc::clone(limits.entry_ref(&key).or_default())
-            };
+        let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
+        dbg!(&val);
 
-            let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
-            dbg!(&val);
-
-            if val.is_rate_limited(client, quota, key, quantity as u64)? {
-                should_ratelimit = true;
-            }
-        }
-
-        dbg!(Ok(should_ratelimit))
+        val.is_rate_limited(client, quota, key, quantity as u64)
     }
 }
 
@@ -108,33 +99,12 @@ impl<'a> KeyRef<'a> {
         RedisKey::new(self, slot)
     }
 
-    fn new(quota: &'a RedisQuota<'a>) -> Vec<Self> {
-        let mut keys = vec![];
-
-        let prefix = quota.prefix();
-        let window = quota.window();
-
-        if quota.scope == QuotaScope::Global {
-            let without_namespace = KeyRef {
-                prefix,
-                window,
-                namespace: None,
-            };
-
-            keys.push(without_namespace);
+    fn new(quota: &'a RedisQuota<'a>) -> Self {
+        Self {
+            prefix: quota.prefix(),
+            window: quota.window(),
+            namespace: quota.namespace,
         }
-
-        if let Some(namespace) = quota.namespace {
-            let global_ns = KeyRef {
-                prefix,
-                window,
-                namespace: Some(namespace),
-            };
-
-            keys.push(global_ns);
-        }
-
-        keys
     }
 }
 
