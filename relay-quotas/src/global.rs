@@ -1,7 +1,6 @@
-use std::cmp::max;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use crate::{QuotaScope, RedisQuota};
+use crate::RedisQuota;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError};
