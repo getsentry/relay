@@ -19,8 +19,8 @@ pub struct Scoping {
     pub project_id: ProjectId,
 }
 
-/// Accumulator of all cardinality outcomes.
-pub trait Outcomes {
+/// Accumulator of all cardinality limiter rejections.
+pub trait Rejections {
     /// Called for ever [`Entry`] which was rejected from the [`Limiter`].
     fn reject(&mut self, entry_id: EntryId);
 }
@@ -35,11 +35,11 @@ pub trait Limiter {
         scoping: Scoping,
         limits: &[CardinalityLimit],
         entries: I,
-        outcomes: &mut T,
+        rejections: &mut T,
     ) -> Result<()>
     where
         I: IntoIterator<Item = Entry>,
-        T: Outcomes;
+        T: Rejections;
 }
 
 /// Unit of operation for the cardinality limiter.
@@ -111,7 +111,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
                 Some(Entry::new(EntryId(id), item.namespace()?, item.to_hash()))
             });
 
-            let mut rejections = Rejections::default();
+            let mut rejections = RejectedIds::default();
             if let Err(err) =
                 self.limiter
                     .check_cardinality_limits(scoping, limits, entries, &mut rejections)
@@ -127,10 +127,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
                 );
             }
 
-            Ok(CardinalityLimits {
-                source: items,
-                rejections: rejections.0,
-            })
+            Ok(CardinalityLimits::new(items, rejections))
         })
     }
 }
@@ -139,9 +136,10 @@ impl<T: Limiter> CardinalityLimiter<T> {
 ///
 /// The result can be used directly by [`CardinalityLimits`].
 #[derive(Debug, Default)]
-struct Rejections(HashSet<usize>);
+struct RejectedIds(HashSet<usize>);
 
-impl Outcomes for Rejections {
+impl Rejections for RejectedIds {
+    #[inline(always)]
     fn reject(&mut self, entry_id: EntryId) {
         self.0.insert(entry_id.0);
     }
@@ -155,6 +153,13 @@ pub struct CardinalityLimits<T> {
 }
 
 impl<T> CardinalityLimits<T> {
+    fn new(source: Vec<T>, rejections: RejectedIds) -> Self {
+        Self {
+            source,
+            rejections: rejections.0,
+        }
+    }
+
     /// Returns an iterator yielding only rejected items.
     pub fn rejected(&self) -> impl Iterator<Item = &T> {
         self.rejections.iter().filter_map(|&i| self.source.get(i))
@@ -282,7 +287,7 @@ mod tests {
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
-                T: Outcomes,
+                T: Rejections,
             {
                 for entry in entries {
                     outcomes.reject(entry.id);
@@ -322,7 +327,7 @@ mod tests {
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
-                T: Outcomes,
+                T: Rejections,
             {
                 Ok(())
             }
@@ -355,7 +360,7 @@ mod tests {
             ) -> Result<()>
             where
                 I: IntoIterator<Item = Entry>,
-                T: Outcomes,
+                T: Rejections,
             {
                 assert_eq!(scoping, build_scoping());
                 assert_eq!(limits, &build_limits());

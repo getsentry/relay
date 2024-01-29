@@ -8,7 +8,7 @@ use relay_statsd::metric;
 
 use crate::{
     cache::{Cache, CacheOutcome},
-    limiter::{EntryId, Limiter, Outcomes},
+    limiter::{EntryId, Limiter, Rejections},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     Result,
 };
@@ -90,11 +90,11 @@ impl Limiter for RedisSetLimiter {
         scoping: Scoping,
         limits: &[CardinalityLimit],
         entries: I,
-        outcomes: &mut T,
+        rejections: &mut T,
     ) -> Result<()>
     where
         I: IntoIterator<Item = Entry>,
-        T: Outcomes,
+        T: Rejections,
     {
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -122,7 +122,7 @@ impl Limiter for RedisSetLimiter {
                     }
                     CacheOutcome::Rejected => {
                         // Rejected, add it to the rejected list and move on.
-                        outcomes.reject(entry.id);
+                        rejections.reject(entry.id);
                         state.cache_hit();
                         state.rejected();
                     }
@@ -154,7 +154,7 @@ impl Limiter for RedisSetLimiter {
             let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
             for (entry, status) in results {
                 if status.is_rejected() {
-                    outcomes.reject(entry.id);
+                    rejections.reject(entry.id);
                     state.rejected();
                 } else {
                     cache.accept(entry.hash);
@@ -481,15 +481,15 @@ mod tests {
     }
 
     #[derive(Debug, Default, PartialEq, Eq)]
-    struct Outcomes(HashSet<EntryId>);
+    struct Rejections(HashSet<EntryId>);
 
-    impl super::Outcomes for Outcomes {
+    impl super::Rejections for Rejections {
         fn reject(&mut self, entry_id: EntryId) {
             self.0.insert(entry_id);
         }
     }
 
-    impl std::ops::Deref for Outcomes {
+    impl std::ops::Deref for Rejections {
         type Target = HashSet<EntryId>;
 
         fn deref(&self) -> &Self::Target {
@@ -526,11 +526,11 @@ mod tests {
             scoping: Scoping,
             limits: &[CardinalityLimit],
             entries: I,
-        ) -> Outcomes
+        ) -> Rejections
         where
             I: IntoIterator<Item = Entry>,
         {
-            let mut outcomes = Outcomes::default();
+            let mut outcomes = Rejections::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut outcomes)
                 .unwrap();
             outcomes

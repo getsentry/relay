@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use criterion::{BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::{metrics::MetricNamespace, project::ProjectId};
 use relay_cardinality::{
-    limiter::{Entry, EntryId, Limiter, Outcomes, Scoping},
+    limiter::{Entry, EntryId, Limiter, Rejections, Scoping},
     CardinalityLimit, CardinalityScope, RedisSetLimiter, SlidingWindow,
 };
 use relay_redis::{redis, RedisConfigOptions, RedisPool};
@@ -26,9 +26,9 @@ fn build_limiter(redis: RedisPool, reset_redis: bool) -> RedisSetLimiter {
     RedisSetLimiter::new(redis)
 }
 
-struct NoopOutcomes;
+struct NoopRejections;
 
-impl Outcomes for NoopOutcomes {
+impl Rejections for NoopRejections {
     fn reject(&mut self, _entry_id: EntryId) {}
 }
 
@@ -66,7 +66,7 @@ impl Params {
     #[inline(always)]
     fn run(&self, limiter: &RedisSetLimiter, entries: impl IntoIterator<Item = Entry>) {
         limiter
-            .check_cardinality_limits(self.scoping, &self.limits, entries, &mut NoopOutcomes)
+            .check_cardinality_limits(self.scoping, &self.limits, entries, &mut NoopRejections)
             .unwrap();
     }
 
