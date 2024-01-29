@@ -382,10 +382,33 @@
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
-</span><span class="kw">use </span>std::collections::BTreeSet;
-
+</span><span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_statsd::metric;
@@ -404,19 +427,27 @@
     </span><span class="kw">pub </span>project_id: ProjectId,
 }
 
+<span class="doccomment">/// Accumulator of all cardinality limiter rejections.
+</span><span class="kw">pub trait </span>Rejections {
+    <span class="doccomment">/// Called for ever [`Entry`] which was rejected from the [`Limiter`].
+    </span><span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry_id: EntryId);
+}
+
 <span class="doccomment">/// Limiter responsible to enforce limits.
 </span><span class="kw">pub trait </span>Limiter {
     <span class="doccomment">/// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    </span><span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
+    </span><span class="kw">fn </span>check_cardinality_limits&lt;E, R&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
-        entries: I,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
+        entries: E,
+        rejections: <span class="kw-2">&amp;mut </span>R,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
     <span class="kw">where
-        </span>I: IntoIterator&lt;Item = Entry&gt;;
+        </span>E: IntoIterator&lt;Item = Entry&gt;,
+        R: Rejections;
 }
 
 <span class="doccomment">/// Unit of operation for the cardinality limiter.
@@ -461,19 +492,6 @@
     }
 }
 
-<span class="doccomment">/// Represents a from the cardinality limiter rejected [`Entry`].
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>Rejection {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) id: EntryId,
-}
-
-<span class="kw">impl </span>Rejection {
-    <span class="doccomment">/// Creates a new rejection.
-    </span><span class="kw">pub fn </span>new(id: EntryId) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ id }
-    }
-}
-
 <span class="doccomment">/// Cardinality Limiter enforcing cardinality limits on buckets.
 ///
 /// Delegates enforcement to a [`Limiter`].
@@ -501,20 +519,37 @@
                 <span class="prelude-val">Some</span>(Entry::new(EntryId(id), item.namespace()<span class="question-mark">?</span>, item.to_hash()))
             });
 
-            <span class="kw">let </span>result = <span class="self">self
-                </span>.limiter
-                .check_cardinality_limits(scoping, limits, entries);
+            <span class="kw">let </span><span class="kw-2">mut </span>rejections = RejectedIds::default();
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(err) =
+                <span class="self">self</span>.limiter
+                    .check_cardinality_limits(scoping, limits, entries, <span class="kw-2">&amp;mut </span>rejections)
+            {
+                <span class="kw">return </span><span class="prelude-val">Err</span>((items, err));
+            }
 
-            <span class="kw">let </span>rejections = <span class="kw">match </span>result {
-                <span class="prelude-val">Ok</span>(rejections) =&gt; rejections.map(|rejection| rejection.id.<span class="number">0</span>).collect(),
-                <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>((items, err)),
-            };
+            <span class="kw">if </span>!rejections.<span class="number">0</span>.is_empty() {
+                <span class="macro">relay_log::debug!</span>(
+                    scoping = <span class="question-mark">?</span>scoping,
+                    <span class="string">&quot;rejected {} metrics due to cardinality limit&quot;</span>,
+                    rejections.<span class="number">0</span>.len(),
+                );
+            }
 
-            <span class="prelude-val">Ok</span>(CardinalityLimits {
-                source: items,
-                rejections,
-            })
+            <span class="prelude-val">Ok</span>(CardinalityLimits::new(items, rejections))
         })
+    }
+}
+
+<span class="doccomment">/// Internal outcome accumulator tracking the raw value from an [`EntryId`].
+///
+/// The result can be used directly by [`CardinalityLimits`].
+</span><span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">struct </span>RejectedIds(HashSet&lt;usize&gt;);
+
+<span class="kw">impl </span>Rejections <span class="kw">for </span>RejectedIds {
+    <span class="attr">#[inline(always)]
+    </span><span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry_id: EntryId) {
+        <span class="self">self</span>.<span class="number">0</span>.insert(entry_id.<span class="number">0</span>);
     }
 }
 
@@ -522,10 +557,17 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>CardinalityLimits&lt;T&gt; {
     source: Vec&lt;T&gt;,
-    rejections: BTreeSet&lt;usize&gt;,
+    rejections: HashSet&lt;usize&gt;,
 }
 
 <span class="kw">impl</span>&lt;T&gt; CardinalityLimits&lt;T&gt; {
+    <span class="kw">fn </span>new(source: Vec&lt;T&gt;, rejections: RejectedIds) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            source,
+            rejections: rejections.<span class="number">0</span>,
+        }
+    }
+
     <span class="doccomment">/// Recovers the original list of items passed to the cardinality limiter.
     </span><span class="kw">pub fn </span>into_source(<span class="self">self</span>) -&gt; Vec&lt;T&gt; {
         <span class="self">self</span>.source
@@ -617,28 +659,28 @@
             expected: <span class="kw">impl </span>IntoIterator&lt;Item = char&gt;,
         ) {
             <span class="macro">assert_eq!</span>(
-                limits.rejected().copied().collect::&lt;Vec&lt;char&gt;&gt;(),
-                expected.into_iter().collect::&lt;Vec&lt;char&gt;&gt;(),
+                limits.rejected().copied().collect::&lt;HashSet&lt;char&gt;&gt;(),
+                expected.into_iter().collect::&lt;HashSet&lt;char&gt;&gt;(),
             );
         }
 
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>],
-            rejections: BTreeSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]),
+            rejections: HashSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">3</span>]),
         };
         assert_rejected(<span class="kw-2">&amp;</span>limits, [<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;d&#39;</span>]);
         <span class="macro">assert_eq!</span>(limits.into_accepted(), <span class="macro">vec!</span>[<span class="string">&#39;c&#39;</span>, <span class="string">&#39;e&#39;</span>]);
 
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>],
-            rejections: BTreeSet::from([]),
+            rejections: HashSet::from([]),
         };
         assert_rejected(<span class="kw-2">&amp;</span>limits, []);
         <span class="macro">assert_eq!</span>(limits.into_accepted(), <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>]);
 
         <span class="kw">let </span>limits = CardinalityLimits {
             source: <span class="macro">vec!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>],
-            rejections: BTreeSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]),
+            rejections: HashSet::from([<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>]),
         };
         assert_rejected(<span class="kw-2">&amp;</span>limits, [<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>]);
         <span class="macro">assert!</span>(limits.into_accepted().is_empty());
@@ -649,21 +691,22 @@
         <span class="kw">struct </span>RejectAllLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectAllLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 _limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
                 entries: I,
-            ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
+                outcomes: <span class="kw-2">&amp;mut </span>T,
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
                 </span>I: IntoIterator&lt;Item = Entry&gt;,
+                T: Rejections,
             {
-                <span class="kw">let </span>rejections = entries
-                    .into_iter()
-                    .map(|entry| Rejection::new(entry.id))
-                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="kw">for </span>entry <span class="kw">in </span>entries {
+                    outcomes.reject(entry.id);
+                }
 
-                <span class="prelude-val">Ok</span>(Box::new(rejections.into_iter()))
+                <span class="prelude-val">Ok</span>(())
             }
         }
 
@@ -688,16 +731,18 @@
         <span class="kw">struct </span>AcceptAllLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>AcceptAllLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 _scoping: Scoping,
                 _limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
                 _entries: I,
-            ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
+                _outcomes: <span class="kw-2">&amp;mut </span>T,
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
                 </span>I: IntoIterator&lt;Item = Entry&gt;,
+                T: Rejections,
             {
-                <span class="prelude-val">Ok</span>(Box::new(Vec::new().into_iter()))
+                <span class="prelude-val">Ok</span>(())
             }
         }
 
@@ -719,24 +764,27 @@
         <span class="kw">struct </span>RejectEvenLimiter;
 
         <span class="kw">impl </span>Limiter <span class="kw">for </span>RejectEvenLimiter {
-            <span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
+            <span class="kw">fn </span>check_cardinality_limits&lt;I, T&gt;(
                 <span class="kw-2">&amp;</span><span class="self">self</span>,
                 scoping: Scoping,
                 limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
                 entries: I,
-            ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
+                outcomes: <span class="kw-2">&amp;mut </span>T,
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
             <span class="kw">where
                 </span>I: IntoIterator&lt;Item = Entry&gt;,
+                T: Rejections,
             {
                 <span class="macro">assert_eq!</span>(scoping, build_scoping());
                 <span class="macro">assert_eq!</span>(limits, <span class="kw-2">&amp;</span>build_limits());
 
-                <span class="kw">let </span>rejections = entries
-                    .into_iter()
-                    .filter_map(|entry| (entry.id.<span class="number">0 </span>% <span class="number">2 </span>== <span class="number">0</span>).then_some(Rejection::new(entry.id)))
-                    .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                <span class="kw">for </span>entry <span class="kw">in </span>entries {
+                    <span class="kw">if </span>entry.id.<span class="number">0 </span>% <span class="number">2 </span>== <span class="number">0 </span>{
+                        outcomes.reject(entry.id);
+                    }
+                }
 
-                <span class="prelude-val">Ok</span>(Box::new(rejections.into_iter()))
+                <span class="prelude-val">Ok</span>(())
             }
         }
 

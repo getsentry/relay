@@ -778,27 +778,6 @@
 <a href="#778" id="778">778</a>
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a>
-<a href="#799" id="799">799</a>
-<a href="#800" id="800">800</a>
-<a href="#801" id="801">801</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::{
     redis::{<span class="self">self</span>, FromRedisValue, Script},
     Connection, RedisPool,
@@ -807,7 +786,7 @@
 
 <span class="kw">use crate</span>::{
     cache::{Cache, CacheOutcome},
-    limiter::{EntryId, Limiter, Rejection},
+    limiter::{EntryId, Limiter, Rejections},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     window::Slot,
     <span class="prelude-ty">Result</span>,
@@ -886,14 +865,16 @@
 }
 
 <span class="kw">impl </span>Limiter <span class="kw">for </span>RedisSetLimiter {
-    <span class="kw">fn </span>check_cardinality_limits&lt;I&gt;(
+    <span class="kw">fn </span>check_cardinality_limits&lt;E, R&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
         limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
-        entries: I,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Iterator&lt;Item = Rejection&gt;&gt;&gt;
+        entries: E,
+        rejections: <span class="kw-2">&amp;mut </span>R,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
     <span class="kw">where
-        </span>I: IntoIterator&lt;Item = Entry&gt;,
+        </span>E: IntoIterator&lt;Item = Entry&gt;,
+        R: Rejections,
     {
         <span class="kw">let </span>timestamp = UnixTimestamp::now();
         <span class="comment">// Allows to fast forward time in tests.
@@ -901,7 +882,6 @@
         </span><span class="kw">let </span>timestamp = timestamp + <span class="self">self</span>.time_offset;
 
         <span class="kw">let </span><span class="kw-2">mut </span>states = LimitState::from_limits(scoping, limits);
-        <span class="kw">let </span><span class="kw-2">mut </span>rejected = Vec::new();
 
         <span class="kw">let </span>cache = <span class="self">self</span>.cache.read(timestamp); <span class="comment">// Acquire a read lock.
         </span><span class="kw">for </span>entry <span class="kw">in </span>entries {
@@ -919,7 +899,7 @@
                     }
                     CacheOutcome::Rejected =&gt; {
                         <span class="comment">// Rejected, add it to the rejected list and move on.
-                        </span>rejected.push(Rejection::new(entry.id));
+                        </span>rejections.reject(entry.id);
                         state.cache_hit();
                         state.rejected();
                     }
@@ -951,7 +931,7 @@
             </span><span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.update(state.scope, timestamp); <span class="comment">// Acquire a write lock.
             </span><span class="kw">for </span>(entry, status) <span class="kw">in </span>results {
                 <span class="kw">if </span>status.is_rejected() {
-                    rejected.push(entry.rejection());
+                    rejections.reject(entry.id);
                     state.rejected();
                 } <span class="kw">else </span>{
                     cache.accept(entry.hash);
@@ -961,15 +941,7 @@
             drop(cache); <span class="comment">// Give up the cache lock!
         </span>}
 
-        <span class="kw">if </span>!rejected.is_empty() {
-            <span class="macro">relay_log::debug!</span>(
-                scoping = <span class="question-mark">?</span>scoping,
-                <span class="string">&quot;rejected {} metrics due to cardinality limit&quot;</span>,
-                rejected.len(),
-            );
-        }
-
-        <span class="prelude-val">Ok</span>(Box::new(rejected.into_iter()))
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
@@ -1112,11 +1084,6 @@
     <span class="doccomment">/// Creates a new Redis entry in the rejected status.
     </span><span class="kw">fn </span>new(id: EntryId, hash: u32) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ id, hash }
-    }
-
-    <span class="doccomment">/// Turns the item into a rejection.
-    </span><span class="kw">fn </span>rejection(<span class="self">self</span>) -&gt; Rejection {
-        Rejection { id: <span class="self">self</span>.id }
     }
 }
 
@@ -1291,6 +1258,23 @@
         scoping
     }
 
+    <span class="attr">#[derive(Debug, Default, PartialEq, Eq)]
+    </span><span class="kw">struct </span>Rejections(HashSet&lt;EntryId&gt;);
+
+    <span class="kw">impl </span><span class="kw">super</span>::Rejections <span class="kw">for </span>Rejections {
+        <span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry_id: EntryId) {
+            <span class="self">self</span>.<span class="number">0</span>.insert(entry_id);
+        }
+    }
+
+    <span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>Rejections {
+        <span class="kw">type </span>Target = HashSet&lt;EntryId&gt;;
+
+        <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+            <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+        </span>}
+    }
+
     <span class="kw">impl </span>RedisSetLimiter {
         <span class="doccomment">/// Remove all redis state for an organization.
         </span><span class="kw">fn </span>flush(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping) {
@@ -1313,6 +1297,21 @@
                 }
                 del.query::&lt;()&gt;(<span class="kw-2">&amp;mut </span>connection).unwrap();
             }
+        }
+
+        <span class="kw">fn </span>test_limits&lt;I&gt;(
+            <span class="kw-2">&amp;</span><span class="self">self</span>,
+            scoping: Scoping,
+            limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
+            entries: I,
+        ) -&gt; Rejections
+        <span class="kw">where
+            </span>I: IntoIterator&lt;Item = Entry&gt;,
+        {
+            <span class="kw">let </span><span class="kw-2">mut </span>outcomes = Rejections::default();
+            <span class="self">self</span>.check_cardinality_limits(scoping, limits, entries, <span class="kw-2">&amp;mut </span>outcomes)
+                .unwrap();
+            outcomes
         }
     }
 
@@ -1342,30 +1341,18 @@
         };
 
         <span class="comment">// 6 items, limit is 5 -&gt; 1 rejection.
-        </span><span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries)
-            .unwrap()
-            .map(|e| e.id)
-            .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+        </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries);
         <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">1</span>);
 
         <span class="comment">// We&#39;re at the limit but it should still accept already accepted elements, even with a
         // samller limit than previously accepted.
         </span>limit.limit = <span class="number">3</span>;
-        <span class="kw">let </span>rejected2 = limiter
-            .check_cardinality_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries)
-            .unwrap()
-            .map(|e| e.id)
-            .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>rejected2 = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit.clone()], entries);
         <span class="macro">assert_eq!</span>(rejected2, rejected);
 
         <span class="comment">// A higher limit should accept everthing
         </span>limit.limit = <span class="number">6</span>;
-        <span class="kw">let </span>rejected3 = limiter
-            .check_cardinality_limits(scoping, <span class="kw-2">&amp;</span>[limit], entries)
-            .unwrap()
-            .map(|e| e.id)
-            .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>rejected3 = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit], entries);
         <span class="macro">assert_eq!</span>(rejected3.len(), <span class="number">0</span>);
     }
 
@@ -1388,18 +1375,14 @@
         <span class="kw">let </span>entries = (<span class="number">0</span>..<span class="number">50</span>)
             .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-        <span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries)
-            .unwrap();
-        <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">0</span>);
+        <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
 
         <span class="kw">let </span>entries = (<span class="number">100</span>..<span class="number">150</span>)
             .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-        <span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries)
-            .unwrap();
-        <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">0</span>);
+        <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
     }
 
     <span class="attr">#[test]
@@ -1422,10 +1405,8 @@
             .map(|i| Entry::new(EntryId(i <span class="kw">as </span>usize), MetricNamespace::Custom, i))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-        <span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries)
-            .unwrap();
-        <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">20_000</span>);
+        <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">20_000</span>);
     }
 
     <span class="attr">#[test]
@@ -1449,39 +1430,29 @@
         <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">1</span>), MetricNamespace::Custom, <span class="number">1</span>)];
 
         <span class="comment">// 1 item and limit is 1 -&gt; No rejections.
-        </span><span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries1)
-            .unwrap();
-        <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">0</span>);
+        </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries1);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..window.window_seconds / window.granularity_seconds {
             <span class="comment">// Fast forward time.
             </span>limiter.time_offset = Duration::from_secs(i * window.granularity_seconds);
 
             <span class="comment">// Should accept the already inserted item.
-            </span><span class="kw">let </span>rejected = limiter
-                .check_cardinality_limits(scoping, limits, entries1)
-                .unwrap();
-            <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">0</span>);
+            </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries1);
+            <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
             <span class="comment">// Should reject the new item.
-            </span><span class="kw">let </span>rejected = limiter
-                .check_cardinality_limits(scoping, limits, entries2)
-                .unwrap();
-            <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">1</span>);
+            </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries2);
+            <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">1</span>);
         }
 
         <span class="comment">// Fast forward time to where we&#39;re in the next window.
         </span>limiter.time_offset = Duration::from_secs(window.window_seconds + <span class="number">1</span>);
         <span class="comment">// Accept the new element.
-        </span><span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries2)
-            .unwrap();
-        <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">0</span>);
+        </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries2);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
         <span class="comment">// Reject the old element now.
-        </span><span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries1)
-            .unwrap();
-        <span class="macro">assert_eq!</span>(rejected.count(), <span class="number">1</span>);
+        </span><span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries1);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">1</span>);
     }
 
     <span class="attr">#[test]
@@ -1504,23 +1475,14 @@
         <span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Spans, <span class="number">1</span>)];
         <span class="kw">let </span>entries3 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Transactions, <span class="number">2</span>)];
 
-        <span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries1)
-            .unwrap()
-            .count();
-        <span class="macro">assert_eq!</span>(rejected, <span class="number">0</span>);
+        <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries1);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
 
-        <span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries2)
-            .unwrap()
-            .count();
-        <span class="macro">assert_eq!</span>(rejected, <span class="number">0</span>);
+        <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries2);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">0</span>);
 
-        <span class="kw">let </span>rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries3)
-            .unwrap()
-            .count();
-        <span class="macro">assert_eq!</span>(rejected, <span class="number">1</span>);
+        <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries3);
+        <span class="macro">assert_eq!</span>(rejected.len(), <span class="number">1</span>);
     }
 
     <span class="attr">#[test]
@@ -1582,11 +1544,7 @@
 
         <span class="comment">// Run multiple times to make sure caching does not interfere.
         </span><span class="kw">for _ in </span><span class="number">0</span>..<span class="number">3 </span>{
-            <span class="kw">let </span>rejected = limiter
-                .check_cardinality_limits(scoping, limits, entries)
-                .unwrap()
-                .map(|e| e.id)
-                .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+            <span class="kw">let </span>rejected = limiter.test_limits(scoping, limits, entries);
 
             <span class="comment">// 2 transactions + 1 span + 1 custom (4) accepted -&gt; 2 (6-4) rejected.
             </span><span class="macro">assert_eq!</span>(rejected.len(), <span class="number">2</span>);
