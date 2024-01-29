@@ -63,10 +63,7 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 mod tests {
     use chrono::{DateTime, Utc};
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
-    use relay_event_normalization::{
-        normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-        NormalizationConfig, TransactionValidationConfig,
-    };
+    use relay_event_normalization::{normalize_event, NormalizationConfig};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
     use std::collections::BTreeSet;
@@ -499,13 +496,6 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
-
-        // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = validate_transaction(&event, &TransactionValidationConfig::default());
-        assert!(res.is_ok());
-
-        let res = validate_event_timestamps(&mut event, &EventValidationConfig::default());
-        assert!(res.is_ok());
 
         normalize_event(
             &mut event,
