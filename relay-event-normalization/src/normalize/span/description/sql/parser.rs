@@ -452,7 +452,7 @@ fn take_expr(expr: &mut Expr) -> Expr {
     swapped
 }
 
-/// Remove parentheses for equal operators, e.g. `(a OR b) OR c`.
+/// Removes parentheses for equal operators, e.g. `(a OR b) OR c`.
 ///
 /// Only use this function on operations which have the
 /// [associative property](https://en.wikipedia.org/wiki/Associative_property).
