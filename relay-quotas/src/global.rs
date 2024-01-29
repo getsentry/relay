@@ -1,8 +1,7 @@
-use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
 use crate::RedisQuota;
-use hashbrown::HashMap;
+use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError};
@@ -13,39 +12,6 @@ const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 fn load_global_lua_script() -> &'static Script {
     static SCRIPT: OnceLock<Script> = OnceLock::new();
     SCRIPT.get_or_init(|| Script::new(include_str!("global_quota.lua")))
-}
-
-/// If multiple quotas are the same but have different limits, keep the one with the smallest limit.
-fn filter_similar_redis_quotas(quotas: Vec<RedisQuota>) -> Vec<RedisQuota> {
-    type Index = usize;
-    type Limit = i64;
-
-    // Kinda wonky solution because KeyRef refers to RedisQuota internally.
-    let unique_quotas: HashSet<Index> = {
-        let mut key_map = HashMap::<KeyRef, (Index, Limit)>::new();
-
-        for (idx, quota) in quotas.iter().enumerate() {
-            let key = KeyRef::new(quota);
-
-            if match key_map.get(&key) {
-                Some((_, limit)) => *limit > quota.limit(),
-                None => true,
-            } {
-                key_map.insert(key, (idx, quota.limit()));
-            }
-        }
-
-        key_map.values().map(|(idx, _)| *idx).collect()
-    };
-
-    let mut return_vec = vec![];
-    for (idx, quota) in quotas.into_iter().enumerate() {
-        if unique_quotas.contains(&idx) {
-            return_vec.push(quota);
-        }
-    }
-
-    return_vec
 }
 
 /// A rate limiter for global rate limits.
@@ -59,33 +25,31 @@ impl GlobalRateLimits {
     pub fn filter_ratelimited<'a>(
         &self,
         client: &mut PooledClient,
-        quotas: Vec<RedisQuota<'a>>,
+        quotas: &[&RedisQuota<'a>],
         quantity: usize,
-    ) -> Result<Vec<RedisQuota<'a>>, RedisError> {
+    ) -> Result<Vec<&RedisQuota<'a>>, RedisError> {
         let mut guard = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
 
         let mut ratelimited = vec![];
-        let mut not_ratelimited = vec![];
+        for (key, quotas) in &quotas.iter().group_by(|quota| KeyRef::new(quota)) {
+            let Some(quota) = quotas.min_by_key(|quota| quota.limit()) else {
+                continue;
+            };
 
-        for quota in filter_similar_redis_quotas(quotas) {
-            let key = KeyRef::new(&quota);
             let val = guard.entry_ref(&key).or_default();
 
-            if val.is_rate_limited(client, &quota, key, quantity as u64)? {
-                ratelimited.push(quota);
-            } else {
-                not_ratelimited.push(quota);
+            if val.is_rate_limited(client, quota, key, quantity as u64)? {
+                ratelimited.push(*quota);
             }
         }
 
         if ratelimited.is_empty() {
-            for quota in not_ratelimited {
-                let key = KeyRef::new(&quota);
+            for quota in quotas {
+                let key = KeyRef::new(quota);
 
-                if let Some(val) = guard.get_mut(&key) {
-                    val.budget -= quantity as u64;
-                } else {
-                    relay_log::error!("impossible!");
+                match guard.get_mut(&key) {
+                    Some(val) => val.budget -= quantity as u64,
+                    None => relay_log::error!("invariant violated, key should be present."),
                 }
             }
         }
@@ -342,7 +306,7 @@ mod tests {
             let redis_quota = build_redis_quota(&quota, &scoping);
 
             let is_ratelimited = counter
-                .filter_ratelimited(&mut client, vec![redis_quota], 90)
+                .filter_ratelimited(&mut client, &[&redis_quota], 90)
                 .unwrap();
 
             assert_eq!(should_ratelimit, !is_ratelimited.is_empty());
@@ -362,13 +326,13 @@ mod tests {
 
         let redis_quota = build_redis_quota(&quota, &scoping);
         assert!(!rl
-            .filter_ratelimited(&mut client, vec![redis_quota], 11)
+            .filter_ratelimited(&mut client, &[&redis_quota], 11)
             .unwrap()
             .is_empty());
 
         let redis_quota = build_redis_quota(&quota, &scoping);
         assert!(rl
-            .filter_ratelimited(&mut client, vec![redis_quota], 10)
+            .filter_ratelimited(&mut client, &[&redis_quota], 10)
             .unwrap()
             .is_empty());
     }
@@ -394,7 +358,7 @@ mod tests {
             let quota = build_quota(10, limit as u64);
             let quota = build_redis_quota(&quota, &scoping);
             if counter1
-                .filter_ratelimited(&mut client, vec![quota], quantity)
+                .filter_ratelimited(&mut client, &[&quota], quantity)
                 .unwrap()
                 .is_empty()
             {
@@ -405,7 +369,7 @@ mod tests {
             let quota = build_quota(10, limit as u64);
             let quota = build_redis_quota(&quota, &scoping);
             if counter2
-                .filter_ratelimited(&mut client, vec![quota], quantity)
+                .filter_ratelimited(&mut client, &[&quota], quantity)
                 .unwrap()
                 .is_empty()
             {
@@ -448,13 +412,13 @@ mod tests {
 
         let redis_quota = RedisQuota::new(&quota, scoping, ts).unwrap();
         assert!(rl
-            .filter_ratelimited(&mut client, vec![redis_quota], 200)
+            .filter_ratelimited(&mut client, &[&redis_quota], 200)
             .unwrap()
             .is_empty());
 
         let redis_quota = RedisQuota::new(&quota, scoping, ts).unwrap();
         assert!(!rl
-            .filter_ratelimited(&mut client, vec![redis_quota], 1)
+            .filter_ratelimited(&mut client, &[&redis_quota], 1)
             .unwrap()
             .is_empty());
 
@@ -462,14 +426,14 @@ mod tests {
         let redis_quota =
             RedisQuota::new(&quota, scoping, ts + Duration::from_secs(window + 1)).unwrap();
         assert!(rl
-            .filter_ratelimited(&mut client, vec![redis_quota], 200)
+            .filter_ratelimited(&mut client, &[&redis_quota], 200)
             .unwrap()
             .is_empty());
 
         let redis_quota =
             RedisQuota::new(&quota, scoping, ts + Duration::from_secs(window + 1)).unwrap();
         assert!(!rl
-            .filter_ratelimited(&mut client, vec![redis_quota], 1)
+            .filter_ratelimited(&mut client, &[&redis_quota], 1)
             .unwrap()
             .is_empty());
     }
@@ -497,7 +461,7 @@ mod tests {
         for _ in 0..redis_threshold + 10 {
             let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
             assert!(rl
-                .filter_ratelimited(&mut client, vec![redis_quota], quantity)
+                .filter_ratelimited(&mut client, &[&redis_quota], quantity)
                 .unwrap()
                 .is_empty());
         }
@@ -510,7 +474,7 @@ mod tests {
         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
 
         assert!(!rl
-            .filter_ratelimited(&mut client, vec![redis_quota], quantity)
+            .filter_ratelimited(&mut client, &[&redis_quota], quantity)
             .unwrap()
             .is_empty());
     }
