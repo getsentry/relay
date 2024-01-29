@@ -1902,8 +1902,6 @@ def test_span_reject_invalid_timestamps(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "organizations:standalone-span-ingestion",
-        "projects:span-metrics-extraction",
-        "projects:span-metrics-extraction-all-modules",
     ]
 
     duration = timedelta(milliseconds=500)
@@ -1927,20 +1925,6 @@ def test_span_reject_invalid_timestamps(
                         "name": "span with invalid timestamps",
                         "startTimeUnixNano": int(start_yesterday.timestamp() * 1e9),
                         "endTimeUnixNano": int(end_yesterday.timestamp() * 1e9),
-                        "attributes": [
-                            {
-                                "key": "sentry.op",
-                                "value": {
-                                    "stringValue": "db.query",
-                                },
-                            },
-                            {
-                                "key": "sentry.exclusive_time_ns",
-                                "value": {
-                                    "intValue": int(duration.total_seconds() * 1e9),
-                                },
-                            },
-                        ],
                     },
                 ).encode()
             ),
@@ -1957,20 +1941,6 @@ def test_span_reject_invalid_timestamps(
                         "name": "span with valid timestamps",
                         "startTimeUnixNano": int(start_today.timestamp() * 1e9),
                         "endTimeUnixNano": int(end_today.timestamp() * 1e9),
-                        "attributes": [
-                            {
-                                "key": "sentry.op",
-                                "value": {
-                                    "stringValue": "db.query",
-                                },
-                            },
-                            {
-                                "key": "sentry.exclusive_time_ns",
-                                "value": {
-                                    "intValue": int(duration.total_seconds() * 1e9),
-                                },
-                            },
-                        ],
                     },
                 ).encode()
             ),
