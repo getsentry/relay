@@ -2751,6 +2751,15 @@
 <a href="#2751" id="2751">2751</a>
 <a href="#2752" id="2752">2752</a>
 <a href="#2753" id="2753">2753</a>
+<a href="#2754" id="2754">2754</a>
+<a href="#2755" id="2755">2755</a>
+<a href="#2756" id="2756">2756</a>
+<a href="#2757" id="2757">2757</a>
+<a href="#2758" id="2758">2758</a>
+<a href="#2759" id="2759">2759</a>
+<a href="#2760" id="2760">2760</a>
+<a href="#2761" id="2761">2761</a>
+<a href="#2762" id="2762">2762</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2772,8 +2781,9 @@
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature};
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
-    NormalizationConfig, TransactionNameConfig,
+    normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
+    DynamicMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
+    TransactionNameConfig, TransactionValidationConfig,
 };
 <span class="kw">use </span>relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 <span class="kw">use </span>relay_event_schema::processor::ProcessingAction;
@@ -3796,18 +3806,22 @@
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
-            <span class="kw">let </span>config = NormalizationConfig {
+            <span class="kw">let </span>tx_validation_config = TransactionValidationConfig {
+                timestamp_range: <span class="prelude-val">Some</span>(
+                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
+                ),
+            };
+            <span class="kw">let </span>event_validation_config = EventValidationConfig {
+                received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
+                max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
+                max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
+            };
+            <span class="kw">let </span>normalization_config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
                     client_hints: request_meta.client_hints().as_deref(),
                 },
-                received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
-                max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
-                max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
-                transaction_range: <span class="prelude-val">Some</span>(
-                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
-                ),
                 max_name_and_unit_len: <span class="prelude-val">Some</span>(
                     transaction_aggregator_config
                         .max_name_length
@@ -3842,7 +3856,12 @@
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
-                normalize_event(event, <span class="kw-2">&amp;</span>config).map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)
+                validate_transaction(event, <span class="kw-2">&amp;</span>tx_validation_config)
+                    .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
+                validate_event_timestamps(event, <span class="kw-2">&amp;</span>event_validation_config)
+                    .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
+                normalize_event(event, <span class="kw-2">&amp;</span>normalization_config);
+                <span class="prelude-ty">Result</span>::&lt;(), ProcessingError&gt;::Ok(())
             })
         })<span class="question-mark">?</span>;
 
@@ -5384,8 +5403,7 @@
                     ..Default::default()
                 };
                 normalize_event(event, <span class="kw-2">&amp;</span>config)
-            })
-            .unwrap();
+            });
         })
     }
 

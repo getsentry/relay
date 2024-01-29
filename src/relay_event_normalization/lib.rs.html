@@ -217,6 +217,11 @@
 <a href="#217" id="217">217</a>
 <a href="#218" id="218">218</a>
 <a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization and processing.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -252,7 +257,12 @@
 <span class="kw">mod </span>timestamp;
 <span class="kw">mod </span>transactions;
 <span class="kw">mod </span>trimming;
+<span class="kw">mod </span>validation;
 
+<span class="kw">pub use </span>validation::{
+    validate_event_timestamps, validate_span, validate_transaction, EventValidationConfig,
+    TransactionValidationConfig,
+};
 <span class="kw">pub mod </span>replay;
 <span class="kw">pub use </span>event::{normalize_event, normalize_measurements, NormalizationConfig};
 <span class="kw">pub use </span>normalize::breakdowns::<span class="kw-2">*</span>;

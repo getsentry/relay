@@ -124,6 +124,10 @@
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -136,7 +140,8 @@
 <span class="kw">use </span>anyhow::{format_err, Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_event, NormalizationConfig, StoreConfig, StoreProcessor,
+    normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
+    NormalizationConfig, StoreConfig, StoreProcessor, TransactionValidationConfig,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::Event;
@@ -209,8 +214,11 @@
         }
 
         <span class="kw">if </span><span class="self">self</span>.store {
-            normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default())
+            validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default())
                 .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{e}&quot;</span>))<span class="question-mark">?</span>;
+            validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default())
+                .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{e}&quot;</span>))<span class="question-mark">?</span>;
+            normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
             <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreProcessor::new(StoreConfig::default(), <span class="prelude-val">None</span>);
             process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
                 .map_err(|e| <span class="macro">format_err!</span>(<span class="string">&quot;{e}&quot;</span>))

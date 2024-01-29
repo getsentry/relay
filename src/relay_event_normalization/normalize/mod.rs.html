@@ -2511,20 +2511,6 @@
 <a href="#2511" id="2511">2511</a>
 <a href="#2512" id="2512">2512</a>
 <a href="#2513" id="2513">2513</a>
-<a href="#2514" id="2514">2514</a>
-<a href="#2515" id="2515">2515</a>
-<a href="#2516" id="2516">2516</a>
-<a href="#2517" id="2517">2517</a>
-<a href="#2518" id="2518">2518</a>
-<a href="#2519" id="2519">2519</a>
-<a href="#2520" id="2520">2520</a>
-<a href="#2521" id="2521">2521</a>
-<a href="#2522" id="2522">2522</a>
-<a href="#2523" id="2523">2523</a>
-<a href="#2524" id="2524">2524</a>
-<a href="#2525" id="2525">2525</a>
-<a href="#2526" id="2526">2526</a>
-<a href="#2527" id="2527">2527</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -3236,7 +3222,10 @@
     <span class="kw">use </span>std::collections::BTreeMap;
     <span class="kw">use </span>uuid::Uuid;
 
-    <span class="kw">use crate</span>::{normalize_event, NormalizationConfig};
+    <span class="kw">use crate</span>::{
+        normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
+        NormalizationConfig, TransactionValidationConfig,
+    };
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -3414,7 +3403,7 @@
 
         <span class="kw">let </span>config = StoreConfig::default();
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::new(Arc::new(config), <span class="prelude-val">None</span>);
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
@@ -3442,7 +3431,7 @@
 
         <span class="kw">let </span>config = StoreConfig::default();
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::new(Arc::new(config), <span class="prelude-val">None</span>);
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(Annotated::empty(), event.value().unwrap().user);
@@ -3468,8 +3457,7 @@
                 client_ip: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ip_address),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>ip_addr = <span class="macro">get_value!</span>(event.user.<span class="macro">ip_address!</span>);
@@ -3500,8 +3488,7 @@
                 client_ip: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ip_address),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
@@ -3529,8 +3516,7 @@
                 client_ip: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ip_address),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>user = <span class="macro">get_value!</span>(event.<span class="macro">user!</span>);
@@ -3542,7 +3528,7 @@
     </span><span class="kw">fn </span>test_event_level_defaulted() {
         <span class="kw">let </span>processor = <span class="kw-2">&amp;mut </span>StoreNormalizeProcessor::default();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event::default());
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, processor, ProcessingState::root()).unwrap();
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.level), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Level::Error));
     }
@@ -3568,7 +3554,7 @@
             },
             ..Event::default()
         });
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, processor, ProcessingState::root()).unwrap();
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.level), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Level::Info));
     }
@@ -3584,7 +3570,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>event = event.value().unwrap();
@@ -3605,7 +3591,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>event = event.value().unwrap();
@@ -3622,7 +3608,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.environment), <span class="prelude-val">None</span>);
     }
@@ -3638,7 +3624,7 @@
             ..StoreConfig::default()
         };
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::new(Arc::new(config), <span class="prelude-val">None</span>);
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>event = event.value().unwrap();
@@ -3661,7 +3647,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>environment = <span class="macro">get_path!</span>(event.<span class="macro">environment!</span>);
@@ -3686,7 +3672,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>release = <span class="macro">get_path!</span>(event.<span class="macro">release!</span>);
@@ -3719,7 +3705,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.site), <span class="prelude-val">None</span>);
@@ -3773,7 +3759,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">tags!</span>).len(), <span class="number">1</span>);
@@ -3800,7 +3786,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -3851,7 +3837,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="comment">// should keep the first occurrence of every tag
@@ -3891,7 +3877,7 @@
             ..StoreConfig::default()
         };
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::new(Arc::new(config), <span class="prelude-val">None</span>);
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>event = event.value().unwrap();
@@ -3945,7 +3931,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4043,7 +4029,7 @@
     });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4075,7 +4061,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="kw">let </span>dist = <span class="kw-2">&amp;</span>event.value().unwrap().dist;
@@ -4110,7 +4096,7 @@
         });
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4139,7 +4125,7 @@
             <span class="prelude-val">None</span>,
         );
 
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(
@@ -4161,7 +4147,8 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
 
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">received!</span>), <span class="macro">get_value!</span>(event.<span class="macro">timestamp!</span>));
@@ -4187,7 +4174,8 @@
             <span class="prelude-val">None</span>,
         );
 
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
@@ -4233,7 +4221,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = StoreNormalizeProcessor::default();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {<span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>}, @<span class="string">r#&quot;
@@ -4290,16 +4278,17 @@
             }),
             <span class="prelude-val">None</span>,
         );
-        normalize_event(
+        validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
+        validate_event_timestamps(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>NormalizationConfig {
+            <span class="kw-2">&amp;</span>EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
-                ..Default::default()
             },
         )
         .unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
@@ -4352,16 +4341,16 @@
             }),
             <span class="prelude-val">None</span>,
         );
-        normalize_event(
+        validate_event_timestamps(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;</span>NormalizationConfig {
+            <span class="kw-2">&amp;</span>EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
-                ..Default::default()
             },
         )
         .unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
@@ -4568,19 +4557,19 @@
             event
         }
 
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         <span class="kw">let </span>first = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
         <span class="comment">// Expected some fields (such as timestamps) exist after first light normalization.
 
-        </span>normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        </span>normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         <span class="kw">let </span>second = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
         <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>first, <span class="kw-2">&amp;</span>second, <span class="string">&quot;idempotency check failed&quot;</span>);
 
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
         <span class="kw">let </span>third = remove_received_from_event(<span class="kw-2">&amp;mut </span>event.clone())
             .to_json()
             .unwrap();
@@ -4641,7 +4630,8 @@
                 .spans
                 .set_value(<span class="prelude-val">Some</span>(<span class="macro">vec!</span>[Annotated::&lt;Span&gt;::from_json(span).unwrap()]));
 
-            <span class="kw">let </span>res = normalize_event(<span class="kw-2">&amp;mut </span>modified_event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
+            <span class="kw">let </span>res =
+                validate_transaction(<span class="kw-2">&amp;</span>modified_event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default());
 
             <span class="macro">assert!</span>(res.is_err(), <span class="string">&quot;{span:?}&quot;</span>);
         }
@@ -4659,15 +4649,13 @@
         )
         .unwrap();
 
-        <span class="kw">let </span>result = normalize_event(
+        normalize_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>NormalizationConfig {
                 is_renormalize: <span class="bool-val">true</span>,
                 ..Default::default()
             },
         );
-
-        <span class="macro">assert!</span>(result.is_ok());
 
         <span class="macro">assert_debug_snapshot!</span>(event.value().unwrap().tags, @<span class="string">r#&quot;
         Tags(
@@ -4723,8 +4711,7 @@
                 geoip_lookup: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>lookup),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         <span class="comment">// Extract user&#39;s geo information after normalization.
         </span><span class="kw">let </span>user_geo = event
@@ -5035,21 +5022,6 @@
           }
         }
         &quot;###</span>);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_reject_stale_transaction() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{
-  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
-  &quot;start_timestamp&quot;: -2,
-  &quot;timestamp&quot;: -1
-}&quot;#</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>transaction = Annotated::&lt;Event&gt;::from_json(json).unwrap();
-        <span class="kw">let </span>res = normalize_event(<span class="kw-2">&amp;mut </span>transaction, <span class="kw-2">&amp;</span>NormalizationConfig::default());
-        <span class="macro">assert_eq!</span>(
-            res.unwrap_err().to_string(),
-            <span class="string">&quot;invalid transaction event: timestamp is too stale&quot;
-        </span>);
     }
 }
 </code></pre></div></section></main></body></html>

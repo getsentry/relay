@@ -2005,6 +2005,8 @@
 <a href="#2005" id="2005">2005</a>
 <a href="#2006" id="2006">2006</a>
 <a href="#2007" id="2007">2007</a>
+<a href="#2008" id="2008">2008</a>
+<a href="#2009" id="2009">2009</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -2501,9 +2503,10 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_dynamic_config::AcceptTransactionNames;
     <span class="kw">use </span>relay_event_normalization::{
-        normalize_event, set_default_transaction_source, BreakdownsConfig,
-        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig,
-        PerformanceScoreProfile, PerformanceScoreWeightedComponent,
+        normalize_event, set_default_transaction_source, validate_event_timestamps,
+        validate_transaction, BreakdownsConfig, DynamicMeasurementsConfig, EventValidationConfig,
+        MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
+        PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
     <span class="kw">use </span>relay_event_schema::protocol::User;
     <span class="kw">use </span>relay_metrics::BucketValue;
@@ -2582,8 +2585,11 @@
         )
         .unwrap();
 
-        <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
-        </span>normalize_event(
+        <span class="comment">// Validate and normalize first, to make sure that all things are correct as in the real pipeline:
+        </span>validate_transaction(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>TransactionValidationConfig::default()).unwrap();
+        validate_event_timestamps(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>EventValidationConfig::default()).unwrap();
+
+        normalize_event(
             <span class="kw-2">&amp;mut </span>event,
             <span class="kw-2">&amp;</span>NormalizationConfig {
                 breakdowns_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>breakdowns_config),
@@ -2604,8 +2610,7 @@
                 }),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         <span class="kw">let </span>config: TransactionMetricsConfig = serde_json::from_str(
             <span class="string">r#&quot;{
@@ -2888,7 +2893,7 @@
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
@@ -3009,7 +3014,7 @@
 
         <span class="comment">// Normalize first, to make sure the units are correct:
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
-        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default()).unwrap();
+        normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 
         <span class="kw">let </span>config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
@@ -3187,8 +3192,7 @@
                 measurements: <span class="prelude-val">Some</span>(config),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {
@@ -3815,7 +3819,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
         <span class="comment">// Normalize first, to make sure that the metrics were computed:
-        </span><span class="kw">let _ </span>= normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
+        </span>normalize_event(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;</span>NormalizationConfig::default());
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
         <span class="kw">let </span>extractor = TransactionExtractor {

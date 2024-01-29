@@ -1148,8 +1148,6 @@
 <a href="#1148" id="1148">1148</a>
 <a href="#1149" id="1149">1149</a>
 <a href="#1150" id="1150">1150</a>
-<a href="#1151" id="1151">1151</a>
-<a href="#1152" id="1152">1152</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1871,8 +1869,7 @@
                     }
                 }
 
-                <span class="comment">// Normalize first, to make sure that all things are correct as in the real pipeline:
-                </span><span class="kw">let </span>res = normalize_event(
+                normalize_event(
                     <span class="kw-2">&amp;mut </span>event,
                     <span class="kw-2">&amp;</span>NormalizationConfig {
                         enrich_spans: <span class="bool-val">true</span>,
@@ -1880,7 +1877,6 @@
                         ..Default::default()
                     },
                 );
-                <span class="macro">assert!</span>(res.is_ok());
 
                 <span class="macro">assert_eq!</span>(
                     <span class="macro-nonterminal">$expected_method</span>,

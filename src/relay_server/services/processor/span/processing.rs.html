@@ -430,8 +430,6 @@
 <a href="#430" id="430">430</a>
 <a href="#431" id="431">431</a>
 <a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -443,11 +441,12 @@
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::span::tag_extraction;
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_measurements, DynamicMeasurementsConfig, MeasurementsConfig,
+    normalize_measurements, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    TransactionsProcessor,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::Span;
-<span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
+<span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace};
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
 
@@ -650,8 +649,6 @@
 </span><span class="kw">struct </span>NormalizeSpanConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The time at which the event was received in this Relay.
     </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
-    <span class="doccomment">/// Allowed time range for transactions.
-    </span><span class="kw">pub </span>timestamp_range: std::ops::Range&lt;UnixTimestamp&gt;,
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     </span><span class="kw">pub </span>max_tag_value_size: usize,
     <span class="doccomment">/// Configuration for measurement normalization in transaction events.
@@ -678,7 +675,6 @@
 
     NormalizeSpanConfig {
         received_at,
-        timestamp_range: aggregator_config.timestamp_range(),
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
@@ -699,13 +695,10 @@
     annotated_span: <span class="kw-2">&amp;mut </span>Annotated&lt;Span&gt;,
     config: NormalizeSpanConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-    <span class="kw">use </span>relay_event_normalization::{
-        SchemaProcessor, TimestampProcessor, TransactionsProcessor, TrimmingProcessor,
-    };
+    <span class="kw">use </span>relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
 
     <span class="kw">let </span>NormalizeSpanConfig {
         received_at,
-        timestamp_range,
         max_tag_value_size,
         measurements,
         max_name_and_unit_len,
@@ -727,9 +720,12 @@
         ProcessingState::root(),
     )<span class="question-mark">?</span>;
 
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() {
+        validate_span(span)<span class="question-mark">?</span>;
+    }
     process_value(
         annotated_span,
-        <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(Default::default(), <span class="prelude-val">Some</span>(timestamp_range)),
+        <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(Default::default()),
         ProcessingState::root(),
     )<span class="question-mark">?</span>;
 
