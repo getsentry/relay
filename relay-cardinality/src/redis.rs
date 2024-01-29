@@ -6,7 +6,7 @@ use relay_statsd::metric;
 
 use crate::{
     cache::{Cache, CacheOutcome},
-    limiter::{EntryId, Limiter, Rejection},
+    limiter::{EntryId, Limiter, Rejections},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     window::Slot,
     Result,
@@ -85,14 +85,16 @@ impl RedisSetLimiter {
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<I>(
+    fn check_cardinality_limits<E, R>(
         &self,
         scoping: Scoping,
         limits: &[CardinalityLimit],
-        entries: I,
-    ) -> Result<Box<dyn Iterator<Item = Rejection>>>
+        entries: E,
+        rejections: &mut R,
+    ) -> Result<()>
     where
-        I: IntoIterator<Item = Entry>,
+        E: IntoIterator<Item = Entry>,
+        R: Rejections,
     {
         let timestamp = UnixTimestamp::now();
         // Allows to fast forward time in tests.
@@ -100,7 +102,6 @@ impl Limiter for RedisSetLimiter {
         let timestamp = timestamp + self.time_offset;
 
         let mut states = LimitState::from_limits(scoping, limits);
-        let mut rejected = Vec::new();
 
         let cache = self.cache.read(timestamp); // Acquire a read lock.
         for entry in entries {
@@ -118,7 +119,7 @@ impl Limiter for RedisSetLimiter {
                     }
                     CacheOutcome::Rejected => {
                         // Rejected, add it to the rejected list and move on.
-                        rejected.push(Rejection::new(entry.id));
+                        rejections.reject(entry.id);
                         state.cache_hit();
                         state.rejected();
                     }
@@ -150,7 +151,7 @@ impl Limiter for RedisSetLimiter {
             let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
             for (entry, status) in results {
                 if status.is_rejected() {
-                    rejected.push(entry.rejection());
+                    rejections.reject(entry.id);
                     state.rejected();
                 } else {
                     cache.accept(entry.hash);
@@ -160,15 +161,7 @@ impl Limiter for RedisSetLimiter {
             drop(cache); // Give up the cache lock!
         }
 
-        if !rejected.is_empty() {
-            relay_log::debug!(
-                scoping = ?scoping,
-                "rejected {} metrics due to cardinality limit",
-                rejected.len(),
-            );
-        }
-
-        Ok(Box::new(rejected.into_iter()))
+        Ok(())
     }
 }
 
@@ -311,11 +304,6 @@ impl RedisEntry {
     /// Creates a new Redis entry in the rejected status.
     fn new(id: EntryId, hash: u32) -> Self {
         Self { id, hash }
-    }
-
-    /// Turns the item into a rejection.
-    fn rejection(self) -> Rejection {
-        Rejection { id: self.id }
     }
 }
 
@@ -490,6 +478,23 @@ mod tests {
         scoping
     }
 
+    #[derive(Debug, Default, PartialEq, Eq)]
+    struct Rejections(HashSet<EntryId>);
+
+    impl super::Rejections for Rejections {
+        fn reject(&mut self, entry_id: EntryId) {
+            self.0.insert(entry_id);
+        }
+    }
+
+    impl std::ops::Deref for Rejections {
+        type Target = HashSet<EntryId>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
         fn flush(&self, scoping: Scoping) {
@@ -512,6 +517,21 @@ mod tests {
                 }
                 del.query::<()>(&mut connection).unwrap();
             }
+        }
+
+        fn test_limits<I>(
+            &self,
+            scoping: Scoping,
+            limits: &[CardinalityLimit],
+            entries: I,
+        ) -> Rejections
+        where
+            I: IntoIterator<Item = Entry>,
+        {
+            let mut outcomes = Rejections::default();
+            self.check_cardinality_limits(scoping, limits, entries, &mut outcomes)
+                .unwrap();
+            outcomes
         }
     }
 
@@ -541,30 +561,18 @@ mod tests {
         };
 
         // 6 items, limit is 5 -> 1 rejection.
-        let rejected = limiter
-            .check_cardinality_limits(scoping, &[limit.clone()], entries)
-            .unwrap()
-            .map(|e| e.id)
-            .collect::<HashSet<_>>();
+        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
         assert_eq!(rejected.len(), 1);
 
         // We're at the limit but it should still accept already accepted elements, even with a
         // samller limit than previously accepted.
         limit.limit = 3;
-        let rejected2 = limiter
-            .check_cardinality_limits(scoping, &[limit.clone()], entries)
-            .unwrap()
-            .map(|e| e.id)
-            .collect::<HashSet<_>>();
+        let rejected2 = limiter.test_limits(scoping, &[limit.clone()], entries);
         assert_eq!(rejected2, rejected);
 
         // A higher limit should accept everthing
         limit.limit = 6;
-        let rejected3 = limiter
-            .check_cardinality_limits(scoping, &[limit], entries)
-            .unwrap()
-            .map(|e| e.id)
-            .collect::<HashSet<_>>();
+        let rejected3 = limiter.test_limits(scoping, &[limit], entries);
         assert_eq!(rejected3.len(), 0);
     }
 
@@ -587,18 +595,14 @@ mod tests {
         let entries = (0..50)
             .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
             .collect::<Vec<_>>();
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries)
-            .unwrap();
-        assert_eq!(rejected.count(), 0);
+        let rejected = limiter.test_limits(scoping, limits, entries);
+        assert_eq!(rejected.len(), 0);
 
         let entries = (100..150)
             .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
             .collect::<Vec<_>>();
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries)
-            .unwrap();
-        assert_eq!(rejected.count(), 0);
+        let rejected = limiter.test_limits(scoping, limits, entries);
+        assert_eq!(rejected.len(), 0);
     }
 
     #[test]
@@ -621,10 +625,8 @@ mod tests {
             .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
             .collect::<Vec<_>>();
 
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries)
-            .unwrap();
-        assert_eq!(rejected.count(), 20_000);
+        let rejected = limiter.test_limits(scoping, limits, entries);
+        assert_eq!(rejected.len(), 20_000);
     }
 
     #[test]
@@ -648,39 +650,29 @@ mod tests {
         let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
 
         // 1 item and limit is 1 -> No rejections.
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries1)
-            .unwrap();
-        assert_eq!(rejected.count(), 0);
+        let rejected = limiter.test_limits(scoping, limits, entries1);
+        assert_eq!(rejected.len(), 0);
 
         for i in 0..window.window_seconds / window.granularity_seconds {
             // Fast forward time.
             limiter.time_offset = Duration::from_secs(i * window.granularity_seconds);
 
             // Should accept the already inserted item.
-            let rejected = limiter
-                .check_cardinality_limits(scoping, limits, entries1)
-                .unwrap();
-            assert_eq!(rejected.count(), 0);
+            let rejected = limiter.test_limits(scoping, limits, entries1);
+            assert_eq!(rejected.len(), 0);
             // Should reject the new item.
-            let rejected = limiter
-                .check_cardinality_limits(scoping, limits, entries2)
-                .unwrap();
-            assert_eq!(rejected.count(), 1);
+            let rejected = limiter.test_limits(scoping, limits, entries2);
+            assert_eq!(rejected.len(), 1);
         }
 
         // Fast forward time to where we're in the next window.
         limiter.time_offset = Duration::from_secs(window.window_seconds + 1);
         // Accept the new element.
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries2)
-            .unwrap();
-        assert_eq!(rejected.count(), 0);
+        let rejected = limiter.test_limits(scoping, limits, entries2);
+        assert_eq!(rejected.len(), 0);
         // Reject the old element now.
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries1)
-            .unwrap();
-        assert_eq!(rejected.count(), 1);
+        let rejected = limiter.test_limits(scoping, limits, entries1);
+        assert_eq!(rejected.len(), 1);
     }
 
     #[test]
@@ -703,23 +695,14 @@ mod tests {
         let entries2 = [Entry::new(EntryId(0), MetricNamespace::Spans, 1)];
         let entries3 = [Entry::new(EntryId(0), MetricNamespace::Transactions, 2)];
 
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries1)
-            .unwrap()
-            .count();
-        assert_eq!(rejected, 0);
+        let rejected = limiter.test_limits(scoping, limits, entries1);
+        assert_eq!(rejected.len(), 0);
 
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries2)
-            .unwrap()
-            .count();
-        assert_eq!(rejected, 0);
+        let rejected = limiter.test_limits(scoping, limits, entries2);
+        assert_eq!(rejected.len(), 0);
 
-        let rejected = limiter
-            .check_cardinality_limits(scoping, limits, entries3)
-            .unwrap()
-            .count();
-        assert_eq!(rejected, 1);
+        let rejected = limiter.test_limits(scoping, limits, entries3);
+        assert_eq!(rejected.len(), 1);
     }
 
     #[test]
@@ -781,11 +764,7 @@ mod tests {
 
         // Run multiple times to make sure caching does not interfere.
         for _ in 0..3 {
-            let rejected = limiter
-                .check_cardinality_limits(scoping, limits, entries)
-                .unwrap()
-                .map(|e| e.id)
-                .collect::<HashSet<_>>();
+            let rejected = limiter.test_limits(scoping, limits, entries);
 
             // 2 transactions + 1 span + 1 custom (4) accepted -> 2 (6-4) rejected.
             assert_eq!(rejected.len(), 2);
