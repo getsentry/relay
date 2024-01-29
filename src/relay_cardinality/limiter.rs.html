@@ -377,6 +377,11 @@
 <a href="#377" id="377">377</a>
 <a href="#378" id="378">378</a>
 <a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -521,6 +526,11 @@
 }
 
 <span class="kw">impl</span>&lt;T&gt; CardinalityLimits&lt;T&gt; {
+    <span class="doccomment">/// Recovers the original list of items passed to the cardinality limiter.
+    </span><span class="kw">pub fn </span>into_source(<span class="self">self</span>) -&gt; Vec&lt;T&gt; {
+        <span class="self">self</span>.source
+    }
+
     <span class="doccomment">/// Returns an iterator yielding only rejected items.
     </span><span class="kw">pub fn </span>rejected(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>T&gt; {
         <span class="self">self</span>.rejections.iter().filter_map(|<span class="kw-2">&amp;</span>i| <span class="self">self</span>.source.get(i))

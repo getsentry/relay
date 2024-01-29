@@ -96,6 +96,50 @@
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -136,6 +180,14 @@
             <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
         }
     }
+
+    <span class="doccomment">/// Returns the [`Options::cardinality_limiter_mode`] option.
+    </span><span class="kw">pub fn </span>cardinality_limiter_mode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CardinalityLimiterMode {
+        <span class="self">self</span>.options
+            .as_ref()
+            .map(|o| o.cardinality_limiter_mode)
+            .unwrap_or_default()
+    }
 }
 
 <span class="doccomment">/// All options passed down from Sentry to Relay.
@@ -156,9 +208,30 @@
     </span><span class="attr">#[serde(rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.enabled&quot;</span>)]
     </span><span class="kw">pub </span>unsampled_profiles_enabled: bool,
 
+    <span class="doccomment">/// Kill switch for controlling the cardinality limiter.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;relay.cardinality-limiter.mode&quot;</span>)]
+    </span><span class="kw">pub </span>cardinality_limiter_mode: CardinalityLimiterMode,
+
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]
     </span>other: HashMap&lt;String, Value&gt;,
+}
+
+<span class="doccomment">/// Kill switch for controlling the cardinality limiter.
+</span><span class="attr">#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+#[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
+</span><span class="kw">pub enum </span>CardinalityLimiterMode {
+    <span class="doccomment">/// Cardinality limiter is enabled.
+    </span><span class="attr">#[default]
+    </span><span class="comment">// De-serialize from the empty string, because the option was added to
+    // Sentry incorrectly which makes Sentry send the empty string as a default.
+    </span><span class="attr">#[serde(alias = <span class="string">&quot;&quot;</span>)]
+    </span>Enabled,
+    <span class="doccomment">/// Cardinality limiter is enabled but cardinality limits are not enforced.
+    </span>Passive,
+    <span class="doccomment">/// Cardinality limiter is disabled.
+    </span>Disabled,
 }
 
 <span class="attr">#[cfg(test)]
@@ -192,6 +265,21 @@
             .expect(<span class="string">&quot;failed to deserialize GlobalConfig&quot;</span>);
 
         <span class="macro">assert_eq!</span>(deserialized, global_config);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_cardinality_limiter_mode_de_serialize() {
+        <span class="kw">let </span>m: CardinalityLimiterMode = serde_json::from_str(<span class="string">&quot;\&quot;\&quot;&quot;</span>).unwrap();
+        <span class="macro">assert_eq!</span>(m, CardinalityLimiterMode::Enabled);
+        <span class="kw">let </span>m: CardinalityLimiterMode = serde_json::from_str(<span class="string">&quot;\&quot;enabled\&quot;&quot;</span>).unwrap();
+        <span class="macro">assert_eq!</span>(m, CardinalityLimiterMode::Enabled);
+        <span class="kw">let </span>m: CardinalityLimiterMode = serde_json::from_str(<span class="string">&quot;\&quot;disabled\&quot;&quot;</span>).unwrap();
+        <span class="macro">assert_eq!</span>(m, CardinalityLimiterMode::Disabled);
+        <span class="kw">let </span>m: CardinalityLimiterMode = serde_json::from_str(<span class="string">&quot;\&quot;passive\&quot;&quot;</span>).unwrap();
+        <span class="macro">assert_eq!</span>(m, CardinalityLimiterMode::Passive);
+
+        <span class="kw">let </span>m = serde_json::to_string(<span class="kw-2">&amp;</span>CardinalityLimiterMode::Enabled).unwrap();
+        <span class="macro">assert_eq!</span>(m, <span class="string">&quot;\&quot;enabled\&quot;&quot;</span>);
     }
 }
 </code></pre></div></section></main></body></html>

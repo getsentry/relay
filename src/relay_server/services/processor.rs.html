@@ -2739,6 +2739,18 @@
 <a href="#2739" id="2739">2739</a>
 <a href="#2740" id="2740">2740</a>
 <a href="#2741" id="2741">2741</a>
+<a href="#2742" id="2742">2742</a>
+<a href="#2743" id="2743">2743</a>
+<a href="#2744" id="2744">2744</a>
+<a href="#2745" id="2745">2745</a>
+<a href="#2746" id="2746">2746</a>
+<a href="#2747" id="2747">2747</a>
+<a href="#2748" id="2748">2748</a>
+<a href="#2749" id="2749">2749</a>
+<a href="#2750" id="2750">2750</a>
+<a href="#2751" id="2751">2751</a>
+<a href="#2752" id="2752">2752</a>
+<a href="#2753" id="2753">2753</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2787,6 +2799,7 @@
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
+    relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -4467,6 +4480,13 @@
         buckets: Vec&lt;Bucket&gt;,
         mode: ExtractionMode,
     ) -&gt; Vec&lt;Bucket&gt; {
+        <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+        <span class="kw">let </span>cardinality_limiter_mode = global_config.cardinality_limiter_mode();
+
+        <span class="kw">if </span><span class="macro">matches!</span>(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
+            <span class="kw">return </span>buckets;
+        }
+
         <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>limiter) = <span class="self">self</span>.inner.cardinality_limiter <span class="kw">else </span>{
             <span class="kw">return </span>buckets;
         };
@@ -4487,6 +4507,10 @@
                 <span class="kw">return </span>buckets;
             }
         };
+
+        <span class="kw">if </span><span class="macro">matches!</span>(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
+            <span class="kw">return </span>limits.into_source();
+        }
 
         <span class="comment">// Log outcomes for rejected buckets.
         </span>utils::reject_metrics(
