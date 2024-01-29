@@ -1127,6 +1127,7 @@ impl Project {
         buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
         let len = buckets.len();
+
         let Some(project_state) = self.valid_state() else {
             relay_log::error!(
                 tags.project_key = self.project_key.as_str(),
@@ -1134,6 +1135,11 @@ impl Project {
             );
             return None;
         };
+
+        if project_state.invalid() || project_state.disabled() {
+            relay_log::debug!("dropping {len} buckets for disabled project");
+            return None;
+        }
 
         let Some(scoping) = self.scoping() else {
             relay_log::error!(
