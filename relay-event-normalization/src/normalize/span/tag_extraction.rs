@@ -678,7 +678,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 mod tests {
     use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Event, Request};
-    use relay_protocol::Annotated;
+    use relay_protocol::{get_value, Annotated};
 
     use super::*;
     use crate::{normalize_event, NormalizationConfig};
@@ -1175,9 +1175,9 @@ LIMIT 1
         let span_2 = &event.spans.value().unwrap()[1];
         let span_3 = &event.spans.value().unwrap()[2];
 
-        let tags_1 = span_1.value().unwrap().sentry_tags.value().unwrap();
-        let tags_2 = span_2.value().unwrap().sentry_tags.value().unwrap();
-        let tags_3 = span_3.value().unwrap().sentry_tags.value().unwrap();
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
 
         assert_eq!(
             tags_1.get("raw_domain").unwrap().as_str(),
