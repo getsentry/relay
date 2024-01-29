@@ -24,7 +24,7 @@ use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
+    breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
@@ -139,6 +139,9 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
     };
 
     let is_renormalize = config.is_renormalize;
+
+    // Convert legacy data structures to current format
+    let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
     if !is_renormalize {
         normalize(event, meta, config);
