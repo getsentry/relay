@@ -116,11 +116,6 @@ impl ManagedEnvelope {
     }
 
     #[cfg(test)]
-    pub fn set_processing_group(&mut self, group: ProcessingGroup) {
-        self.context.group = group
-    }
-
-    #[cfg(test)]
     pub fn untracked(
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,
@@ -148,14 +143,9 @@ impl ManagedEnvelope {
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
-        Self::new_internal(
-            envelope,
-            None,
-            outcome_aggregator,
-            test_store,
-            ProcessingGroup::Ungrouped,
-        )
+        Self::new_internal(envelope, None, outcome_aggregator, test_store, group)
     }
 
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
