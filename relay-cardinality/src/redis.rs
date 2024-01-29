@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
     Connection, RedisPool,
@@ -10,10 +8,12 @@ use crate::{
     cache::{Cache, CacheOutcome},
     limiter::{EntryId, Limiter, Rejections},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
+    window::Slot,
     Result,
 };
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
 
 use crate::limiter::{Entry, Scoping};
 use crate::{CardinalityLimit, CardinalityScope, OrganizationId, SlidingWindow};
@@ -27,7 +27,7 @@ pub struct RedisSetLimiter {
     script: CardinalityScript,
     cache: Cache,
     #[cfg(test)]
-    time_offset: u64,
+    time_offset: std::time::Duration,
 }
 
 /// A Redis based limiter using Redis sets to track cardinality and membership.
@@ -39,7 +39,7 @@ impl RedisSetLimiter {
             script: CardinalityScript::load(),
             cache: Cache::default(),
             #[cfg(test)]
-            time_offset: 0,
+            time_offset: std::time::Duration::from_secs(0),
         }
     }
 
@@ -50,7 +50,7 @@ impl RedisSetLimiter {
         &self,
         con: &mut Connection,
         state: &mut LimitState<'_>,
-        timestamp: u64,
+        timestamp: UnixTimestamp,
     ) -> Result<CheckedLimits> {
         let scope = state.scope;
         let limit = state.limit;
@@ -96,10 +96,7 @@ impl Limiter for RedisSetLimiter {
         E: IntoIterator<Item = Entry>,
         R: Rejections,
     {
-        let timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let timestamp = UnixTimestamp::now();
         // Allows to fast forward time in tests.
         #[cfg(test)]
         let timestamp = timestamp + self.time_offset;
@@ -202,12 +199,12 @@ impl QuotaScoping {
     }
 
     /// Returns all slots of the sliding window for a specific timestamp.
-    pub fn slots(&self, timestamp: u64) -> impl Iterator<Item = u64> {
+    pub fn slots(&self, timestamp: UnixTimestamp) -> impl Iterator<Item = Slot> {
         self.window.iter(timestamp)
     }
 
     /// Turns the scoping into a Redis key for the passed slot.
-    fn into_redis_key(self, slot: u64) -> String {
+    fn into_redis_key(self, slot: Slot) -> String {
         let organization_id = self.organization_id.unwrap_or(0);
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
@@ -448,6 +445,7 @@ impl IntoIterator for CheckedLimits {
 mod tests {
     use std::collections::HashSet;
     use std::sync::atomic::AtomicU64;
+    use std::time::Duration;
 
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::ProjectId;
@@ -657,7 +655,7 @@ mod tests {
 
         for i in 0..window.window_seconds / window.granularity_seconds {
             // Fast forward time.
-            limiter.time_offset = i * window.granularity_seconds;
+            limiter.time_offset = Duration::from_secs(i * window.granularity_seconds);
 
             // Should accept the already inserted item.
             let rejected = limiter.test_limits(scoping, limits, entries1);
@@ -668,8 +666,7 @@ mod tests {
         }
 
         // Fast forward time to where we're in the next window.
-        limiter.time_offset = window.window_seconds + 1;
-
+        limiter.time_offset = Duration::from_secs(window.window_seconds + 1);
         // Accept the new element.
         let rejected = limiter.test_limits(scoping, limits, entries2);
         assert_eq!(rejected.len(), 0);

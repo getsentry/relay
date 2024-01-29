@@ -3,6 +3,8 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
+#[cfg(feature = "processing")]
+use relay_cardinality::CardinalityLimit;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Metrics, ProjectConfig};
 use relay_filter::matches_any_origin;
@@ -286,6 +288,15 @@ impl ProjectState {
     /// Returns quotas declared in this project state.
     pub fn get_quotas(&self) -> &[Quota] {
         self.config.quotas.as_slice()
+    }
+
+    /// Returns cardinality limits declared in this project state.
+    #[cfg(feature = "processing")]
+    pub fn get_cardinality_limits(&self) -> &[CardinalityLimit] {
+        match self.config.metrics {
+            ErrorBoundary::Ok(ref m) => m.cardinality_limits.as_slice(),
+            _ => &[],
+        }
     }
 
     /// Returns `Err` if the project is known to be invalid or disabled.
@@ -1171,7 +1182,7 @@ fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
         if tag_block.name.is_match(&bucket.name) {
             bucket
                 .tags
-                .retain(|tag_key, _| !tag_block.tag.is_match(tag_key));
+                .retain(|tag_key, _| !tag_block.tags.is_match(tag_key));
         }
     }
 }
@@ -1511,7 +1522,7 @@ mod tests {
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
                 name: GlobPatterns::new(vec!["foobar".to_string()]),
-                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };
@@ -1537,7 +1548,7 @@ mod tests {
             denied_tags: vec![TagBlock {
                 // barfoo doesn't batch the 'foobar' bucket
                 name: GlobPatterns::new(vec!["barfoo".to_string()]),
-                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };

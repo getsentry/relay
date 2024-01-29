@@ -517,9 +517,25 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
+    /// `false` if the sampling decision is "drop".
+    ///
+    /// In the most common use case, the item is dropped when the sampling decision is "drop".
+    /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
+    /// for which the transaction was dropped as `sampled: false`.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    sampled: bool,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 /// Container for item quantities that the item was derived from.
@@ -564,6 +580,7 @@ impl Item {
                 sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
+                sampled: true,
             },
             payload: Bytes::new(),
         }
@@ -737,6 +754,16 @@ impl Item {
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
+    }
+
+    /// Gets the `sampled` flag.
+    pub fn sampled(&self) -> bool {
+        self.headers.sampled
+    }
+
+    /// Sets the `sampled` flag.
+    pub fn set_sampled(&mut self, sampled: bool) {
+        self.headers.sampled = sampled;
     }
 
     /// Returns the specified header value, if present.
