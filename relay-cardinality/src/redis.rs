@@ -85,16 +85,16 @@ impl RedisSetLimiter {
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<I, T>(
+    fn check_cardinality_limits<E, R>(
         &self,
         scoping: Scoping,
         limits: &[CardinalityLimit],
-        entries: I,
-        rejections: &mut T,
+        entries: E,
+        rejections: &mut R,
     ) -> Result<()>
     where
-        I: IntoIterator<Item = Entry>,
-        T: Rejections,
+        E: IntoIterator<Item = Entry>,
+        R: Rejections,
     {
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
