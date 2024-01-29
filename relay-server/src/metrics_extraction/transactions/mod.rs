@@ -494,9 +494,10 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
-        normalize_event, set_default_transaction_source, BreakdownsConfig,
-        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig,
-        PerformanceScoreProfile, PerformanceScoreWeightedComponent,
+        normalize_event, set_default_transaction_source, validate_event_timestamps,
+        validate_transaction, BreakdownsConfig, DynamicMeasurementsConfig, EventValidationConfig,
+        MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
+        PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
     use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
@@ -575,7 +576,10 @@ mod tests {
         )
         .unwrap();
 
-        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
+        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
+        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -597,8 +601,7 @@ mod tests {
                 }),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"{
@@ -881,7 +884,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1002,7 +1005,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1180,8 +1183,7 @@ mod tests {
                 measurements: Some(config),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1808,7 +1810,7 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
-        let _ = normalize_event(&mut event, &NormalizationConfig::default());
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {

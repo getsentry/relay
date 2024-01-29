@@ -497,7 +497,6 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
-        // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -505,8 +504,7 @@ mod tests {
                 normalize_spans: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
@@ -1027,8 +1025,7 @@ mod tests {
                 normalize_spans: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
@@ -1141,8 +1138,7 @@ mod tests {
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {

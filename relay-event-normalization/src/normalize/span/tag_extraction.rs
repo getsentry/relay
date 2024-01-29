@@ -719,8 +719,7 @@ mod tests {
                     }
                 }
 
-                // Normalize first, to make sure that all things are correct as in the real pipeline:
-                let res = normalize_event(
+                normalize_event(
                     &mut event,
                     &NormalizationConfig {
                         enrich_spans: true,
@@ -728,7 +727,6 @@ mod tests {
                         ..Default::default()
                     },
                 );
-                assert!(res.is_ok());
 
                 assert_eq!(
                     $expected_method,

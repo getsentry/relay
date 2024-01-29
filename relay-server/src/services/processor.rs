@@ -19,8 +19,9 @@ use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{ErrorBoundary, Feature};
 use relay_event_normalization::{
-    normalize_event, ClockDriftProcessor, DynamicMeasurementsConfig, MeasurementsConfig,
-    NormalizationConfig, TransactionNameConfig,
+    normalize_event, validate_event_timestamps, validate_transaction, ClockDriftProcessor,
+    DynamicMeasurementsConfig, EventValidationConfig, MeasurementsConfig, NormalizationConfig,
+    TransactionNameConfig, TransactionValidationConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::ProcessingAction;
@@ -1043,18 +1044,22 @@ impl EnvelopeProcessorService {
         let global_config = self.inner.global_config.current();
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = NormalizationConfig {
+            let tx_validation_config = TransactionValidationConfig {
+                timestamp_range: Some(
+                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
+                ),
+            };
+            let event_validation_config = EventValidationConfig {
+                received_at: Some(state.managed_envelope.received_at()),
+                max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
+                max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+            };
+            let normalization_config = NormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
                     client_hints: request_meta.client_hints().as_deref(),
                 },
-                received_at: Some(state.managed_envelope.received_at()),
-                max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
-                max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                transaction_range: Some(
-                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
-                ),
                 max_name_and_unit_len: Some(
                     transaction_aggregator_config
                         .max_name_length
@@ -1089,7 +1094,12 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                normalize_event(event, &config).map_err(|_| ProcessingError::InvalidTransaction)
+                validate_transaction(event, &tx_validation_config)
+                    .map_err(|_| ProcessingError::InvalidTransaction)?;
+                validate_event_timestamps(event, &event_validation_config)
+                    .map_err(|_| ProcessingError::InvalidTransaction)?;
+                normalize_event(event, &normalization_config);
+                Result::<(), ProcessingError>::Ok(())
             })
         })?;
 
@@ -2631,8 +2641,7 @@ mod tests {
                     ..Default::default()
                 };
                 normalize_event(event, &config)
-            })
-            .unwrap();
+            });
         })
     }
 
