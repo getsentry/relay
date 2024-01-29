@@ -144,6 +144,9 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
     let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
     if !is_renormalize {
+        // Check for required and non-empty values
+        let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+
         normalize(event, meta, config);
     }
 }
@@ -157,9 +160,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     let mut transactions_processor =
         transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
-
-    // Check for required and non-empty values
-    let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
     // Process security reports first to ensure all props.
     normalize_security_report(event, config.client_ip, &config.user_agent);
