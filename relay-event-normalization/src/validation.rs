@@ -44,7 +44,9 @@ pub fn validate_transaction(
 
     validate_transaction_timestamps(event, config)?;
     validate_trace_context(event)?;
-    validate_spans(event, config.timestamp_range.as_ref())?;
+    // Transactions with spans with invalid timestamps are not expected to be
+    // rejected.
+    validate_spans(event, None)?;
 
     Ok(())
 }
