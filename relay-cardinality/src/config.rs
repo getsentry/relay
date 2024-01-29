@@ -13,9 +13,9 @@ pub struct CardinalityLimit {
     pub window: SlidingWindow,
     /// The cardinality limit.
     pub limit: u64,
+
     /// Scope which the limit applies to.
     pub scope: CardinalityScope,
-
     /// Metric namespace the limit applies to.
     ///
     /// No namespace means this specific limit is enforced across all namespaces.
