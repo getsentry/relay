@@ -1881,3 +1881,104 @@ def test_span_extraction_with_ddm_missing_values(
     }
 
     spans_consumer.assert_empty()
+
+
+def test_span_reject_invalid_timestamps(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "max_secs_in_past": 10,
+                "max_secs_in_future": 10,
+            }
+        }
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    yesterday_delta = timedelta(days=1)
+
+    end_yesterday = datetime.utcnow().replace(tzinfo=timezone.utc) - yesterday_delta
+    start_yesterday = end_yesterday - duration
+
+    end_today = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start_today = end_today - duration
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="otel_span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
+                        "spanId": "a342abb1214ca181",
+                        "name": "span with invalid timestamps",
+                        "startTimeUnixNano": int(start_yesterday.timestamp() * 1e9),
+                        "endTimeUnixNano": int(end_yesterday.timestamp() * 1e9),
+                        "attributes": [
+                            {
+                                "key": "sentry.op",
+                                "value": {
+                                    "stringValue": "db.query",
+                                },
+                            },
+                            {
+                                "key": "sentry.exclusive_time_ns",
+                                "value": {
+                                    "intValue": int(duration.total_seconds() * 1e9),
+                                },
+                            },
+                        ],
+                    },
+                ).encode()
+            ),
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="otel_span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
+                        "spanId": "a342abb1214ca181",
+                        "name": "span with valid timestamps",
+                        "startTimeUnixNano": int(start_today.timestamp() * 1e9),
+                        "endTimeUnixNano": int(end_today.timestamp() * 1e9),
+                        "attributes": [
+                            {
+                                "key": "sentry.op",
+                                "value": {
+                                    "stringValue": "db.query",
+                                },
+                            },
+                            {
+                                "key": "sentry.exclusive_time_ns",
+                                "value": {
+                                    "intValue": int(duration.total_seconds() * 1e9),
+                                },
+                            },
+                        ],
+                    },
+                ).encode()
+            ),
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    spans = list(spans_consumer.get_spans())
+    assert len(spans) == 1
+    assert spans[0]["description"] == "span with valid timestamps"
