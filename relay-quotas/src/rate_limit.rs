@@ -179,6 +179,7 @@ impl RateLimit {
             && scoping.matches_categories(&self.categories)
     }
 
+    /// Returns `true` if the rate limit namespace matches the namespace of the item.
     fn matches_namespace(&self, scoping: ItemScoping<'_>) -> bool {
         self.namespace.is_none() || self.namespace == scoping.namespace
     }
@@ -799,7 +800,7 @@ mod tests {
         });
 
         // Check that the error limit is applied
-        insta::assert_ron_snapshot!(applied_limits, @r#"
+        insta::assert_ron_snapshot!(applied_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -809,10 +810,11 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
