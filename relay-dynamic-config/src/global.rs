@@ -102,7 +102,8 @@ mod tests {
                 max_custom_measurements: 5,
             }),
             options: Some(Options {
-                other: HashMap::from([("relay.unknown".to_owned(), Value::Bool(true))]),
+                unsampled_profiles_enabled: true,
+                //other: HashMap::from([("relay.unknown".to_owned(), Value::Bool(true))]),
                 ..Default::default()
             }),
         };
@@ -114,5 +115,13 @@ mod tests {
             .expect("failed to deserialize GlobalConfig");
 
         assert_eq!(deserialized, global_config);
+    }
+
+    #[test]
+    fn test_minimal_serialization() {
+        let config = r#"{"options":{"foo":"bar"}}"#;
+        let deserialized: GlobalConfig = serde_json::from_str(config).unwrap();
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        assert_eq!(config, &serialized);
     }
 }
