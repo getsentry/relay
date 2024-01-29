@@ -285,6 +285,76 @@ mod tests {
     }
 
     #[test]
+    fn test_multiple_ratelimits() {
+        let scoping = build_scoping();
+
+        let quota1 = build_quota(10, 100);
+        let quota2 = build_quota(10, 150);
+        let quota3 = build_quota(10, 200);
+        let quantity = 175;
+
+        let redis_quotas = [
+            build_redis_quota(&quota1, &scoping),
+            build_redis_quota(&quota2, &scoping),
+            build_redis_quota(&quota3, &scoping),
+        ];
+
+        let pool = build_redis_pool();
+        let mut client = pool.client().unwrap();
+        let counter = GlobalRateLimits::default();
+
+        let rate_limited_quotas = counter
+            .filter_ratelimited(&mut client, &redis_quotas, quantity)
+            .unwrap();
+
+        // Only the quotas that are less than the quantity gets ratelimited.
+        assert_eq!(rate_limited_quotas.len(), 2);
+        assert_eq!(
+            vec![100, 150],
+            rate_limited_quotas
+                .iter()
+                .map(|quota| quota.limit())
+                .collect_vec(),
+        );
+    }
+
+    /// Checks that if two quotas are identical but with different limits, we only use
+    /// the one with the smaller limit.
+    #[test]
+    fn test_use_smaller_limit() {
+        let smaller_limit = 100;
+        let bigger_limit = 200;
+
+        let scoping = build_scoping();
+
+        let mut smaller_quota = build_quota(10, smaller_limit);
+        let mut bigger_quota = build_quota(10, bigger_limit);
+
+        smaller_quota.id = Some("foobar".into());
+        bigger_quota.id = Some("foobar".into());
+
+        let redis_quotas = [
+            build_redis_quota(&smaller_quota, &scoping),
+            build_redis_quota(&bigger_quota, &scoping),
+        ];
+
+        let pool = build_redis_pool();
+        let mut client = pool.client().unwrap();
+        let counter = GlobalRateLimits::default();
+
+        let rate_limited_quotas = counter
+            .filter_ratelimited(&mut client, &redis_quotas, (bigger_limit * 2) as usize)
+            .unwrap();
+
+        assert_eq!(rate_limited_quotas.len(), 1);
+
+        assert_eq!(
+            rate_limited_quotas.first().unwrap().limit(),
+            smaller_limit as i64
+        );
+    }
+
+    #[test]
     fn test_global_ratelimit() {
         let limit = 200;
 
