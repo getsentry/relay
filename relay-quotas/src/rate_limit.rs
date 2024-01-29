@@ -180,7 +180,7 @@ impl RateLimit {
     }
 
     fn matches_namespace(&self, scoping: ItemScoping<'_>) -> bool {
-        self.namespace.is_some() && self.namespace == scoping.namespace
+        self.namespace.is_none() || self.namespace == scoping.namespace
     }
 
     /// Returns `true` if the rate limiting scope matches the given item.
