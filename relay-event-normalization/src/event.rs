@@ -7,16 +7,11 @@ use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
-use std::ops::Range;
 
-use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
-use relay_common::time::UnixTimestamp;
-use relay_event_schema::processor::{
-    self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
-};
+use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
     IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
@@ -27,12 +22,11 @@ use smallvec::SmallVec;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
-    BreakdownsConfig, ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup,
-    PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
 /// Configuration for [`normalize_event`].
@@ -50,27 +44,6 @@ pub struct NormalizationConfig<'a> {
     /// information should the event payload contain no such data. If no client hints are present,
     /// normalization falls back to the user agent.
     pub user_agent: RawUserAgentInfo<&'a str>,
-
-    /// The time at which the event was received in this Relay.
-    ///
-    /// This timestamp is persisted into the event payload.
-    pub received_at: Option<DateTime<Utc>>,
-
-    /// The maximum amount of seconds an event can be dated in the past.
-    ///
-    /// If the event's timestamp is older, the received timestamp is assumed.
-    pub max_secs_in_past: Option<i64>,
-
-    /// The maximum amount of seconds an event can be predated into the future.
-    ///
-    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
-    pub max_secs_in_future: Option<i64>,
-
-    /// Timestamp range in which a transaction must end.
-    ///
-    /// Transactions that finish outside of this range are considered invalid.
-    /// This check is skipped if no range is provided.
-    pub transaction_range: Option<Range<UnixTimestamp>>,
 
     /// The maximum length for names of custom measurements.
     ///
@@ -138,10 +111,6 @@ impl<'a> Default for NormalizationConfig<'a> {
         Self {
             client_ip: Default::default(),
             user_agent: Default::default(),
-            received_at: Default::default(),
-            max_secs_in_past: Default::default(),
-            max_secs_in_future: Default::default(),
-            transaction_range: Default::default(),
             max_name_and_unit_len: Default::default(),
             breakdowns_config: Default::default(),
             normalize_user_agent: Default::default(),
@@ -160,56 +129,34 @@ impl<'a> Default for NormalizationConfig<'a> {
     }
 }
 
-/// Normalizes an event, rejecting it if necessary.
+/// Normalizes an event.
 ///
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
-///
-/// The returned [`ProcessingResult`] indicates whether the passed event should
-/// be ingested or dropped.
-pub fn normalize_event(
-    event: &mut Annotated<Event>,
-    config: &NormalizationConfig,
-) -> ProcessingResult {
+pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
     let Annotated(Some(ref mut event), ref mut meta) = event else {
-        return Ok(());
+        return;
     };
 
     let is_renormalize = config.is_renormalize;
 
     if !is_renormalize {
-        normalize(event, meta, config)?;
+        normalize(event, meta, config);
     }
-
-    Ok(())
 }
 
 /// Normalizes the given event based on the given config.
-///
-/// The returned [`ProcessingResult`] indicates whether the passed event should
-/// be ingested or dropped.
-fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -> ProcessingResult {
-    // Validate and normalize transaction
+fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
+    // Normalize the transaction.
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
     // can revert some changes to ProcessingAction)
-    let mut transactions_processor = transactions::TransactionsProcessor::new(
-        config.transaction_name_config.clone(),
-        config.transaction_range.clone(),
-    );
-    transactions_processor.process_event(event, meta, ProcessingState::root())?;
+    let mut transactions_processor =
+        transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
+    let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 
     // Check for required and non-empty values
     let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
-
-    normalize_timestamps(
-        event,
-        meta,
-        config.received_at,
-        config.max_secs_in_past,
-        config.max_secs_in_future,
-    ); // Timestamps are core in the metrics extraction
-    TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
     // Process security reports first to ensure all props.
     normalize_security_report(event, config.client_ip, &config.user_agent);
@@ -302,8 +249,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
         let _ =
             trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
-
-    Ok(())
 }
 
 /// Backfills the client IP address on for the NEL reports.
@@ -466,64 +411,6 @@ fn normalize_platform_and_level(event: &mut Event) {
         Some(EventType::Transaction) => Level::Info,
         _ => Level::Error,
     });
-}
-
-/// Validates the timestamp range and sets a default value.
-fn normalize_timestamps(
-    event: &mut Event,
-    meta: &mut Meta,
-    received_at: Option<DateTime<Utc>>,
-    max_secs_in_past: Option<i64>,
-    max_secs_in_future: Option<i64>,
-) {
-    let received_at = received_at.unwrap_or_else(Utc::now);
-
-    let mut sent_at = None;
-    let mut error_kind = ErrorKind::ClockDrift;
-
-    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
-        if let Some(secs) = max_secs_in_future {
-            if *timestamp > received_at + Duration::seconds(secs) {
-                error_kind = ErrorKind::FutureTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        if let Some(secs) = max_secs_in_past {
-            if *timestamp < received_at - Duration::seconds(secs) {
-                error_kind = ErrorKind::PastTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        Ok(())
-    });
-
-    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
-        .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root());
-
-    // Apply this after clock drift correction, otherwise we will malform it.
-    event.received = Annotated::new(received_at.into());
-
-    if event.timestamp.value().is_none() {
-        event.timestamp.set_value(Some(received_at.into()));
-    }
-
-    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
-        validate_bounded_integer_field(*time_spent)
-    });
-}
-
-/// Validate fields that go into a `sentry.models.BoundedIntegerField`.
-fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
-    if value < 2_147_483_647 {
-        Ok(())
-    } else {
-        Err(ProcessingAction::DeleteValueHard)
-    }
 }
 
 struct DedupCache(SmallVec<[u64; 16]>);
@@ -2496,62 +2383,6 @@ mod tests {
           },
         }
         "###);
-    }
-
-    /// Test that timestamp normalization updates a transaction's timestamps to
-    /// be acceptable, when both timestamps are similarly stale.
-    #[test]
-    fn test_accept_recent_transactions_with_stale_timestamps() {
-        let config = NormalizationConfig {
-            received_at: Some(Utc::now()),
-            max_secs_in_past: Some(2),
-            max_secs_in_future: Some(1),
-            ..Default::default()
-        };
-
-        let json = r#"{
-  "event_id": "52df9022835246eeb317dbd739ccd059",
-  "transaction": "I have a stale timestamp, but I'm recent!",
-  "start_timestamp": -2,
-  "timestamp": -1
-}"#;
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
-
-        assert!(normalize_event(&mut event, &config).is_ok());
-    }
-
-    /// Test that transactions are rejected as invalid when timestamp normalization isn't enough.
-    ///
-    /// When the end timestamp is recent but the start timestamp is stale, timestamp normalization
-    /// will fix the timestamps based on the end timestamp. The start timestamp will be more recent,
-    /// but not recent enough for the transaction to be accepted. The transaction will be rejected.
-    #[test]
-    fn test_reject_stale_transactions_after_timestamp_normalization() {
-        let now = Utc::now();
-        let config = NormalizationConfig {
-            received_at: Some(now),
-            max_secs_in_past: Some(2),
-            max_secs_in_future: Some(1),
-            ..Default::default()
-        };
-
-        let json = format!(
-            r#"{{
-          "event_id": "52df9022835246eeb317dbd739ccd059",
-          "transaction": "clockdrift is not enough to accept me :(",
-          "start_timestamp": -62135811111,
-          "timestamp": {}
-        }}"#,
-            now.timestamp()
-        );
-        let mut event = Annotated::<Event>::from_json(json.as_str()).unwrap();
-
-        assert_eq!(
-            normalize_event(&mut event, &config)
-                .unwrap_err()
-                .to_string(),
-            "invalid transaction event: timestamp is too stale"
-        );
     }
 
     #[test]

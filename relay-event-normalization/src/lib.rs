@@ -33,7 +33,12 @@ mod statsd;
 mod timestamp;
 mod transactions;
 mod trimming;
+mod validation;
 
+pub use validation::{
+    validate_event_timestamps, validate_span, validate_transaction, EventValidationConfig,
+    TransactionValidationConfig,
+};
 pub mod replay;
 pub use event::{normalize_event, normalize_measurements, NormalizationConfig};
 pub use normalize::breakdowns::*;
