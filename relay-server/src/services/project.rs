@@ -1183,7 +1183,7 @@ fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
         if tag_block.name.is_match(&bucket.name) {
             bucket
                 .tags
-                .retain(|tag_key, _| !tag_block.tag.is_match(tag_key));
+                .retain(|tag_key, _| !tag_block.tags.is_match(tag_key));
         }
     }
 }
@@ -1523,7 +1523,7 @@ mod tests {
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
                 name: GlobPatterns::new(vec!["foobar".to_string()]),
-                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };
@@ -1549,7 +1549,7 @@ mod tests {
             denied_tags: vec![TagBlock {
                 // barfoo doesn't batch the 'foobar' bucket
                 name: GlobPatterns::new(vec!["barfoo".to_string()]),
-                tag: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+                tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
             }],
             ..Default::default()
         };

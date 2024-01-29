@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.1.0"
+version = "24.1.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -62,6 +62,7 @@ mime_guess = { version = "2.0.4", optional = true }
 minidump = { version = "0.15.2", optional = true }
 multer = "2.0.4"
 once_cell = { workspace = true }
+rand = { workspace = true }
 regex = { workspace = true }
 relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
