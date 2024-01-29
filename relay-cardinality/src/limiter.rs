@@ -160,6 +160,11 @@ impl<T> CardinalityLimits<T> {
         }
     }
 
+    /// Recovers the original list of items passed to the cardinality limiter.
+    pub fn into_source(self) -> Vec<T> {
+        self.source
+    }
+
     /// Returns an iterator yielding only rejected items.
     pub fn rejected(&self) -> impl Iterator<Item = &T> {
         self.rejections.iter().filter_map(|&i| self.source.get(i))
