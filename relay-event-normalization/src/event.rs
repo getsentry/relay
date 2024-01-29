@@ -149,6 +149,12 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
 
         normalize(event, meta, config);
     }
+
+    if config.enable_trimming {
+        // Trim large strings and databags down
+        let _ =
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
+    }
 }
 
 /// Normalizes the given event based on the given config.
@@ -245,12 +251,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
                 max_tag_value_size: config.max_tag_value_length,
             },
         );
-    }
-
-    if config.enable_trimming {
-        // Trim large strings and databags down
-        let _ =
-            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 }
 
