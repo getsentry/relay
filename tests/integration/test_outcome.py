@@ -2027,7 +2027,7 @@ def test_global_rate_limit_by_namespace(
 
     # Fill up the global limit
     global_quota_remaining = metric_bucket_limit - transaction_limit
-    send_buckets(global_quota_remaining - 1, session_name, session_value, "s")
+    send_buckets(global_quota_remaining, session_name, session_value, "s")
 
     # Assert we didn't get ratelimited
     outcomes = outcomes_consumer.get_outcomes()

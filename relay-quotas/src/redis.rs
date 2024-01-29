@@ -224,6 +224,8 @@ impl RedisRateLimiter {
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
 
+        let mut global_quotas = vec![];
+
         for quota in quotas {
             if !quota.matches(item_scoping) {
                 // Silently skip all quotas that do not apply to this item.
@@ -235,15 +237,7 @@ impl RedisRateLimiter {
                 rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
             } else if let Some(quota) = RedisQuota::new(quota, item_scoping, timestamp) {
                 if quota.scope == QuotaScope::Global {
-                    let is_rate_limited = self
-                        .global_limits
-                        .is_rate_limited(&mut client, &quota, quantity)
-                        .map_err(RateLimitingError::Redis)?;
-
-                    if is_rate_limited {
-                        let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-                        rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
-                    }
+                    global_quotas.push(quota);
                 } else {
                     let key = quota.key();
                     // Remaining quotas are expected to be trackable in Redis.
@@ -267,6 +261,16 @@ impl RedisRateLimiter {
                     || relay_log::warn!("skipping unsupported quota"),
                 )
             }
+        }
+
+        let rate_limited_global_quotas = self
+            .global_limits
+            .filter_ratelimited(&mut client, global_quotas, quantity)
+            .map_err(RateLimitingError::Redis)?;
+
+        for quota in rate_limited_global_quotas {
+            let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
+            rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
         }
 
         // Either there are no quotas to run against Redis, or we already have a rate limit from a
