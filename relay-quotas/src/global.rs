@@ -31,14 +31,12 @@ impl GlobalRateLimits {
         quantity: usize,
     ) -> Result<bool, RedisError> {
         let key = KeyRef::new(quota);
-
         let val = {
             let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
             Arc::clone(limits.entry_ref(&key).or_default())
         };
 
         let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
-
         val.is_rate_limited(client, quota, key, quantity as u64)
     }
 }

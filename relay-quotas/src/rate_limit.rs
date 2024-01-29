@@ -175,8 +175,8 @@ impl RateLimit {
     /// Checks whether the rate limit applies to the given item.
     pub fn matches(&self, scoping: ItemScoping<'_>) -> bool {
         self.matches_scope(scoping)
-            && scoping.matches_categories(&self.categories)
             && self.matches_namespace(scoping)
+            && scoping.matches_categories(&self.categories)
     }
 
     fn matches_namespace(&self, scoping: ItemScoping<'_>) -> bool {
@@ -563,7 +563,7 @@ mod tests {
             namespace: None,
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -574,10 +574,11 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -601,7 +602,7 @@ mod tests {
             namespace: None,
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -612,10 +613,11 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("first")),
               retry_after: RetryAfter(10),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -648,7 +650,7 @@ mod tests {
             namespace: None,
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -658,6 +660,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
             RateLimit(
               categories: [
@@ -666,6 +669,7 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
             RateLimit(
               categories: [
@@ -674,10 +678,11 @@ mod tests {
               scope: Project(ProjectId(21)),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -702,7 +707,7 @@ mod tests {
         });
 
         let rate_limit = rate_limits.longest().unwrap();
-        insta::assert_ron_snapshot!(rate_limit, @r#"
+        insta::assert_ron_snapshot!(rate_limit, @r###"
         RateLimit(
           categories: [
             transaction,
@@ -710,8 +715,9 @@ mod tests {
           scope: Organization(42),
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
+          namespace: None,
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -742,7 +748,7 @@ mod tests {
         rate_limits.clean_expired();
 
         // Check that the expired limit has been removed
-        insta::assert_ron_snapshot!(rate_limits, @r#"
+        insta::assert_ron_snapshot!(rate_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -752,10 +758,11 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -854,7 +861,7 @@ mod tests {
 
         let applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 
-        insta::assert_ron_snapshot!(applied_limits, @r#"
+        insta::assert_ron_snapshot!(applied_limits, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -864,10 +871,11 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("zero")),
               retry_after: RetryAfter(60),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 
     #[test]
@@ -901,7 +909,7 @@ mod tests {
 
         rate_limits1.merge(rate_limits2);
 
-        insta::assert_ron_snapshot!(rate_limits1, @r#"
+        insta::assert_ron_snapshot!(rate_limits1, @r###"
         RateLimits(
           limits: [
             RateLimit(
@@ -911,6 +919,7 @@ mod tests {
               scope: Organization(42),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
+              namespace: None,
             ),
             RateLimit(
               categories: [
@@ -919,9 +928,10 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
+              namespace: None,
             ),
           ],
         )
-        "#);
+        "###);
     }
 }

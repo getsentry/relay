@@ -314,6 +314,10 @@ impl Quota {
             return false;
         }
 
+        if self.scope == QuotaScope::Global {
+            return true;
+        }
+
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.

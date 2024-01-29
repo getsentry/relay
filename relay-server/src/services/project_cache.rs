@@ -857,7 +857,6 @@ impl ProjectCacheBroker {
         for (project_key, buckets) in message.buckets {
             let outcome_aggregator = self.services.outcome_aggregator.clone();
             let project = self.get_or_create_project(project_key);
-
             if let Some((scoping, b)) = project.check_buckets(outcome_aggregator, buckets) {
                 output.insert(scoping, b);
             }
