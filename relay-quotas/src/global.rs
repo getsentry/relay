@@ -45,9 +45,8 @@ impl GlobalRateLimits {
 
         if ratelimited.is_empty() {
             for quota in quotas {
-                match guard.get_mut(&KeyRef::new(quota)) {
-                    Some(val) => val.budget -= quantity as u64,
-                    None => relay_log::error!("invariant violated, key should be present."),
+                if let Some(val) = guard.get_mut(&KeyRef::new(quota)) {
+                    val.budget -= quantity as u64;
                 }
             }
         }

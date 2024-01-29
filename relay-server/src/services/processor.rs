@@ -45,9 +45,10 @@ use tokio::sync::Semaphore;
 use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    itertools::Itertools,
     relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -1753,9 +1754,6 @@ impl EnvelopeProcessorService {
         quotas: &[relay_quotas::Quota],
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
-        use itertools::Itertools;
-        use relay_quotas::ItemScoping;
-
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
             return buckets;
         };
@@ -1819,7 +1817,7 @@ impl EnvelopeProcessorService {
 
                 true
             }
-            Ok(_) => false, // not rate limited
+            Ok(_) => false,
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,

@@ -9,13 +9,10 @@ use crate::SlidingWindow;
 pub struct CardinalityLimit {
     /// Unique identifier of the cardinality limit.
     pub id: String,
-
     /// The sliding window to enforce the cardinality limits in.
     pub window: SlidingWindow,
-
     /// The cardinality limit.
     pub limit: u64,
-
     /// Scope which the limit applies to.
     pub scope: CardinalityScope,
 
