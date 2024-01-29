@@ -1,6 +1,8 @@
+use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock, PoisonError};
 
 use crate::RedisQuota;
+use hashbrown::HashMap;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError};
@@ -11,6 +13,39 @@ const DEFAULT_BUDGET_RATIO: f32 = 0.001;
 fn load_global_lua_script() -> &'static Script {
     static SCRIPT: OnceLock<Script> = OnceLock::new();
     SCRIPT.get_or_init(|| Script::new(include_str!("global_quota.lua")))
+}
+
+/// If multiple quotas are the same but have different limits, keep the one with the smallest limit.
+fn filter_similar_redis_quotas(quotas: Vec<RedisQuota>) -> Vec<RedisQuota> {
+    type Index = usize;
+    type Limit = i64;
+
+    // Kinda wonky solution because KeyRef refers to RedisQuota internally.
+    let unique_quotas: HashSet<Index> = {
+        let mut key_map = HashMap::<KeyRef, (Index, Limit)>::new();
+
+        for (idx, quota) in quotas.iter().enumerate() {
+            let key = KeyRef::new(quota);
+
+            if match key_map.get(&key) {
+                Some((_, limit)) => *limit > quota.limit(),
+                None => true,
+            } {
+                key_map.insert(key, (idx, quota.limit()));
+            }
+        }
+
+        key_map.values().map(|(idx, _)| *idx).collect()
+    };
+
+    let mut return_vec = vec![];
+    for (idx, quota) in quotas.into_iter().enumerate() {
+        if unique_quotas.contains(&idx) {
+            return_vec.push(quota);
+        }
+    }
+
+    return_vec
 }
 
 /// A rate limiter for global rate limits.
@@ -32,7 +67,7 @@ impl GlobalRateLimits {
         let mut ratelimited = vec![];
         let mut not_ratelimited = vec![];
 
-        for quota in quotas {
+        for quota in filter_similar_redis_quotas(quotas) {
             let key = KeyRef::new(&quota);
             let val = guard.entry_ref(&key).or_default();
 
@@ -46,8 +81,12 @@ impl GlobalRateLimits {
         if ratelimited.is_empty() {
             for quota in not_ratelimited {
                 let key = KeyRef::new(&quota);
-                let val = guard.entry_ref(&key).or_default();
-                val.budget -= quantity as u64;
+
+                if let Some(val) = guard.get_mut(&key) {
+                    val.budget -= quantity as u64;
+                } else {
+                    relay_log::error!("impossible!");
+                }
             }
         }
 
@@ -93,7 +132,7 @@ impl RedisKey {
 /// Used to look up a hashmap of [`keys`](Key) without a string allocation.
 ///
 /// This works due to the [`hashbrown::Equivalent`] trait.
-#[derive(Clone, Copy, Hash, Debug)]
+#[derive(Clone, Copy, Hash, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct KeyRef<'a> {
     prefix: &'a str,
     window: u64,
