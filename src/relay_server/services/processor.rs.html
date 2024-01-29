@@ -2739,82 +2739,6 @@
 <a href="#2739" id="2739">2739</a>
 <a href="#2740" id="2740">2740</a>
 <a href="#2741" id="2741">2741</a>
-<a href="#2742" id="2742">2742</a>
-<a href="#2743" id="2743">2743</a>
-<a href="#2744" id="2744">2744</a>
-<a href="#2745" id="2745">2745</a>
-<a href="#2746" id="2746">2746</a>
-<a href="#2747" id="2747">2747</a>
-<a href="#2748" id="2748">2748</a>
-<a href="#2749" id="2749">2749</a>
-<a href="#2750" id="2750">2750</a>
-<a href="#2751" id="2751">2751</a>
-<a href="#2752" id="2752">2752</a>
-<a href="#2753" id="2753">2753</a>
-<a href="#2754" id="2754">2754</a>
-<a href="#2755" id="2755">2755</a>
-<a href="#2756" id="2756">2756</a>
-<a href="#2757" id="2757">2757</a>
-<a href="#2758" id="2758">2758</a>
-<a href="#2759" id="2759">2759</a>
-<a href="#2760" id="2760">2760</a>
-<a href="#2761" id="2761">2761</a>
-<a href="#2762" id="2762">2762</a>
-<a href="#2763" id="2763">2763</a>
-<a href="#2764" id="2764">2764</a>
-<a href="#2765" id="2765">2765</a>
-<a href="#2766" id="2766">2766</a>
-<a href="#2767" id="2767">2767</a>
-<a href="#2768" id="2768">2768</a>
-<a href="#2769" id="2769">2769</a>
-<a href="#2770" id="2770">2770</a>
-<a href="#2771" id="2771">2771</a>
-<a href="#2772" id="2772">2772</a>
-<a href="#2773" id="2773">2773</a>
-<a href="#2774" id="2774">2774</a>
-<a href="#2775" id="2775">2775</a>
-<a href="#2776" id="2776">2776</a>
-<a href="#2777" id="2777">2777</a>
-<a href="#2778" id="2778">2778</a>
-<a href="#2779" id="2779">2779</a>
-<a href="#2780" id="2780">2780</a>
-<a href="#2781" id="2781">2781</a>
-<a href="#2782" id="2782">2782</a>
-<a href="#2783" id="2783">2783</a>
-<a href="#2784" id="2784">2784</a>
-<a href="#2785" id="2785">2785</a>
-<a href="#2786" id="2786">2786</a>
-<a href="#2787" id="2787">2787</a>
-<a href="#2788" id="2788">2788</a>
-<a href="#2789" id="2789">2789</a>
-<a href="#2790" id="2790">2790</a>
-<a href="#2791" id="2791">2791</a>
-<a href="#2792" id="2792">2792</a>
-<a href="#2793" id="2793">2793</a>
-<a href="#2794" id="2794">2794</a>
-<a href="#2795" id="2795">2795</a>
-<a href="#2796" id="2796">2796</a>
-<a href="#2797" id="2797">2797</a>
-<a href="#2798" id="2798">2798</a>
-<a href="#2799" id="2799">2799</a>
-<a href="#2800" id="2800">2800</a>
-<a href="#2801" id="2801">2801</a>
-<a href="#2802" id="2802">2802</a>
-<a href="#2803" id="2803">2803</a>
-<a href="#2804" id="2804">2804</a>
-<a href="#2805" id="2805">2805</a>
-<a href="#2806" id="2806">2806</a>
-<a href="#2807" id="2807">2807</a>
-<a href="#2808" id="2808">2808</a>
-<a href="#2809" id="2809">2809</a>
-<a href="#2810" id="2810">2810</a>
-<a href="#2811" id="2811">2811</a>
-<a href="#2812" id="2812">2812</a>
-<a href="#2813" id="2813">2813</a>
-<a href="#2814" id="2814">2814</a>
-<a href="#2815" id="2815">2815</a>
-<a href="#2816" id="2816">2816</a>
-<a href="#2817" id="2817">2817</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2938,6 +2862,8 @@
     </span>CheckIn,
     <span class="doccomment">/// Spans.
     </span>Span,
+    <span class="doccomment">/// Metrics.
+    </span>Metrics,
     <span class="doccomment">/// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
     </span>ForwardUnknown,
@@ -3273,15 +3199,6 @@
     <span class="doccomment">/// Returns a mutable reference to the contained [`Envelope`].
     </span><span class="kw">fn </span>envelope_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Envelope {
         <span class="self">self</span>.managed_envelope.envelope_mut()
-    }
-
-    <span class="doccomment">/// Returns whether any item in the envelope creates an event in any relay.
-    ///
-    /// This is used to branch into the processing pipeline. If this function returns false, only
-    /// rate limits are executed. If this function returns true, an event is created either in the
-    /// current relay or in an upstream processing relay.
-    </span><span class="kw">fn </span>creates_event(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.envelope().items().any(Item::creates_event)
     }
 
     <span class="doccomment">/// Returns true if there is an event in the processing state.
@@ -4076,90 +3993,6 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Legacy implementation of the `process_state` function, which is used for all
-    /// unknown [`ProcessingGroup`] variant.
-    ///
-    /// Note: this will be removed once we are confident in the new implementation and make sure
-    /// that all the groups properly covered.
-    </span><span class="kw">fn </span>process_state_legacy(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        session::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
-        report::process_client_reports(
-            state,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-            <span class="self">self</span>.inner.outcome_aggregator.clone(),
-        );
-        report::process_user_reports(state);
-        replay::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-        profile::filter(state);
-        span::filter(state);
-
-        <span class="kw">if </span>state.creates_event() {
-            <span class="comment">// Some envelopes only create events in processing relays; for example, unreal events.
-            // This makes it possible to get in this code block while not really having an event in
-            // the envelope.
-
-            </span><span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                unreal::expand(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-            });
-
-            event::extract(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-            profile::transfer_id(state);
-
-            <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                unreal::process(state)<span class="question-mark">?</span>;
-                attachment::create_placeholders(state);
-            });
-
-            event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-            <span class="self">self</span>.light_normalize_event(state)<span class="question-mark">?</span>;
-            dynamic_sampling::normalize(state);
-            event::filter(state)<span class="question-mark">?</span>;
-            dynamic_sampling::run(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
-
-            <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
-            // relays, in order to synchronize rate limits on indexed and processed transactions.
-            </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || state.sampling_result.should_drop() {
-                <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
-            }
-
-            dynamic_sampling::sample_envelope_items(
-                state,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-            );
-
-            <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="self">self</span>.inner.geoip_lookup.as_ref())<span class="question-mark">?</span>;
-            });
-        }
-
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
-            profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
-            <span class="self">self</span>.process_check_ins(state);
-            span::process(
-                state,
-                <span class="self">self</span>.inner.config.clone(),
-                <span class="self">self</span>.inner.global_config.current().measurements.as_ref(),
-            );
-        });
-
-        <span class="kw">if </span>state.has_event() {
-            event::scrub(state)<span class="question-mark">?</span>;
-            event::serialize(state)<span class="question-mark">?</span>;
-            <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                span::extract_from_event(state);
-            });
-        }
-
-        attachment::scrub(state);
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
     <span class="kw">fn </span>process_state(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="comment">// Get the group from the managed envelope context, and if it&#39;s not set, try to guess it
         // from the contents of the envelope.
@@ -4176,16 +4009,21 @@
             ProcessingGroup::Replay =&gt; <span class="self">self</span>.process_replays(state)<span class="question-mark">?</span>,
             ProcessingGroup::CheckIn =&gt; <span class="self">self</span>.process_checkins(state)<span class="question-mark">?</span>,
             ProcessingGroup::Span =&gt; <span class="self">self</span>.process_spans(state)<span class="question-mark">?</span>,
+            <span class="comment">// Currently is not used.
+            </span>ProcessingGroup::Metrics =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    tags.project = %state.project_id,
+                    items = <span class="question-mark">?</span>state.envelope().items().next().map(Item::ty),
+                    <span class="string">&quot;received metrics in the process_state&quot;
+                </span>);
+            }
             <span class="comment">// Fallback to the legacy process_state implementation for Ungrouped events.
             </span>ProcessingGroup::Ungrouped =&gt; {
                 <span class="macro">relay_log::error!</span>(
                     tags.project = %state.project_id,
                     items = <span class="question-mark">?</span>state.envelope().items().next().map(Item::ty),
-                    <span class="string">&quot;Could not identify the processing group based on the envelope&#39;s items&quot;
+                    <span class="string">&quot;could not identify the processing group based on the envelope&#39;s items&quot;
                 </span>);
-
-                <span class="comment">// Call the legacy implementation of the `process_state` function.
-                </span><span class="self">self</span>.process_state_legacy(state)<span class="question-mark">?</span>;
             }
             <span class="comment">// Leave this group unchanged.
             //
@@ -4509,6 +4347,7 @@
             envelope,
             <span class="self">self</span>.inner.outcome_aggregator.clone(),
             <span class="self">self</span>.inner.test_store.clone(),
+            ProcessingGroup::ClientReport,
         );
         <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope { envelope });
     }
@@ -4759,6 +4598,7 @@
                         envelope,
                         <span class="self">self</span>.inner.outcome_aggregator.clone(),
                         <span class="self">self</span>.inner.test_store.clone(),
+                        ProcessingGroup::Metrics,
                     );
                     envelope.set_partition_key(partition_key).scope(scoping);
 
@@ -4898,6 +4738,7 @@
             envelope,
             <span class="self">self</span>.inner.outcome_aggregator.clone(),
             <span class="self">self</span>.inner.test_store.clone(),
+            ProcessingGroup::Metrics,
         );
         <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope { envelope });
     }
@@ -5430,8 +5271,15 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
         project_state.config = config;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
+
+        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(project_state),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),

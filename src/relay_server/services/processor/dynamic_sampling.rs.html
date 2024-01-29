@@ -732,6 +732,11 @@
 <a href="#732" id="732">732</a>
 <a href="#733" id="733">733</a>
 <a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1059,7 +1064,12 @@
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
 
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope: ManagedEnvelope::standalone(
+                envelope,
+                outcome_aggregator,
+                test_store,
+                ProcessingGroup::Transaction,
+            ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
             reservoir_counters: ReservoirCounters::default(),

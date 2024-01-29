@@ -590,6 +590,29 @@
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
 <a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -902,8 +925,13 @@
             item
         });
 
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
+        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+
+        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
@@ -951,8 +979,13 @@
             item
         });
 
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
+        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
@@ -1008,8 +1041,13 @@
             item
         });
 
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
+
+        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
@@ -1042,9 +1080,12 @@
             item
         });
 
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store);
-        envelope.set_processing_group(ProcessingGroup::Standalone);
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
 
+        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+
+        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_state: Arc::new(ProjectState::allowed()),
@@ -1088,8 +1129,13 @@
             item
         });
 
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
+        <span class="macro">assert_eq!</span>(envelopes.len(), <span class="number">1</span>);
+        <span class="kw">let </span>(group, envelope) = envelopes.pop().unwrap();
+        <span class="kw">let </span>envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+
         <span class="kw">let </span>message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
