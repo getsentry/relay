@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use criterion::{BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::{metrics::MetricNamespace, project::ProjectId};
 use relay_cardinality::{
-    limiter::{Entry, EntryId, Limiter, Scoping},
+    limiter::{Entry, EntryId, Limiter, Rejections, Scoping},
     CardinalityLimit, CardinalityScope, RedisSetLimiter, SlidingWindow,
 };
 use relay_redis::{redis, RedisConfigOptions, RedisPool};
@@ -26,16 +26,16 @@ fn build_limiter(redis: RedisPool, reset_redis: bool) -> RedisSetLimiter {
     RedisSetLimiter::new(redis)
 }
 
-fn build_scoping() -> Scoping {
-    Scoping {
-        organization_id: 1,
-        project_id: ProjectId::new(100),
-    }
+struct NoopRejections;
+
+impl Rejections for NoopRejections {
+    fn reject(&mut self, _entry_id: EntryId) {}
 }
 
 #[derive(Debug)]
 struct Params {
     limits: Vec<CardinalityLimit>,
+    scoping: Scoping,
 
     rounds: usize,
     num_hashes: usize,
@@ -54,9 +54,20 @@ impl Params {
                 scope: CardinalityScope::Organization,
                 namespace: None,
             }],
+            scoping: Scoping {
+                organization_id: 1,
+                project_id: ProjectId::new(100),
+            },
             rounds,
             num_hashes,
         }
+    }
+
+    #[inline(always)]
+    fn run(&self, limiter: &RedisSetLimiter, entries: impl IntoIterator<Item = Entry>) {
+        limiter
+            .check_cardinality_limits(self.scoping, &self.limits, entries, &mut NoopRejections)
+            .unwrap();
     }
 
     /// Every round contains the same hashes.
@@ -122,7 +133,6 @@ pub fn bench_simple(c: &mut Criterion) {
     ];
 
     let redis = build_redis();
-    let scoping = build_scoping();
 
     let mut g = c.benchmark_group("Simple");
 
@@ -136,10 +146,7 @@ pub fn bench_simple(c: &mut Criterion) {
                 },
                 |(limiter, rounds)| {
                     for entries in rounds {
-                        limiter
-                            .check_cardinality_limits(scoping, &params.limits, entries)
-                            .unwrap()
-                            .for_each(|_| {});
+                        params.run(&limiter, entries);
                     }
                 },
                 BatchSize::SmallInput,
@@ -150,7 +157,6 @@ pub fn bench_simple(c: &mut Criterion) {
 
 pub fn bench_big_set_small_queries(c: &mut Criterion) {
     let redis = build_redis();
-    let scoping = build_scoping();
 
     let params = Params::new(10_000, 1000, 50);
 
@@ -163,19 +169,13 @@ pub fn bench_big_set_small_queries(c: &mut Criterion) {
                 let rounds = params.rounds();
 
                 // Seed with the round data
-                limiter
-                    .check_cardinality_limits(scoping, &params.limits, rounds[0].clone())
-                    .unwrap()
-                    .for_each(|_| {});
+                params.run(&limiter, rounds[0].clone());
 
                 (limiter, rounds)
             },
             |(limiter, rounds)| {
                 for entries in rounds {
-                    limiter
-                        .check_cardinality_limits(scoping, &params.limits, entries)
-                        .unwrap()
-                        .for_each(|_| {});
+                    params.run(&limiter, entries);
                 }
             },
             BatchSize::SmallInput,
@@ -185,7 +185,6 @@ pub fn bench_big_set_small_queries(c: &mut Criterion) {
 
 pub fn bench_high_cardinality(c: &mut Criterion) {
     let redis = build_redis();
-    let scoping = build_scoping();
 
     let params = Params::new(10_000, 1000, 50);
 
@@ -199,10 +198,7 @@ pub fn bench_high_cardinality(c: &mut Criterion) {
             },
             |(limiter, rounds)| {
                 for entries in rounds {
-                    limiter
-                        .check_cardinality_limits(scoping, &params.limits, entries)
-                        .unwrap()
-                        .for_each(|_| {});
+                    params.run(&limiter, entries);
                 }
             },
             BatchSize::SmallInput,
@@ -212,7 +208,6 @@ pub fn bench_high_cardinality(c: &mut Criterion) {
 
 pub fn bench_cache_never_full(c: &mut Criterion) {
     let redis = build_redis();
-    let scoping = build_scoping();
 
     let params = Params::new(10_000, 1_000, 50);
 
@@ -222,10 +217,7 @@ pub fn bench_cache_never_full(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let limiter = build_limiter(redis.clone(), true);
-                limiter
-                    .check_cardinality_limits(scoping, &params.limits, vec![Params::never_entry()])
-                    .unwrap()
-                    .for_each(|_| {});
+                params.run(&limiter, vec![Params::never_entry()]);
 
                 // New limiter to reset cache.
                 let limiter = build_limiter(redis.clone(), false);
@@ -233,10 +225,7 @@ pub fn bench_cache_never_full(c: &mut Criterion) {
             },
             |(limiter, rounds)| {
                 for entries in rounds {
-                    limiter
-                        .check_cardinality_limits(scoping, &params.limits, entries)
-                        .unwrap()
-                        .for_each(|_| {});
+                    params.run(&limiter, entries);
                 }
             },
             BatchSize::SmallInput,
@@ -246,7 +235,6 @@ pub fn bench_cache_never_full(c: &mut Criterion) {
 
 pub fn bench_cache_worst_case(c: &mut Criterion) {
     let redis = build_redis();
-    let scoping = build_scoping();
 
     let params = Params::new(10_000, 1000, 50);
 
@@ -256,10 +244,7 @@ pub fn bench_cache_worst_case(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let limiter = build_limiter(redis.clone(), true);
-                limiter
-                    .check_cardinality_limits(scoping, &params.limits, params.never_entries())
-                    .unwrap()
-                    .for_each(|_| {});
+                params.run(&limiter, params.never_entries());
 
                 // New limiter to reset cache.
                 let limiter = build_limiter(redis.clone(), false);
@@ -267,10 +252,7 @@ pub fn bench_cache_worst_case(c: &mut Criterion) {
             },
             |(limiter, rounds)| {
                 for entries in rounds {
-                    limiter
-                        .check_cardinality_limits(scoping, &params.limits, entries)
-                        .unwrap()
-                        .for_each(|_| {});
+                    params.run(&limiter, entries);
                 }
             },
             BatchSize::SmallInput,
