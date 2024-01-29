@@ -49,7 +49,7 @@ where
 }
 
 /// Reference to information required for tracking quotas in Redis.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct RedisQuota<'a> {
     /// The original quota.
     quota: &'a Quota,
@@ -265,12 +265,12 @@ impl RedisRateLimiter {
 
         let rate_limited_global_quotas = self
             .global_limits
-            .filter_ratelimited(&mut client, global_quotas, quantity)
+            .filter_ratelimited(&mut client, &global_quotas, quantity)
             .map_err(RateLimitingError::Redis)?;
 
         for quota in rate_limited_global_quotas {
             let retry_after = self.retry_after((quota.expiry() - timestamp).as_secs());
-            rate_limits.add(RateLimit::from_quota(&quota, &item_scoping, retry_after));
+            rate_limits.add(RateLimit::from_quota(quota, &item_scoping, retry_after));
         }
 
         // Either there are no quotas to run against Redis, or we already have a rate limit from a
