@@ -224,8 +224,10 @@ impl RedisRateLimiter {
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
 
-        for quota in quotas.iter().filter(|quota| quota.matches(item_scoping)) {
-            if quota.limit == Some(0) {
+        for quota in quotas {
+            if !quota.matches(item_scoping) {
+                // Silently skip ..
+            } else if quota.limit == Some(0) {
                 // A zero-sized quota is strongest. Do not call into Redis at all, and do not
                 // increment any keys, as one quota has reached capacity (this is how regular quotas
                 // behave as well).
@@ -372,6 +374,7 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
+                namespace: None,
             }]
         );
     }
@@ -417,6 +420,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             } else {
@@ -466,6 +470,7 @@ mod tests {
                         scope: RateLimitScope::Global,
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             } else {
@@ -657,6 +662,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             }
@@ -704,6 +710,7 @@ mod tests {
                         scope: RateLimitScope::Organization(42),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
+                        namespace: None,
                     }]
                 );
             } else {

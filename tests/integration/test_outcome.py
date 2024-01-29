@@ -1975,6 +1975,7 @@ def test_global_rate_limit_by_namespace(
             "scope": "global",
             "categories": ["metric_bucket"],
             "limit": transaction_limit,
+            "namespace": "transactions",
             "window": 1000,
             "reasonCode": transaction_reason_code,
         },
@@ -1982,7 +1983,7 @@ def test_global_rate_limit_by_namespace(
 
     ts = datetime.utcnow().timestamp()
 
-    def send_buckets(n, name, value):
+    def send_buckets(n, name, value, ty):
         for i in range(n):
             bucket = [
                 {
@@ -1990,7 +1991,7 @@ def test_global_rate_limit_by_namespace(
                     "project_id": project_id,
                     "timestamp": ts,
                     "name": name,
-                    "type": "d",
+                    "type": ty,
                     "value": value,
                     "width": bucket_interval,
                     "tags": {"foo": str(i)},
@@ -2003,23 +2004,21 @@ def test_global_rate_limit_by_namespace(
             )
             relay.send_envelope(project_id, envelope)
 
-        time.sleep(5)
+        time.sleep(3)
 
     transaction_name = "d:transactions/measurements.lcp@millisecond"
     transaction_value = [1.0]
 
-    session_name = "d:sessions/session@none"
-    session_value = 1
+    session_name = "s:sessions/user@none"
+    session_value = [12345423]
 
-    # Send as many transcations as we can.
-    send_buckets(transaction_limit - 1, transaction_name, transaction_value)
+    # Send as many transactions as we can.
+    send_buckets(transaction_limit, transaction_name, transaction_value, "d")
 
     outcomes = outcomes_consumer.get_outcomes()
-    print(outcomes)
     assert len(outcomes) == 0
-    assert outcomes[0]["reason"] == transaction_reason_code
 
-    send_buckets(1, transaction_name, transaction_value)
+    send_buckets(1, transaction_name, transaction_value, "d")
 
     # assert we hit the transaction throughput limit configured.
     outcomes = outcomes_consumer.get_outcomes()
@@ -2028,16 +2027,16 @@ def test_global_rate_limit_by_namespace(
 
     # Fill up the global limit
     global_quota_remaining = metric_bucket_limit - transaction_limit
-    send_buckets(global_quota_remaining, session_name, session_value)
+    send_buckets(global_quota_remaining - 1, session_name, session_value, "s")
 
     # Assert we didn't get ratelimited
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 0
 
     # Send more than we have of global quota.
-    send_buckets(1, session_name, session_value)
+    send_buckets(1, session_name, session_value, "s")
 
     # Assert we hit the global limit
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 1
-    assert outcomes[0]["reason"] == metric_bucket_limit
+    assert outcomes[0]["reason"] == global_reason_code

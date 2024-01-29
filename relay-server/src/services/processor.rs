@@ -1760,8 +1760,6 @@ impl EnvelopeProcessorService {
             .filter_map(|bucket| Some((bucket.namespace().ok()?, bucket)))
             .into_group_map();
 
-        dbg!(&buckets_by_ns);
-
         buckets_by_ns
             .into_iter()
             .filter_map(|(namespace, buckets)| {

@@ -30,19 +30,14 @@ impl GlobalRateLimits {
         quota: &RedisQuota,
         quantity: usize,
     ) -> Result<bool, RedisError> {
-        dbg!(&quota);
-        dbg!(quantity);
         let key = KeyRef::new(quota);
 
         let val = {
             let mut limits = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
-            dbg!(&key);
-            dbg!(limits.contains_key(&key));
             Arc::clone(limits.entry_ref(&key).or_default())
         };
 
         let mut val = val.lock().unwrap_or_else(PoisonError::into_inner);
-        dbg!(&val);
 
         val.is_rate_limited(client, quota, key, quantity as u64)
     }
@@ -172,8 +167,7 @@ impl GlobalRateLimit {
         }
 
         let redis_key = key.redis_key(quota_slot);
-        let reserved = dbg!(self.try_reserve(client, quantity, quota, redis_key)?);
-        dbg!(self.budget);
+        let reserved = self.try_reserve(client, quantity, quota, redis_key)?;
         self.budget += reserved;
 
         if self.budget >= quantity {
@@ -191,24 +185,17 @@ impl GlobalRateLimit {
         quota: &RedisQuota,
         redis_key: RedisKey,
     ) -> Result<u64, RedisError> {
-        dbg!(&self);
-        dbg!(&redis_key);
-
         let min_required_budget = quantity.saturating_sub(self.budget);
         let max_available_budget = quota
             .limit
             .unwrap_or(u64::MAX)
             .saturating_sub(self.last_seen_redis_value);
 
-        dbg!(min_required_budget);
-        dbg!(max_available_budget);
-
         if min_required_budget > max_available_budget {
             return Ok(0);
         }
 
         let budget_to_reserve = min_required_budget.max(self.default_request_size(quantity, quota));
-        dbg!(budget_to_reserve);
 
         let (budget, value): (u64, u64) = load_global_lua_script()
             .prepare_invoke()
