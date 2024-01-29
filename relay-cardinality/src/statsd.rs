@@ -26,6 +26,9 @@ pub enum CardinalityLimiterCounters {
     ///  - `id`: The id of the enforced limit.
     #[cfg(feature = "redis")]
     RedisCacheMiss,
+    /// Amount of entries removed from the cache via periodic cleanups.
+    #[cfg(feature = "redis")]
+    RedisCacheVacuum,
 }
 
 impl CounterMetric for CardinalityLimiterCounters {
@@ -39,6 +42,8 @@ impl CounterMetric for CardinalityLimiterCounters {
             Self::RedisCacheHit => "cardinality.limiter.redis.cache_hit",
             #[cfg(feature = "redis")]
             Self::RedisCacheMiss => "cardinality.limiter.redis.cache_miss",
+            #[cfg(feature = "redis")]
+            Self::RedisCacheVacuum => "cardinality.limiter.redis.cache_vacuum",
         }
     }
 }
@@ -52,6 +57,10 @@ pub enum CardinalityLimiterTimers {
     ///  - `id`: The id of the enforced limit.
     #[cfg(feature = "redis")]
     Redis,
+    /// Timer tracking the amount of time spent removing expired values
+    /// from the cardinality cache.
+    #[cfg(feature = "redis")]
+    CacheVacuum,
 }
 
 impl TimerMetric for CardinalityLimiterTimers {
@@ -60,6 +69,10 @@ impl TimerMetric for CardinalityLimiterTimers {
             CardinalityLimiterTimers::CardinalityLimiter => "cardinality.limiter.duration",
             #[cfg(feature = "redis")]
             CardinalityLimiterTimers::Redis => "cardinality.limiter.redis.duration",
+            #[cfg(feature = "redis")]
+            CardinalityLimiterTimers::CacheVacuum => {
+                "cardinality.limiter.redis.cache_vacuum.duration"
+            }
         }
     }
 }
