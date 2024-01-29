@@ -1,13 +1,10 @@
 from datetime import datetime
 import uuid
 import json
-from unittest import mock
 
 import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
-
-from .fixtures.mini_sentry import GLOBAL_CONFIG
 
 
 def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
@@ -601,19 +598,15 @@ def test_relay_chain(
     envelope.get_transaction_event()
 
 
-@mock.patch.dict(
-    GLOBAL_CONFIG,
-    {
-        "options": {
-            "profiling.profile_metrics.unsampled_profiles.platforms": ["python"],
-            "profiling.profile_metrics.unsampled_profiles.sample_rate": 1.0,
-            "profiling.profile_metrics.unsampled_profiles.enabled": True,
-        }
-    },
-)
 def test_relay_chain_keep_unsampled_profile(
     mini_sentry, relay, relay_with_processing, profiles_consumer
 ):
+    mini_sentry.global_config["options"] = {
+        "profiling.profile_metrics.unsampled_profiles.platforms": ["python"],
+        "profiling.profile_metrics.unsampled_profiles.sample_rate": 1.0,
+        "profiling.profile_metrics.unsampled_profiles.enabled": True,
+    }
+
     profiles_consumer = profiles_consumer()
 
     # Create an envelope with a profile:

@@ -38,6 +38,14 @@ impl GlobalConfig {
             Ok(None)
         }
     }
+
+    /// Returns the [`Options::cardinality_limiter_mode`] option.
+    pub fn cardinality_limiter_mode(&self) -> CardinalityLimiterMode {
+        self.options
+            .as_ref()
+            .map(|o| o.cardinality_limiter_mode)
+            .unwrap_or_default()
+    }
 }
 
 /// All options passed down from Sentry to Relay.
@@ -58,9 +66,30 @@ pub struct Options {
     #[serde(rename = "profiling.profile_metrics.unsampled_profiles.enabled")]
     pub unsampled_profiles_enabled: bool,
 
+    /// Kill switch for controlling the cardinality limiter.
+    #[serde(rename = "relay.cardinality-limiter.mode")]
+    pub cardinality_limiter_mode: CardinalityLimiterMode,
+
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
+}
+
+/// Kill switch for controlling the cardinality limiter.
+#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub enum CardinalityLimiterMode {
+    /// Cardinality limiter is enabled.
+    #[default]
+    // De-serialize from the empty string, because the option was added to
+    // Sentry incorrectly which makes Sentry send the empty string as a default.
+    #[serde(alias = "")]
+    Enabled,
+    /// Cardinality limiter is enabled but cardinality limits are not enforced.
+    Passive,
+    /// Cardinality limiter is disabled.
+    Disabled,
 }
 
 #[cfg(test)]
@@ -94,5 +123,20 @@ mod tests {
             .expect("failed to deserialize GlobalConfig");
 
         assert_eq!(deserialized, global_config);
+    }
+
+    #[test]
+    fn test_cardinality_limiter_mode_de_serialize() {
+        let m: CardinalityLimiterMode = serde_json::from_str("\"\"").unwrap();
+        assert_eq!(m, CardinalityLimiterMode::Enabled);
+        let m: CardinalityLimiterMode = serde_json::from_str("\"enabled\"").unwrap();
+        assert_eq!(m, CardinalityLimiterMode::Enabled);
+        let m: CardinalityLimiterMode = serde_json::from_str("\"disabled\"").unwrap();
+        assert_eq!(m, CardinalityLimiterMode::Disabled);
+        let m: CardinalityLimiterMode = serde_json::from_str("\"passive\"").unwrap();
+        assert_eq!(m, CardinalityLimiterMode::Passive);
+
+        let m = serde_json::to_string(&CardinalityLimiterMode::Enabled).unwrap();
+        assert_eq!(m, "\"enabled\"");
     }
 }
