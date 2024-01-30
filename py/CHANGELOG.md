@@ -9,18 +9,10 @@
 
 - Add ability to block metrics matching a glob pattern. ([#2954](https://github.com/getsentry/relay/pull/2954))
 
-### Various fixes & improvements
-
-- release: 0.8.43 (9789f00a) by @getsentry-bot
-- release: 0.8.42 (b980275c) by @getsentry-bot
-- fix(pii): Enable PII scrubbing in logentry.params (#2956) by @iker-barriocanal
 
 ## 0.8.43
 
-### Various fixes & improvements
-
-- release: 0.8.42 (b980275c) by @getsentry-bot
-- fix(pii): Enable PII scrubbing in logentry.params (#2956) by @iker-barriocanal
+- Fix JSON capitalization for cardinality config. ([#2979](https://github.com/getsentry/relay/pull/2979))
 
 ## 0.8.42
 
@@ -100,18 +92,17 @@ This release requires Python 3.8 or later.
 ## 0.8.27
 
 - Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251))
+- Add trace context to CheckIns. ([#2241](https://github.com/getsentry/relay/pull/2241))
 
 ## 0.8.26
 
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
-- Add trace context to CheckIns. ([#2241](https://github.com/getsentry/relay/pull/2241))
+
 
 ## 0.8.25
 
-### Various fixes & improvements
 
-- release: 0.8.24 (a9a78dfa) by @getsentry-bot
 
 ## 0.8.24
 
