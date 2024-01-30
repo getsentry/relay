@@ -82,7 +82,7 @@ impl RedisSetLimiter {
         // but since this is only used for cleanup, this is not an issue.
         let result = self
             .script
-            .invoke(con, limit, scope.window.window_seconds, hashes, keys)?;
+            .invoke(con, limit, scope.redis_key_ttl(), hashes, keys)?;
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
@@ -180,10 +180,10 @@ impl Limiter for RedisSetLimiter {
 /// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct QuotaScoping {
-    pub window: SlidingWindow,
     pub namespace: Option<MetricNamespace>,
     pub organization_id: Option<OrganizationId>,
     pub project_id: Option<ProjectId>,
+    window: SlidingWindow,
 }
 
 impl QuotaScoping {
@@ -210,9 +210,32 @@ impl QuotaScoping {
         self.namespace.is_none() || self.namespace == Some(entry.namespace)
     }
 
+    /// Returns the currently active slot.
+    pub fn active_slot(&self, timestamp: UnixTimestamp) -> Slot {
+        self.window.active_slot(self.shifted(timestamp))
+    }
+
     /// Returns all slots of the sliding window for a specific timestamp.
     pub fn slots(&self, timestamp: UnixTimestamp) -> impl Iterator<Item = Slot> {
-        self.window.iter(timestamp)
+        self.window.iter(self.shifted(timestamp))
+    }
+
+    /// Applies a timeshift based on the granularity of the sliding window to the passed timestamp.
+    ///
+    /// The shift is used to evenly distribute cache and Redis operations across
+    /// the sliding window's granule.
+    fn shifted(&self, timestamp: UnixTimestamp) -> UnixTimestamp {
+        let shift = self
+            .organization_id
+            .map(|o| o % self.window.granularity_seconds)
+            .unwrap_or(0);
+
+        UnixTimestamp::from_secs(timestamp.as_secs() + shift)
+    }
+
+    /// Returns the minimum TTL for a Redis key created by [`Self::into_redis_key`].
+    fn redis_key_ttl(&self) -> u64 {
+        self.window.window_seconds
     }
 
     /// Turns the scoping into a Redis key for the passed slot.
@@ -307,9 +330,9 @@ impl<'a> Drop for LimitState<'a> {
 #[derive(Clone, Copy, Debug)]
 struct RedisEntry {
     /// The correlating entry id.
-    id: EntryId,
+    pub id: EntryId,
     /// The entry hash.
-    hash: u32,
+    pub hash: u32,
 }
 
 impl RedisEntry {
@@ -502,6 +525,77 @@ mod tests {
         limit.limit = 6;
         let rejected3 = limiter.test_limits(scoping, &[limit], entries);
         assert_eq!(rejected3.len(), 0);
+    }
+
+    #[test]
+    fn test_limiter_org_based_time_shift() {
+        let mut limiter = build_limiter();
+
+        let granularity_seconds = 10_000;
+
+        let scoping1 = Scoping {
+            organization_id: granularity_seconds,
+            project_id: ProjectId::new(1),
+        };
+        let scoping2 = Scoping {
+            // Time shift relative to `scoping1` should be half the granularity.
+            organization_id: granularity_seconds / 2,
+            project_id: ProjectId::new(1),
+        };
+
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: granularity_seconds * 3,
+                granularity_seconds,
+            },
+            limit: 1,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
+
+        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
+        assert!(limiter.test_limits(scoping1, limits, entries1).is_empty());
+        assert!(limiter.test_limits(scoping2, limits, entries1).is_empty());
+
+        // Make sure `entries2` is not accepted.
+        let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
+        assert_eq!(limiter.test_limits(scoping1, limits, entries2).len(), 1);
+        assert_eq!(limiter.test_limits(scoping2, limits, entries2).len(), 1);
+
+        let mut scoping1_accept = None;
+        let mut scoping2_accept = None;
+
+        // Measure time required until `entries2` is accepted.
+        for i in 0..100 {
+            let offset = i * granularity_seconds / 10;
+
+            limiter.time_offset = Duration::from_secs(offset);
+
+            if scoping1_accept.is_none()
+                && limiter.test_limits(scoping1, limits, entries2).is_empty()
+            {
+                scoping1_accept = Some(offset as i64);
+            }
+
+            if scoping2_accept.is_none()
+                && limiter.test_limits(scoping2, limits, entries2).is_empty()
+            {
+                scoping2_accept = Some(offset as i64);
+            }
+
+            if scoping1_accept.is_some() && scoping2_accept.is_some() {
+                break;
+            }
+        }
+
+        let scoping1_accept = scoping1_accept.unwrap();
+        let scoping2_accept = scoping2_accept.unwrap();
+
+        let diff = (scoping1_accept - scoping2_accept).abs();
+        let expected = granularity_seconds as i64 / 2;
+        // Make sure they are perfectly offset.
+        assert_eq!(diff, expected);
     }
 
     #[test]
