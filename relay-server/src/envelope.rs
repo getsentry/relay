@@ -625,7 +625,7 @@ impl Item {
             ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
-            ItemType::UserReportV2 => None,
+            ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
             ItemType::Profile => Some(if indexed {
                 DataCategory::ProfileIndexed
             } else {
