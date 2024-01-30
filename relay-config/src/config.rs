@@ -826,6 +826,11 @@ fn spool_envelopes_max_connections() -> u32 {
     20
 }
 
+/// Default interval to unspool buffered envelopes, 100ms.
+fn spool_envelopes_unspool_interval() -> u64 {
+    100
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -849,6 +854,9 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
+    /// The interval in milliseconds to trigger unspool.
+    #[serde(default = "spool_envelopes_unspool_interval")]
+    unspool_interval: u64,
 }
 
 impl Default for EnvelopeSpool {
@@ -859,6 +867,7 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
+            unspool_interval: spool_envelopes_unspool_interval(), // 100ms
         }
     }
 }
@@ -1276,36 +1285,18 @@ pub struct GeoIpConfig {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct CardinalityLimiter {
-    /// The number of seconds to apply the limit to.
+    /// Cache vacuum interval in seconds for the in memory cache.
     ///
-    /// Defaults to: 1 hour.
-    pub window_seconds: u64,
-    /// A number between 1 and `window_seconds`. Since `window_seconds` is a
-    /// sliding window, configure what the granularity of that window is.
+    /// The cache will scan for expired values based on this interval.
     ///
-    /// If this is equal to `window_seconds`, the quota resets to 0 every
-    /// `window_seconds`.  If this is a very small number, the window slides
-    /// "more smoothly" at the expense of having much more redis keys.
-    ///
-    /// The number of redis keys required to enforce a quota is `window_seconds /
-    /// granularity_seconds`.
-    ///
-    /// Defaults to: 10 minutes.
-    pub granularity_seconds: u64,
-    /// Cardinality limit per bucket.
-    ///
-    /// The current bucket scope is comprised of organization and namespace.
-    ///
-    /// Defaults to: 10_000.
-    pub limit: usize,
+    /// Defaults to 180 seconds, 3 minutes.
+    pub cache_vacuum_interval: u64,
 }
 
 impl Default for CardinalityLimiter {
     fn default() -> Self {
         Self {
-            window_seconds: 3600,
-            granularity_seconds: 600,
-            limit: 10_000,
+            cache_vacuum_interval: 180,
         }
     }
 }
@@ -1936,6 +1927,11 @@ impl Config {
         self.values.spool.envelopes.min_connections
     }
 
+    /// Unspool interval in milliseconds.
+    pub fn spool_envelopes_unspool_interval(&self) -> Duration {
+        Duration::from_millis(self.values.spool.envelopes.unspool_interval)
+    }
+
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
         self.values.spool.envelopes.max_disk_size.as_bytes()
@@ -2156,19 +2152,11 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Cardinality limit per org and namespace.
-    pub fn cardinality_limit(&self) -> usize {
-        self.values.cardinality_limiter.limit
-    }
-
-    /// Sliding window size to enforce cardinality limit.
-    pub fn cardinality_limiter_window(&self) -> u64 {
-        self.values.cardinality_limiter.window_seconds
-    }
-
-    /// Granularity of the sliding window to enforce cardinality limit.
-    pub fn cardinality_limiter_granularity(&self) -> u64 {
-        self.values.cardinality_limiter.granularity_seconds
+    /// Cache vacuum interval for the cardinality limiter in memory cache.
+    ///
+    /// The cache will scan for expired values based on this interval.
+    pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

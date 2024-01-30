@@ -310,8 +310,13 @@ mod tests {
             item
         });
 
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+        let (group, envelope) = envelopes.pop().unwrap();
+
+        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
@@ -359,8 +364,13 @@ mod tests {
             item
         });
 
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
@@ -416,8 +426,13 @@ mod tests {
             item
         });
 
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),
@@ -450,9 +465,12 @@ mod tests {
             item
         });
 
-        let mut envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store);
-        envelope.set_processing_group(ProcessingGroup::Standalone);
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
 
+        let (group, envelope) = envelopes.pop().unwrap();
+
+        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
         let message = ProcessEnvelope {
             envelope,
             project_state: Arc::new(ProjectState::allowed()),
@@ -496,8 +514,13 @@ mod tests {
             item
         });
 
+        let mut envelopes = ProcessingGroup::split_envelope(*envelope);
+        assert_eq!(envelopes.len(), 1);
+        let (group, envelope) = envelopes.pop().unwrap();
+        let envelope = ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store, group);
+
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            envelope,
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),

@@ -1,12 +1,10 @@
 use std::borrow::Cow;
-use std::ops::Range;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::events::EventType;
-use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
-    self, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    self, ProcessValue, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{Event, Span, SpanStatus, TraceContext, TransactionSource};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
@@ -25,19 +23,12 @@ pub struct TransactionNameConfig<'r> {
 #[derive(Debug, Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
-    timestamp_range: Option<Range<UnixTimestamp>>,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     /// Creates a new `TransactionsProcessor` instance.
-    pub fn new(
-        name_config: TransactionNameConfig<'r>,
-        timestamp_range: Option<Range<UnixTimestamp>>,
-    ) -> Self {
-        Self {
-            name_config,
-            timestamp_range,
-        }
+    pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
+        Self { name_config }
     }
 
     /// Applies the rule if any found to the transaction name.
@@ -121,69 +112,6 @@ impl<'r> TransactionsProcessor<'r> {
                 .set_value(Some(TransactionSource::Sanitized));
         }
     }
-
-    fn validate_transaction(&self, event: &mut Event) -> ProcessingResult {
-        self.validate_timestamps(event)?;
-
-        let Some(trace_context) = event.context_mut::<TraceContext>() else {
-            return Err(ProcessingAction::InvalidTransaction(
-                "missing valid trace context",
-            ));
-        };
-
-        if trace_context.trace_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "trace context is missing trace_id",
-            ));
-        }
-
-        if trace_context.span_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "trace context is missing span_id",
-            ));
-        }
-
-        trace_context.op.get_or_insert_with(|| "default".to_owned());
-        Ok(())
-    }
-
-    /// Returns start and end timestamps if they are both set and start <= end.
-    fn validate_timestamps(&self, transaction_event: &Event) -> ProcessingResult {
-        match (
-            transaction_event.start_timestamp.value(),
-            transaction_event.timestamp.value(),
-        ) {
-            (Some(start), Some(end)) => {
-                if end < start {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "end timestamp is smaller than start timestamp",
-                    ));
-                }
-
-                if let Some(ref range) = self.timestamp_range {
-                    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-                        return Err(ProcessingAction::InvalidTransaction(
-                            "invalid unix timestamp",
-                        ));
-                    };
-                    if !range.contains(&timestamp) {
-                        return Err(ProcessingAction::InvalidTransaction(
-                            "timestamp is out of the valid range for metrics",
-                        ));
-                    }
-                }
-
-                Ok(())
-            }
-            (_, None) => Err(ProcessingAction::InvalidTransaction(
-                "timestamp hard-required for transaction events",
-            )),
-            // XXX: Maybe copy timestamp over?
-            (None, _) => Err(ProcessingAction::InvalidTransaction(
-                "start_timestamp hard-required for transaction events",
-            )),
-        }
-    }
 }
 
 impl Processor for TransactionsProcessor<'_> {
@@ -210,8 +138,10 @@ impl Processor for TransactionsProcessor<'_> {
 
         set_default_transaction_source(event);
         self.normalize_transaction_name(event);
-        self.validate_transaction(event)?;
-        end_all_spans(event)?;
+        end_all_spans(event);
+        if let Some(trace_context) = event.context_mut::<TraceContext>() {
+            trace_context.op.get_or_insert_with(|| "default".to_owned());
+        }
 
         event.process_child_values(self, state)?;
         Ok(())
@@ -223,40 +153,6 @@ impl Processor for TransactionsProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        match (span.start_timestamp.value(), span.timestamp.value()) {
-            (Some(start), Some(end)) => {
-                if end < start {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "end timestamp in span is smaller than start timestamp",
-                    ));
-                }
-            }
-            (_, None) => {
-                // XXX: Maybe do the same as event.timestamp?
-                return Err(ProcessingAction::InvalidTransaction(
-                    "span is missing timestamp",
-                ));
-            }
-            (None, _) => {
-                // XXX: Maybe copy timestamp over?
-                return Err(ProcessingAction::InvalidTransaction(
-                    "span is missing start_timestamp",
-                ));
-            }
-        }
-
-        if span.trace_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "span is missing trace_id",
-            ));
-        }
-
-        if span.span_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "span is missing span_id",
-            ));
-        }
-
         span.op.get_or_insert_with(|| "default".to_owned());
 
         span.process_child_values(self, state)?;
@@ -429,7 +325,7 @@ fn scrub_identifiers_with_regex(
 }
 
 /// Copies the event's end timestamp into the spans that don't have one.
-fn end_all_spans(event: &mut Event) -> ProcessingResult {
+fn end_all_spans(event: &mut Event) {
     let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     for span in spans {
         if let Some(span) = span.value_mut() {
@@ -438,13 +334,8 @@ fn end_all_spans(event: &mut Event) -> ProcessingResult {
                 span.timestamp.set_value(event.timestamp.value().cloned());
                 span.status = Annotated::new(SpanStatus::DeadlineExceeded);
             }
-        } else {
-            return Err(ProcessingAction::InvalidTransaction(
-                "spans must be valid in transaction event",
-            ));
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -456,7 +347,7 @@ mod tests {
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{ClientSdkInfo, Contexts, Span, SpanId, TraceId};
-    use relay_protocol::{assert_annotated_snapshot, get_value, Object};
+    use relay_protocol::{assert_annotated_snapshot, get_value};
 
     use crate::RedactionRule;
 
@@ -521,25 +412,6 @@ mod tests {
         assert!(event.value().is_some());
     }
 
-    #[test]
-    fn test_discards_when_missing_timestamp() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "timestamp hard-required for transaction events"
-            ))
-        );
-    }
-
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
         let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
@@ -571,23 +443,6 @@ mod tests {
     }
 
     #[test]
-    fn test_discards_when_timestamp_out_of_range() {
-        let mut event = new_test_event();
-
-        let processor = &mut TransactionsProcessor::new(
-            TransactionNameConfig::default(),
-            Some(UnixTimestamp::now()..UnixTimestamp::now()),
-        );
-
-        assert!(matches!(
-            process_value(&mut event, processor, ProcessingState::root()),
-            Err(ProcessingAction::InvalidTransaction(
-                "timestamp is out of the valid range for metrics"
-            ))
-        ));
-    }
-
-    #[test]
     fn test_replace_missing_timestamp() {
         let span = Span {
             start_timestamp: Annotated::new(
@@ -614,160 +469,6 @@ mod tests {
 
         assert_eq!(span.timestamp, event.timestamp);
         assert_eq!(span.status.value().unwrap(), &SpanStatus::DeadlineExceeded);
-    }
-
-    #[test]
-    fn test_discards_when_missing_start_timestamp() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "start_timestamp hard-required for transaction events"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_on_missing_contexts_map() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "missing valid trace context"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_on_missing_context() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: Annotated::new(Contexts::new()),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "missing valid trace context"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_on_null_context() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert("trace".to_owned(), Annotated::empty());
-                contexts
-            })),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "missing valid trace context"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_on_missing_trace_id_in_context() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext::default());
-                Annotated::new(contexts)
-            },
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "trace context is missing trace_id"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_on_missing_span_id_in_context() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "trace context is missing span_id"
-            ))
-        );
     }
 
     #[test]
@@ -885,164 +586,6 @@ mod tests {
         )
         .unwrap();
         assert!(get_value!(event.spans).unwrap().is_empty());
-    }
-
-    #[test]
-    fn test_discards_transaction_event_with_nulled_out_span() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            spans: Annotated::new(vec![Annotated::empty()]),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "spans must be valid in transaction event"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "span is missing start_timestamp"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_transaction_event_with_span_with_missing_trace_id() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                start_timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "span is missing trace_id"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_discards_transaction_event_with_span_with_missing_span_id() {
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
-            start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-            ),
-            contexts: {
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext {
-                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                    op: Annotated::new("http.server".to_owned()),
-                    ..Default::default()
-                });
-                Annotated::new(contexts)
-            },
-            spans: Annotated::new(vec![Annotated::new(Span {
-                timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                start_timestamp: Annotated::new(
-                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
-                ),
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                ..Default::default()
-            })]),
-            ..Default::default()
-        });
-
-        assert_eq!(
-            process_value(
-                &mut event,
-                &mut TransactionsProcessor::default(),
-                ProcessingState::root()
-            ),
-            Err(ProcessingAction::InvalidTransaction(
-                "span is missing span_id"
-            ))
-        );
     }
 
     #[test]
@@ -1399,12 +942,9 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[rule1, rule2, rule3],
-                },
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: &[rule1, rule2, rule3],
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1483,12 +1023,9 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[rule1, rule2, rule3],
-                },
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: &[rule1, rule2, rule3],
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1553,12 +1090,9 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        let mut processor = TransactionsProcessor::new(
-            TransactionNameConfig {
-                rules: rules.as_ref(),
-            },
-            None,
-        );
+        let mut processor = TransactionsProcessor::new(TransactionNameConfig {
+            rules: rules.as_ref(),
+        });
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
@@ -1671,12 +1205,9 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: rules.as_ref(),
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1731,12 +1262,9 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: rules.as_ref(),
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1819,7 +1347,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, None),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2024,16 +1552,13 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[TransactionNameRule {
-                        pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
-                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        redaction: RedactionRule::default(),
-                    }],
-                },
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    redaction: RedactionRule::default(),
+                }],
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2093,16 +1618,13 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[TransactionNameRule {
-                        pattern: LazyGlob::new("/remains/*/**".to_owned()),
-                        expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        redaction: RedactionRule::default(),
-                    }],
-                },
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig {
+                rules: &[TransactionNameRule {
+                    pattern: LazyGlob::new("/remains/*/**".to_owned()),
+                    expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
+                    redaction: RedactionRule::default(),
+                }],
+            }),
             ProcessingState::root(),
         )
         .unwrap();

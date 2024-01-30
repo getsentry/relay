@@ -6,11 +6,12 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
+    validate_span, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
+    RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{Contexts, Event, Span};
@@ -27,7 +28,7 @@ use crate::utils::ItemAction;
 pub fn process(
     state: &mut ProcessEnvelopeState,
     config: Arc<Config>,
-    global_measurements_config: Option<&MeasurementsConfig>,
+    global_config: &GlobalConfig,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -38,7 +39,7 @@ pub fn process(
     let normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
-        global_measurements_config,
+        global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
         state.project_state.config().performance_score.as_ref(),
     );
@@ -90,7 +91,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            let metrics = extract_metrics(span, config);
+            let metrics = extract_metrics(span, config, Some(&global_config.options));
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }
@@ -234,7 +235,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
 struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
-    /// Allowed time range for transactions.
+    /// Allowed time range for spans.
     pub timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
@@ -288,13 +289,11 @@ fn normalize(
     config: NormalizeSpanConfig,
     contexts: Annotated<Contexts>,
 ) -> Result<(), ProcessingError> {
-    use relay_event_normalization::{
-        SchemaProcessor, TimestampProcessor, TransactionsProcessor, TrimmingProcessor,
-    };
+    use relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
 
     let NormalizeSpanConfig {
         received_at,
-        timestamp_range,
+        timestamp_range: timestmap_range,
         max_tag_value_size,
         performance_score,
         measurements,
@@ -317,9 +316,12 @@ fn normalize(
         ProcessingState::root(),
     )?;
 
+    if let Some(span) = annotated_span.value() {
+        validate_span(span, Some(&timestmap_range))?;
+    }
     process_value(
         annotated_span,
-        &mut TransactionsProcessor::new(Default::default(), Some(timestamp_range)),
+        &mut TransactionsProcessor::new(Default::default()),
         ProcessingState::root(),
     )?;
 
