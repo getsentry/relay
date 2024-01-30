@@ -1282,9 +1282,24 @@ pub struct GeoIpConfig {
 }
 
 /// Cardinality Limiter configuration options.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-pub struct CardinalityLimiter {}
+pub struct CardinalityLimiter {
+    /// Cache vacuum interval in seconds for the in memory cache.
+    ///
+    /// The cache will scan for expired values based on this interval.
+    ///
+    /// Defaults to 180 seconds, 3 minutes.
+    pub cache_vacuum_interval: u64,
+}
+
+impl Default for CardinalityLimiter {
+    fn default() -> Self {
+        Self {
+            cache_vacuum_interval: 180,
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
@@ -2135,6 +2150,13 @@ impl Config {
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
+    }
+
+    /// Cache vacuum interval for the cardinality limiter in memory cache.
+    ///
+    /// The cache will scan for expired values based on this interval.
+    pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

@@ -9,9 +9,6 @@ use crate::redis::QuotaScoping;
 use crate::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
 use crate::window::Slot;
 
-/// Interval in which the cache is checked for expired values.
-const CACHE_VACUUM_INTERVAL: Duration = Duration::from_secs(180);
-
 /// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
 /// this hash.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,12 +24,21 @@ pub enum CacheOutcome {
 /// Internal cache remembering already accepted elements and current cardinality.
 ///
 /// Only caches for the currently active granule of the sliding window.
-#[derive(Default)]
 pub struct Cache {
     inner: RwLock<Inner>,
 }
 
 impl Cache {
+    pub fn new(vacuum_interval: Duration) -> Self {
+        Self {
+            inner: RwLock::new(Inner {
+                cache: Default::default(),
+                vacuum_interval,
+                last_vacuum: UnixTimestamp::from_secs(0),
+            }),
+        }
+    }
+
     /// Acquires a read lock from the cache and returns a read handle.
     ///
     /// All operations done on the handle share the same lock. To release the lock
@@ -140,6 +146,7 @@ impl<'a> CacheUpdate<'a> {
 #[derive(Debug)]
 struct Inner {
     cache: hashbrown::HashMap<QuotaScoping, ScopedCache>,
+    vacuum_interval: Duration,
     last_vacuum: UnixTimestamp,
 }
 
@@ -147,7 +154,7 @@ impl Inner {
     fn vacuum(&mut self, ts: UnixTimestamp) {
         // Debounce the vacuuming.
         let secs_since_last_vacuum = ts.as_secs().saturating_sub(self.last_vacuum.as_secs());
-        if secs_since_last_vacuum < CACHE_VACUUM_INTERVAL.as_secs() {
+        if secs_since_last_vacuum < self.vacuum_interval.as_secs() {
             return;
         }
         self.last_vacuum = ts;
@@ -158,15 +165,6 @@ impl Inner {
                 .count()
         });
         metric!(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired as i64);
-    }
-}
-
-impl Default for Inner {
-    fn default() -> Self {
-        Self {
-            cache: Default::default(),
-            last_vacuum: UnixTimestamp::from_secs(0),
-        }
     }
 }
 
@@ -217,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_cache() {
-        let cache = Cache::default();
+        let cache = Cache::new(Duration::from_secs(180));
 
         let scope = QuotaScoping {
             window: SlidingWindow {
@@ -281,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_cache_different_scopings() {
-        let cache = Cache::default();
+        let cache = Cache::new(Duration::from_secs(180));
 
         let scope1 = QuotaScoping {
             window: SlidingWindow {
@@ -324,14 +322,13 @@ mod tests {
 
     #[test]
     fn test_cache_vacuum() {
-        let cache = Cache::default();
-
-        let vacuum_interval = CACHE_VACUUM_INTERVAL.as_secs();
+        let vacuum_interval = Duration::from_secs(30);
+        let cache = Cache::new(vacuum_interval);
 
         let scope1 = QuotaScoping {
             window: SlidingWindow {
-                window_seconds: vacuum_interval * 10,
-                granularity_seconds: vacuum_interval * 2,
+                window_seconds: vacuum_interval.as_secs() * 10,
+                granularity_seconds: vacuum_interval.as_secs() * 2,
             },
             namespace: None,
             organization_id: None,
@@ -342,8 +339,8 @@ mod tests {
             ..scope1
         };
         let now = UnixTimestamp::now();
-        let in_interval = now + Duration::from_secs(vacuum_interval - 1);
-        let future = now + Duration::from_secs(vacuum_interval * 3);
+        let in_interval = now + Duration::from_secs(vacuum_interval.as_secs() - 1);
+        let future = now + Duration::from_secs(vacuum_interval.as_secs() * 3);
 
         {
             let mut cache = cache.update(scope1, now);

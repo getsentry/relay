@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use relay_redis::{Connection, RedisPool};
 use relay_statsd::metric;
 
@@ -18,6 +20,14 @@ use relay_common::time::UnixTimestamp;
 /// Key prefix used for Redis keys.
 const KEY_PREFIX: &str = "relay:cardinality";
 
+/// Configuration options for the [`RedisSetLimiter`].
+pub struct RedisSetLimiterOptions {
+    /// Cache vacuum interval for the in memory cache.
+    ///
+    /// The cache will scan for expired values based on this interval.
+    pub cache_vacuum_interval: Duration,
+}
+
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
     redis: RedisPool,
@@ -30,11 +40,11 @@ pub struct RedisSetLimiter {
 /// A Redis based limiter using Redis sets to track cardinality and membership.
 impl RedisSetLimiter {
     /// Creates a new [`RedisSetLimiter`].
-    pub fn new(redis: RedisPool) -> Self {
+    pub fn new(options: RedisSetLimiterOptions, redis: RedisPool) -> Self {
         Self {
             redis,
             script: CardinalityScript::load(),
-            cache: Cache::default(),
+            cache: Cache::new(options.cache_vacuum_interval),
             #[cfg(test)]
             time_offset: std::time::Duration::from_secs(0),
         }
@@ -344,7 +354,12 @@ mod tests {
 
         let redis = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
 
-        RedisSetLimiter::new(redis)
+        RedisSetLimiter::new(
+            RedisSetLimiterOptions {
+                cache_vacuum_interval: Duration::from_secs(5),
+            },
+            redis,
+        )
     }
 
     fn new_scoping(limiter: &RedisSetLimiter) -> Scoping {

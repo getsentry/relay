@@ -4,4 +4,4 @@ mod script;
 
 use self::limiter::*;
 
-pub use self::limiter::RedisSetLimiter;
+pub use self::limiter::{RedisSetLimiter, RedisSetLimiterOptions};

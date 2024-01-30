@@ -1,10 +1,13 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Duration,
+};
 
 use criterion::{BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::{metrics::MetricNamespace, project::ProjectId};
 use relay_cardinality::{
     limiter::{Entry, EntryId, Limiter, Rejections, Scoping},
-    CardinalityLimit, CardinalityScope, RedisSetLimiter, SlidingWindow,
+    CardinalityLimit, CardinalityScope, RedisSetLimiter, RedisSetLimiterOptions, SlidingWindow,
 };
 use relay_redis::{redis, RedisConfigOptions, RedisPool};
 
@@ -23,7 +26,12 @@ fn build_limiter(redis: RedisPool, reset_redis: bool) -> RedisSetLimiter {
         redis::cmd("FLUSHALL").execute(&mut connection);
     }
 
-    RedisSetLimiter::new(redis)
+    RedisSetLimiter::new(
+        RedisSetLimiterOptions {
+            cache_vacuum_interval: Duration::from_secs(180),
+        },
+        redis,
+    )
 }
 
 struct NoopRejections;
