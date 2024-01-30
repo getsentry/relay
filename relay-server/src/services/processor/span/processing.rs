@@ -9,11 +9,12 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
-    normalize_measurements, DynamicMeasurementsConfig, MeasurementsConfig,
+    normalize_measurements, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Span;
-use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
+use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 
@@ -217,8 +218,6 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
 struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
-    /// Allowed time range for transactions.
-    pub timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
     /// Configuration for measurement normalization in transaction events.
@@ -245,7 +244,6 @@ fn get_normalize_span_config<'a>(
 
     NormalizeSpanConfig {
         received_at,
-        timestamp_range: aggregator_config.timestamp_range(),
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
@@ -266,13 +264,10 @@ fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
 ) -> Result<(), ProcessingError> {
-    use relay_event_normalization::{
-        SchemaProcessor, TimestampProcessor, TransactionsProcessor, TrimmingProcessor,
-    };
+    use relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
 
     let NormalizeSpanConfig {
         received_at,
-        timestamp_range,
         max_tag_value_size,
         measurements,
         max_name_and_unit_len,
@@ -294,9 +289,12 @@ fn normalize(
         ProcessingState::root(),
     )?;
 
+    if let Some(span) = annotated_span.value() {
+        validate_span(span)?;
+    }
     process_value(
         annotated_span,
-        &mut TransactionsProcessor::new(Default::default(), Some(timestamp_range)),
+        &mut TransactionsProcessor::new(Default::default()),
         ProcessingState::root(),
     )?;
 

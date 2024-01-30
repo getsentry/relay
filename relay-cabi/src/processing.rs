@@ -12,8 +12,9 @@ use once_cell::sync::OnceCell;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
-    normalize_event, GeoIpLookup, NormalizationConfig, RawUserAgentInfo, StoreConfig,
-    StoreProcessor,
+    normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
+    GeoIpLookup, NormalizationConfig, RawUserAgentInfo, StoreConfig, StoreProcessor,
+    TransactionValidationConfig,
 };
 use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
@@ -112,6 +113,19 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
     let processor = normalizer as *mut StoreProcessor;
     let mut event = Annotated::<Event>::from_json((*event).as_str())?;
     let config = (*processor).config();
+
+    let tx_validation_config = TransactionValidationConfig {
+        timestamp_range: None, // only supported in relay
+    };
+    validate_transaction(&event, &tx_validation_config)?;
+
+    let event_validation_config = EventValidationConfig {
+        received_at: config.received_at,
+        max_secs_in_past: config.max_secs_in_past,
+        max_secs_in_future: config.max_secs_in_future,
+    };
+    validate_event_timestamps(&mut event, &event_validation_config)?;
+
     let normalization_config = NormalizationConfig {
         client_ip: config.client_ip.as_ref(),
         user_agent: RawUserAgentInfo {
@@ -119,10 +133,6 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
             client_hints: config.client_hints.as_deref(),
         },
         max_name_and_unit_len: None,
-        received_at: config.received_at,
-        max_secs_in_past: config.max_secs_in_past,
-        max_secs_in_future: config.max_secs_in_future,
-        transaction_range: None, // only supported in relay
         breakdowns_config: None, // only supported in relay
         normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), // only supported in relay
@@ -137,7 +147,8 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
     };
-    normalize_event(&mut event, &normalization_config)?;
+    normalize_event(&mut event, &normalization_config);
+
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
     RelayStr::from_string(event.to_json()?)
 }

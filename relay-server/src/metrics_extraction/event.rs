@@ -501,7 +501,6 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
         let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
-        // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -509,8 +508,7 @@ mod tests {
                 normalize_spans: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
@@ -1015,6 +1013,26 @@ mod tests {
                         "resource.render_blocking_status": "blocking"
                     },
                     "hash": "e2fae740cccd3789"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "subdomain.example.com:5688",
+                        "url.same_origin": true,
+                        "url.scheme": "https"
+                    },
+                    "hash": "e2fae740cccd3789"
                 }
             ]
         }
@@ -1031,8 +1049,7 @@ mod tests {
                 normalize_spans: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
@@ -1145,8 +1162,7 @@ mod tests {
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
