@@ -18,7 +18,7 @@ pub use self::config::*;
 pub use self::error::*;
 pub use self::limiter::{CardinalityItem, CardinalityLimits, Scoping};
 #[cfg(feature = "redis")]
-pub use self::redis::RedisSetLimiter;
+pub use self::redis::{RedisSetLimiter, RedisSetLimiterOptions};
 pub use self::window::SlidingWindow;
 
 /// Redis Set based cardinality limiter.
