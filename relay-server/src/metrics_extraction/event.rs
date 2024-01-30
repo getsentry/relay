@@ -1281,7 +1281,8 @@ mod tests {
             .filter(|b| b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
 
-        assert_eq!(usage_metrics.len(), 7);
+        let expected_usage = 6; // There are 7 spans, but `custom.op` is not counted.
+        assert_eq!(usage_metrics.len(), expected_usage);
         for m in usage_metrics {
             assert!(m.tags.is_empty());
         }
