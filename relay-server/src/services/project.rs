@@ -1291,7 +1291,7 @@ mod tests {
         project.state = State::Cached(project_state.into());
 
         let result = project.check_buckets_inner(Addr::custom().0, vec![]);
-        assert!(matches!(result, Err(CheckBucketsError::ProjectDisabled(0))));
+        assert!(matches!(result, CheckedBuckets::ProjectDisabled(0)));
     }
 
     #[tokio::test]
