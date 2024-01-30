@@ -47,7 +47,7 @@
 <span class="kw">pub use </span><span class="self">self</span>::error::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::limiter::{CardinalityItem, CardinalityLimits, Scoping};
 <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
-</span><span class="kw">pub use </span><span class="self">self</span>::redis::RedisSetLimiter;
+</span><span class="kw">pub use </span><span class="self">self</span>::redis::{RedisSetLimiter, RedisSetLimiterOptions};
 <span class="kw">pub use </span><span class="self">self</span>::window::SlidingWindow;
 
 <span class="doccomment">/// Redis Set based cardinality limiter.

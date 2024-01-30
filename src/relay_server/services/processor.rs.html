@@ -2765,6 +2765,16 @@
 <a href="#2765" id="2765">2765</a>
 <a href="#2766" id="2766">2766</a>
 <a href="#2767" id="2767">2767</a>
+<a href="#2768" id="2768">2768</a>
+<a href="#2769" id="2769">2769</a>
+<a href="#2770" id="2770">2770</a>
+<a href="#2771" id="2771">2771</a>
+<a href="#2772" id="2772">2772</a>
+<a href="#2773" id="2773">2773</a>
+<a href="#2774" id="2774">2774</a>
+<a href="#2775" id="2775">2775</a>
+<a href="#2776" id="2776">2776</a>
+<a href="#2777" id="2777">2777</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2813,7 +2823,9 @@
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
-    relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
+    relay_cardinality::{
+        CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
+    },
     relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
@@ -3575,7 +3587,15 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>cardinality_limiter: redis
                 .clone()
-                .map(RedisSetLimiter::new)
+                .map(|pool| {
+                    RedisSetLimiter::new(
+                        RedisSetLimiterOptions {
+                            cache_vacuum_interval: config
+                                .cardinality_limiter_cache_vacuum_interval(),
+                        },
+                        pool,
+                    )
+                })
                 .map(CardinalityLimiter::new),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>store_forwarder,

@@ -89,6 +89,19 @@
 <a href="#89" id="89">89</a>
 <a href="#90" id="90">90</a>
 <a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Counter metrics for the Relay Cardinality Limiter.
@@ -117,6 +130,9 @@
     ///  - `id`: The id of the enforced limit.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>RedisCacheMiss,
+    <span class="doccomment">/// Amount of entries removed from the cache via periodic cleanups.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+    </span>RedisCacheVacuum,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>CardinalityLimiterCounters {
@@ -130,6 +146,8 @@
             </span><span class="self">Self</span>::RedisCacheHit =&gt; <span class="string">&quot;cardinality.limiter.redis.cache_hit&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
             </span><span class="self">Self</span>::RedisCacheMiss =&gt; <span class="string">&quot;cardinality.limiter.redis.cache_miss&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+            </span><span class="self">Self</span>::RedisCacheVacuum =&gt; <span class="string">&quot;cardinality.limiter.redis.cache_vacuum&quot;</span>,
         }
     }
 }
@@ -143,6 +161,10 @@
     ///  - `id`: The id of the enforced limit.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
     </span>Redis,
+    <span class="doccomment">/// Timer tracking the amount of time spent removing expired values
+    /// from the cardinality cache.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+    </span>CacheVacuum,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>CardinalityLimiterTimers {
@@ -151,6 +173,10 @@
             CardinalityLimiterTimers::CardinalityLimiter =&gt; <span class="string">&quot;cardinality.limiter.duration&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
             </span>CardinalityLimiterTimers::Redis =&gt; <span class="string">&quot;cardinality.limiter.redis.duration&quot;</span>,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;redis&quot;</span>)]
+            </span>CardinalityLimiterTimers::CacheVacuum =&gt; {
+                <span class="string">&quot;cardinality.limiter.redis.cache_vacuum.duration&quot;
+            </span>}
         }
     }
 }
