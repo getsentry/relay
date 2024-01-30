@@ -1126,51 +1126,49 @@ impl Project {
         outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        self.check_buckets_inner(outcome_aggregator, buckets)
-            .map_err(|e| {
-                match e {
-                    CheckBucketsError::ProjectExpired(len) => {
-                        relay_log::error!(
-                            tags.project_key = self.project_key.as_str(),
-                            "there is no project state: dropping {len} buckets"
-                        );
-                    }
-                    CheckBucketsError::ProjectDisabled(len) => {
-                        relay_log::debug!("dropping {len} buckets for disabled project");
-                    }
+        match self.check_buckets_inner(outcome_aggregator, buckets) {
+            CheckedBuckets::Ok(scoping, metrics) => return Some((scoping, metrics)),
+            CheckedBuckets::ProjectExpired(len) => {
+                relay_log::error!(
+                    tags.project_key = self.project_key.as_str(),
+                    "there is no project state: dropping {len} buckets"
+                );
+            }
+            CheckedBuckets::ProjectDisabled(len) => {
+                relay_log::debug!("dropping {len} buckets for disabled project");
+            }
 
-                    CheckBucketsError::NoScoping(len) => {
-                        relay_log::error!(
-                            tags.project_key = self.project_key.as_str(),
-                            "there is no scoping: dropping {len} buckets"
-                        );
-                    }
-                    CheckBucketsError::RateLimited(len) => {
-                        relay_log::debug!("dropping {len} buckets due to rate limit");
-                    }
-                };
-                e
-            })
-            .ok()
+            CheckedBuckets::NoScoping(len) => {
+                relay_log::error!(
+                    tags.project_key = self.project_key.as_str(),
+                    "there is no scoping: dropping {len} buckets"
+                );
+            }
+            CheckedBuckets::RateLimited(len) => {
+                relay_log::debug!("dropping {len} buckets due to rate limit");
+            }
+        };
+
+        None
     }
 
     fn check_buckets_inner(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
-    ) -> Result<(Scoping, ProjectMetrics), CheckBucketsError> {
+    ) -> CheckedBuckets {
         let len = buckets.len();
 
         let Some(project_state) = self.valid_state() else {
-            return Err(CheckBucketsError::ProjectExpired(len));
+            return CheckedBuckets::ProjectExpired(len);
         };
 
         if project_state.invalid() || project_state.disabled() {
-            return Err(CheckBucketsError::ProjectDisabled(len));
+            return CheckedBuckets::ProjectDisabled(len);
         }
 
         let Some(scoping) = self.scoping() else {
-            return Err(CheckBucketsError::NoScoping(len));
+            return CheckedBuckets::NoScoping(len);
         };
 
         let item_scoping = ItemScoping {
@@ -1192,7 +1190,7 @@ impl Project {
                 Outcome::RateLimited(reason_code),
             );
 
-            return Err(CheckBucketsError::RateLimited(len));
+            return CheckedBuckets::RateLimited(len);
         }
 
         let project_metrics = ProjectMetrics {
@@ -1200,12 +1198,13 @@ impl Project {
             project_state,
         };
 
-        Ok((scoping, project_metrics))
+        CheckedBuckets::Ok(scoping, project_metrics)
     }
 }
 
 #[derive(Debug)]
-enum CheckBucketsError {
+enum CheckedBuckets {
+    Ok(Scoping, ProjectMetrics),
     ProjectExpired(usize),
     ProjectDisabled(usize),
     NoScoping(usize),
