@@ -73,8 +73,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            let global_options = global_config.options.as_ref();
-            let metrics = extract_metrics(span, config, global_options);
+            let metrics = extract_metrics(span, config, Some(&global_config.options));
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }

@@ -993,7 +993,7 @@ impl EnvelopeProcessorService {
                 let metrics = crate::metrics_extraction::event::extract_metrics(
                     event,
                     config,
-                    global_config.options.as_ref(),
+                    Some(&global_config.options),
                 );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);

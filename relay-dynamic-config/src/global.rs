@@ -19,8 +19,8 @@ pub struct GlobalConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     /// Sentry options passed down to Relay.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options: Option<Options>,
+    #[serde(skip_serializing_if = "is_default")]
+    pub options: Options,
 }
 
 impl GlobalConfig {
@@ -41,10 +41,7 @@ impl GlobalConfig {
 
     /// Returns the [`Options::cardinality_limiter_mode`] option.
     pub fn cardinality_limiter_mode(&self) -> CardinalityLimiterMode {
-        self.options
-            .as_ref()
-            .map(|o| o.cardinality_limiter_mode)
-            .unwrap_or_default()
+        self.options.cardinality_limiter_mode
     }
 }
 
@@ -133,11 +130,10 @@ mod tests {
                 ],
                 max_custom_measurements: 5,
             }),
-            options: Some(Options {
+            options: Options {
                 unsampled_profiles_enabled: true,
-                //other: HashMap::from([("relay.unknown".to_owned(), Value::Bool(true))]),
                 ..Default::default()
-            }),
+            },
         };
 
         let serialized =

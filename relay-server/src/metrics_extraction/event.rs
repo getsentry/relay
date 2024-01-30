@@ -1063,9 +1063,7 @@ mod tests {
         insta::assert_debug_snapshot!(metrics);
     }
 
-    #[test]
-    fn test_extract_span_metrics_mobile() {
-        let json = r#"
+    const MOBILE_EVENT: &str = r#"
         {
             "type": "transaction",
             "sdk": {"name": "sentry.javascript.react-native"},
@@ -1151,7 +1149,9 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+    #[test]
+    fn test_extract_span_metrics_mobile() {
+        let mut event = Annotated::from_json(MOBILE_EVENT).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
@@ -1221,7 +1221,6 @@ mod tests {
             ]
         }
         "#;
-
         let event = Annotated::from_json(json).unwrap();
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
@@ -1242,6 +1241,50 @@ mod tests {
         assert!(metrics
             .iter()
             .any(|b| b.name == "d:spans/exclusive_time_light@millisecond"));
+    }
+
+    #[test]
+    fn test_extract_span_metrics_usage() {
+        let mut event = Annotated::from_json(MOBILE_EVENT).unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                normalize_spans: true,
+                device_class_synthesis_config: true,
+                ..Default::default()
+            },
+        );
+
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            Some(&{
+                let mut o = Options::default();
+                o.span_usage_metric = true;
+                o
+            }),
+        );
+
+        let usage_metrics = metrics
+            .into_iter()
+            .filter(|b| b.name == "c:spans/usage@none")
+            .collect::<Vec<_>>();
+
+        assert_eq!(usage_metrics.len(), 7);
+        for m in usage_metrics {
+            assert!(m.tags.is_empty());
+        }
     }
 
     /// Helper function for span metric extraction tests.

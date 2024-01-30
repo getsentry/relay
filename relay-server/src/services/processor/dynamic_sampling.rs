@@ -243,9 +243,7 @@ pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config
 
 /// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
 fn forward_unsampled_profiles(state: &ProcessEnvelopeState, global_config: &GlobalConfig) -> bool {
-    let Some(global_options) = &global_config.options else {
-        return false;
-    };
+    let global_options = &global_config.options;
 
     if !global_options.unsampled_profiles_enabled {
         return false;
