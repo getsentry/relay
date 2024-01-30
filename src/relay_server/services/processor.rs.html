@@ -2760,6 +2760,11 @@
 <a href="#2760" id="2760">2760</a>
 <a href="#2761" id="2761">2761</a>
 <a href="#2762" id="2762">2762</a>
+<a href="#2763" id="2763">2763</a>
+<a href="#2764" id="2764">2764</a>
+<a href="#2765" id="2765">2765</a>
+<a href="#2766" id="2766">2766</a>
+<a href="#2767" id="2767">2767</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3751,7 +3756,12 @@
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
-                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(event, config);
+                <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
+                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
+                    event,
+                    config,
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>global_config.options),
+                );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -4019,7 +4029,7 @@
             span::process(
                 state,
                 <span class="self">self</span>.inner.config.clone(),
-                <span class="self">self</span>.inner.global_config.current().measurements.as_ref(),
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
             );
         });
         <span class="prelude-val">Ok</span>(())

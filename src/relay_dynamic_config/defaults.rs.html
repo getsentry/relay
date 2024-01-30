@@ -393,6 +393,15 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -499,7 +508,19 @@
     <span class="kw">let </span>app_start_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;app.start.*&quot;</span>)
         &amp; RuleCondition::eq(<span class="string">&quot;span.description&quot;</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
+    <span class="comment">// `exclusive_time_light` is the metric with the most lenient condition.
+    </span><span class="kw">let </span>exclusive_time_light_condition =
+        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
+            &amp; duration_condition.clone();
+
     [
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: <span class="string">&quot;c:spans/usage@none&quot;</span>.into(),
+            field: <span class="prelude-val">None</span>,
+            condition: <span class="prelude-val">Some</span>(exclusive_time_light_condition.clone()),
+            tags: <span class="macro">vec!</span>[],
+        },
         MetricSpec {
             category: DataCategory::Span,
             mri: <span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>.into(),
@@ -572,10 +593,7 @@
             category: DataCategory::Span,
             mri: <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>.into(),
             field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.exclusive_time&quot;</span>.into()),
-            condition: <span class="prelude-val">Some</span>(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
-                    &amp; duration_condition.clone(),
-            ),
+            condition: <span class="prelude-val">Some</span>(exclusive_time_light_condition),
             tags: <span class="macro">vec!</span>[
                 Tag::with_key(<span class="string">&quot;environment&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.environment&quot;</span>)

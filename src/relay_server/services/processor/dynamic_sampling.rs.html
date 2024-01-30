@@ -735,8 +735,6 @@
 <a href="#735" id="735">735</a>
 <a href="#736" id="736">736</a>
 <a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -982,9 +980,7 @@
 
 <span class="doccomment">/// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
 </span><span class="kw">fn </span>forward_unsampled_profiles(state: <span class="kw-2">&amp;</span>ProcessEnvelopeState, global_config: <span class="kw-2">&amp;</span>GlobalConfig) -&gt; bool {
-    <span class="kw">let </span><span class="prelude-val">Some</span>(global_options) = <span class="kw-2">&amp;</span>global_config.options <span class="kw">else </span>{
-        <span class="kw">return </span><span class="bool-val">false</span>;
-    };
+    <span class="kw">let </span>global_options = <span class="kw-2">&amp;</span>global_config.options;
 
     <span class="kw">if </span>!global_options.unsampled_profiles_enabled {
         <span class="kw">return </span><span class="bool-val">false</span>;

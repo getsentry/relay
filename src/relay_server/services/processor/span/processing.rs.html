@@ -438,7 +438,7 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
+<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::span::tag_extraction;
 <span class="kw">use </span>relay_event_normalization::{
     normalize_measurements, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
@@ -459,7 +459,7 @@
 <span class="kw">pub fn </span>process(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     config: Arc&lt;Config&gt;,
-    global_measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>MeasurementsConfig&gt;,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) {
     <span class="kw">use </span>relay_event_normalization::RemoveOtherProcessor;
 
@@ -470,7 +470,7 @@
     <span class="kw">let </span>normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
-        global_measurements_config,
+        global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
     );
 
@@ -505,7 +505,7 @@
             <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() <span class="kw">else </span>{
                 <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            <span class="kw">let </span>metrics = extract_metrics(span, config);
+            <span class="kw">let </span>metrics = extract_metrics(span, config, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>global_config.options));
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(<span class="bool-val">true</span>);
         }

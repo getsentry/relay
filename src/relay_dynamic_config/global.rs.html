@@ -140,6 +140,34 @@
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -161,8 +189,8 @@
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
     <span class="doccomment">/// Sentry options passed down to Relay.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span><span class="kw">pub </span>options: <span class="prelude-ty">Option</span>&lt;Options&gt;,
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
+    </span><span class="kw">pub </span>options: Options,
 }
 
 <span class="kw">impl </span>GlobalConfig {
@@ -183,34 +211,49 @@
 
     <span class="doccomment">/// Returns the [`Options::cardinality_limiter_mode`] option.
     </span><span class="kw">pub fn </span>cardinality_limiter_mode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CardinalityLimiterMode {
-        <span class="self">self</span>.options
-            .as_ref()
-            .map(|o| o.cardinality_limiter_mode)
-            .unwrap_or_default()
+        <span class="self">self</span>.options.cardinality_limiter_mode
     }
 }
 
 <span class="doccomment">/// All options passed down from Sentry to Relay.
 </span><span class="attr">#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(default, rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(default)]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Options {
     <span class="doccomment">/// List of platform names for which we allow using unsampled profiles for the purpose
     /// of improving profile (function) metrics
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.platforms&quot;</span>)]
+    </span><span class="attr">#[serde(
+        rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.platforms&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;
+    </span>)]
     </span><span class="kw">pub </span>profile_metrics_allowed_platforms: Vec&lt;String&gt;,
 
     <span class="doccomment">/// Sample rate for tuning the amount of unsampled profiles that we &quot;let through&quot;
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.sample_rate&quot;</span>)]
+    </span><span class="attr">#[serde(
+        rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.sample_rate&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_default&quot;
+    </span>)]
     </span><span class="kw">pub </span>profile_metrics_sample_rate: f32,
 
     <span class="doccomment">/// Kill switch for shutting down profile metrics
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.enabled&quot;</span>)]
+    </span><span class="attr">#[serde(
+        rename = <span class="string">&quot;profiling.profile_metrics.unsampled_profiles.enabled&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_default&quot;
+    </span>)]
     </span><span class="kw">pub </span>unsampled_profiles_enabled: bool,
 
     <span class="doccomment">/// Kill switch for controlling the cardinality limiter.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;relay.cardinality-limiter.mode&quot;</span>)]
+    </span><span class="attr">#[serde(
+        rename = <span class="string">&quot;relay.cardinality-limiter.mode&quot;</span>,
+        skip_serializing_if = <span class="string">&quot;is_default&quot;
+    </span>)]
     </span><span class="kw">pub </span>cardinality_limiter_mode: CardinalityLimiterMode,
+
+    <span class="doccomment">/// Kill switch for disabling the span usage metric.
+    ///
+    /// This metric is converted into outcomes in a sentry-side consumer.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;relay.span-usage-metric&quot;</span>, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
+    </span><span class="kw">pub </span>span_usage_metric: bool,
 
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]
@@ -234,6 +277,11 @@
     </span>Disabled,
 }
 
+<span class="doccomment">/// Returns `true` if this value is equal to `Default::default()`.
+</span><span class="kw">fn </span>is_default&lt;T: Default + PartialEq&gt;(t: <span class="kw-2">&amp;</span>T) -&gt; bool {
+    <span class="kw-2">*</span>t == T::default()
+}
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_base_schema::metrics::MetricUnit;
@@ -252,10 +300,10 @@
                 ],
                 max_custom_measurements: <span class="number">5</span>,
             }),
-            options: <span class="prelude-val">Some</span>(Options {
-                other: HashMap::from([(<span class="string">&quot;relay.unknown&quot;</span>.to_owned(), Value::Bool(<span class="bool-val">true</span>))]),
+            options: Options {
+                unsampled_profiles_enabled: <span class="bool-val">true</span>,
                 ..Default::default()
-            }),
+            },
         };
 
         <span class="kw">let </span>serialized =
@@ -280,6 +328,14 @@
 
         <span class="kw">let </span>m = serde_json::to_string(<span class="kw-2">&amp;</span>CardinalityLimiterMode::Enabled).unwrap();
         <span class="macro">assert_eq!</span>(m, <span class="string">&quot;\&quot;enabled\&quot;&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_minimal_serialization() {
+        <span class="kw">let </span>config = <span class="string">r#&quot;{&quot;options&quot;:{&quot;foo&quot;:&quot;bar&quot;}}&quot;#</span>;
+        <span class="kw">let </span>deserialized: GlobalConfig = serde_json::from_str(config).unwrap();
+        <span class="kw">let </span>serialized = serde_json::to_string(<span class="kw-2">&amp;</span>deserialized).unwrap();
+        <span class="macro">assert_eq!</span>(config, <span class="kw-2">&amp;</span>serialized);
     }
 }
 </code></pre></div></section></main></body></html>
