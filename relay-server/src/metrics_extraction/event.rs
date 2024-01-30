@@ -1,5 +1,5 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::MetricExtractionConfig;
+use relay_dynamic_config::{MetricExtractionConfig, Options};
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -43,14 +43,18 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config);
+pub fn extract_metrics(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    global_options: Option<&Options>,
+) -> Vec<Bucket> {
+    let mut metrics = generic::extract_metrics(event, config, global_options);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config));
+                    metrics.extend(generic::extract_metrics(span, config, global_options));
                 }
             }
         }
@@ -514,7 +518,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1055,13 +1059,11 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
-    #[test]
-    fn test_extract_span_metrics_mobile() {
-        let json = r#"
+    const MOBILE_EVENT: &str = r#"
         {
             "type": "transaction",
             "sdk": {"name": "sentry.javascript.react-native"},
@@ -1147,7 +1149,9 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+    #[test]
+    fn test_extract_span_metrics_mobile() {
+        let mut event = Annotated::from_json(MOBILE_EVENT).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
@@ -1168,7 +1172,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1217,7 +1221,6 @@ mod tests {
             ]
         }
         "#;
-
         let event = Annotated::from_json(json).unwrap();
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
@@ -1228,7 +1231,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1240,6 +1243,51 @@ mod tests {
             .any(|b| b.name == "d:spans/exclusive_time_light@millisecond"));
     }
 
+    #[test]
+    fn test_extract_span_metrics_usage() {
+        let mut event = Annotated::from_json(MOBILE_EVENT).unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                normalize_spans: true,
+                device_class_synthesis_config: true,
+                ..Default::default()
+            },
+        );
+
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            Some(&{
+                let mut o = Options::default();
+                o.span_usage_metric = true;
+                o
+            }),
+        );
+
+        let usage_metrics = metrics
+            .into_iter()
+            .filter(|b| b.name == "c:spans/usage@none")
+            .collect::<Vec<_>>();
+
+        let expected_usage = 6; // There are 7 spans, but `custom.op` is not counted.
+        assert_eq!(usage_metrics.len(), expected_usage);
+        for m in usage_metrics {
+            assert!(m.tags.is_empty());
+        }
+    }
+
     /// Helper function for span metric extraction tests.
     fn extract_span_metrics(span: &Span) -> Vec<Bucket> {
         let mut config = ProjectConfig::default();
@@ -1247,7 +1295,7 @@ mod tests {
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config)
+        generic::extract_metrics(span, &extraction_config, None)
     }
 
     /// Helper function for span metric extraction tests.
