@@ -1121,6 +1121,10 @@ impl Project {
         })
     }
 
+    /// Drops metrics buckets if they are not allowed for this project.
+    ///
+    /// Reasons for dropping can be rate limits or a disabled project.
+    /// Returns `Some` if metrics are currently allowed.
     pub fn check_buckets(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
@@ -1152,6 +1156,9 @@ impl Project {
         None
     }
 
+    /// Unit-testable helper function for [`Self::check_buckets`].
+    ///
+    /// Returns [`CheckedBuckets::Ok`] if metrics are currently allowed, or the reject reason otherwise.
     fn check_buckets_inner(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
@@ -1202,12 +1209,20 @@ impl Project {
     }
 }
 
+/// Result of a bucket check.
 #[derive(Debug)]
 enum CheckedBuckets {
+    /// Metrics are allowed. Contains the metrics plus scoping information.
     Ok(Scoping, ProjectMetrics),
+    /// The project has expired while the bucket was in aggregation.
+    ///
+    /// This should not happen as long as the aggregation time is shorter than the refresh time.
     ProjectExpired(usize),
+    /// The project is disabled or invalid.
     ProjectDisabled(usize),
+    /// The project has no project ID, even though it is not disabled. This should never happen.
     NoScoping(usize),
+    /// The buckets were rate limited.
     RateLimited(usize),
 }
 
