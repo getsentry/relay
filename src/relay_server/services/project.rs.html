@@ -1642,6 +1642,68 @@
 <a href="#1642" id="1642">1642</a>
 <a href="#1643" id="1643">1643</a>
 <a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
+<a href="#1646" id="1646">1646</a>
+<a href="#1647" id="1647">1647</a>
+<a href="#1648" id="1648">1648</a>
+<a href="#1649" id="1649">1649</a>
+<a href="#1650" id="1650">1650</a>
+<a href="#1651" id="1651">1651</a>
+<a href="#1652" id="1652">1652</a>
+<a href="#1653" id="1653">1653</a>
+<a href="#1654" id="1654">1654</a>
+<a href="#1655" id="1655">1655</a>
+<a href="#1656" id="1656">1656</a>
+<a href="#1657" id="1657">1657</a>
+<a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2765,26 +2827,61 @@
         })
     }
 
-    <span class="kw">pub fn </span>check_buckets(
+    <span class="doccomment">/// Drops metrics buckets if they are not allowed for this project.
+    ///
+    /// Reasons for dropping can be rate limits or a disabled project.
+    /// Returns `Some` if metrics are currently allowed.
+    </span><span class="kw">pub fn </span>check_buckets(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         buckets: Vec&lt;Bucket&gt;,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;(Scoping, ProjectMetrics)&gt; {
-        <span class="kw">let </span>len = buckets.len();
-        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.valid_state() <span class="kw">else </span>{
-            <span class="macro">relay_log::error!</span>(
-                tags.project_key = <span class="self">self</span>.project_key.as_str(),
-                <span class="string">&quot;there is no project state: dropping {len} buckets&quot;
-            </span>);
-            <span class="kw">return </span><span class="prelude-val">None</span>;
+        <span class="kw">match </span><span class="self">self</span>.check_buckets_inner(outcome_aggregator, buckets) {
+            CheckedBuckets::Ok(scoping, metrics) =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>((scoping, metrics)),
+            CheckedBuckets::ProjectExpired(len) =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    tags.project_key = <span class="self">self</span>.project_key.as_str(),
+                    <span class="string">&quot;there is no project state: dropping {len} buckets&quot;
+                </span>);
+            }
+            CheckedBuckets::ProjectDisabled(len) =&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {len} buckets for disabled project&quot;</span>);
+            }
+
+            CheckedBuckets::NoScoping(len) =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    tags.project_key = <span class="self">self</span>.project_key.as_str(),
+                    <span class="string">&quot;there is no scoping: dropping {len} buckets&quot;
+                </span>);
+            }
+            CheckedBuckets::RateLimited(len) =&gt; {
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {len} buckets due to rate limit&quot;</span>);
+            }
         };
 
+        <span class="prelude-val">None
+    </span>}
+
+    <span class="doccomment">/// Unit-testable helper function for [`Self::check_buckets`].
+    ///
+    /// Returns [`CheckedBuckets::Ok`] if metrics are currently allowed, or the reject reason otherwise.
+    </span><span class="kw">fn </span>check_buckets_inner(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        buckets: Vec&lt;Bucket&gt;,
+    ) -&gt; CheckedBuckets {
+        <span class="kw">let </span>len = buckets.len();
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.valid_state() <span class="kw">else </span>{
+            <span class="kw">return </span>CheckedBuckets::ProjectExpired(len);
+        };
+
+        <span class="kw">if </span>project_state.invalid() || project_state.disabled() {
+            <span class="kw">return </span>CheckedBuckets::ProjectDisabled(len);
+        }
+
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
-            <span class="macro">relay_log::error!</span>(
-                tags.project_key = <span class="self">self</span>.project_key.as_str(),
-                <span class="string">&quot;there is no scoping: dropping {len} buckets&quot;
-            </span>);
-            <span class="kw">return </span><span class="prelude-val">None</span>;
+            <span class="kw">return </span>CheckedBuckets::NoScoping(len);
         };
 
         <span class="kw">let </span>item_scoping = ItemScoping {
@@ -2797,8 +2894,6 @@
             .check_with_quotas(project_state.get_quotas(), item_scoping);
 
         <span class="kw">if </span>limits.is_limited() {
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping {len} buckets due to rate limit&quot;</span>);
-
             <span class="kw">let </span>mode = project_state.get_extraction_mode();
             <span class="kw">let </span>reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             utils::reject_metrics(
@@ -2808,7 +2903,7 @@
                 Outcome::RateLimited(reason_code),
             );
 
-            <span class="kw">return </span><span class="prelude-val">None</span>;
+            <span class="kw">return </span>CheckedBuckets::RateLimited(len);
         }
 
         <span class="kw">let </span>project_metrics = ProjectMetrics {
@@ -2816,8 +2911,25 @@
             project_state,
         };
 
-        <span class="prelude-val">Some</span>((scoping, project_metrics))
+        CheckedBuckets::Ok(scoping, project_metrics)
     }
+}
+
+<span class="doccomment">/// Result of a bucket check.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">enum </span>CheckedBuckets {
+    <span class="doccomment">/// Metrics are allowed. Contains the metrics plus scoping information.
+    </span><span class="prelude-val">Ok</span>(Scoping, ProjectMetrics),
+    <span class="doccomment">/// The project has expired while the bucket was in aggregation.
+    ///
+    /// This should not happen as long as the aggregation time is shorter than the refresh time.
+    </span>ProjectExpired(usize),
+    <span class="doccomment">/// The project is disabled or invalid.
+    </span>ProjectDisabled(usize),
+    <span class="doccomment">/// The project has no project ID, even though it is not disabled. This should never happen.
+    </span>NoScoping(usize),
+    <span class="doccomment">/// The buckets were rate limited.
+    </span>RateLimited(usize),
 }
 
 <span class="doccomment">/// Removes tags based on user configured deny list.
@@ -2889,6 +3001,18 @@
                 </span><span class="macro">assert!</span>(project.valid_state().is_none());
             }
         }
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>no_error_on_disabled_project() {
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>project = Project::new(project_key, Arc::new(Config::default()));
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        project_state.disabled = <span class="bool-val">true</span>;
+        project.state = State::Cached(project_state.into());
+
+        <span class="kw">let </span>result = project.check_buckets_inner(Addr::custom().<span class="number">0</span>, <span class="macro">vec!</span>[]);
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(result, CheckedBuckets::ProjectDisabled(<span class="number">0</span>)));
     }
 
     <span class="attr">#[tokio::test]
