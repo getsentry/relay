@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["parse_query"]};
+window.SIDEBAR_ITEMS = {"fn":["normalize_domain","parse_query"]};
