@@ -430,6 +430,11 @@
 <a href="#430" id="430">430</a>
 <a href="#431" id="431">431</a>
 <a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -446,6 +451,7 @@
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::Span;
+<span class="kw">use </span>relay_metrics::UnixTimestamp;
 <span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace};
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
@@ -649,6 +655,8 @@
 </span><span class="kw">struct </span>NormalizeSpanConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The time at which the event was received in this Relay.
     </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
+    <span class="doccomment">/// Allowed time range for spans.
+    </span><span class="kw">pub </span>timestamp_range: std::ops::Range&lt;UnixTimestamp&gt;,
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     </span><span class="kw">pub </span>max_tag_value_size: usize,
     <span class="doccomment">/// Configuration for measurement normalization in transaction events.
@@ -675,6 +683,7 @@
 
     NormalizeSpanConfig {
         received_at,
+        timestamp_range: aggregator_config.timestamp_range(),
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
@@ -699,6 +708,7 @@
 
     <span class="kw">let </span>NormalizeSpanConfig {
         received_at,
+        timestamp_range: timestmap_range,
         max_tag_value_size,
         measurements,
         max_name_and_unit_len,
@@ -721,7 +731,7 @@
     )<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() {
-        validate_span(span)<span class="question-mark">?</span>;
+        validate_span(span, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>timestmap_range))<span class="question-mark">?</span>;
     }
     process_value(
         annotated_span,

@@ -722,6 +722,22 @@
 <a href="#722" id="722">722</a>
 <a href="#723" id="723">723</a>
 <a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, Utc};
@@ -730,7 +746,7 @@
 <span class="kw">use </span>relay_event_schema::processor::{
     <span class="self">self</span>, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
-<span class="kw">use </span>relay_event_schema::protocol::{Event, Span, TraceContext};
+<span class="kw">use </span>relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
 <span class="kw">use </span>relay_protocol::{Annotated, ErrorKind, Meta};
 
 <span class="kw">use crate</span>::{ClockDriftProcessor, TimestampProcessor};
@@ -768,7 +784,9 @@
 
     validate_transaction_timestamps(event, config)<span class="question-mark">?</span>;
     validate_trace_context(event)<span class="question-mark">?</span>;
-    validate_spans(event)<span class="question-mark">?</span>;
+    <span class="comment">// There are no timestamp range requirements for span timestamps.
+    // Transaction will be rejected only if either end or start timestamp is missing.
+    </span>validate_spans(event, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
 }
@@ -783,25 +801,7 @@
         transaction_event.timestamp.value(),
     ) {
         (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; {
-            <span class="kw">if </span>end &lt; start {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                    <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
-                ));
-            }
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>range) = config.timestamp_range {
-                <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                        <span class="string">&quot;invalid unix timestamp&quot;</span>,
-                    ));
-                };
-                <span class="kw">if </span>!range.contains(<span class="kw-2">&amp;</span>timestamp) {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                        <span class="string">&quot;timestamp is out of the valid range for metrics&quot;</span>,
-                    ));
-                }
-            }
-
+            validate_timestamps(start, end, config.timestamp_range.as_ref())<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
         }
         (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
@@ -812,6 +812,36 @@
             <span class="string">&quot;start_timestamp hard-required for transaction events&quot;</span>,
         )),
     }
+}
+
+<span class="doccomment">/// Validates that start &lt;= end timestamps and that the end timestamp is inside the valid range.
+</span><span class="kw">fn </span>validate_timestamps(
+    start: <span class="kw-2">&amp;</span>Timestamp,
+    end: <span class="kw-2">&amp;</span>Timestamp,
+    valid_range: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Range&lt;UnixTimestamp&gt;&gt;,
+) -&gt; ProcessingResult {
+    <span class="kw">if </span>end &lt; start {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
+        ));
+    }
+
+    <span class="kw">let </span><span class="prelude-val">Some</span>(range) = valid_range <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+    };
+
+    <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;invalid unix timestamp&quot;</span>,
+        ));
+    };
+    <span class="kw">if </span>!range.contains(<span class="kw-2">&amp;</span>timestamp) {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;timestamp is out of the valid range for metrics&quot;</span>,
+        ));
+    }
+
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Validates the trace context in a transaction.
@@ -847,14 +877,17 @@
 ///
 /// A [`ProcessingResult`] error is returned if there&#39;s an invalid span. For
 /// span validity, see [`validate_span`].
-</span><span class="kw">fn </span>validate_spans(transaction: <span class="kw-2">&amp;</span>Event) -&gt; ProcessingResult {
+</span><span class="kw">fn </span>validate_spans(
+    transaction: <span class="kw-2">&amp;</span>Event,
+    timestamp_range: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Range&lt;UnixTimestamp&gt;&gt;,
+) -&gt; ProcessingResult {
     <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = transaction.spans.value() <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     };
 
     <span class="kw">for </span>span <span class="kw">in </span>spans {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span.value() {
-            validate_span(span)<span class="question-mark">?</span>;
+            validate_span(span, timestamp_range)<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">&quot;spans must be valid in transaction event&quot;</span>,
@@ -874,14 +907,13 @@
 /// - Start timestamp must be no later than end timestamp.
 /// - A trace id exists.
 /// - A span id exists.
-</span><span class="kw">pub fn </span>validate_span(span: <span class="kw-2">&amp;</span>Span) -&gt; ProcessingResult {
+</span><span class="kw">pub fn </span>validate_span(
+    span: <span class="kw-2">&amp;</span>Span,
+    timestamp_range: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Range&lt;UnixTimestamp&gt;&gt;,
+) -&gt; ProcessingResult {
     <span class="kw">match </span>(span.start_timestamp.value(), span.timestamp.value()) {
         (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; {
-            <span class="kw">if </span>end &lt; start {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                    <span class="string">&quot;end timestamp in span is smaller than start timestamp&quot;</span>,
-                ));
-            }
+            validate_timestamps(start, end, timestamp_range)<span class="question-mark">?</span>;
         }
         (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; {
             <span class="comment">// XXX: Maybe do the same as event.timestamp?
