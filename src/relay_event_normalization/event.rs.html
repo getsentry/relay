@@ -2442,6 +2442,9 @@
 <a href="#2442" id="2442">2442</a>
 <a href="#2443" id="2443">2443</a>
 <a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2468,7 +2471,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, MAX_DURATION_MOBILE_MS};
 <span class="kw">use crate</span>::{
-    breakdowns, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
+    breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
     BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
@@ -2583,6 +2586,9 @@
     };
 
     <span class="kw">let </span>is_renormalize = config.is_renormalize;
+
+    <span class="comment">// Convert legacy data structures to current format
+    </span><span class="kw">let _ </span>= legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
     <span class="kw">if </span>!is_renormalize {
         normalize(event, meta, config);

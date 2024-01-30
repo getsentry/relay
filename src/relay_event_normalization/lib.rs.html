@@ -219,9 +219,6 @@
 <a href="#219" id="219">219</a>
 <a href="#220" id="220">220</a>
 <a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization and processing.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -424,9 +421,6 @@
     ) -&gt; ProcessingResult {
         <span class="kw">let </span>is_renormalize = <span class="self">self</span>.config.is_renormalize.unwrap_or(<span class="bool-val">false</span>);
         <span class="kw">let </span>remove_other = <span class="self">self</span>.config.remove_other.unwrap_or(!is_renormalize);
-
-        <span class="comment">// Convert legacy data structures to current format
-        </span>legacy::LegacyProcessor.process_event(event, meta, state)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>!is_renormalize {
             <span class="comment">// Normalize data in all interfaces
