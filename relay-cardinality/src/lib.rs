@@ -6,8 +6,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-#[cfg(feature = "redis")]
-mod cache;
 mod config;
 mod error;
 pub mod limiter;

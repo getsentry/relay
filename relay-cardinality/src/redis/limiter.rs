@@ -5,18 +5,15 @@ use relay_redis::{
 use relay_statsd::metric;
 
 use crate::{
-    cache::{Cache, CacheOutcome},
-    limiter::{EntryId, Limiter, Rejections},
+    limiter::{Entry, EntryId, Limiter, Rejections, Scoping},
+    redis::{Cache, CacheOutcome},
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     window::Slot,
-    Result,
+    CardinalityLimit, CardinalityScope, OrganizationId, Result, SlidingWindow,
 };
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-
-use crate::limiter::{Entry, Scoping};
-use crate::{CardinalityLimit, CardinalityScope, OrganizationId, SlidingWindow};
 
 /// Key prefix used for Redis keys.
 const KEY_PREFIX: &str = "relay:cardinality";
@@ -167,7 +164,7 @@ impl Limiter for RedisSetLimiter {
 
 /// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub(crate) struct QuotaScoping {
+pub struct QuotaScoping {
     pub window: SlidingWindow,
     pub namespace: Option<MetricNamespace>,
     pub organization_id: Option<OrganizationId>,
