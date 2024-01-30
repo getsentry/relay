@@ -1126,27 +1126,51 @@ impl Project {
         outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
+        self.check_buckets_inner(outcome_aggregator, buckets)
+            .map_err(|e| {
+                match e {
+                    CheckBucketsError::ProjectExpired(len) => {
+                        relay_log::error!(
+                            tags.project_key = self.project_key.as_str(),
+                            "there is no project state: dropping {len} buckets"
+                        );
+                    }
+                    CheckBucketsError::ProjectDisabled(len) => {
+                        relay_log::debug!("dropping {len} buckets for disabled project");
+                    }
+
+                    CheckBucketsError::NoScoping(len) => {
+                        relay_log::error!(
+                            tags.project_key = self.project_key.as_str(),
+                            "there is no scoping: dropping {len} buckets"
+                        );
+                    }
+                    CheckBucketsError::RateLimited(len) => {
+                        relay_log::debug!("dropping {len} buckets due to rate limit");
+                    }
+                };
+                e
+            })
+            .ok()
+    }
+
+    fn check_buckets_inner(
+        &mut self,
+        outcome_aggregator: Addr<TrackOutcome>,
+        buckets: Vec<Bucket>,
+    ) -> Result<(Scoping, ProjectMetrics), CheckBucketsError> {
         let len = buckets.len();
 
         let Some(project_state) = self.valid_state() else {
-            relay_log::error!(
-                tags.project_key = self.project_key.as_str(),
-                "there is no project state: dropping {len} buckets"
-            );
-            return None;
+            return Err(CheckBucketsError::ProjectExpired(len));
         };
 
         if project_state.invalid() || project_state.disabled() {
-            relay_log::debug!("dropping {len} buckets for disabled project");
-            return None;
+            return Err(CheckBucketsError::ProjectDisabled(len));
         }
 
         let Some(scoping) = self.scoping() else {
-            relay_log::error!(
-                tags.project_key = self.project_key.as_str(),
-                "there is no scoping: dropping {len} buckets"
-            );
-            return None;
+            return Err(CheckBucketsError::NoScoping(len));
         };
 
         let item_scoping = ItemScoping {
@@ -1159,8 +1183,6 @@ impl Project {
             .check_with_quotas(project_state.get_quotas(), item_scoping);
 
         if limits.is_limited() {
-            relay_log::debug!("dropping {len} buckets due to rate limit");
-
             let mode = project_state.get_extraction_mode();
             let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             utils::reject_metrics(
@@ -1170,7 +1192,7 @@ impl Project {
                 Outcome::RateLimited(reason_code),
             );
 
-            return None;
+            return Err(CheckBucketsError::RateLimited(len));
         }
 
         let project_metrics = ProjectMetrics {
@@ -1178,8 +1200,16 @@ impl Project {
             project_state,
         };
 
-        Some((scoping, project_metrics))
+        Ok((scoping, project_metrics))
     }
+}
+
+#[derive(Debug)]
+enum CheckBucketsError {
+    ProjectExpired(usize),
+    ProjectDisabled(usize),
+    NoScoping(usize),
+    RateLimited(usize),
 }
 
 /// Removes tags based on user configured deny list.
@@ -1251,6 +1281,18 @@ mod tests {
                 assert!(project.valid_state().is_none());
             }
         }
+    }
+
+    #[test]
+    fn no_error_on_disabled_project() {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut project = Project::new(project_key, Arc::new(Config::default()));
+        let mut project_state = ProjectState::allowed();
+        project_state.disabled = true;
+        project.state = State::Cached(project_state.into());
+
+        let result = project.check_buckets_inner(Addr::custom().0, vec![]);
+        assert!(matches!(result, Err(CheckBucketsError::ProjectDisabled(0))));
     }
 
     #[tokio::test]
