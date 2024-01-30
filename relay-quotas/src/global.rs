@@ -22,6 +22,10 @@ pub struct GlobalRateLimits {
 
 impl GlobalRateLimits {
     /// Returns a vector of the [`RedisQuota`]'s that should be ratelimited.
+    ///
+    /// We don't know if an item should be ratelimited or not until we've checked all the quotas.
+    /// Therefore we only start decrementing the budgets of the various quotas when we know
+    /// that None of the quotas hit the ratelimit.
     pub fn filter_ratelimited<'a>(
         &self,
         client: &mut PooledClient,
@@ -31,6 +35,8 @@ impl GlobalRateLimits {
         let mut guard = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
 
         let mut ratelimited = vec![];
+        let mut not_ratelimited = vec![];
+
         for (key, quotas) in &quotas.iter().group_by(|quota| KeyRef::new(quota)) {
             let Some(quota) = quotas.min_by_key(|quota| quota.limit()) else {
                 continue;
@@ -40,11 +46,13 @@ impl GlobalRateLimits {
 
             if val.is_rate_limited(client, quota, key, quantity as u64)? {
                 ratelimited.push(quota);
+            } else {
+                not_ratelimited.push(quota);
             }
         }
 
         if ratelimited.is_empty() {
-            for quota in quotas {
+            for quota in not_ratelimited {
                 if let Some(val) = guard.get_mut(&KeyRef::new(quota)) {
                     val.budget -= quantity as u64;
                 }
