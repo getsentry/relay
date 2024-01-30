@@ -1686,7 +1686,7 @@ impl EnvelopeProcessorService {
 
         let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
             .into_iter()
-            .filter_map(|bucket| Some((bucket.namespace().ok()?, bucket)))
+            .filter_map(|bucket| Some((bucket.parse_namespace().ok()?, bucket)))
             .into_group_map();
 
         buckets_by_ns

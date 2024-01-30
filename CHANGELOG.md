@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**
+
+- Add ability to rate limit buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
+
 ## 24.1.1
 
 **Features**:
@@ -17,7 +23,6 @@
 - Add possiblity to block metrics or their tags with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954), [#2973](https://github.com/getsentry/relay/pull/2973))
 - Forward profiles of non-sampled transactions. ([#2940](https://github.com/getsentry/relay/pull/2940))
 - Enable throttled periodic unspool of the buffered envelopes. ([#2993](https://github.com/getsentry/relay/pull/2993))
-- Add ability to rate limit buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
 
 **Bug Fixes**:
 

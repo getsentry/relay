@@ -26,7 +26,7 @@ impl GlobalRateLimits {
     /// We don't know if an item should be ratelimited or not until we've checked all the quotas.
     /// Therefore we only start decrementing the budgets of the various quotas when we know
     /// that None of the quotas hit the ratelimit.
-    pub fn filter_ratelimited<'a>(
+    pub fn filter_rate_limited<'a>(
         &self,
         client: &mut PooledClient,
         quotas: &'a [RedisQuota<'a>],
@@ -109,16 +109,16 @@ struct KeyRef<'a> {
 }
 
 impl<'a> KeyRef<'a> {
-    fn redis_key(&self, slot: u64) -> RedisKey {
-        RedisKey::new(self, slot)
-    }
-
     fn new(quota: &'a RedisQuota<'a>) -> Self {
         Self {
             prefix: quota.prefix(),
             window: quota.window(),
             namespace: quota.namespace,
         }
+    }
+
+    fn redis_key(&self, slot: u64) -> RedisKey {
+        RedisKey::new(self, slot)
     }
 }
 
@@ -312,7 +312,7 @@ mod tests {
         let counter = GlobalRateLimits::default();
 
         let rate_limited_quotas = counter
-            .filter_ratelimited(&mut client, &redis_quotas, quantity)
+            .filter_rate_limited(&mut client, &redis_quotas, quantity)
             .unwrap();
 
         // Only the quotas that are less than the quantity gets ratelimited.
@@ -351,7 +351,7 @@ mod tests {
         let counter = GlobalRateLimits::default();
 
         let rate_limited_quotas = counter
-            .filter_ratelimited(&mut client, &redis_quotas, (bigger_limit * 2) as usize)
+            .filter_rate_limited(&mut client, &redis_quotas, (bigger_limit * 2) as usize)
             .unwrap();
 
         assert_eq!(rate_limited_quotas.len(), 1);
@@ -380,7 +380,7 @@ mod tests {
         // still be under the limit. 90 < 200 -> 180 < 200 -> 270 > 200 -> 360 > 200.
         for should_ratelimit in expected_ratelimit_result {
             let is_ratelimited = counter
-                .filter_ratelimited(&mut client, &redis_quota, 90)
+                .filter_rate_limited(&mut client, &redis_quota, 90)
                 .unwrap();
 
             assert_eq!(should_ratelimit, !is_ratelimited.is_empty());
@@ -400,12 +400,12 @@ mod tests {
 
         let redis_quota = [build_redis_quota(&quota, &scoping)];
         assert!(!rl
-            .filter_ratelimited(&mut client, &redis_quota, 11)
+            .filter_rate_limited(&mut client, &redis_quota, 11)
             .unwrap()
             .is_empty());
 
         assert!(rl
-            .filter_ratelimited(&mut client, &redis_quota, 10)
+            .filter_rate_limited(&mut client, &redis_quota, 10)
             .unwrap()
             .is_empty());
     }
@@ -431,7 +431,7 @@ mod tests {
             let quantity = i % 17;
 
             if counter1
-                .filter_ratelimited(&mut client, &quota, quantity)
+                .filter_rate_limited(&mut client, &quota, quantity)
                 .unwrap()
                 .is_empty()
             {
@@ -440,7 +440,7 @@ mod tests {
             }
 
             if counter2
-                .filter_ratelimited(&mut client, &quota, quantity)
+                .filter_rate_limited(&mut client, &quota, quantity)
                 .unwrap()
                 .is_empty()
             {
@@ -483,12 +483,12 @@ mod tests {
 
         let redis_quota = [RedisQuota::new(&quota, scoping, ts).unwrap()];
         assert!(rl
-            .filter_ratelimited(&mut client, &redis_quota, 200)
+            .filter_rate_limited(&mut client, &redis_quota, 200)
             .unwrap()
             .is_empty());
 
         assert!(!rl
-            .filter_ratelimited(&mut client, &redis_quota, 1)
+            .filter_rate_limited(&mut client, &redis_quota, 1)
             .unwrap()
             .is_empty());
 
@@ -496,12 +496,12 @@ mod tests {
         let redis_quota =
             [RedisQuota::new(&quota, scoping, ts + Duration::from_secs(window + 1)).unwrap()];
         assert!(rl
-            .filter_ratelimited(&mut client, &redis_quota, 200)
+            .filter_rate_limited(&mut client, &redis_quota, 200)
             .unwrap()
             .is_empty());
 
         assert!(!rl
-            .filter_ratelimited(&mut client, &redis_quota, 1)
+            .filter_rate_limited(&mut client, &redis_quota, 1)
             .unwrap()
             .is_empty());
     }
@@ -529,7 +529,7 @@ mod tests {
         for _ in 0..redis_threshold + 10 {
             let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
             assert!(rl
-                .filter_ratelimited(&mut client, &[redis_quota], quantity)
+                .filter_rate_limited(&mut client, &[redis_quota], quantity)
                 .unwrap()
                 .is_empty());
         }
@@ -542,7 +542,7 @@ mod tests {
         let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
 
         assert!(!rl
-            .filter_ratelimited(&mut client, &[redis_quota], quantity)
+            .filter_rate_limited(&mut client, &[redis_quota], quantity)
             .unwrap()
             .is_empty());
     }

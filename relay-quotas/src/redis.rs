@@ -265,7 +265,7 @@ impl RedisRateLimiter {
 
         let rate_limited_global_quotas = self
             .global_limits
-            .filter_ratelimited(&mut client, &global_quotas, quantity)
+            .filter_rate_limited(&mut client, &global_quotas, quantity)
             .map_err(RateLimitingError::Redis)?;
 
         for quota in rate_limited_global_quotas {
