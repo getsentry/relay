@@ -554,6 +554,41 @@
 <a href="#554" id="554">554</a>
 <a href="#555" id="555">555</a>
 <a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::ControlFlow;
@@ -597,8 +632,8 @@
 <span class="doccomment">/// Tries to parse a series of SQL queries into an AST and normalize it.
 </span><span class="kw">pub fn </span>normalize_parsed_queries(db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, ()&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>parsed = parse_query(db_system, string).map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>visitor = NormalizeVisitor::new();
-    parsed.visit(<span class="kw-2">&amp;mut </span>visitor);
+    parsed.visit(<span class="kw-2">&amp;mut </span>NormalizeVisitor);
+    parsed.visit(<span class="kw-2">&amp;mut </span>MaxDepthVisitor::new());
 
     <span class="kw">let </span>concatenated = parsed
         .iter()
@@ -614,18 +649,9 @@
 <span class="doccomment">/// A visitor that normalizes the SQL AST in-place.
 ///
 /// Used for span description normalization.
-</span><span class="kw">struct </span>NormalizeVisitor {
-    <span class="doccomment">/// The current depth of an expression.
-    </span>current_expr_depth: usize,
-}
+</span><span class="kw">struct </span>NormalizeVisitor;
 
 <span class="kw">impl </span>NormalizeVisitor {
-    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            current_expr_depth: <span class="number">0</span>,
-        }
-    }
-
     <span class="doccomment">/// Placeholder for string and numerical literals.
     </span><span class="kw">fn </span>placeholder() -&gt; Value {
         Value::Number(<span class="string">&quot;%s&quot;</span>.into(), <span class="bool-val">false</span>)
@@ -775,11 +801,6 @@
     }
 
     <span class="kw">fn </span>pre_visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;mut </span>Expr) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
-        <span class="kw">if </span><span class="self">self</span>.current_expr_depth &gt; MAX_EXPRESSION_DEPTH {
-            <span class="kw-2">*</span>expr = Expr::Value(Value::Placeholder(<span class="string">&quot;..&quot;</span>.to_owned()));
-            <span class="kw">return </span>ControlFlow::Continue(());
-        }
-        <span class="self">self</span>.current_expr_depth += <span class="number">1</span>;
         <span class="kw">match </span>expr {
             <span class="comment">// Simple values like numbers and strings are replaced by a placeholder:
             </span>Expr::Value(x) =&gt; <span class="kw-2">*</span>x = <span class="self">Self</span>::placeholder(),
@@ -831,8 +852,10 @@
             Expr::BinaryOp {
                 <span class="kw-2">ref mut </span>left,
                 op: op @ (BinaryOperator::Or | BinaryOperator::And),
-                <span class="kw-2">ref </span>right,
+                <span class="kw-2">ref mut </span>right,
             } =&gt; {
+                remove_redundant_parentheses(op, left);
+                remove_redundant_parentheses(op, right);
                 <span class="kw">if </span>left == right {
                     <span class="comment">//     /\
                     //    /  \
@@ -866,7 +889,6 @@
             <span class="kw">_ </span>=&gt; (),
         }
 
-        <span class="self">self</span>.current_expr_depth = <span class="self">self</span>.current_expr_depth.saturating_sub(<span class="number">1</span>);
         ControlFlow::Continue(())
     }
 
@@ -1019,6 +1041,54 @@
     <span class="kw">let </span><span class="kw-2">mut </span>swapped = Expr::Value(Value::Null);
     std::mem::swap(<span class="kw-2">&amp;mut </span>swapped, expr);
     swapped
+}
+
+<span class="doccomment">/// Removes parentheses for equal operators, e.g. `(a OR b) OR c`.
+///
+/// Only use this function on operations which have the
+/// [associative property](https://en.wikipedia.org/wiki/Associative_property).
+</span><span class="kw">fn </span>remove_redundant_parentheses(outer_op: <span class="kw-2">&amp;</span>BinaryOperator, expr: <span class="kw-2">&amp;mut </span>Expr) {
+    <span class="kw">if let </span>Expr::Nested(inner) = expr {
+        <span class="kw">if let </span>Expr::BinaryOp { op, .. } = inner.as_ref() {
+            <span class="kw">if </span>op == outer_op {
+                <span class="kw-2">*</span>expr = take_expr(inner.as_mut());
+            }
+        }
+    }
+}
+
+<span class="doccomment">/// Limits the maximum expression depth of an SQL statement.
+///
+/// This prevents stack overflows when serializing the query back to a string.
+</span><span class="kw">struct </span>MaxDepthVisitor {
+    <span class="doccomment">/// The current depth of an expression.
+    </span>current_expr_depth: usize,
+}
+
+<span class="kw">impl </span>MaxDepthVisitor {
+    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            current_expr_depth: <span class="number">0</span>,
+        }
+    }
+}
+
+<span class="kw">impl </span>VisitorMut <span class="kw">for </span>MaxDepthVisitor {
+    <span class="kw">type </span>Break = ();
+
+    <span class="kw">fn </span>pre_visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;mut </span>Expr) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
+        <span class="kw">if </span><span class="self">self</span>.current_expr_depth &gt; MAX_EXPRESSION_DEPTH {
+            <span class="kw-2">*</span>expr = Expr::Value(Value::Placeholder(<span class="string">&quot;..&quot;</span>.to_owned()));
+            <span class="kw">return </span>ControlFlow::Continue(());
+        }
+        <span class="self">self</span>.current_expr_depth += <span class="number">1</span>;
+        ControlFlow::Continue(())
+    }
+
+    <span class="kw">fn </span>post_visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _expr: <span class="kw-2">&amp;mut </span>Expr) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
+        <span class="self">self</span>.current_expr_depth = <span class="self">self</span>.current_expr_depth.saturating_sub(<span class="number">1</span>);
+        ControlFlow::Continue(())
+    }
 }
 
 <span class="doccomment">/// An extension of an SQL dialect that accepts `?`, `%s`, `:c0` as valid input.
