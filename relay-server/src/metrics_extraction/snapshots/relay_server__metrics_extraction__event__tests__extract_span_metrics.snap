@@ -1014,4 +1014,115 @@ expression: metrics
             "span.op": "resource.css",
         },
     },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_content_length@byte",
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.decoded_response_content_length@byte",
+        value: Distribution(
+            [
+                128950.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_transfer_size@byte",
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "/static/myscript-*.js",
+            "span.domain": "*.example.com:5688",
+            "span.group": "89bda2e660f6236c",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+    },
 ]

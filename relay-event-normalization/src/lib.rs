@@ -201,9 +201,6 @@ impl<'a> Processor for StoreProcessor<'a> {
         let is_renormalize = self.config.is_renormalize.unwrap_or(false);
         let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
 
-        // Convert legacy data structures to current format
-        legacy::LegacyProcessor.process_event(event, meta, state)?;
-
         if !is_renormalize {
             // Normalize data in all interfaces
             self.normalize.process_event(event, meta, state)?;

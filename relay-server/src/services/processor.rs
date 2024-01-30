@@ -47,7 +47,9 @@ use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
     itertools::Itertools,
-    relay_cardinality::{CardinalityLimit, CardinalityLimiter, RedisSetLimiter},
+    relay_cardinality::{
+        CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
+    },
     relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
     relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
@@ -809,7 +811,15 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             cardinality_limiter: redis
                 .clone()
-                .map(RedisSetLimiter::new)
+                .map(|pool| {
+                    RedisSetLimiter::new(
+                        RedisSetLimiterOptions {
+                            cache_vacuum_interval: config
+                                .cardinality_limiter_cache_vacuum_interval(),
+                        },
+                        pool,
+                    )
+                })
                 .map(CardinalityLimiter::new),
             #[cfg(feature = "processing")]
             store_forwarder,
@@ -990,7 +1000,12 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
-                let metrics = crate::metrics_extraction::event::extract_metrics(event, config);
+                let global_config = self.inner.global_config.current();
+                let metrics = crate::metrics_extraction::event::extract_metrics(
+                    event,
+                    config,
+                    Some(&global_config.options),
+                );
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -1258,7 +1273,7 @@ impl EnvelopeProcessorService {
             span::process(
                 state,
                 self.inner.config.clone(),
-                self.inner.global_config.current().measurements.as_ref(),
+                &self.inner.global_config.current(),
             );
         });
         Ok(())
