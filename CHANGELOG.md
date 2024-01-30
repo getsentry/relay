@@ -11,6 +11,7 @@
 **Internal**:
 
 - Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
+- Drop timestamp from metrics partition. ([#3025](https://github.com/getsentry/relay/pull/3025))
 
 ## 24.1.1
 

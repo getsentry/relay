@@ -2228,7 +2228,7 @@ fn partition_key(project_key: ProjectKey, bucket: &Bucket, partitions: Option<u6
     use std::hash::{Hash, Hasher};
 
     let partitions = partitions?.max(1);
-    let key = (project_key, bucket.timestamp, &bucket.name, &bucket.tags);
+    let key = (project_key, &bucket.name, &bucket.tags);
 
     let mut hasher = FnvHasher::default();
     key.hash(&mut hasher);
