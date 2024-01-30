@@ -9,11 +9,11 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
-    normalize_measurements, normalize_span_performance_score, DynamicMeasurementsConfig,
-    MeasurementsConfig, PerformanceScoreConfig,
+    normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
+    DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::Span;
+use relay_event_schema::protocol::{Contexts, Event, Span};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -35,13 +35,24 @@ pub fn process(
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
-
     let normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
         global_measurements_config,
         state.project_state.config().measurements.as_ref(),
         state.project_state.config().performance_score.as_ref(),
+    );
+
+    let meta = state.managed_envelope.envelope().meta();
+    let mut contexts = Contexts::new();
+    let user_agent_info = RawUserAgentInfo {
+        user_agent: meta.user_agent(),
+        client_hints: meta.client_hints().as_deref(),
+    };
+    normalize_user_agent_info_generic(
+        &mut contexts,
+        &Annotated::new("".to_string()),
+        &user_agent_info,
     );
 
     state.managed_envelope.retain_items(|item| {
@@ -66,7 +77,11 @@ pub fn process(
             _ => return ItemAction::Keep,
         };
 
-        if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
+        if let Err(e) = normalize(
+            &mut annotated_span,
+            normalize_span_config.clone(),
+            Annotated::new(contexts.clone()),
+        ) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
@@ -271,6 +286,7 @@ fn get_normalize_span_config<'a>(
 fn normalize(
     annotated_span: &mut Annotated<Span>,
     config: NormalizeSpanConfig,
+    contexts: Annotated<Contexts>,
 ) -> Result<(), ProcessingError> {
     use relay_event_normalization::{
         SchemaProcessor, TimestampProcessor, TransactionsProcessor, TrimmingProcessor,
@@ -340,10 +356,14 @@ fn normalize(
             .collect(),
     );
 
-    if let Some(measurements) = span.measurements.value_mut() {
-        // TODO: find the browser name by normalizing user-agent
-        normalize_span_performance_score("".to_string(), measurements, performance_score);
-    }
+    let mut event = Event {
+        contexts,
+        measurements: span.measurements.clone(),
+        spans: Annotated::from(vec![Annotated::new(span.clone())]),
+        ..Default::default()
+    };
+    normalize_performance_score(&mut event, performance_score);
+    span.measurements = event.measurements;
 
     tag_extraction::extract_measurements(span);
 

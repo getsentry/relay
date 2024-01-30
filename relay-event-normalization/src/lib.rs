@@ -36,7 +36,7 @@ mod trimming;
 
 pub mod replay;
 pub use event::{
-    normalize_event, normalize_measurements, normalize_span_performance_score, NormalizationConfig,
+    normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,
 };
 pub use normalize::breakdowns::*;
 pub use normalize::*;
