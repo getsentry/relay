@@ -17,6 +17,7 @@
 - Add possiblity to block metrics or their tags with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954), [#2973](https://github.com/getsentry/relay/pull/2973))
 - Forward profiles of non-sampled transactions. ([#2940](https://github.com/getsentry/relay/pull/2940))
 - Enable throttled periodic unspool of the buffered envelopes. ([#2993](https://github.com/getsentry/relay/pull/2993))
+- Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
 
 **Bug Fixes**:
 
@@ -24,6 +25,7 @@
 - Avoid producing `null` values in metric data. These values were the result of Infinity or NaN values extracted from event data. The values are now discarded during extraction. ([#2958](https://github.com/getsentry/relay/pull/2958))
 - Fix processing of user reports. ([#2981](https://github.com/getsentry/relay/pull/2981), [#2984](https://github.com/getsentry/relay/pull/2984))
 - Fetch project config when metrics are received. ([#2987](https://github.com/getsentry/relay/pull/2987))
+- Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
 
 ## 24.1.0
 
@@ -31,6 +33,8 @@
 
 - Add a global throughput rate limiter for metric buckets. ([#2928](https://github.com/getsentry/relay/pull/2928))
 - Group db spans with repeating logical conditions together. ([#2929](https://github.com/getsentry/relay/pull/2929))
+- Add `raw_domain` tag to indexed spans. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
 
 **Bug Fixes**:
 

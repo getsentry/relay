@@ -104,7 +104,19 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
     let app_start_condition = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
+    // `exclusive_time_light` is the metric with the most lenient condition.
+    let exclusive_time_light_condition =
+        (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
+            & duration_condition.clone();
+
     [
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/usage@none".into(),
+            field: None,
+            condition: Some(exclusive_time_light_condition.clone()),
+            tags: vec![],
+        },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
@@ -177,10 +189,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(
-                (is_db.clone() | is_resource.clone() | is_mobile.clone() | is_interaction)
-                    & duration_condition.clone(),
-            ),
+            condition: Some(exclusive_time_light_condition),
             tags: vec![
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")

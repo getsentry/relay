@@ -15,7 +15,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::{parse_query, scrub_span_description};
+use crate::span::description::{normalize_domain, parse_query, scrub_span_description};
 use crate::utils::{
     extract_transaction_op, get_eventuser_tag, http_status_code_from_span, MAIN_THREAD_NAME,
     MOBILE_SDKS,
@@ -43,6 +43,7 @@ pub enum SpanTagKey {
     Category,
     Description,
     Domain,
+    RawDomain,
     Group,
     HttpDecodedResponseContentLength,
     HttpResponseContentLength,
@@ -80,6 +81,7 @@ impl SpanTagKey {
             SpanTagKey::Category => "category",
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
+            SpanTagKey::RawDomain => "raw_domain",
             SpanTagKey::Group => "group",
             SpanTagKey::HttpDecodedResponseContentLength => "http.decoded_response_content_length",
             SpanTagKey::HttpResponseContentLength => "http.response_content_length",
@@ -314,7 +316,7 @@ pub fn extract_tags(
                 } else {
                     scrubbed
                 };
-                Url::parse(url).ok().and_then(|url| {
+                if let Some(domain) = Url::parse(url).ok().and_then(|url| {
                     url.domain().map(|d| {
                         let mut domain = d.to_lowercase();
                         if let Some(port) = url.port() {
@@ -322,7 +324,35 @@ pub fn extract_tags(
                         }
                         domain
                     })
-                })
+                }) {
+                    Some(domain)
+                } else if let Some(server_host) = span
+                    .data
+                    .value()
+                    .and_then(|data| data.get("server.address"))
+                    .and_then(|value| value.as_str())
+                {
+                    let lowercase_host = server_host.to_lowercase();
+                    let (domain, port) = match lowercase_host.split_once(':') {
+                        Some((domain, port)) => (domain, port.parse::<u16>().ok()),
+                        None => (server_host, None),
+                    };
+
+                    if let Some(url_scheme) = span
+                        .data
+                        .value()
+                        .and_then(|data| data.get("url.scheme"))
+                        .and_then(|value| value.as_str())
+                    {
+                        span_tags.insert(
+                            SpanTagKey::RawDomain,
+                            format!("{url_scheme}://{lowercase_host}"),
+                        );
+                    }
+                    normalize_domain(domain, port)
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -648,7 +678,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 mod tests {
     use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{Event, Request};
-    use relay_protocol::Annotated;
+    use relay_protocol::{get_value, Annotated};
 
     use super::*;
     use crate::{normalize_event, NormalizationConfig};
@@ -1059,6 +1089,103 @@ LIMIT 1
             },
         )
         "###);
+    }
+
+    #[test]
+    fn test_resource_raw_domain() {
+        let json = r#"
+            {
+                "spans": [
+                    {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "subdomain.example.com:5688",
+                        "url.same_origin": true,
+                        "url.scheme": "https"
+                    },
+                    "hash": "e2fae740cccd3789"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "example.com",
+                        "url.same_origin": true,
+                        "url.scheme": "http"
+                    },
+                    "hash": "e2fae740cccd3781"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.24.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking"
+                    },
+                    "hash": "e2fae740cccd3788"
+                }
+            ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span_1 = &event.spans.value().unwrap()[0];
+        let span_2 = &event.spans.value().unwrap()[1];
+        let span_3 = &event.spans.value().unwrap()[2];
+
+        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
+        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
+        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
+
+        assert_eq!(
+            tags_1.get("raw_domain").unwrap().as_str(),
+            Some("https://subdomain.example.com:5688")
+        );
+        assert_eq!(
+            tags_2.get("raw_domain").unwrap().as_str(),
+            Some("http://example.com")
+        );
+        assert!(!tags_3.contains_key("raw_domain"));
     }
 
     #[test]
