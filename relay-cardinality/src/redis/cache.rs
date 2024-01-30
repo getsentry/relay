@@ -1,9 +1,12 @@
 use std::fmt;
 use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::time::Duration;
 
 use relay_common::time::UnixTimestamp;
+use relay_statsd::metric;
 
 use crate::redis::QuotaScoping;
+use crate::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
 use crate::window::Slot;
 
 /// Cached outcome, wether the item can be accepted, rejected or the cache has no information about
@@ -21,12 +24,21 @@ pub enum CacheOutcome {
 /// Internal cache remembering already accepted elements and current cardinality.
 ///
 /// Only caches for the currently active granule of the sliding window.
-#[derive(Default)]
 pub struct Cache {
     inner: RwLock<Inner>,
 }
 
 impl Cache {
+    pub fn new(vacuum_interval: Duration) -> Self {
+        Self {
+            inner: RwLock::new(Inner {
+                cache: Default::default(),
+                vacuum_interval,
+                last_vacuum: UnixTimestamp::from_secs(0),
+            }),
+        }
+    }
+
     /// Acquires a read lock from the cache and returns a read handle.
     ///
     /// All operations done on the handle share the same lock. To release the lock
@@ -42,6 +54,8 @@ impl Cache {
     /// the returned [`CacheUpdate`] must be dropped.
     pub fn update(&self, scope: QuotaScoping, timestamp: UnixTimestamp) -> CacheUpdate<'_> {
         let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
+
+        inner.vacuum(timestamp);
 
         let slot = scope.window.active_slot(timestamp);
         let cache = inner.cache.entry(scope).or_default();
@@ -129,9 +143,29 @@ impl<'a> CacheUpdate<'a> {
 }
 
 /// Critical section of the [`Cache`].
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Inner {
     cache: hashbrown::HashMap<QuotaScoping, ScopedCache>,
+    vacuum_interval: Duration,
+    last_vacuum: UnixTimestamp,
+}
+
+impl Inner {
+    fn vacuum(&mut self, ts: UnixTimestamp) {
+        // Debounce the vacuuming.
+        let secs_since_last_vacuum = ts.as_secs().saturating_sub(self.last_vacuum.as_secs());
+        if secs_since_last_vacuum < self.vacuum_interval.as_secs() {
+            return;
+        }
+        self.last_vacuum = ts;
+
+        let expired = metric!(timer(CardinalityLimiterTimers::CacheVacuum), {
+            self.cache
+                .drain_filter(|scope, cache| cache.current_slot < scope.window.active_slot(ts))
+                .count()
+        });
+        metric!(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired as i64);
+    }
 }
 
 /// Scope specific information of the cache.
@@ -181,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_cache() {
-        let cache = Cache::default();
+        let cache = Cache::new(Duration::from_secs(180));
 
         let scope = QuotaScoping {
             window: SlidingWindow {
@@ -245,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_cache_different_scopings() {
-        let cache = Cache::default();
+        let cache = Cache::new(Duration::from_secs(180));
 
         let scope1 = QuotaScoping {
             window: SlidingWindow {
@@ -283,6 +317,79 @@ mod tests {
             assert_eq!(cache.check(scope2, 2, 99), CacheOutcome::Accepted);
             assert_eq!(cache.check(scope2, 3, 99), CacheOutcome::Unknown);
             assert_eq!(cache.check(scope2, 3, 2), CacheOutcome::Rejected);
+        }
+    }
+
+    #[test]
+    fn test_cache_vacuum() {
+        let vacuum_interval = Duration::from_secs(30);
+        let cache = Cache::new(vacuum_interval);
+
+        let scope1 = QuotaScoping {
+            window: SlidingWindow {
+                window_seconds: vacuum_interval.as_secs() * 10,
+                granularity_seconds: vacuum_interval.as_secs() * 2,
+            },
+            namespace: None,
+            organization_id: None,
+            project_id: None,
+        };
+        let scope2 = QuotaScoping {
+            organization_id: Some(100),
+            ..scope1
+        };
+        let now = UnixTimestamp::now();
+        let in_interval = now + Duration::from_secs(vacuum_interval.as_secs() - 1);
+        let future = now + Duration::from_secs(vacuum_interval.as_secs() * 3);
+
+        {
+            let mut cache = cache.update(scope1, now);
+            cache.accept(10);
+        }
+
+        {
+            let mut cache = cache.update(scope2, now);
+            cache.accept(20);
+        }
+
+        {
+            // Verify entries.
+            let cache = cache.read(now);
+            assert_eq!(cache.check(scope1, 10, 100), CacheOutcome::Accepted);
+            assert_eq!(cache.check(scope2, 20, 100), CacheOutcome::Accepted);
+        }
+
+        {
+            // Fast forward time a little bit and stay within all bounds.
+            let mut cache = cache.update(scope2, in_interval);
+            cache.accept(21);
+        }
+
+        {
+            // Verify entries with old timestamp, values should still be there.
+            let cache = cache.read(now);
+            assert_eq!(cache.check(scope1, 10, 100), CacheOutcome::Accepted);
+        }
+
+        {
+            // Fast forward time far in the future, should vacuum old values.
+            let mut cache = cache.update(scope2, future);
+            cache.accept(22);
+        }
+
+        {
+            // Verify that there is no data with the original timestamp.
+            let cache = cache.read(now);
+            assert_eq!(cache.check(scope1, 10, 100), CacheOutcome::Unknown);
+            assert_eq!(cache.check(scope1, 11, 100), CacheOutcome::Unknown);
+            assert_eq!(cache.check(scope2, 20, 100), CacheOutcome::Unknown);
+            assert_eq!(cache.check(scope2, 21, 100), CacheOutcome::Unknown);
+        }
+
+        {
+            // Make sure the new/current values are cached.
+            let cache = cache.read(future);
+            assert_eq!(cache.check(scope2, 22, 100), CacheOutcome::Accepted);
         }
     }
 }
