@@ -1,7 +1,7 @@
 mod cache;
 mod limiter;
+mod script;
 
-use self::cache::*;
 use self::limiter::*;
 
 pub use self::limiter::RedisSetLimiter;
