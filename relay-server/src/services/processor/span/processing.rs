@@ -6,7 +6,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
     normalize_measurements, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
@@ -14,6 +14,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::Span;
+use relay_metrics::UnixTimestamp;
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -27,7 +28,7 @@ use crate::utils::ItemAction;
 pub fn process(
     state: &mut ProcessEnvelopeState,
     config: Arc<Config>,
-    global_measurements_config: Option<&MeasurementsConfig>,
+    global_config: &GlobalConfig,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
@@ -38,7 +39,7 @@ pub fn process(
     let normalize_span_config = get_normalize_span_config(
         config,
         state.managed_envelope.received_at(),
-        global_measurements_config,
+        global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
     );
 
@@ -73,7 +74,7 @@ pub fn process(
             let Some(span) = annotated_span.value_mut() else {
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
-            let metrics = extract_metrics(span, config);
+            let metrics = extract_metrics(span, config, Some(&global_config.options));
             state.extracted_metrics.project_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }
@@ -217,6 +218,8 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
 struct NormalizeSpanConfig<'a> {
     /// The time at which the event was received in this Relay.
     pub received_at: DateTime<Utc>,
+    /// Allowed time range for spans.
+    pub timestamp_range: std::ops::Range<UnixTimestamp>,
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_size: usize,
     /// Configuration for measurement normalization in transaction events.
@@ -243,6 +246,7 @@ fn get_normalize_span_config<'a>(
 
     NormalizeSpanConfig {
         received_at,
+        timestamp_range: aggregator_config.timestamp_range(),
         max_tag_value_size: config
             .aggregator_config_for(MetricNamespace::Spans)
             .max_tag_value_length,
@@ -267,6 +271,7 @@ fn normalize(
 
     let NormalizeSpanConfig {
         received_at,
+        timestamp_range: timestmap_range,
         max_tag_value_size,
         measurements,
         max_name_and_unit_len,
@@ -289,7 +294,7 @@ fn normalize(
     )?;
 
     if let Some(span) = annotated_span.value() {
-        validate_span(span)?;
+        validate_span(span, Some(&timestmap_range))?;
     }
     process_value(
         annotated_span,

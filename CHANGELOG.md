@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `raw_domain` tag to indexed spans. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
+
+**Internal**:
+
+- Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
+- Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
+
 ## 24.1.1
 
 **Features**:

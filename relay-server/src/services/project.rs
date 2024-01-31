@@ -1121,26 +1121,61 @@ impl Project {
         })
     }
 
+    /// Drops metrics buckets if they are not allowed for this project.
+    ///
+    /// Reasons for dropping can be rate limits or a disabled project.
+    /// Returns `Some` if metrics are currently allowed.
     pub fn check_buckets(
         &mut self,
         outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
     ) -> Option<(Scoping, ProjectMetrics)> {
-        let len = buckets.len();
-        let Some(project_state) = self.valid_state() else {
-            relay_log::error!(
-                tags.project_key = self.project_key.as_str(),
-                "there is no project state: dropping {len} buckets"
-            );
-            return None;
+        match self.check_buckets_inner(outcome_aggregator, buckets) {
+            CheckedBuckets::Ok(scoping, metrics) => return Some((scoping, metrics)),
+            CheckedBuckets::ProjectExpired(len) => {
+                relay_log::error!(
+                    tags.project_key = self.project_key.as_str(),
+                    "there is no project state: dropping {len} buckets"
+                );
+            }
+            CheckedBuckets::ProjectDisabled(len) => {
+                relay_log::debug!("dropping {len} buckets for disabled project");
+            }
+
+            CheckedBuckets::NoScoping(len) => {
+                relay_log::error!(
+                    tags.project_key = self.project_key.as_str(),
+                    "there is no scoping: dropping {len} buckets"
+                );
+            }
+            CheckedBuckets::RateLimited(len) => {
+                relay_log::debug!("dropping {len} buckets due to rate limit");
+            }
         };
 
+        None
+    }
+
+    /// Unit-testable helper function for [`Self::check_buckets`].
+    ///
+    /// Returns [`CheckedBuckets::Ok`] if metrics are currently allowed, or the reject reason otherwise.
+    fn check_buckets_inner(
+        &mut self,
+        outcome_aggregator: Addr<TrackOutcome>,
+        buckets: Vec<Bucket>,
+    ) -> CheckedBuckets {
+        let len = buckets.len();
+
+        let Some(project_state) = self.valid_state() else {
+            return CheckedBuckets::ProjectExpired(len);
+        };
+
+        if project_state.invalid() || project_state.disabled() {
+            return CheckedBuckets::ProjectDisabled(len);
+        }
+
         let Some(scoping) = self.scoping() else {
-            relay_log::error!(
-                tags.project_key = self.project_key.as_str(),
-                "there is no scoping: dropping {len} buckets"
-            );
-            return None;
+            return CheckedBuckets::NoScoping(len);
         };
 
         let item_scoping = ItemScoping {
@@ -1153,8 +1188,6 @@ impl Project {
             .check_with_quotas(project_state.get_quotas(), item_scoping);
 
         if limits.is_limited() {
-            relay_log::debug!("dropping {len} buckets due to rate limit");
-
             let mode = project_state.get_extraction_mode();
             let reason_code = limits.longest().and_then(|limit| limit.reason_code.clone());
             utils::reject_metrics(
@@ -1164,7 +1197,7 @@ impl Project {
                 Outcome::RateLimited(reason_code),
             );
 
-            return None;
+            return CheckedBuckets::RateLimited(len);
         }
 
         let project_metrics = ProjectMetrics {
@@ -1172,8 +1205,25 @@ impl Project {
             project_state,
         };
 
-        Some((scoping, project_metrics))
+        CheckedBuckets::Ok(scoping, project_metrics)
     }
+}
+
+/// Result of a bucket check.
+#[derive(Debug)]
+enum CheckedBuckets {
+    /// Metrics are allowed. Contains the metrics plus scoping information.
+    Ok(Scoping, ProjectMetrics),
+    /// The project has expired while the bucket was in aggregation.
+    ///
+    /// This should not happen as long as the aggregation time is shorter than the refresh time.
+    ProjectExpired(usize),
+    /// The project is disabled or invalid.
+    ProjectDisabled(usize),
+    /// The project has no project ID, even though it is not disabled. This should never happen.
+    NoScoping(usize),
+    /// The buckets were rate limited.
+    RateLimited(usize),
 }
 
 /// Removes tags based on user configured deny list.
@@ -1245,6 +1295,18 @@ mod tests {
                 assert!(project.valid_state().is_none());
             }
         }
+    }
+
+    #[test]
+    fn no_error_on_disabled_project() {
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut project = Project::new(project_key, Arc::new(Config::default()));
+        let mut project_state = ProjectState::allowed();
+        project_state.disabled = true;
+        project.state = State::Cached(project_state.into());
+
+        let result = project.check_buckets_inner(Addr::custom().0, vec![]);
+        assert!(matches!(result, CheckedBuckets::ProjectDisabled(0)));
     }
 
     #[tokio::test]

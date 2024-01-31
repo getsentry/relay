@@ -1,25 +1,37 @@
-use relay_redis::{
-    redis::{self, FromRedisValue, Script},
-    Connection, RedisPool,
-};
+use std::time::Duration;
+
+use relay_redis::{Connection, RedisPool};
 use relay_statsd::metric;
 
 use crate::{
-    cache::{Cache, CacheOutcome},
-    limiter::{EntryId, Limiter, Rejections},
+    limiter::{Entry, EntryId, Limiter, Rejections, Scoping},
+    redis::{
+        cache::{Cache, CacheOutcome},
+        script::{CardinalityScript, Status},
+    },
     statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
     window::Slot,
-    Result,
+    CardinalityLimit, CardinalityScope, OrganizationId, Result, SlidingWindow,
 };
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 
-use crate::limiter::{Entry, Scoping};
-use crate::{CardinalityLimit, CardinalityScope, OrganizationId, SlidingWindow};
-
 /// Key prefix used for Redis keys.
 const KEY_PREFIX: &str = "relay:cardinality";
+/// Redis key version.
+///
+/// The version is embedded in the key as a static segment, increment the version whenever there are
+/// breaking changes made to the keys or storage format in Redis.
+const KEY_VERSION: u32 = 1;
+
+/// Configuration options for the [`RedisSetLimiter`].
+pub struct RedisSetLimiterOptions {
+    /// Cache vacuum interval for the in memory cache.
+    ///
+    /// The cache will scan for expired values based on this interval.
+    pub cache_vacuum_interval: Duration,
+}
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
@@ -33,11 +45,11 @@ pub struct RedisSetLimiter {
 /// A Redis based limiter using Redis sets to track cardinality and membership.
 impl RedisSetLimiter {
     /// Creates a new [`RedisSetLimiter`].
-    pub fn new(redis: RedisPool) -> Self {
+    pub fn new(options: RedisSetLimiterOptions, redis: RedisPool) -> Self {
         Self {
             redis,
             script: CardinalityScript::load(),
-            cache: Cache::default(),
+            cache: Cache::new(options.cache_vacuum_interval),
             #[cfg(test)]
             time_offset: std::time::Duration::from_secs(0),
         }
@@ -167,7 +179,7 @@ impl Limiter for RedisSetLimiter {
 
 /// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub(crate) struct QuotaScoping {
+pub struct QuotaScoping {
     pub window: SlidingWindow,
     pub namespace: Option<MetricNamespace>,
     pub organization_id: Option<OrganizationId>,
@@ -209,7 +221,7 @@ impl QuotaScoping {
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
 
-        format!("{KEY_PREFIX}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
+        format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
     }
 }
 
@@ -301,124 +313,9 @@ struct RedisEntry {
 }
 
 impl RedisEntry {
-    /// Creates a new Redis entry in the rejected status.
+    /// Creates a new Redis entry.
     fn new(id: EntryId, hash: u32) -> Self {
         Self { id, hash }
-    }
-}
-
-struct CardinalityScript(Script);
-
-/// Status wether an entry/bucket is accepted or rejected by the cardinality limiter.
-#[derive(Debug, Clone, Copy)]
-enum Status {
-    /// Item is rejected.
-    Rejected,
-    /// Item is accepted.
-    Accepted,
-}
-
-impl Status {
-    fn is_rejected(&self) -> bool {
-        matches!(self, Self::Rejected)
-    }
-}
-
-impl FromRedisValue for Status {
-    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
-        let accepted = bool::from_redis_value(v)?;
-        Ok(if accepted {
-            Self::Accepted
-        } else {
-            Self::Rejected
-        })
-    }
-}
-
-#[derive(Debug)]
-struct CardinalityScriptResult {
-    cardinality: u64,
-    statuses: Vec<Status>,
-}
-
-impl FromRedisValue for CardinalityScriptResult {
-    fn from_redis_value(v: &redis::Value) -> redis::RedisResult<Self> {
-        let Some(seq) = v.as_sequence() else {
-            return Err(redis::RedisError::from((
-                redis::ErrorKind::TypeError,
-                "Expected a sequence from the cardinality script",
-            )));
-        };
-
-        let mut iter = seq.iter();
-
-        let cardinality = iter
-            .next()
-            .ok_or_else(|| {
-                redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
-                    "Expected cardinality as the first result from the cardinality script",
-                ))
-            })
-            .and_then(FromRedisValue::from_redis_value)?;
-
-        let mut statuses = Vec::with_capacity(iter.len());
-        for value in iter {
-            statuses.push(Status::from_redis_value(value)?);
-        }
-
-        Ok(Self {
-            cardinality,
-            statuses,
-        })
-    }
-}
-
-impl CardinalityScript {
-    fn load() -> Self {
-        Self(Script::new(include_str!("cardinality.lua")))
-    }
-
-    fn invoke(
-        &self,
-        con: &mut Connection,
-        limit: u64,
-        expire: u64,
-        hashes: impl Iterator<Item = u32>,
-        keys: impl Iterator<Item = String>,
-    ) -> Result<CardinalityScriptResult> {
-        let mut invocation = self.0.prepare_invoke();
-
-        for key in keys {
-            invocation.key(key);
-        }
-
-        invocation.arg(limit);
-        invocation.arg(expire);
-
-        let mut num_hashes = 0;
-        for hash in hashes {
-            invocation.arg(hash);
-            num_hashes += 1;
-        }
-
-        let result: CardinalityScriptResult = invocation
-            .invoke(con)
-            .map_err(relay_redis::RedisError::Redis)?;
-
-        if num_hashes != result.statuses.len() {
-            return Err(relay_redis::RedisError::Redis(redis::RedisError::from((
-                redis::ErrorKind::ResponseError,
-                "Script returned an invalid number of elements",
-                format!(
-                    "Expected {num_hashes} results, got {}",
-                    result.statuses.len()
-                ),
-            )))
-            .into());
-        }
-
-        Ok(result)
     }
 }
 
@@ -449,7 +346,7 @@ mod tests {
 
     use relay_base_schema::metrics::MetricNamespace;
     use relay_base_schema::project::ProjectId;
-    use relay_redis::RedisConfigOptions;
+    use relay_redis::{redis, RedisConfigOptions};
 
     use crate::limiter::EntryId;
     use crate::{CardinalityScope, SlidingWindow};
@@ -462,7 +359,12 @@ mod tests {
 
         let redis = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
 
-        RedisSetLimiter::new(redis)
+        RedisSetLimiter::new(
+            RedisSetLimiterOptions {
+                cache_vacuum_interval: Duration::from_secs(5),
+            },
+            redis,
+        )
     }
 
     fn new_scoping(limiter: &RedisSetLimiter) -> Scoping {
@@ -498,14 +400,15 @@ mod tests {
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
         fn flush(&self, scoping: Scoping) {
-            let organization_id = scoping.organization_id;
-            let pattern = format!("{KEY_PREFIX}:scope-{{{organization_id}-*");
+            let pattern = format!(
+                "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
+                o = scoping.organization_id
+            );
 
             let mut client = self.redis.client().unwrap();
             let mut connection = client.connection().unwrap();
 
-            let mut keys = redis::cmd("KEYS");
-            let keys = keys
+            let keys = redis::cmd("KEYS")
                 .arg(pattern)
                 .query::<Vec<String>>(&mut connection)
                 .unwrap();
@@ -517,6 +420,31 @@ mod tests {
                 }
                 del.query::<()>(&mut connection).unwrap();
             }
+        }
+
+        fn redis_sets(&self, scoping: Scoping) -> Vec<(String, usize)> {
+            let pattern = format!(
+                "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
+                o = scoping.organization_id
+            );
+
+            let mut client = self.redis.client().unwrap();
+            let mut connection = client.connection().unwrap();
+
+            redis::cmd("KEYS")
+                .arg(pattern)
+                .query::<Vec<String>>(&mut connection)
+                .unwrap()
+                .into_iter()
+                .map(move |key| {
+                    let size = redis::cmd("SCARD")
+                        .arg(&key)
+                        .query::<usize>(&mut connection)
+                        .unwrap();
+
+                    (key, size)
+                })
+                .collect()
         }
 
         fn test_limits<I>(
@@ -775,6 +703,90 @@ mod tests {
             // 2 transactions accepted -> no rejections.
             assert!(!rejected.contains(&EntryId(4)));
             assert!(!rejected.contains(&EntryId(5)));
+        }
+    }
+
+    #[test]
+    fn test_limiter_sliding_window_full() {
+        let mut limiter = build_limiter();
+        let scoping = new_scoping(&limiter);
+
+        let window = SlidingWindow {
+            window_seconds: 300,
+            granularity_seconds: 100,
+        };
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window,
+            limit: 100,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
+
+        macro_rules! test {
+            ($r:expr) => {{
+                let entries = $r
+                    .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+                    .collect::<Vec<_>>();
+
+                limiter.test_limits(scoping, limits, entries)
+            }};
+        }
+
+        // Fill the first window with values.
+        assert!(test!(0..100).is_empty());
+
+        // Refresh 0..50 - Full.
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds);
+        assert!(test!(0..50).is_empty());
+        assert_eq!(test!(100..125).len(), 25);
+
+        // Refresh 0..50 - Full.
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 2);
+        assert!(test!(0..50).is_empty());
+        assert_eq!(test!(125..150).len(), 25);
+
+        // Refresh 0..50 - 50..100 fell out of the window, add 25 (size 50 -> 75).
+        // --> Set 4 has size 75.
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 3);
+        assert!(test!(0..50).is_empty());
+        assert!(test!(150..175).is_empty());
+
+        // Refresh 0..50 - Still 25 available (size 75 -> 100).
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 4);
+        assert!(test!(0..50).is_empty());
+        assert!(test!(175..200).is_empty());
+
+        // From this point on it is repeating:
+        //  - Always refresh 0..50.
+        //  - First granule is full.
+        //  - Next two granules each have space for 25 -> immediately filled.
+        for i in 0..21 {
+            let start = 200 + i * 25;
+            let end = start + 25;
+
+            limiter.time_offset =
+                Duration::from_secs(1 + window.granularity_seconds * (i as u64 + 5));
+            assert!(test!(0..50).is_empty());
+
+            if i % 3 == 0 {
+                assert_eq!(test!(start..end).len(), 25);
+            } else {
+                assert!(test!(start..end).is_empty());
+            }
+        }
+
+        let mut sets = limiter.redis_sets(scoping);
+        sets.sort();
+
+        let len = sets.len();
+        for (i, (_, size)) in sets.into_iter().enumerate() {
+            // Set 4 and the last set were never fully filled.
+            if i == 3 || i + 1 == len {
+                assert_eq!(size, 75);
+            } else {
+                assert_eq!(size, 100);
+            }
         }
     }
 }

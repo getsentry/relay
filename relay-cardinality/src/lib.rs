@@ -6,8 +6,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-#[cfg(feature = "redis")]
-mod cache;
 mod config;
 mod error;
 pub mod limiter;
@@ -20,7 +18,7 @@ pub use self::config::*;
 pub use self::error::*;
 pub use self::limiter::{CardinalityItem, CardinalityLimits, Scoping};
 #[cfg(feature = "redis")]
-pub use self::redis::RedisSetLimiter;
+pub use self::redis::{RedisSetLimiter, RedisSetLimiterOptions};
 pub use self::window::SlidingWindow;
 
 /// Redis Set based cardinality limiter.
