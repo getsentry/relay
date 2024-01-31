@@ -151,7 +151,7 @@ impl Default for TopicAssignments {
             replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
             monitors: "ingest-monitors".to_owned().into(),
-            spans: "ingest-spans".to_owned().into(),
+            spans: "snuba-spans".to_owned().into(),
         }
     }
 }
