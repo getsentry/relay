@@ -7,6 +7,7 @@
 - Add `raw_domain` tag to indexed spans. ([#2975](https://github.com/getsentry/relay/pull/2975))
 - Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
 - Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
+- Add `span.app_start_type` as self time tag for app start spans ([#3027](https://github.com/getsentry/relay/pull/3027))
 
 **Internal**:
 
