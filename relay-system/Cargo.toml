@@ -4,18 +4,18 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Foundational system components for Relay's services"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.5.1"
+version = "24.1.1"
 edition = "2021"
-license-file = "../LICENSE"
+license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]
-futures = "0.3"
-once_cell = "1.13.1"
+futures = { workspace = true }
+once_cell = { workspace = true }
 relay-log = { path = "../relay-log" }
 relay-statsd = { path = "../relay-statsd" }
-tokio = { version = "1.28.0", features = ["macros", "signal", "tracing"] }
+tokio = { workspace = true, features = ["rt", "signal"] }
 
 [dev-dependencies]
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
-tokio = { version = "1.28.0", features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util"] }

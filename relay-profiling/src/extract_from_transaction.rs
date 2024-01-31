@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 
 use chrono::SecondsFormat;
 
-use relay_common::SpanStatus;
-use relay_general::protocol::{AsPair, Context, ContextInner, Event, TraceContext};
-use relay_general::types::Annotated;
+use relay_event_schema::protocol::{AppContext, AsPair, Event, SpanStatus, TraceContext};
 
 pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
@@ -15,18 +13,15 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     if let Some(dist) = event.dist.as_str() {
         tags.insert("dist".to_owned(), dist.to_owned());
     }
-    if let Some(dist) = event.dist.value() {
-        tags.insert("dist".to_owned(), dist.clone());
-    }
     if let Some(environment) = event.environment.as_str() {
         tags.insert("environment".to_owned(), environment.to_owned());
     }
 
-    if let Some(transaction) = event.transaction.value() {
+    if let Some(transaction) = event.transaction.as_str() {
         tags.insert("transaction".to_owned(), transaction.to_owned());
     }
 
-    if let Some(trace_context) = get_trace_context(event) {
+    if let Some(trace_context) = event.context::<TraceContext>() {
         let status = extract_transaction_status(trace_context);
         tags.insert("transaction.status".to_owned(), status.to_string());
 
@@ -57,6 +52,12 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         );
     }
 
+    if let Some(app_context) = event.context::<AppContext>() {
+        if let Some(app_identifier) = app_context.app_identifier.value() {
+            tags.insert("app.identifier".to_owned(), app_identifier.to_owned());
+        }
+    }
+
     tags
 }
 
@@ -79,7 +80,8 @@ pub fn extract_transaction_tags(event: &Event) -> BTreeMap<String, String> {
 }
 
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-/// Must be consistent with `process_trace_context` in [`relay_general::store`].
+///
+/// Must be consistent with `process_trace_context` in `relay_event_normalization`.
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
     *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
 }
@@ -92,12 +94,52 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     Some(method.clone())
 }
 
-fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    let contexts = event.contexts.value()?;
-    let trace = contexts.get("trace").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
-        return Some(trace_context.as_ref());
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relay_event_schema::protocol::Event;
+    use relay_protocol::FromValue;
 
-    None
+    #[test]
+    fn test_extract_transaction_metadata() {
+        let event = Event::from_value(
+            serde_json::json!({
+                "release": "myrelease",
+                "dist": "mydist",
+                "environment": "myenvironment",
+                "transaction": "mytransaction",
+                "contexts": {
+                    "app": {
+                        "app_identifier": "io.sentry.myexample",
+                    },
+                    "trace": {
+                        "status": "ok",
+                        "op": "myop",
+                    },
+                },
+                "request": {
+                    "method": "GET",
+                },
+                "timestamp": "2011-05-02T17:41:36Z",
+                "start_timestamp": "2011-05-02T17:40:36Z",
+            })
+            .into(),
+        );
+
+        let metadata = extract_transaction_metadata(&event.0.unwrap());
+        insta::assert_debug_snapshot!(metadata, @r#"
+        {
+            "app.identifier": "io.sentry.myexample",
+            "dist": "mydist",
+            "environment": "myenvironment",
+            "http.method": "GET",
+            "release": "myrelease",
+            "transaction": "mytransaction",
+            "transaction.end": "2011-05-02T17:41:36.000000000+00:00",
+            "transaction.op": "myop",
+            "transaction.start": "2011-05-02T17:40:36.000000000+00:00",
+            "transaction.status": "ok",
+        }
+        "#);
+    }
 }

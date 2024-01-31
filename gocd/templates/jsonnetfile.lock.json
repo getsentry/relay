@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/getsentry/gocd-jsonnet.git",
+          "subdir": "libs"
+        }
+      },
+      "version": "97af8955747da4f68ce4f70a5128b4e53956e9b2",
+      "sum": "qQiTUU6BkUbKBGblpBppxFBewhIqqQaWlz01ZTGEpi4="
+    }
+  ],
+  "legacyImports": false
+}

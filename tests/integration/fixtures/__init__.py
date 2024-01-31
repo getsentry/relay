@@ -1,13 +1,18 @@
-import datetime
 import time
 
-import requests
+from requests import Session
+from requests.adapters import HTTPAdapter
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from urllib3.util import Retry
 
-session = requests.session()
+from sentry_relay.auth import SecretKey
+
+session = Session()
+retries = Retry(total=5, backoff_factor=0.1)
+session.mount("http://", HTTPAdapter(max_retries=retries))
 
 
-class SentryLike(object):
+class SentryLike:
     _health_check_passed = False
 
     default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
@@ -103,7 +108,7 @@ class SentryLike(object):
         self._health_check_passed = True
 
     def __repr__(self):
-        return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
+        return f"<{self.__class__.__name__}({repr(self.upstream)})>"
 
     def iter_public_keys(self):
         if self.public_key is not None:
@@ -149,6 +154,76 @@ class SentryLike(object):
         response = self.post(url, headers=headers, **kwargs)
         response.raise_for_status()
         return response.json()
+
+    def send_nel_event(
+        self,
+        project_id,
+        payload=None,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        if payload is None:
+            payload = [
+                {
+                    "age": 1200000,
+                    "body": {
+                        "elapsed_time": 37,
+                        "method": "GET",
+                        "phase": "application",
+                        "protocol": "http/1.1",
+                        "referrer": "https://example.com/nel/",
+                        "sampling_fraction": 1,
+                        "server_ip": "123.123.123.123",
+                        "status_code": 500,
+                        "type": "http.error",
+                    },
+                    "type": "network-error",
+                    "url": "https://example.com/index.html",
+                    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                }
+            ]
+
+        if isinstance(payload, list):
+            kwargs = {"json": payload}
+        else:
+            raise ValueError(f"Invalid type {type(payload)} for payload.")
+
+        headers = {
+            "Content-Type": "application/reports+json",
+            **(headers or {}),
+        }
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/nel/?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, **kwargs)
+        response.raise_for_status()
+
+        return
+
+    def send_otel_span(
+        self,
+        project_id,
+        payload,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+        headers = {
+            "Content-Type": "application/json",
+            **(headers or {}),
+        }
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/spans/?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, json=payload)
+        response.raise_for_status()
 
     def send_options(self, project_id, headers=None, dsn_key_idx=0):
         headers = {
@@ -228,27 +303,41 @@ class SentryLike(object):
         envelope.add_item(Item(PayloadRef(json=payload), type="client_report"))
         self.send_envelope(project_id, envelope)
 
-    def send_metrics(self, project_id, payload, timestamp=None):
+    def send_user_feedback(self, project_id, payload):
+        envelope = Envelope()
+        envelope.add_item(Item(PayloadRef(json=payload), type="feedback"))
+        self.send_envelope(project_id, envelope)
+
+    def send_user_report(self, project_id, payload):
+        envelope = Envelope()
+        envelope.add_item(Item(PayloadRef(json=payload), type="user_report"))
+        self.send_envelope(project_id, envelope)
+
+    def send_metrics(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=payload.encode()),
-                type="metrics",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
+            Item(payload=PayloadRef(bytes=payload.encode()), type="statsd")
         )
         self.send_envelope(project_id, envelope)
 
-    def send_metrics_buckets(self, project_id, payload, timestamp=None):
+    def send_metrics_buckets(self, project_id, payload):
         envelope = Envelope()
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(json=payload),
-                type="metric_buckets",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
-        )
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
         self.send_envelope(project_id, envelope)
+
+    def send_metrics_batch(self, payload):
+        packed, signature = SecretKey.parse(self.secret_key).pack(payload)
+
+        response = self.post(
+            "/api/0/relays/metrics/",
+            data=packed,
+            headers={
+                "X-Sentry-Relay-Id": self.relay_id,
+                "X-Sentry-Relay-Signature": signature,
+            },
+        )
+
+        response.raise_for_status()
 
     def send_security_report(
         self,
@@ -340,7 +429,7 @@ class SentryLike(object):
             name: (file_name, file_content) for (name, file_name, file_content) in files
         }
         response = self.post(
-            "/api/{}/events/{}/attachments/".format(project_id, event_id),
+            f"/api/{project_id}/events/{event_id}/attachments/",
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",

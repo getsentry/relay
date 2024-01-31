@@ -1,0 +1,980 @@
+---
+source: relay-server/src/metrics_extraction/event.rs
+expression: metrics
+---
+[
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "ui.react",
+            "span.op": "ui.react.render",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "http",
+            "span.op": "http.client",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "f4a7fef06db3d88e",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "f4a7fef06db3d88e",
+            "span.op": "db.sql.query",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "select column FROM table WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "4f9711d2d09963b9",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "select column FROM table WHERE id IN (%s)",
+            "span.domain": "table",
+            "span.group": "4f9711d2d09963b9",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db.sql.query",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
+            "span.group": "e4ea457c8e7e4109",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
+            "span.group": "e4ea457c8e7e4109",
+            "span.op": "db.sql.query",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "INSERT",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT * FROM table WHERE id IN (val)",
+            "span.domain": "table",
+            "span.group": "03cb381cee3f1463",
+            "span.op": "db.sql.query",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT * FROM table WHERE id IN (val)",
+            "span.domain": "table",
+            "span.group": "03cb381cee3f1463",
+            "span.op": "db.sql.query",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.sql.query",
+            "span.system": "postgresql",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT col FROM table WHERE col = %s",
+            "span.domain": ",table,",
+            "span.group": "e0f7e81a59b030ba",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SELECT",
+            "span.category": "db",
+            "span.description": "SELECT col FROM table WHERE col = %s",
+            "span.domain": ",table,",
+            "span.group": "e0f7e81a59b030ba",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "postgresql",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "mydatabase",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "UPDATE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "UPDATE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "mydatabase",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
+            "span.group": "3f955cbde39e04b9",
+            "span.op": "db",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "SAVEPOINT",
+            "span.category": "db",
+            "span.description": "SAVEPOINT %s",
+            "span.group": "3f955cbde39e04b9",
+            "span.op": "db",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db",
+            "span.system": "mydatabase",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "cache",
+            "span.op": "cache.get_item",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "db",
+            "span.op": "db.redis",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "browser-extension://*",
+            "span.domain": "*",
+            "span.group": "3e92c536f98104b2",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "browser-extension://*",
+            "span.domain": "*",
+            "span.group": "3e92c536f98104b2",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "span.category": "resource",
+            "span.description": "http://domain/static/myscript-*.js",
+            "span.domain": "domain",
+            "span.group": "022f81fdf31228bf",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "js",
+            "span.category": "resource",
+            "span.description": "http://domain/static/myscript-*.js",
+            "span.domain": "domain",
+            "span.group": "022f81fdf31228bf",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_content_length@byte",
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.decoded_response_content_length@byte",
+        value: Distribution(
+            [
+                128950.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_transfer_size@byte",
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "file_extension": "css",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.CSS",
+            "span.domain": "*.domain.com",
+            "span.group": "7f402250846262be",
+            "span.op": "resource.css",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.css",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "*/zero-length-*",
+            "span.group": "c7d3c9d83f92123a",
+            "span.op": "resource.script",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.category": "resource",
+            "span.description": "*/zero-length-*",
+            "span.group": "c7d3c9d83f92123a",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.category": "resource",
+            "span.op": "resource.script",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                32.000065,
+            ],
+        ),
+        tags: {
+            "span.description": "my-component-name",
+            "span.group": "e674f9eca1d88a4d",
+            "span.op": "ui.interaction.click",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1702474613),
+        width: 0,
+        name: "c:spans/count_per_op@none",
+        value: Counter(
+            1.0,
+        ),
+        tags: {
+            "span.op": "ui.interaction.click",
+        },
+    },
+]

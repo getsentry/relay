@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import json
 
-from sentry_relay._compat import string_types, iteritems, text_type
 from sentry_relay._lowlevel import lib, ffi
 from sentry_relay.utils import (
     encode_str,
@@ -20,24 +21,21 @@ __all__ = [
     "is_glob_match",
     "is_codeowners_path_match",
     "parse_release",
+    "validate_pii_selector",
     "validate_pii_config",
     "convert_datascrubbing_config",
     "pii_strip_event",
     "pii_selector_suggestions_from_event",
     "VALID_PLATFORMS",
+    "validate_rule_condition",
     "validate_sampling_condition",
     "validate_sampling_configuration",
     "validate_project_config",
-    "run_dynamic_sampling",
+    "normalize_global_config",
 ]
 
 
-VALID_PLATFORMS = frozenset()
-
-
-def _init_valid_platforms():
-    global VALID_PLATFORMS
-
+def _init_valid_platforms() -> frozenset[str]:
     size_out = ffi.new("uintptr_t *")
     strings = rustcall(lib.relay_valid_platforms, size_out)
 
@@ -45,10 +43,10 @@ def _init_valid_platforms():
     for i in range(int(size_out[0])):
         valid_platforms.append(decode_str(strings[i], free=True))
 
-    VALID_PLATFORMS = frozenset(valid_platforms)
+    return frozenset(valid_platforms)
 
 
-_init_valid_platforms()
+VALID_PLATFORMS = _init_valid_platforms()
 
 
 def split_chunks(string, remarks):
@@ -65,10 +63,10 @@ def meta_with_chunks(data, meta):
         return meta
 
     result = {}
-    for key, item in iteritems(meta):
+    for key, item in meta.items():
         if key == "" and isinstance(item, dict):
             result[""] = item.copy()
-            if item.get("rem") and isinstance(data, string_types):
+            if item.get("rem") and isinstance(data, str):
                 result[""]["chunks"] = split_chunks(data, item["rem"])
         elif isinstance(data, dict):
             result[key] = meta_with_chunks(data.get(key), item)
@@ -88,14 +86,14 @@ class GeoIpLookup(RustObject):
 
     @classmethod
     def from_path(cls, path):
-        if isinstance(path, text_type):
+        if isinstance(path, str):
             path = path.encode("utf-8")
         rv = cls._from_objptr(rustcall(lib.relay_geoip_lookup_new, path))
         rv._path = path
         return rv
 
     def __repr__(self):
-        return "<GeoIpLookup %r>" % (self._path,)
+        return f"<GeoIpLookup {self._path!r}>"
 
 
 class StoreNormalizer(RustObject):
@@ -124,7 +122,7 @@ class StoreNormalizer(RustObject):
 
 def _serialize_event(event):
     raw_event = json.dumps(event, ensure_ascii=False)
-    if isinstance(raw_event, text_type):
+    if isinstance(raw_event, str):
         raw_event = raw_event.encode("utf-8", errors="replace")
     return raw_event
 
@@ -157,17 +155,28 @@ def is_glob_match(
     if allow_newline:
         flags |= lib.GLOB_FLAGS_ALLOW_NEWLINE
 
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         value = value.encode("utf-8")
     return rustcall(lib.relay_is_glob_match, make_buf(value), encode_str(pat), flags)
 
 
 def is_codeowners_path_match(value, pattern):
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         value = value.encode("utf-8")
     return rustcall(
         lib.relay_is_codeowners_path_match, make_buf(value), encode_str(pattern)
     )
+
+
+def validate_pii_selector(selector):
+    """
+    Validate a PII selector spec. Used to validate datascrubbing safe fields.
+    """
+    assert isinstance(selector, str)
+    raw_error = rustcall(lib.relay_validate_pii_selector, encode_str(selector))
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
 
 
 def validate_pii_config(config):
@@ -178,7 +187,7 @@ def validate_pii_config(config):
     as a string such that line numbers from the error message match with what
     the user typed in.
     """
-    assert isinstance(config, string_types)
+    assert isinstance(config, str)
     raw_error = rustcall(lib.relay_validate_pii_config, encode_str(config))
     error = decode_str(raw_error, free=True)
     if error:
@@ -229,11 +238,20 @@ def compare_version(a, b):
 
 def validate_sampling_condition(condition):
     """
-    Validate a dynamic rule condition. Used in dynamic sampling serializer.
-    The parameter is a string containing the rule condition as JSON.
+    Deprecated legacy alias. Please use ``validate_rule_condition`` instead.
     """
-    assert isinstance(condition, string_types)
-    raw_error = rustcall(lib.relay_validate_sampling_condition, encode_str(condition))
+    return validate_rule_condition(condition)
+
+
+def validate_rule_condition(condition):
+    """
+    Validate a dynamic rule condition. Used by dynamic sampling, metric extraction, and metric
+    tagging.
+
+    :param condition: A string containing the condition encoded as JSON.
+    """
+    assert isinstance(condition, str)
+    raw_error = rustcall(lib.relay_validate_rule_condition, encode_str(condition))
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
@@ -244,7 +262,7 @@ def validate_sampling_configuration(condition):
     Validate the whole sampling configuration. Used in dynamic sampling serializer.
     The parameter is a string containing the rules configuration as JSON.
     """
-    assert isinstance(condition, string_types)
+    assert isinstance(condition, str)
     raw_error = rustcall(
         lib.relay_validate_sampling_configuration, encode_str(condition)
     )
@@ -258,28 +276,27 @@ def validate_project_config(config, strict: bool):
 
     :param strict: Whether or not to check for unknown fields.
     """
-    assert isinstance(config, string_types)
+    assert isinstance(config, str)
     raw_error = rustcall(lib.relay_validate_project_config, encode_str(config), strict)
     error = decode_str(raw_error, free=True)
     if error:
         raise ValueError(error)
 
 
-def run_dynamic_sampling(sampling_config, root_sampling_config, dsc, event):
-    """
-    Runs dynamic sampling on an event and returns the merged rules together with the sample rate.
-    """
-    assert isinstance(sampling_config, string_types)
-    assert isinstance(root_sampling_config, string_types)
-    assert isinstance(dsc, string_types)
-    assert isinstance(event, string_types)
+def normalize_global_config(config):
+    """Normalize the global config.
 
-    result_json = rustcall(
-        lib.run_dynamic_sampling,
-        encode_str(sampling_config),
-        encode_str(root_sampling_config),
-        encode_str(dsc),
-        encode_str(event),
-    )
+    Normalization consists of deserializing and serializing back the given
+    global config. If deserializing fails, throw an exception. Note that even if
+    the roundtrip doesn't produce errors, the given config may differ from
+    normalized one.
 
-    return json.loads(decode_str(result_json, free=True))
+    :param config: the global config to validate.
+    """
+    serialized = json.dumps(config)
+    normalized = rustcall(lib.normalize_global_config, encode_str(serialized))
+    rv = decode_str(normalized, free=True)
+    try:
+        return json.loads(rv)
+    except json.JSONDecodeError:
+        raise ValueError(rv)

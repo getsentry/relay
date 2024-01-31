@@ -1,0 +1,8 @@
+---
+source: tools/document-pii/src/main.rs
+expression: rust_file_paths
+---
+[
+    "../../tests/test_pii_docs/src/anothermod.rs",
+    "../../tests/test_pii_docs/src/main.rs",
+]

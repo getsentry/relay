@@ -2,6 +2,16 @@ use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Normalizes the given value by deserializing it and serializing it back.
+pub fn normalize_json<'de, S>(value: &'de str) -> anyhow::Result<String>
+where
+    S: Serialize + Deserialize<'de>,
+{
+    let deserialized: S = serde_json::from_str(value)?;
+    let serialized = serde_json::to_value(&deserialized)?.to_string();
+    Ok(serialized)
+}
+
 /// Validate that the given JSON resolves to a valid instance of type `S`.
 ///
 /// If `strict` is true, verify that reserializing the instance results in the same fields.
@@ -62,9 +72,19 @@ mod tests {
                 "json atom at path \".b.other\" is missing from rhs",
             ),
             (
-                // An unknown feature flag for this relay is still serialized
-                // for the following relays in chain.
+                // An unknown feature flag will not be serialized by Relay.
                 r#"{"a": 1, "features": ["organizations:is-cool"]}"#,
+                true,
+                r#"json atoms at path ".features[0]" are not equal:
+    lhs:
+        "organizations:is-cool"
+    rhs:
+        "Unknown""#,
+            ),
+            (
+                // A deprecated feature flag for this relay is still serialized
+                // for the following relays in chain.
+                r#"{"a": 1, "features": ["organizations:profiling"]}"#,
                 true,
                 "",
             ),

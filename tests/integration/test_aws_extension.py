@@ -1,4 +1,3 @@
-import pytest
 from time import sleep
 
 

@@ -1,9 +1,10 @@
+import datetime
+import copy
 import gzip
 import json
 import os
 import re
 import uuid
-import datetime
 from copy import deepcopy
 from queue import Queue
 
@@ -18,7 +19,9 @@ from . import SentryLike
 
 _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
-    CURRENT_VERSION = _version_re.search(f.read()).group(1)
+    match = _version_re.search(f.read())
+    assert match is not None
+    CURRENT_VERSION = match[1]
 
 
 def _parse_version(version):
@@ -30,12 +33,14 @@ def _parse_version(version):
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
-        super(Sentry, self).__init__(server_address)
+        super().__init__(server_address)
 
         self.app = app
         self.project_configs = {}
+        self.global_config = copy.deepcopy(GLOBAL_CONFIG)
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
+        self.captured_metrics = Queue()
         self.test_failures = []
         self.hits = {}
         self.known_relays = {}
@@ -60,7 +65,7 @@ class Sentry(SentryLike):
     def format_failures(self):
         s = ""
         for route, error in self.test_failures:
-            s += "> %s: %s\n" % (route, error)
+            s += f"> {route}: {error}\n"
         return s
 
     def add_dsn_key_to_project(self, project_id, dsn_public_key=None, numeric_id=None):
@@ -92,7 +97,11 @@ class Sentry(SentryLike):
 
         return key_entry
 
-    def basic_project_config(self, project_id, dsn_public_key=None):
+    def basic_project_config(
+        self,
+        project_id,
+        dsn_public_key=None,
+    ):
         if dsn_public_key is None:
             dsn_public_key = {
                 "publicKey": uuid.uuid4().hex,
@@ -182,7 +191,7 @@ def _get_project_id(public_key, project_configs):
 
 
 @pytest.fixture
-def mini_sentry(request):
+def mini_sentry(request):  # noqa
     app = Flask(__name__)
     app.debug = True
     sentry = None
@@ -230,7 +239,6 @@ def mini_sentry(request):
 
         relay_info = sentry.known_relays[relay_id]
 
-        public_key = flask_request.json["public_key"]
         version = flask_request.json.get("version")
         registered_version = relay_info["version"]
 
@@ -304,16 +312,23 @@ def mini_sentry(request):
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
 
+        response = {}
         configs = {}
         pending = []
+        global_ = None
+
         version = flask_request.args.get("version")
+
+        if version == "3" and flask_request.json.get("global"):
+            global_ = sentry.global_config
+
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
                 if is_trusted(relay_id, project_config):
                     configs[project_id] = project_config
 
-        elif version in ["2", "3"]:
+        elif version in ["2", "3", "4"]:
             for public_key in flask_request.json["publicKeys"]:
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
@@ -336,9 +351,14 @@ def mini_sentry(request):
                                 configs[public_key]["publicKeys"] = [key]
 
         else:
-            abort(500, "unsupported version")
+            abort(500, f"unsupported version: {version}")
 
-        return jsonify(configs=configs, pending=pending)
+        response["configs"] = configs
+        response["pending"] = pending
+        if global_ is not None:
+            response["global"] = global_
+
+        return jsonify(response)
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():
@@ -371,6 +391,24 @@ def mini_sentry(request):
         sentry.captured_outcomes.put(outcomes_batch)
         return jsonify({})
 
+    @app.route("/api/0/relays/metrics/", methods=["POST"])
+    def global_metrics():
+        """
+        Mock endpoint for global batched metrics. SENTRY DOES NOT IMPLEMENT THIS ENDPOINT! This is
+        just used to verify Relay's batching behavior.
+        """
+        relay_id = flask_request.headers["x-sentry-relay-id"]
+        if relay_id not in authenticated_relays:
+            abort(403, "relay not registered")
+
+        encoding = flask_request.headers.get("Content-Encoding", "")
+        assert encoding == "gzip", "Relay should always compress store requests"
+        data = gzip.decompress(flask_request.data)
+
+        metrics_batch = json.loads(data)["buckets"]
+        sentry.captured_metrics.put(metrics_batch)
+        return jsonify({})
+
     @app.errorhandler(500)
     def fail(e):
         sentry.test_failures.append((flask_request.url, e))
@@ -394,3 +432,34 @@ def mini_sentry(request):
     request.addfinalizer(server.stop)
     sentry = Sentry(server.server_address, app)
     return sentry
+
+
+GLOBAL_CONFIG = {
+    "measurements": {
+        "builtinMeasurements": [
+            {"name": "app_start_cold", "unit": "millisecond"},
+            {"name": "app_start_warm", "unit": "millisecond"},
+            {"name": "cls", "unit": "none"},
+            {"name": "fcp", "unit": "millisecond"},
+            {"name": "fid", "unit": "millisecond"},
+            {"name": "fp", "unit": "millisecond"},
+            {"name": "frames_frozen_rate", "unit": "ratio"},
+            {"name": "frames_frozen", "unit": "none"},
+            {"name": "frames_slow_rate", "unit": "ratio"},
+            {"name": "frames_slow", "unit": "none"},
+            {"name": "frames_total", "unit": "none"},
+            {"name": "inp", "unit": "millisecond"},
+            {"name": "lcp", "unit": "millisecond"},
+            {"name": "stall_count", "unit": "none"},
+            {"name": "stall_longest_time", "unit": "millisecond"},
+            {"name": "stall_percentage", "unit": "ratio"},
+            {"name": "stall_total_time", "unit": "millisecond"},
+            {"name": "ttfb.requesttime", "unit": "millisecond"},
+            {"name": "ttfb", "unit": "millisecond"},
+            {"name": "time_to_full_display", "unit": "millisecond"},
+            {"name": "time_to_initial_display", "unit": "millisecond"},
+        ],
+        "maxCustomMeasurements": 10,
+    },
+    "options": {},
+}

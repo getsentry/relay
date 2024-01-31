@@ -15,13 +15,15 @@ _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 
 DEBUG_BUILD = os.environ.get("RELAY_DEBUG") == "1"
 
-with open("README", "rb") as f:
+with open("README", encoding="UTF-8") as f:
     readme = f.read()
 
 
 if os.path.isfile("../relay-cabi/Cargo.toml"):
     with open("../relay-cabi/Cargo.toml") as f:
-        version = _version_re.search(f.read()).group(1)
+        match = _version_re.search(f.read())
+        assert match is not None
+        version = match[1]
 else:
     with open("version.txt") as f:
         version = f.readline().strip()
@@ -59,7 +61,7 @@ def build_native(spec):
         def delete_scratchpad():
             try:
                 shutil.rmtree(scratchpad)
-            except (IOError, OSError):
+            except OSError:
                 pass
 
         zf = zipfile.ZipFile("rustsrc.zip")
@@ -79,7 +81,7 @@ def build_native(spec):
     def find_dylib():
         cargo_target = os.environ.get("CARGO_BUILD_TARGET")
         if cargo_target:
-            in_path = "target/%s/%s" % (cargo_target, target)
+            in_path = f"target/{cargo_target}/{target}"
         else:
             in_path = "target/%s" % target
         return build.find_dylib("relay_cabi", in_path=in_path)
@@ -102,15 +104,17 @@ setup(
     version=version,
     packages=find_packages(),
     author="Sentry",
-    license="BSL-1.1",
+    license="FSL-1.0-Apache-2.0",
     author_email="hello@sentry.io",
     description="A python library to access sentry relay functionality.",
     long_description=readme,
     include_package_data=True,
+    package_data={"sentry_relay": ["py.typed", "_lowlevel.pyi"]},
     zip_safe=False,
     platforms="any",
-    install_requires=['enum34>=1.1.6,<1.2.0;python_version<"3.4"', "milksnake>=0.1.2"],
-    setup_requires=["milksnake>=0.1.2"],
+    python_requires=">=3.9",
+    install_requires=["milksnake>=0.1.6"],
+    setup_requires=["milksnake>=0.1.6"],
     milksnake_tasks=[build_native],
     cmdclass={"sdist": CustomSDist},
 )

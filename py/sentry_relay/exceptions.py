@@ -1,4 +1,5 @@
-from sentry_relay._compat import implements_to_string
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from sentry_relay._lowlevel import lib
 
 
@@ -6,7 +7,6 @@ __all__ = ["RelayError"]
 exceptions_by_code = {}
 
 
-@implements_to_string
 class RelayError(Exception):
     code = None
 
@@ -18,7 +18,7 @@ class RelayError(Exception):
     def __str__(self):
         rv = self.message
         if self.rust_info is not None:
-            return "%s\n\n%s" % (rv, self.rust_info)
+            return f"{rv}\n\n{self.rust_info}"
         return rv
 
 
@@ -59,3 +59,8 @@ def _make_exceptions():
 
 
 _make_exceptions()
+
+if TYPE_CHECKING:
+    # treat unknown attribute names as exception types
+    def __getattr__(name: str) -> type[RelayError]:
+        ...

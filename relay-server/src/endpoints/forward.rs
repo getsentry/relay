@@ -15,15 +15,15 @@ use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
+use relay_common::glob2::GlobMatcher;
 use relay_config::Config;
-use relay_general::utils::GlobMatcher;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
-use crate::actors::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 use crate::extractors::ForwardedFor;
 use crate::http::{HttpError, RequestBuilder, Response as UpstreamResponse};
 use crate::service::ServiceState;
+use crate::services::upstream::{Method, SendRequest, UpstreamRequest, UpstreamRequestError};
 
 /// Headers that this endpoint must handle and cannot forward.
 static HOP_BY_HOP_HEADERS: &[HeaderName] = &[
@@ -72,7 +72,6 @@ impl IntoResponse for ForwardError {
                 }
                 HttpError::Io(_) => StatusCode::BAD_GATEWAY.into_response(),
                 HttpError::Json(_) => StatusCode::BAD_REQUEST.into_response(),
-                HttpError::NoCredentials => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             },
             UpstreamRequestError::SendFailed(e) => {
                 if e.is_timeout() {
@@ -136,23 +135,21 @@ impl UpstreamRequest for ForwardRequest {
         "forward"
     }
 
-    fn build(
-        &mut self,
-        _: &Config,
-        mut builder: RequestBuilder,
-    ) -> Result<crate::http::Request, HttpError> {
+    fn build(&mut self, builder: &mut RequestBuilder) -> Result<(), HttpError> {
         for (key, value) in &self.headers {
             // Since the body is always decompressed by the server, we must not forward the
             // content-encoding header, as the upstream client will do its own content encoding.
             // Also, remove content-length because it's likely wrong.
             if !HOP_BY_HOP_HEADERS.contains(key) && !IGNORED_REQUEST_HEADERS.contains(key) {
-                builder = builder.header(key, value);
+                builder.header(key, value);
             }
         }
 
         builder
             .header("X-Forwarded-For", self.forwarded_for.as_ref())
-            .body(&self.data)
+            .body(self.data.clone());
+
+        Ok(())
     }
 
     fn respond(

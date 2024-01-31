@@ -1,0 +1,19 @@
+[package]
+name = "relay-protocol-derive"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Derives for Relay's protocol traits"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "24.1.1"
+edition = "2021"
+license-file = "../LICENSE.md"
+publish = false
+
+[dependencies]
+quote = "1.0.2"
+syn = "1.0.14"
+synstructure = "0.12.3"
+proc-macro2 = "1.0.8"
+
+[lib]
+proc-macro = true

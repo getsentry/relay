@@ -1,4 +1,3 @@
-# coding: utf-8
 import pytest
 
 from sentry_relay._lowlevel import lib

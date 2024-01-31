@@ -3,12 +3,12 @@
 use axum::extract::Path;
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 
-use crate::actors::test_store::GetCapturedEnvelope;
 use crate::endpoints::common::ServiceUnavailable;
 use crate::envelope;
 use crate::service::ServiceState;
+use crate::services::test_store::GetCapturedEnvelope;
 
 pub async fn handle(
     state: ServiceState,

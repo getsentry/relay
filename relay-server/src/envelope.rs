@@ -34,14 +34,16 @@ use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
+use std::ops::AddAssign;
 use std::time::Instant;
+use uuid::Uuid;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::ErrorBoundary;
-use relay_general::protocol::{EventId, EventType};
-use relay_general::types::Value;
+use relay_event_schema::protocol::{EventId, EventType};
+use relay_protocol::Value;
+use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -87,6 +89,8 @@ pub enum ItemType {
     FormData,
     /// Security report as sent by the browser in JSON.
     RawSecurity,
+    /// NEL report as sent by the browser.
+    Nel,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -96,9 +100,11 @@ pub enum ItemType {
     /// Aggregated session data.
     Sessions,
     /// Individual metrics in text encoding.
-    Metrics,
+    Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
+    /// Additional metadata for metrics
+    MetricMeta,
     /// Client internal report (eg: outcomes).
     ClientReport,
     /// Profile event payload encoded as JSON.
@@ -111,6 +117,12 @@ pub enum ItemType {
     CombinedReplayEventAndRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
+    /// A standalone span.
+    Span,
+    /// A standalone OpenTelemetry span.
+    OtelSpan,
+    /// UserReport as an Event
+    UserReportV2,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -124,8 +136,9 @@ impl ItemType {
     /// Returns the event item type corresponding to the given `EventType`.
     pub fn from_event_type(event_type: EventType) -> Self {
         match event_type {
-            EventType::Default | EventType::Error => ItemType::Event,
+            EventType::Default | EventType::Error | EventType::Nel => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
+            EventType::UserReportV2 => ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security
             }
@@ -142,12 +155,15 @@ impl fmt::Display for ItemType {
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form_data"),
             Self::RawSecurity => write!(f, "raw_security"),
+            Self::Nel => write!(f, "nel"),
             Self::UnrealReport => write!(f, "unreal_report"),
             Self::UserReport => write!(f, "user_report"),
+            Self::UserReportV2 => write!(f, "feedback"),
             Self::Session => write!(f, "session"),
             Self::Sessions => write!(f, "sessions"),
-            Self::Metrics => write!(f, "metrics"),
+            Self::Statsd => write!(f, "statsd"),
             Self::MetricBuckets => write!(f, "metric_buckets"),
+            Self::MetricMeta => write!(f, "metric_meta"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
@@ -156,6 +172,8 @@ impl fmt::Display for ItemType {
                 write!(f, "combined_replay_event_and_recording")
             }
             Self::CheckIn => write!(f, "check_in"),
+            Self::Span => write!(f, "span"),
+            Self::OtelSpan => write!(f, "otel_span"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -172,17 +190,22 @@ impl std::str::FromStr for ItemType {
             "attachment" => Self::Attachment,
             "form_data" => Self::FormData,
             "raw_security" => Self::RawSecurity,
+            "nel" => Self::Nel,
             "unreal_report" => Self::UnrealReport,
             "user_report" => Self::UserReport,
+            "feedback" => Self::UserReportV2,
             "session" => Self::Session,
             "sessions" => Self::Sessions,
-            "metrics" => Self::Metrics,
+            "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
+            "metric_meta" => Self::MetricMeta,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
             "check_in" => Self::CheckIn,
+            "span" => Self::Span,
+            "otel_span" => Self::OtelSpan,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -452,6 +475,14 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
+    /// The routing_hint may be used to specify how the envelpope should be routed in when
+    /// published to kafka.
+    ///
+    /// XXX(epurkhiser): This is currently ONLY used for [`ItemType::CheckIn`]'s when publishing
+    /// the envelope into kafka.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    routing_hint: Option<Uuid>,
+
     /// Indicates that this item is being rate limited.
     ///
     /// By default, rate limited items are immediately removed from Envelopes. For processing,
@@ -463,19 +494,24 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// Contains the amount of events this item was generated and aggregated from.
+    ///
+    /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
+    /// aggregated from (currently) transactions and profiles.
+    ///
+    /// This information can not be directly inferred from the item itself anymore.
+    /// The amount of events this item/metric represents is instead stored here.
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    source_quantities: Option<SourceQuantities>,
+
     /// A list of cumulative sample rates applied to this event.
     ///
     /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
     /// effective sample rate is multiplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sample_rates: Option<Value>,
-
-    /// A custom timestamp associated with the item.
-    ///
-    /// For metrics, this field can be used to backdate a submission.
-    /// The given timestamp determines the bucket into which the metric will be aggregated.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    timestamp: Option<UnixTimestamp>,
 
     /// Flag indicating if metrics have already been extracted from the item.
     ///
@@ -486,16 +522,45 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
-    /// Internal flag to signal that the profile has been counted toward `DataCategory::Profile`.
+    /// `false` if the sampling decision is "drop".
     ///
-    /// If `true`, outcomes for this item should be reported as `DataCategory::ProfileIndexed`
-    /// instead.
-    #[serde(skip)]
-    profile_counted_as_processed: bool,
+    /// In the most common use case, the item is dropped when the sampling decision is "drop".
+    /// For profiles with the feature enabled, however, we keep all profile items and mark the ones
+    /// for which the transaction was dropped as `sampled: false`.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    sampled: bool,
 
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
+/// Container for item quantities that the item was derived from.
+///
+/// For example a metric bucket may be derived and aggregated from multiple transactions.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct SourceQuantities {
+    /// Transaction quantity.
+    pub transactions: usize,
+    /// Profile quantity.
+    pub profiles: usize,
+    /// Total number of buckets.
+    pub buckets: usize,
+}
+
+impl AddAssign for SourceQuantities {
+    fn add_assign(&mut self, other: Self) {
+        self.transactions += other.transactions;
+        self.profiles += other.profiles;
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -514,12 +579,13 @@ impl Item {
                 attachment_type: None,
                 content_type: None,
                 filename: None,
+                routing_hint: None,
                 rate_limited: false,
+                source_quantities: None,
                 sample_rates: None,
-                timestamp: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
-                profile_counted_as_processed: false,
+                sampled: true,
             },
             payload: Bytes::new(),
         }
@@ -557,15 +623,15 @@ impl Item {
                 DataCategory::Transaction
             }),
             ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+            ItemType::Nel => None,
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Metrics | ItemType::MetricBuckets => None,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
-            // For profiles, do not used the `indexed` flag, because it depends
-            // on whether metrics were extracted from the _event_.
-            ItemType::Profile => Some(if self.headers.profile_counted_as_processed {
+            ItemType::UserReportV2 => None,
+            ItemType::Profile => Some(if indexed {
                 DataCategory::ProfileIndexed
             } else {
                 DataCategory::Profile
@@ -576,6 +642,11 @@ impl Item {
 
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
+            ItemType::Span | ItemType::OtelSpan => Some(if indexed {
+                DataCategory::SpanIndexed
+            } else {
+                DataCategory::Span
+            }),
             ItemType::Unknown(_) => None,
         }
     }
@@ -639,6 +710,18 @@ impl Item {
         self.headers.filename = Some(filename.into());
     }
 
+    /// Returns the routing_hint of this item.
+    #[cfg(feature = "processing")]
+    pub fn routing_hint(&self) -> Option<Uuid> {
+        self.headers.routing_hint
+    }
+
+    /// Set the routing_hint of this item.
+    #[cfg(feature = "processing")]
+    pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
+        self.headers.routing_hint = Some(routing_hint);
+    }
+
     /// Returns whether this item should be rate limited.
     pub fn rate_limited(&self) -> bool {
         self.headers.rate_limited
@@ -654,6 +737,16 @@ impl Item {
         self.headers.sample_rates.take()
     }
 
+    /// Returns the contained source quantities.
+    pub fn source_quantities(&self) -> Option<SourceQuantities> {
+        self.headers.source_quantities
+    }
+
+    /// Sets new source quantities.
+    pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
+        self.headers.source_quantities = Some(source_quantities);
+    }
+
     /// Sets sample rates for this item.
     pub fn set_sample_rates(&mut self, sample_rates: Value) {
         if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
@@ -661,34 +754,24 @@ impl Item {
         }
     }
 
-    /// Get custom timestamp for this item. Currently used to backdate metrics.
-    pub fn timestamp(&self) -> Option<UnixTimestamp> {
-        self.headers.timestamp
-    }
-
     /// Returns the metrics extracted flag.
     pub fn metrics_extracted(&self) -> bool {
         self.headers.metrics_extracted
     }
 
-    /// Returns `true` if the profiles in the envelope have been counted towards `DataCategory::Profile`.
-    ///
-    /// If so, count them towards `DataCategory::ProfileIndexed` instead.
-    pub fn profile_counted_as_processed(&self) -> bool {
-        self.headers.profile_counted_as_processed
-    }
-
-    /// Mark the item as "counted towards `DataCategory::Profile`".
-    #[cfg(feature = "processing")]
-    pub fn set_profile_counted_as_processed(&mut self) {
-        if self.ty() == &ItemType::Profile {
-            self.headers.profile_counted_as_processed = true;
-        }
-    }
-
     /// Sets the metrics extracted flag.
     pub fn set_metrics_extracted(&mut self, metrics_extracted: bool) {
         self.headers.metrics_extracted = metrics_extracted;
+    }
+
+    /// Gets the `sampled` flag.
+    pub fn sampled(&self) -> bool {
+        self.headers.sampled
+    }
+
+    /// Sets the `sampled` flag.
+    pub fn set_sampled(&mut self, sampled: bool) {
+        self.headers.sampled = sampled;
     }
 
     /// Returns the specified header value, if present.
@@ -719,7 +802,9 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::UnrealReport => true,
+            | ItemType::Nel
+            | ItemType::UnrealReport
+            | ItemType::UserReportV2 => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
@@ -749,14 +834,17 @@ impl Item {
             ItemType::UserReport
             | ItemType::Session
             | ItemType::Sessions
-            | ItemType::Metrics
+            | ItemType::Statsd
             | ItemType::MetricBuckets
+            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
             | ItemType::CombinedReplayEventAndRecording
             | ItemType::Profile
-            | ItemType::CheckIn => false,
+            | ItemType::CheckIn
+            | ItemType::Span
+            | ItemType::OtelSpan => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -775,18 +863,23 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::Nel => false,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
-            ItemType::ReplayEvent => false,
+            ItemType::UserReportV2 => true,
+            ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
-            ItemType::Metrics => false,
+            ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
+            ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::CombinedReplayEventAndRecording => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
+            ItemType::Span => false,
+            ItemType::OtelSpan => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -858,8 +951,8 @@ impl EnvelopeHeaders<PartialMeta> {
 
         // Relay does not read the envelope's headers before running initial validation and fully
         // relies on request headers at the moment. Technically, the envelope's meta is checked
-        // again once the event goes into the EnvelopeManager, but we want to be as accurate as
-        // possible in the endpoint already.
+        // again once the event goes through validation, but we want to be as accurate as possible
+        // in the endpoint already.
         if meta.origin().is_some() && meta.origin() != request_meta.origin() {
             return Err(EnvelopeError::HeaderMismatch("origin"));
         }
@@ -891,6 +984,11 @@ pub struct Envelope {
 }
 
 impl Envelope {
+    /// Creates an envelope from the provided parts.
+    pub fn from_parts(headers: EnvelopeHeaders, items: Items) -> Box<Self> {
+        Box::new(Self { items, headers })
+    }
+
     /// Creates an envelope from request information.
     pub fn from_request(event_id: Option<EventId>, meta: RequestMeta) -> Box<Self> {
         Box::new(Self {
@@ -946,6 +1044,11 @@ impl Envelope {
         }
     }
 
+    /// Returns reference to the [`EnvelopeHeaders`].
+    pub fn headers(&self) -> &EnvelopeHeaders {
+        &self.headers
+    }
+
     /// Returns the number of items in this envelope.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
@@ -989,6 +1092,11 @@ impl Envelope {
     /// When the event has been sent, according to the SDK.
     pub fn sent_at(&self) -> Option<DateTime<Utc>> {
         self.headers.sent_at
+    }
+
+    /// Sets the event id on the envelope.
+    pub fn set_event_id(&mut self, event_id: EventId) {
+        self.headers.event_id = Some(event_id);
     }
 
     /// Sets the timestamp at which an envelope is sent to the upstream.
@@ -1056,7 +1164,7 @@ impl Envelope {
         self.items.iter_mut()
     }
 
-    /// Returns the an option with a reference to the first item that matches
+    /// Returns an option with a reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by<F>(&self, mut pred: F) -> Option<&Item>
     where
@@ -1065,7 +1173,7 @@ impl Envelope {
         self.items().find(|item| pred(item))
     }
 
-    /// Returns the an option with a mutable reference to the first item that matches
+    /// Returns an option with a mutable reference to the first item that matches
     /// the predicate, or None if the predicate is not matched by any item.
     pub fn get_item_by_mut<F>(&mut self, mut pred: F) -> Option<&mut Item>
     where
@@ -1083,9 +1191,39 @@ impl Envelope {
         index.map(|index| self.items.swap_remove(index))
     }
 
+    /// Removes and returns the all items that match the given condition.
+    pub fn take_items_by<F>(&mut self, mut cond: F) -> SmallVec<[Item; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        self.items.drain_filter(|item| cond(item)).collect()
+    }
+
     /// Adds a new item to this envelope.
     pub fn add_item(&mut self, item: Item) {
         self.items.push(item)
+    }
+
+    /// Splits off the items from the envelope using provided predicates.
+    ///
+    /// First predicate is the additional condition on the count of found items by second
+    /// predicate.
+    #[cfg(test)]
+    fn split_off_items<C, F>(&mut self, cond: C, mut f: F) -> Option<SmallVec<[Item; 3]>>
+    where
+        C: Fn(usize) -> bool,
+        F: FnMut(&Item) -> bool,
+    {
+        let split_count = self.items().filter(|item| f(item)).count();
+        if cond(split_count) {
+            return None;
+        }
+
+        let old_items = std::mem::take(&mut self.items);
+        let (split_items, own_items) = old_items.into_iter().partition(f);
+        self.items = own_items;
+
+        Some(split_items)
     }
 
     /// Splits the envelope by the given predicate.
@@ -1095,19 +1233,13 @@ impl Envelope {
     /// with all items that return `true`. Items that return `false` remain in this envelope.
     ///
     /// The returned envelope assumes the same headers.
-    pub fn split_by<F>(&mut self, mut f: F) -> Option<Box<Self>>
+    #[cfg(test)]
+    pub fn split_by<F>(&mut self, f: F) -> Option<Box<Self>>
     where
         F: FnMut(&Item) -> bool,
     {
-        let split_count = self.items().filter(|item| f(item)).count();
-        if split_count == self.len() || split_count == 0 {
-            return None;
-        }
-
-        let old_items = std::mem::take(&mut self.items);
-        let (split_items, own_items) = old_items.into_iter().partition(f);
-        self.items = own_items;
-
+        let items_count = self.len();
+        let split_items = self.split_off_items(|count| count == 0 || count == items_count, f)?;
         Some(Box::new(Envelope {
             headers: self.headers.clone(),
             items: split_items,
@@ -1242,7 +1374,7 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::ProjectId;
+    use relay_base_schema::project::ProjectId;
 
     use super::*;
 
@@ -1288,6 +1420,31 @@ mod tests {
 
         assert_eq!(item.get_header("custom"), Some(&Value::from(42u64)));
         assert_eq!(item.get_header("anything"), None);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_item_set_routing_hint() {
+        let uuid = Uuid::parse_str("8a4ab00f-fba2-4f7b-a164-b58199d55c95").unwrap();
+
+        let mut item = Item::new(ItemType::Event);
+        item.set_routing_hint(uuid);
+
+        assert_eq!(item.routing_hint(), Some(uuid));
+    }
+
+    #[test]
+    fn test_item_source_quantities() {
+        let mut item = Item::new(ItemType::MetricBuckets);
+        assert!(item.source_quantities().is_none());
+
+        let source_quantities = SourceQuantities {
+            transactions: 12,
+            ..Default::default()
+        };
+        item.set_source_quantities(source_quantities);
+
+        assert_eq!(item.source_quantities(), Some(source_quantities));
     }
 
     #[test]
@@ -1659,8 +1816,8 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-"###);
+        insta::assert_snapshot!(stringified, @r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
+"#);
     }
 
     #[test]
@@ -1684,14 +1841,14 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"
+        insta::assert_snapshot!(stringified, @r#"
         {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
 
-        "###);
+        "#);
     }
 
     #[test]

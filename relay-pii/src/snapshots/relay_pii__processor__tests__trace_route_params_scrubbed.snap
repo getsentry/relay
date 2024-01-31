@@ -1,0 +1,37 @@
+---
+source: relay-pii/src/processor.rs
+expression: trace_context
+---
+{
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+  "span_id": "fa90fdead5f74052",
+  "data": {
+    "previousRoute": {
+      "params": {
+        "password": "[Filtered]"
+      }
+    }
+  },
+  "type": "trace",
+  "_meta": {
+    "data": {
+      "previousRoute": {
+        "params": {
+          "password": {
+            "": {
+              "rem": [
+                [
+                  "@password:filter",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 4
+            }
+          }
+        }
+      }
+    }
+  }
+}

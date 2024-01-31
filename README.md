@@ -31,8 +31,8 @@ SDKs as well as the Sentry server into a proxy process.
 
 ## License
 
-Like Sentry, Relay is licensed under the BSL. See the `LICENSE` file and [this
-forum post](https://forum.sentry.io/t/re-licensing-sentry-faq-discussion/8044)
+Like Sentry, Relay is licensed under the FSL. See the `LICENSE.md` file and [this
+blog post](https://blog.sentry.io/introducing-the-functional-source-license-freedom-without-free-riding/)
 for more information.
 
 ## Development
@@ -61,7 +61,7 @@ development:
   also performed in CI.
 - `make clean`: Removes all build artifacts, the virtualenv and cached files.
 
-For more avalibale make targets, please, run `make help`.
+For more available make targets, please, run `make help`.
 
 Integration tests require Redis and Kafka running in their default
 configuration. The most convenient way to get all required services is via
@@ -149,7 +149,7 @@ make build
 
 #### Snapshot tests
 
-We use `insta` for snapshot testing. It will run as part of the `make test` command 
+We use `insta` for snapshot testing. It will run as part of the `make test` command
 to validate schema/protocol changes. To install the `insta` tool for reviewing snapshots run:
 ```bash
 cargo install cargo-insta
@@ -212,7 +212,7 @@ make test-python
 
 To develop Relay with an existing Sentry devserver, self-hosted Sentry
 installation, or Sentry SaaS, configure the upstream to the URL of the Sentry
-server in `.relay/config.yml`. For example, in local development set
+server in `.relay/config.yml` in the project root directory. For example, in local development set
 `relay.upstream` to `http://localhost:8000/`.
 
 To test processing mode with a local development Sentry, use this configuration:

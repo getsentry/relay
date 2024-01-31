@@ -1,57 +1,40 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use itertools::Itertools;
-use once_cell::sync::Lazy;
-use regex::Regex;
-use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
-use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
-use relay_filter::csp::SchemeDomainPort;
-use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource, User,
+use relay_base_schema::events::EventType;
+use relay_common::time::UnixTimestamp;
+use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
+use relay_event_normalization::utils as normalize_utils;
+use relay_event_schema::protocol::{
+    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
-use relay_general::store;
-use relay_general::types::{Annotated, Value};
-use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
+use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 
-use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
-    TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
+    TransactionDurationTags, TransactionMeasurementTags, TransactionMetric, UsageTags,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
-use crate::utils::SamplingResult;
+use crate::utils::{self, SamplingResult};
 
 pub mod types;
 
-fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    let contexts = event.contexts.value()?;
-    let trace = contexts.get("trace").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
-        return Some(trace_context.as_ref());
-    }
+/// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
+/// cardinality data such as raw URLs.
+const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 
-    None
-}
-
-/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-/// Must be consistent with `process_trace_context` in [`relay_general::store`].
-fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
-    *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
-}
-
-fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
-    let op = trace_context.op.value()?;
-    if op == "default" {
-        // This was likely set by normalization, so let's treat it as None
-        // See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96
-
-        // Note that this is the opposite behavior of what we do for transaction.status, where
-        // we coalesce None to "unknown".
-        return None;
-    }
-    Some(op.to_string())
-}
+/// Tags we set on metrics for performance score measurements (e.g. `score.lcp.weight`).
+///
+/// These are a subset of "universal" tags.
+const PERFORMANCE_SCORE_TAGS: [CommonTag; 6] = [
+    CommonTag::BrowserName,
+    CommonTag::Environment,
+    CommonTag::GeoCountryCode,
+    CommonTag::Release,
+    CommonTag::Transaction,
+    CommonTag::TransactionOp,
+];
 
 /// Extract HTTP method
 /// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
@@ -61,105 +44,26 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     Some(method.clone())
 }
 
-/// Extract the browser name from the [`Context::Browser`] context.
+/// Extract the browser name from the [`BrowserContext`] context.
 fn extract_browser_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let browser = contexts.get("browser").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Browser(browser_context))) = browser {
-        return browser_context.name.value().cloned();
-    }
-
-    None
+    let browser = event.context::<BrowserContext>()?;
+    browser.name.value().cloned()
 }
 
-/// Extract the OS name from the [`Context::Os`] context.
+/// Extract the OS name from the [`OsContext`] context.
 fn extract_os_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let os = contexts.get("os").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Os(os_context))) = os {
-        return os_context.name.value().cloned();
-    }
-
-    None
+    let os = event.context::<OsContext>()?;
+    os.name.value().cloned()
 }
 
-/// Extract the GEO country code from the [`User`] context.
+/// Extract the GEO country code from the [`relay_event_schema::protocol::User`] context.
 fn extract_geo_country_code(event: &Event) -> Option<String> {
-    if let Some(user) = event.user.value() {
-        if let Some(geo) = user.geo.value() {
-            return geo.country_code.value().cloned();
-        }
-    }
-
-    None
+    let user = event.user.value()?;
+    let geo = user.geo.value()?;
+    geo.country_code.value().cloned()
 }
 
-/// Extract the HTTP status code from the span data.
-fn http_status_code_from_span_data(span: &Span) -> Option<String> {
-    span.data
-        .value()
-        .and_then(|v| v.get("status_code"))
-        .and_then(|v| v.as_str())
-        .map(|v| v.to_string())
-}
-
-/// Extracts the HTTP status code.
-fn extract_http_status_code(event: &Event) -> Option<String> {
-    if let Some(spans) = event.spans.value() {
-        for span in spans {
-            if let Some(span_value) = span.value() {
-                // For SDKs which put the HTTP status code into the span data.
-                if let Some(status_code) = http_status_code_from_span_data(span_value) {
-                    return Some(status_code);
-                }
-
-                // For SDKs which put the HTTP status code into the span tags.
-                if let Some(status_code) = span_value
-                    .tags
-                    .value()
-                    .and_then(|tags| tags.get("http.status_code"))
-                {
-                    return status_code.value().map(|v| v.as_str().to_string());
-                }
-            }
-        }
-    }
-
-    // For SDKs which put the HTTP status code into the breadcrumbs data.
-    if let Some(breadcrumbs) = event.breadcrumbs.value() {
-        if let Some(values) = breadcrumbs.values.value() {
-            for breadcrumb in values {
-                // We need only the `http` type.
-                if let Some(crumb) = breadcrumb
-                    .value()
-                    .filter(|bc| bc.ty.as_str() == Some("http"))
-                {
-                    // Try to get the status code om the map.
-                    if let Some(status_code) = crumb.data.value().and_then(|v| v.get("status_code"))
-                    {
-                        return status_code.value().and_then(|v| v.as_str()).map(Into::into);
-                    }
-                }
-            }
-        }
-    }
-
-    // For SDKs which put the HTTP status code in the `Response` context.
-    if let Some(contexts) = event.contexts.value() {
-        let response = contexts.get("response").and_then(Annotated::value);
-        if let Some(ContextInner(Context::Response(response_context))) = response {
-            let status_code = response_context
-                .status_code
-                .value()
-                .map(|code| code.to_string());
-            return status_code;
-        }
-    }
-
-    None
-}
-
-fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
+fn is_low_cardinality(source: &TransactionSource) -> bool {
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
         TransactionSource::Custom => true,
@@ -177,9 +81,9 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
         // low-cardinality now.
         TransactionSource::Sanitized => true,
 
-        // "unknown" is the value for old SDKs that do not send a transaction source yet.
-        // Caller decides how to treat this.
-        TransactionSource::Unknown => treat_unknown_as_low_cardinality,
+        // Explicit `Unknown` is used to mark a legacy SDK that does not send the transaction name,
+        // but we assume sends low-cardinality data. See `is_high_cardinality_transaction`.
+        TransactionSource::Unknown => true,
 
         // Any other value would be an SDK bug or users manually configuring the
         // source, assume high-cardinality and drop.
@@ -190,62 +94,46 @@ fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinali
 /// Decide whether we want to keep the transaction name.
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
-fn get_transaction_name(
-    event: &Event,
-    accept_transaction_names: AcceptTransactionNames,
-) -> Option<String> {
-    let original_transaction_name = match event.transaction.value() {
-        Some(name) => name,
-        None => {
-            return None;
-        }
-    };
+fn get_transaction_name(event: &Event) -> Option<String> {
+    let original = event.transaction.value()?;
 
-    // In client-based mode, handling of "unknown" sources depends on the SDK name.
-    // In strict mode, treat "unknown" as high cardinality.
-    let treat_unknown_as_low_cardinality = matches!(
-        accept_transaction_names,
-        AcceptTransactionNames::ClientBased
-    ) && !store::is_high_cardinality_sdk(event);
+    let source = event
+        .transaction_info
+        .value()
+        .and_then(|info| info.source.value());
 
-    let source = event.get_transaction_source();
-    let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
+    match source {
+        Some(source) if is_low_cardinality(source) => Some(original.clone()),
+        Some(TransactionSource::Other(_)) | None => None,
+        Some(_) => Some(PLACEHOLDER_UNPARAMETERIZED.to_owned()),
+    }
+}
 
-    let name_used;
-    let name = if use_original_name {
-        name_used = "original";
-        Some(original_transaction_name.clone())
-    } else {
-        // Pick a sentinel based on the transaction source:
-        match source {
-            TransactionSource::Unknown | TransactionSource::Other(_) => {
-                name_used = "none";
-                None
-            }
-            _ => {
-                name_used = "placeholder";
-                Some("<< unparameterized >>".to_owned())
-            }
-        }
+fn track_transaction_name_stats(event: &Event) {
+    let name_used = match get_transaction_name(event).as_deref() {
+        Some(self::PLACEHOLDER_UNPARAMETERIZED) => "placeholder",
+        Some(_) => "original",
+        None => "none",
     };
 
     relay_statsd::metric!(
         counter(RelayCounters::MetricsTransactionNameExtracted) += 1,
-        strategy = match &accept_transaction_names {
-            AcceptTransactionNames::ClientBased => "client-based",
-            AcceptTransactionNames::Strict => "strict",
-        },
-        source = &source.to_string(),
+        source = utils::transaction_source_tag(event),
         sdk_name = event
             .client_sdk
             .value()
-            .and_then(|c| c.name.value())
-            .map(std::string::String::as_str)
+            .and_then(|sdk| sdk.name.as_str())
             .unwrap_or_default(),
         name_used = name_used,
     );
+}
 
-    name
+/// These are the tags that are added to extracted low cardinality metrics.
+fn extract_light_transaction_tags(tags: &CommonTags) -> LightTransactionTags {
+    LightTransactionTags {
+        transaction_op: tags.0.get(&CommonTag::TransactionOp).cloned(),
+        transaction: tags.0.get(&CommonTag::Transaction).cloned(),
+    }
 }
 
 /// These are the tags that are added to all extracted metrics.
@@ -260,27 +148,29 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     if let Some(environment) = event.environment.as_str() {
         tags.insert(CommonTag::Environment, environment.to_string());
     }
-    if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
+    if let Some(transaction_name) = get_transaction_name(event) {
         tags.insert(CommonTag::Transaction, transaction_name);
     }
 
     // The platform tag should not increase dimensionality in most cases, because most
     // transactions are specific to one platform.
     // NOTE: we might want to reconsider light normalization a little and include the
-    // `store::is_valid_platform` into light normalization.
+    // `relay_event_normalization::is_valid_platform` into light normalization.
     let platform = match event.platform.as_str() {
-        Some(platform) if store::is_valid_platform(platform) => platform,
+        Some(platform) if relay_event_normalization::is_valid_platform(platform) => platform,
         _ => "other",
     };
 
     tags.insert(CommonTag::Platform, platform.to_string());
 
-    if let Some(trace_context) = get_trace_context(event) {
-        let status = extract_transaction_status(trace_context);
+    if let Some(trace_context) = event.context::<TraceContext>() {
+        // We assume that the trace context status is automatically set to unknown inside of the
+        // light event normalization step.
+        if let Some(status) = trace_context.status.value() {
+            tags.insert(CommonTag::TransactionStatus, status.to_string());
+        }
 
-        tags.insert(CommonTag::TransactionStatus, status.to_string());
-
-        if let Some(op) = extract_transaction_op(trace_context) {
+        if let Some(op) = normalize_utils::extract_transaction_op(trace_context) {
             tags.insert(CommonTag::TransactionOp, op);
         }
     }
@@ -301,8 +191,14 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::GeoCountryCode, geo_country_code);
     }
 
-    if let Some(status_code) = extract_http_status_code(event) {
+    if let Some(status_code) = normalize_utils::extract_http_status_code(event) {
         tags.insert(CommonTag::HttpStatusCode, status_code);
+    }
+
+    if normalize_utils::MOBILE_SDKS.contains(&event.sdk_name()) {
+        if let Some(device_class) = event.tag_value("device.class") {
+            tags.insert(CommonTag::DeviceClass, device_class.to_owned());
+        }
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -325,471 +221,251 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     CommonTags(tags)
 }
 
-#[allow(clippy::too_many_arguments)] // TODO: Provide a more sensible API for this.
-pub fn extract_transaction_metrics(
-    aggregator_config: &AggregatorConfig,
-    config: &TransactionMetricsConfig,
-    conditional_tagging_config: &[TaggingRule],
-    extract_spans_metrics: bool,
-    event: &mut Event,
-    transaction_from_dsc: Option<&str>,
-    sampling_result: &SamplingResult,
-    project_metrics: &mut Vec<Metric>,  // output parameter
-    sampling_metrics: &mut Vec<Metric>, // output parameter
-) -> Result<bool, ExtractMetricsError> {
-    let before_len = project_metrics.len();
+/// Metrics extracted from an envelope.
+///
+/// Metric extraction derives pre-computed metrics (time series data) from payload items in
+/// envelopes. Depending on their semantics, these metrics can be ingested into the same project as
+/// the envelope or a different project.
+#[derive(Debug, Default)]
+pub struct ExtractedMetrics {
+    /// Metrics associated with the project of the envelope.
+    pub project_metrics: Vec<Bucket>,
 
-    extract_transaction_metrics_inner(
-        aggregator_config,
-        config,
-        event,
-        transaction_from_dsc,
-        sampling_result,
-        project_metrics,
-        sampling_metrics,
-    )?;
-
-    if extract_spans_metrics {
-        extract_span_metrics(aggregator_config, event, project_metrics)?;
-    }
-
-    let added_slice = &mut project_metrics[before_len..];
-    run_conditional_tagging(event, conditional_tagging_config, added_slice);
-    Ok(!added_slice.is_empty())
+    /// Metrics associated with the project of the trace parent.
+    pub sampling_metrics: Vec<Bucket>,
 }
 
-fn extract_transaction_metrics_inner(
-    aggregator_config: &AggregatorConfig,
-    config: &TransactionMetricsConfig,
-    event: &Event,
-    transaction_from_dsc: Option<&str>,
-    sampling_result: &SamplingResult,
-    metrics: &mut Vec<Metric>,          // output parameter
-    sampling_metrics: &mut Vec<Metric>, // output parameter
-) -> Result<(), ExtractMetricsError> {
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
+impl ExtractedMetrics {
+    /// Extends the set of metrics with the supplied newly extracted metrics.
+    pub fn extend(&mut self, other: Self) {
+        self.project_metrics.extend(other.project_metrics);
+        self.sampling_metrics.extend(other.sampling_metrics);
     }
+}
 
-    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
-        relay_log::debug!("failed to extract the start and the end timestamps from the event");
-        return Err(ExtractMetricsError::MissingTimestamp);
-    };
+/// A utility that extracts metrics from transactions.
+pub struct TransactionExtractor<'a> {
+    pub config: &'a TransactionMetricsConfig,
+    pub generic_tags: &'a [TagMapping],
+    pub transaction_from_dsc: Option<&'a str>,
+    pub sampling_result: &'a SamplingResult,
+    pub has_profile: bool,
+}
 
-    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-        relay_log::debug!("event timestamp is not a valid unix timestamp");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    };
+impl TransactionExtractor<'_> {
+    pub fn extract(&self, event: &Event) -> Result<ExtractedMetrics, ExtractMetricsError> {
+        let mut metrics = ExtractedMetrics::default();
 
-    // Validate the transaction event against the metrics timestamp limits. If the metric is too
-    // old or too new, we cannot extract the metric and also need to drop the transaction event
-    // for consistency between metrics and events.
-    if !aggregator_config.timestamp_range().contains(&timestamp) {
-        relay_log::debug!("event timestamp is out of the valid range for metrics");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    }
+        if event.ty.value() != Some(&EventType::Transaction) {
+            return Ok(metrics);
+        }
 
-    let tags = extract_universal_tags(event, config);
+        let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value())
+        else {
+            relay_log::debug!("failed to extract the start and the end timestamps from the event");
+            return Err(ExtractMetricsError::MissingTimestamp);
+        };
 
-    // Measurements
-    if let Some(measurements) = event.measurements.value() {
-        for (name, annotated) in measurements.iter() {
-            let measurement = match annotated.value() {
-                Some(m) => m,
-                None => continue,
+        let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+            relay_log::debug!("event timestamp is not a valid unix timestamp");
+            return Err(ExtractMetricsError::InvalidTimestamp);
+        };
+
+        track_transaction_name_stats(event);
+        let tags = extract_universal_tags(event, self.config);
+        let light_tags = extract_light_transaction_tags(&tags);
+
+        // Measurements
+        let measurement_names: BTreeSet<_> = event
+            .measurements
+            .value()
+            .into_iter()
+            .flat_map(|measurements| measurements.keys())
+            .map(String::as_str)
+            .collect();
+        if let Some(measurements) = event.measurements.value() {
+            for (name, annotated) in measurements.iter() {
+                let Some(measurement) = annotated.value() else {
+                    continue;
+                };
+
+                let Some(value) = measurement.value.value().copied() else {
+                    continue;
+                };
+
+                let Some(value) = FiniteF64::new(value) else {
+                    relay_log::error!(
+                        tags.field = format_args!("measurements.{name}"),
+                        "non-finite float value in transaction metric extraction"
+                    );
+                    continue;
+                };
+
+                // We treat a measurement as "performance score" if its name is the name of another
+                // measurement prefixed by `score.`.
+                let is_performance_score = name == "score.total"
+                    || name
+                        .strip_prefix("score.weight.")
+                        .or_else(|| name.strip_prefix("score."))
+                        .map_or(false, |suffix| measurement_names.contains(suffix));
+
+                let measurement_tags = TransactionMeasurementTags {
+                    measurement_rating: get_measurement_rating(name, value.to_f64()),
+                    universal_tags: if is_performance_score {
+                        CommonTags(
+                            tags.0
+                                .iter()
+                                .filter(|&(key, _)| PERFORMANCE_SCORE_TAGS.contains(key))
+                                .map(|(key, value)| (key.clone(), value.clone()))
+                                .collect::<BTreeMap<_, _>>(),
+                        )
+                    } else {
+                        tags.clone()
+                    },
+                };
+
+                metrics.project_metrics.push(
+                    TransactionMetric::Measurement {
+                        name: name.to_string(),
+                        value,
+                        unit: measurement.unit.value().copied().unwrap_or_default(),
+                        tags: measurement_tags,
+                    }
+                    .into_metric(timestamp),
+                );
+            }
+        }
+
+        // Breakdowns
+        if let Some(breakdowns) = event.breakdowns.value() {
+            for (breakdown, measurements) in breakdowns.iter() {
+                if let Some(measurements) = measurements.value() {
+                    for (measurement_name, annotated) in measurements.iter() {
+                        if measurement_name == "total.time" {
+                            // The only reason we do not emit total.time as a metric is that is was not
+                            // on the allowlist in sentry before, and nobody seems to be missing it.
+                            continue;
+                        }
+
+                        let Some(measurement) = annotated.value() else {
+                            continue;
+                        };
+
+                        let Some(value) = measurement.value.value().copied() else {
+                            continue;
+                        };
+
+                        let Some(value) = FiniteF64::new(value) else {
+                            relay_log::error!(
+                                tags.field =
+                                    format_args!("breakdowns.{breakdown}.{measurement_name}"),
+                                "non-finite float value in transaction metric extraction"
+                            );
+                            continue;
+                        };
+
+                        metrics.project_metrics.push(
+                            TransactionMetric::Breakdown {
+                                name: format!("{breakdown}.{measurement_name}"),
+                                value,
+                                tags: tags.clone(),
+                            }
+                            .into_metric(timestamp),
+                        );
+                    }
+                }
+            }
+        }
+
+        // Internal usage counter
+        metrics.project_metrics.push(
+            TransactionMetric::Usage {
+                tags: UsageTags {
+                    has_profile: self.has_profile,
+                },
+            }
+            .into_metric(timestamp),
+        );
+
+        // Duration
+        let duration = relay_common::time::chrono_to_positive_millis(end - start);
+        if let Some(duration) = FiniteF64::new(duration) {
+            let has_profile = if self.config.version >= 3 {
+                false
+            } else {
+                self.has_profile
             };
 
-            let value = match measurement.value.value() {
-                Some(value) => *value,
-                None => continue,
-            };
-
-            let measurement_tags = TransactionMeasurementTags {
-                measurement_rating: get_measurement_rating(name, value),
-                universal_tags: tags.clone(),
-            };
-
-            metrics.push(
-                TransactionMetric::Measurement {
-                    name: name.to_string(),
-                    value,
-                    unit: measurement.unit.value().copied().unwrap_or_default(),
-                    tags: measurement_tags,
+            metrics.project_metrics.push(
+                TransactionMetric::Duration {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: TransactionDurationTags {
+                        has_profile,
+                        universal_tags: tags.clone(),
+                    },
                 }
                 .into_metric(timestamp),
             );
-        }
-    }
 
-    // Breakdowns
-    if let Some(breakdowns) = event.breakdowns.value() {
-        for (breakdown, measurements) in breakdowns.iter() {
-            if let Some(measurements) = measurements.value() {
-                for (measurement_name, annotated) in measurements.iter() {
-                    if measurement_name == "total.time" {
-                        // The only reason we do not emit total.time as a metric is that is was not
-                        // on the allowlist in sentry before, and nobody seems to be missing it.
-                        continue;
-                    }
-
-                    let measurement = match annotated.value() {
-                        Some(m) => m,
-                        None => continue,
-                    };
-
-                    let value = match measurement.value.value() {
-                        Some(value) => *value,
-                        None => continue,
-                    };
-                    metrics.push(
-                        TransactionMetric::Breakdown {
-                            name: format!("{breakdown}.{measurement_name}"),
-                            value,
-                            tags: tags.clone(),
-                        }
-                        .into_metric(timestamp),
-                    );
+            // Lower cardinality duration
+            metrics.project_metrics.push(
+                TransactionMetric::DurationLight {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: light_tags,
                 }
-            }
-        }
-    }
-
-    // Duration
-    metrics.push(
-        TransactionMetric::Duration {
-            unit: DurationUnit::MilliSecond,
-            value: relay_common::chrono_to_positive_millis(end - start),
-            tags: tags.clone(),
-        }
-        .into_metric(timestamp),
-    );
-
-    let root_counter_tags = {
-        let mut universal_tags = CommonTags(BTreeMap::default());
-        if let Some(transaction_from_dsc) = transaction_from_dsc {
-            universal_tags
-                .0
-                .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
-        }
-        TransactionCPRTags {
-            decision: match sampling_result {
-                SamplingResult::Keep => "keep".to_owned(),
-                SamplingResult::Drop(_) => "drop".to_owned(),
-            },
-            universal_tags,
-        }
-    };
-    // Count the transaction towards the root
-    sampling_metrics.push(
-        TransactionMetric::CountPerRootProject {
-            value: 1.0,
-            tags: root_counter_tags,
-        }
-        .into_metric(timestamp),
-    );
-
-    // User
-    if let Some(user) = event.user.value() {
-        if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(TransactionMetric::User { value, tags }.into_metric(timestamp));
-        }
-    }
-
-    Ok(())
-}
-
-/// Extracts metrics from the spans of the given transaction, and sets common
-/// tags for all the metrics and spans. If a span already contains a tag
-/// extracted for a metric, the tag value is overwritten.
-fn extract_span_metrics(
-    aggregator_config: &AggregatorConfig,
-    event: &mut Event,
-    metrics: &mut Vec<Metric>, // output parameter
-) -> Result<(), ExtractMetricsError> {
-    // TODO(iker): measure the performance of this whole method
-
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
-    }
-    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
-        relay_log::debug!("failed to extract the start and the end timestamps from the event");
-        return Err(ExtractMetricsError::MissingTimestamp);
-    };
-
-    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-        relay_log::debug!("event timestamp is not a valid unix timestamp");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    };
-
-    // Validate the transaction event against the metrics timestamp limits. If the metric is too
-    // old or too new, we cannot extract the metric and also need to drop the transaction event
-    // for consistency between metrics and events.
-    if !aggregator_config.timestamp_range().contains(&timestamp) {
-        relay_log::debug!("event timestamp is out of the valid range for metrics");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    }
-
-    // Collect the shared tags for all the metrics and spans on this transaction.
-    let mut shared_tags = BTreeMap::new();
-
-    if let Some(environment) = event.environment.as_str() {
-        shared_tags.insert("environment".to_owned(), environment.to_owned());
-    }
-
-    if let Some(transaction_name) = event.transaction.value() {
-        shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
-    }
-
-    if let Some(trace_context) = get_trace_context(event) {
-        if let Some(op) = extract_transaction_op(trace_context) {
-            shared_tags.insert("transaction.op".to_owned(), op);
-        }
-    }
-
-    let Some(spans) = event.spans.value_mut() else { return Ok(())};
-
-    for annotated_span in spans {
-        if let Some(span) = annotated_span.value_mut() {
-            let mut span_tags = shared_tags.clone();
-
-            if let Some(scrubbed_description) = span
-                .data
-                .value()
-                .and_then(|data| data.get("description.scrubbed"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    "span.description".to_owned(),
-                    scrubbed_description.to_owned(),
-                );
-            }
-
-            if let Some(span_op) = span.op.value() {
-                span_tags.insert("span.op".to_owned(), span_op.to_owned());
-
-                let span_module = if span_op.starts_with("http") {
-                    Some("http")
-                } else if span_op.starts_with("db") {
-                    Some("db")
-                } else if span_op.starts_with("cache") {
-                    Some("cache")
-                } else {
-                    None
-                };
-
-                if let Some(module) = span_module {
-                    span_tags.insert("span.module".to_owned(), module.to_owned());
-                }
-
-                // TODO(iker): we're relying on the existance of `http.method`
-                // or `db.operation`. This is not guaranteed, and we'll need to
-                // parse the span description in that case.
-                let action = match span_module {
-                    Some("http") => span
-                        .data
-                        .value()
-                        // TODO(iker): some SDKs extract this as method
-                        .and_then(|v| v.get("http.method"))
-                        .and_then(|method| method.as_str()),
-                    Some("db") => span
-                        .data
-                        .value()
-                        .and_then(|v| v.get("db.operation"))
-                        .and_then(|db_op| db_op.as_str()),
-                    _ => None,
-                };
-
-                if let Some(act) = action {
-                    span_tags.insert("span.action".to_owned(), act.to_owned());
-                }
-
-                let domain = if span_op == "http.client" {
-                    span.description
-                        .value()
-                        .and_then(|url| domain_from_http_url(url))
-                } else if span_op == "db.sql.query" {
-                    span.description
-                        .value()
-                        .and_then(|query| sql_table_from_query(query))
-                        .map(|s| s.to_owned())
-                } else {
-                    None
-                };
-
-                if let Some(dom) = domain {
-                    span_tags.insert("span.domain".to_owned(), dom.to_owned());
-                }
-            }
-
-            let system = span
-                .data
-                .value()
-                .and_then(|v| v.get("db.system"))
-                .and_then(|system| system.as_str());
-            if let Some(sys) = system {
-                span_tags.insert("span.system".to_owned(), sys.to_owned());
-            }
-
-            if let Some(span_status) = span.status.value() {
-                span_tags.insert("span.status".to_owned(), span_status.to_string());
-            }
-
-            if let Some(status_code) = http_status_code_from_span_data(span) {
-                span_tags.insert("span.status_code".to_owned(), status_code);
-            }
-
-            // Even if we emit metrics, we want this info to be duplicated in every span.
-            span.data.get_or_insert_with(BTreeMap::new).extend(
-                span_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+                .into_metric(timestamp),
             );
-
-            if let Some(user) = event.user.value() {
-                if let Some(value) = get_eventuser_tag(user) {
-                    metrics.push(Metric::new_mri(
-                        MetricNamespace::Transactions,
-                        "span.user",
-                        MetricUnit::None,
-                        MetricValue::set_from_str(&value),
-                        timestamp,
-                        span_tags.clone(),
-                    ));
-                }
-            }
-
-            if let Some(exclusive_time) = span.exclusive_time.value() {
-                // NOTE(iker): this exclusive time doesn't consider all cases,
-                // such as sub-transactions. We accept these limitations for
-                // now.
-                metrics.push(Metric::new_mri(
-                    MetricNamespace::Transactions,
-                    "span.exclusive_time",
-                    MetricUnit::Duration(DurationUnit::MilliSecond),
-                    MetricValue::Distribution(*exclusive_time),
-                    timestamp,
-                    span_tags.clone(),
-                ));
-            }
-
-            // The `duration` of a span. This metric also serves as the
-            // counter metric `throughput`.
-            metrics.push(Metric::new_mri(
-                MetricNamespace::Transactions,
-                "span.duration",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
-                timestamp,
-                span_tags.clone(),
-            ));
+        } else {
+            relay_log::error!(
+                tags.field = "duration",
+                "non-finite float value in transaction metric extraction"
+            );
         }
-    }
 
-    Ok(())
-}
+        let root_counter_tags = {
+            let mut universal_tags = CommonTags(BTreeMap::default());
+            if let Some(transaction_from_dsc) = self.transaction_from_dsc {
+                universal_tags
+                    .0
+                    .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
+            }
+            let decision = if self.sampling_result.should_keep() {
+                "keep"
+            } else {
+                "drop"
+            };
 
-static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(from|into)(\s|\()+(?P<table>(\w+(\.\w+)*))(\s|\))+"#).unwrap());
+            TransactionCPRTags {
+                decision: decision.to_owned(),
+                universal_tags,
+            }
+        };
+        // Count the transaction towards the root
+        metrics.sampling_metrics.push(
+            TransactionMetric::CountPerRootProject {
+                tags: root_counter_tags,
+            }
+            .into_metric(timestamp),
+        );
 
-/// Returns the table in the SQL query, if any.
-///
-/// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<&str> {
-    let capture_names: Vec<_> = SQL_TABLE_EXTRACTOR_REGEX
-        .capture_names()
-        .flatten()
-        .collect();
-
-    for captures in SQL_TABLE_EXTRACTOR_REGEX.captures_iter(query) {
-        for name in &capture_names {
-            if let Some(capture) = captures.name(name) {
-                return Some(&query[capture.start()..capture.end()]);
+        // User
+        if let Some(user) = event.user.value() {
+            if let Some(value) = normalize_utils::get_eventuser_tag(user) {
+                metrics
+                    .project_metrics
+                    .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
             }
         }
+
+        // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
+        // metric extraction, after which this is done automatically.
+        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_tags);
+        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_tags);
+
+        Ok(metrics)
     }
-
-    None
-}
-
-fn domain_from_http_url(url: &str) -> Option<String> {
-    match url.split_once(' ') {
-        Some((_method, url)) => {
-            let domain_port = SchemeDomainPort::from(url);
-            match (domain_port.domain, domain_port.port) {
-                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
-    let mut tokens = domain.rsplitn(3, '.');
-    let tld = tokens.next();
-    let domain = tokens.next();
-    let prefix = tokens.next().map(|_| "*");
-
-    let mut replaced = prefix
-        .iter()
-        .chain(domain.iter())
-        .chain(tld.iter())
-        .join(".");
-
-    if let Some(port) = port {
-        replaced = format!("{replaced}:{port}");
-    }
-    Some(replaced)
-}
-
-/// Compute the transaction event's "user" tag as close as possible to how users are determined in
-/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
-/// column in Discover for Transactions, barring:
-///
-/// * imprecision caused by HLL sketching in Snuba, which we don't have in events
-/// * hash collisions in [`relay_metrics::MetricValue::set_from_display`], which we don't have in events
-/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
-///
-///   MD5 is used to efficiently look up the current event user for an event, and if there is a
-///   collision it seems that this code will fetch an event user with potentially different values
-///   for everything that is in `defaults`:
-///   <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060>
-///
-/// The performance product runs a discover query such as `count_unique(user)`, which maps to two
-/// things:
-///
-/// * `user` metric for the metrics dataset
-/// * the "promoted tag" column `user` in the transactions clickhouse table
-///
-/// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the
-/// `sentry:user` tag from the event payload:
-/// <https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151>
-///
-/// Sentry's processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
-/// here: <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794>
-///
-/// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
-/// <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18>
-/// If its order is changed, this function needs to be changed.
-fn get_eventuser_tag(user: &User) -> Option<String> {
-    if let Some(id) = user.id.as_str() {
-        return Some(format!("id:{id}"));
-    }
-
-    if let Some(username) = user.username.as_str() {
-        return Some(format!("username:{username}"));
-    }
-
-    if let Some(email) = user.email.as_str() {
-        return Some(format!("email:{email}"));
-    }
-
-    if let Some(ip_address) = user.ip_address.as_str() {
-        return Some(format!("ip:{ip_address}"));
-    }
-
-    None
 }
 
 fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
@@ -816,26 +492,18 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use insta;
-    use relay_common::MetricUnit;
-    use relay_dynamic_config::TaggingRule;
-    use relay_general::protocol::{Contexts, Timestamp, User};
-    use relay_general::store::{
-        self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
+    use relay_dynamic_config::AcceptTransactionNames;
+    use relay_event_normalization::{
+        normalize_event, set_default_transaction_source, validate_event_timestamps,
+        validate_transaction, BreakdownsConfig, DynamicMeasurementsConfig, EventValidationConfig,
+        MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
+        PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
-    use relay_general::types::Annotated;
-    use relay_metrics::{DurationUnit, MetricNamespace, MetricValue};
+    use relay_event_schema::protocol::User;
+    use relay_metrics::BucketValue;
+    use relay_protocol::{Annotated, RuleCondition};
 
     use super::*;
-
-    /// Returns an aggregator config that permits every timestamp.
-    fn aggregator_config() -> AggregatorConfig {
-        AggregatorConfig {
-            max_secs_in_past: u64::MAX,
-            max_secs_in_future: u64::MAX,
-            ..Default::default()
-        }
-    }
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -845,11 +513,10 @@ mod tests {
             "platform": "javascript",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "timestamp": "2021-04-26T08:00:00+0100",
-            "server_name": "myhost",
             "release": "1.2.3",
             "dist": "foo ",
             "environment": "fake_environment",
-            "transaction": "mytransaction",
+            "transaction": "gEt /api/:version/users/",
             "transaction_info": {"source": "custom"},
             "user": {
                 "id": "user123",
@@ -859,7 +526,8 @@ mod tests {
             },
             "tags": {
                 "fOO": "bar",
-                "bogus": "absolutely"
+                "bogus": "absolutely",
+                "device.class": "1"
             },
             "measurements": {
                 "foo": {"value": 420.69},
@@ -869,7 +537,7 @@ mod tests {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "span_id": "bd429c44b67a3eb4",
-                    "op": "myop",
+                    "op": "mYOp",
                     "status": "ok"
                 },
                 "browser": {
@@ -878,6 +546,9 @@ mod tests {
                 "os": {
                     "name": "Windows"
                 }
+            },
+            "request": {
+                "method": "post"
             },
             "spans": [
                 {
@@ -888,212 +559,115 @@ mod tests {
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
-                },
-                {
-                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
-                    "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bd2eb23da2beb459",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "http.method": "POST",
-                        "status_code": "200"
-                    }
-                },
-                {
-                    "description": "POST http://targetdomain.tld:targetport/api/hi",
-                    "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bd2eb23da2beb459",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "http.method": "POST",
-                        "status_code": "200"
-                    }
-                },
-                {
-                    "description": "POST http://targetdomain:targetport/api/id/0987654321",
-                    "op": "http.client",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bd2eb23da2beb459",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "http.method": "POST",
-                        "status_code": "200"
-                    }
-                },
-                {
-                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
-                    "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "db.system": "MyDatabase",
-                        "db.operation": "SELECT"
-                    }
-                },
-                {
-                    "description": "INSERT INTO table (col) VALUES (val)",
-                    "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "db.system": "MyDatabase",
-                        "db.operation": "INSERT"
-                    }
-                },
-                {
-                    "description": "INSERT INTO from_date (col) VALUES (val)",
-                    "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "db.system": "MyDatabase",
-                        "db.operation": "INSERT"
-                    }
-                },
-                {
-                    "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
-                    "op": "db.sql.query",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "db.system": "MyDatabase",
-                        "db.operation": "SELECT"
-                    }
-                },
-                {
-                    "description": "SAVEPOINT save_this_one",
-                    "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "db.system": "MyDatabase",
-                        "db.operation": "SELECT"
-                    }
-                },
-                {
-                    "description": "GET cache:user:{123}",
-                    "op": "cache.get_item",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "cache.hit": false
-                    }
-                },
-                {
-                    "description": "http://domain/static/myscript-v1.9.23.js",
-                    "op": "resource.script",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok"
                 }
-            ],
-            "request": {
-                "method": "POST"
-            }
+             ]
         }
         "#;
 
+        let mut event = Annotated::from_json(json).unwrap();
+
         let breakdowns_config: BreakdownsConfig = serde_json::from_str(
-            r#"
-            {
+            r#"{
                 "span_ops": {
                     "type": "spanOperations",
                     "matches": ["react.mount"]
                 }
-            }
-        "#,
+            }"#,
         )
         .unwrap();
 
-        let mut event = Annotated::from_json(json).unwrap();
+        // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
+        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
+        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
 
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-        {
-            "version": 1,
-            "extractCustomTags": ["fOO"]
-        }
-        "#,
-        )
-        .unwrap();
-
-        let aggregator_config = aggregator_config();
-
-        // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        normalize_event(
             &mut event,
-            LightNormalizationConfig {
+            &NormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
-                scrub_span_descriptions: true,
-                light_normalize_spans: true,
+                enrich_spans: false,
+                normalize_spans: true,
+                performance_score: Some(&PerformanceScoreConfig {
+                    profiles: vec![PerformanceScoreProfile {
+                        name: Some("".into()),
+                        score_components: vec![PerformanceScoreWeightedComponent {
+                            measurement: "lcp".into(),
+                            weight: 0.5,
+                            p10: 2.0,
+                            p50: 3.0,
+                            optional: false,
+                        }],
+                        condition: Some(RuleCondition::all()),
+                    }],
+                }),
                 ..Default::default()
             },
         );
-        assert!(res.is_ok());
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            true,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"{
+                "version": 1,
+                "extractCustomTags": ["fOO"]
+            }"#,
         )
         .unwrap();
 
-        insta::assert_debug_snapshot!(event.value().unwrap().spans);
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r###"
         [
-            Metric {
+            Span {
+                timestamp: Timestamp(
+                    2020-08-21T02:18:22Z,
+                ),
+                start_timestamp: Timestamp(
+                    2020-08-21T02:18:20Z,
+                ),
+                exclusive_time: 2000.0,
+                description: "<OrganizationContext>",
+                op: "react.mount",
+                span_id: SpanId(
+                    "bd429c44b67a3eb4",
+                ),
+                parent_span_id: SpanId(
+                    "8f5a2b8768cafb4e",
+                ),
+                trace_id: TraceId(
+                    "ff62a8b040f340bda5d830223def1d81",
+                ),
+                segment_id: ~,
+                is_segment: ~,
+                status: ~,
+                tags: ~,
+                origin: ~,
+                profile_id: ~,
+                data: ~,
+                sentry_tags: ~,
+                received: ~,
+                measurements: ~,
+                _metrics_summary: ~,
+                other: {},
+            },
+        ]
+        "###);
+
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.foo@none",
                 value: Distribution(
-                    420.69,
+                    [
+                        420.69,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -1101,21 +675,23 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
-                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
-                    3000.0,
+                    [
+                        3000.0,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -1123,22 +699,78 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
-                    "http.status_code": "200",
                     "measurement_rating": "meh",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/measurements.score.lcp@ratio",
+                value: Distribution(
+                    [
+                        0.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "geo.country_code": "US",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/measurements.score.total@ratio",
+                value: Distribution(
+                    [
+                        0.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "geo.country_code": "US",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/measurements.score.weight.lcp@ratio",
+                value: Distribution(
+                    [
+                        1.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "environment": "fake_environment",
+                    "geo.country_code": "US",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 value: Distribution(
-                    2000.0,
+                    [
+                        2000.0,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -1146,21 +778,32 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
-                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    [
+                        59000.0,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -1168,21 +811,37 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
-                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "s:transactions/user@none",
                 value: Set(
-                    933084975,
+                    {
+                        933084975,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -1190,583 +849,12 @@ mod tests {
                     "fOO": "bar",
                     "geo.country_code": "US",
                     "http.method": "POST",
-                    "http.status_code": "200",
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.op": "react.mount",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.op": "react.mount",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.op": "react.mount",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.domain": "*.domain.tld:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.domain": "*.domain.tld:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.domain": "*.domain.tld:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.domain": "targetdomain.tld:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.domain": "targetdomain.tld:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.domain": "targetdomain.tld:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.description": "POST http://targetdomain:targetport/api/id/*",
-                    "span.domain": "targetdomain:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.description": "POST http://targetdomain:targetport/api/id/*",
-                    "span.domain": "targetdomain:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "POST",
-                    "span.description": "POST http://targetdomain:targetport/api/id/*",
-                    "span.domain": "targetdomain:targetport",
-                    "span.module": "http",
-                    "span.op": "http.client",
-                    "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "INSERT",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "INSERT",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "INSERT",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "INSERT",
-                    "span.domain": "from_date",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "INSERT",
-                    "span.domain": "from_date",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "INSERT",
-                    "span.domain": "from_date",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.domain": "table",
-                    "span.module": "db",
-                    "span.op": "db.sql.query",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.description": "SAVEPOINT %s",
-                    "span.module": "db",
-                    "span.op": "db",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.description": "SAVEPOINT %s",
-                    "span.module": "db",
-                    "span.op": "db",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.action": "SELECT",
-                    "span.description": "SAVEPOINT %s",
-                    "span.module": "db",
-                    "span.op": "db",
-                    "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.description": "GET cache:user:*",
-                    "span.module": "cache",
-                    "span.op": "cache.get_item",
-                    "span.status": "ok",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.description": "GET cache:user:*",
-                    "span.module": "cache",
-                    "span.op": "cache.get_item",
-                    "span.status": "ok",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.description": "GET cache:user:*",
-                    "span.module": "cache",
-                    "span.op": "cache.get_item",
-                    "span.status": "ok",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "s:transactions/span.user@none",
-                value: Set(
-                    933084975,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.description": "http://domain/static/myscript-*.js",
-                    "span.op": "resource.script",
-                    "span.status": "ok",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.description": "http://domain/static/myscript-*.js",
-                    "span.op": "resource.script",
-                    "span.status": "ok",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
-                },
-            },
-            Metric {
-                name: "d:transactions/span.duration@millisecond",
-                value: Distribution(
-                    59000.0,
-                ),
-                timestamp: UnixTimestamp(1619420400),
-                tags: {
-                    "environment": "fake_environment",
-                    "span.description": "http://domain/static/myscript-*.js",
-                    "span.op": "resource.script",
-                    "span.status": "ok",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
                 },
             },
         ]
@@ -1794,75 +882,103 @@ mod tests {
         }
         "#;
 
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
         // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{res:?}");
+        let mut event = Annotated::from_json(json).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
-                    1.1,
+                    [
+                        1.1,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.foo@none",
                 value: Distribution(
-                    8.8,
+                    [
+                        8.8,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.stall_count@none",
                 value: Distribution(
-                    3.3,
+                    [
+                        3.3,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    [
+                        59000.0,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "<unlabeled transaction>",
                 },
             },
         ]
@@ -1887,65 +1003,89 @@ mod tests {
             }
         }"#;
 
-        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
         // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{res:?}");
+        let mut event = Annotated::from_json(json).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.fcp@second",
                 value: Distribution(
-                    1.1,
+                    [
+                        1.1,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.lcp@none",
                 value: Distribution(
-                    2.2,
+                    [
+                        2.2,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    [
+                        59000.0,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "<unlabeled transaction>",
                 },
             },
         ]
@@ -1971,35 +1111,29 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
 
-        assert_eq!(metrics.len(), 1);
-
-        let duration_metric = &metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        if let MetricValue::Distribution(value) = duration_metric.value {
-            assert_eq!(value, 59000.0); // millis
-        } else {
-            panic!(); // Duration must be set
-        }
+        assert_eq!(
+            duration_metric.value,
+            BucketValue::distribution(59000.into())
+        );
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
@@ -2040,250 +1174,114 @@ mod tests {
             }
         ))
         .unwrap();
-        let res = store::light_normalize_event(
+
+        let config = DynamicMeasurementsConfig::new(Some(&measurements_config), None);
+
+        normalize_event(
             &mut event,
-            LightNormalizationConfig {
-                measurements_config: Some(&measurements_config),
+            &NormalizationConfig {
+                measurements: Some(config),
                 ..Default::default()
             },
         );
-        assert!(res.is_ok(), "{res:?}");
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        insta::assert_debug_snapshot!(metrics, @r###"
-            [
-                Metric {
-                    name: "d:transactions/measurements.a_custom1@none",
-                    value: Distribution(
-                        41.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
-                },
-                Metric {
-                    name: "d:transactions/measurements.fcp@millisecond",
-                    value: Distribution(
-                        0.123,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "measurement_rating": "good",
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
-                },
-                Metric {
-                    name: "d:transactions/measurements.g_custom2@second",
-                    value: Distribution(
-                        42.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
-                },
-                Metric {
-                    name: "d:transactions/duration@millisecond",
-                    value: Distribution(
-                        2000.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
-                },
-            ]
-        "###);
-    }
-
-    #[test]
-    fn test_conditional_tagging() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
-            r#"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            {
-                "condition": {"op": "gte", "name": "event.duration", "value": 9001},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "frustrated"
-            },
-            {
-                "condition": {"op": "gte", "name": "event.duration", "value": 666},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "tolerated"
-            },
-            {
-                "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "satisfied"
-            }
-        ]
-        "#,
-        )
-        .unwrap();
-
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &tagging_config,
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        insta::assert_debug_snapshot!(metrics, @r###"
-        [
-            Metric {
-                name: "d:transactions/measurements.lcp@millisecond",
-                value: Distribution(
-                    41.0,
-                ),
+            Bucket {
                 timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/measurements.a_custom1@none",
+                value: Distribution(
+                    [
+                        41.0,
+                    ],
+                ),
+                tags: {
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/measurements.fcp@millisecond",
+                value: Distribution(
+                    [
+                        0.123,
+                    ],
+                ),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
             },
-            Metric {
-                name: "d:transactions/duration@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
+            Bucket {
                 timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/measurements.g_custom2@second",
+                value: Distribution(
+                    [
+                        42.0,
+                    ],
+                ),
                 tags: {
                     "platform": "other",
-                    "satisfaction": "tolerated",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "foo",
                 },
             },
         ]
         "###);
-    }
-
-    #[test]
-    fn test_conditional_tagging_lcp() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
-            r#"
-        [
-            {
-                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 41},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "frustrated"
-            },
-            {
-                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 20},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "tolerated"
-            },
-            {
-                "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "satisfied"
-            }
-        ]
-        "#,
-        )
-        .unwrap();
-
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &tagging_config,
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-        metrics.retain(|m| m.name.contains("lcp"));
-
-        assert_eq!(
-            metrics,
-            &[Metric::new_mri(
-                MetricNamespace::Transactions,
-                "measurements.lcp",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(41.0),
-                UnixTimestamp::from_secs(1619420402),
-                {
-                    let mut tags = BTreeMap::new();
-                    tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
-                    tags.insert("measurement_rating".to_owned(), "good".to_owned());
-                    tags.insert("platform".to_owned(), "other".to_owned());
-                    tags
-                }
-            )]
-        );
     }
 
     #[test]
@@ -2296,31 +1294,26 @@ mod tests {
         }
         "#;
 
+        let event = Annotated::from_json(json).unwrap();
+
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        assert_eq!(metrics.len(), 1, "{metrics:?}");
-
-        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
         assert_eq!(
-            metrics[0].tags,
+            duration_metric.tags,
             BTreeMap::from([("platform".to_string(), "other".to_string())])
         );
     }
@@ -2332,107 +1325,213 @@ mod tests {
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}}
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
         }
         "#;
 
+        let event = Annotated::from_json(json).unwrap();
+
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        assert_eq!(metrics.len(), 1, "{metrics:?}");
-
-        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
         assert_eq!(
-            metrics[0].tags,
+            duration_metric.tags,
             BTreeMap::from([
-                ("transaction.status".to_string(), "unknown".to_string()),
+                ("transaction.status".to_string(), "ok".to_string()),
                 ("platform".to_string(), "other".to_string())
             ])
         );
     }
 
     #[test]
-    fn test_expired_timestamp() {
+    fn test_span_tags() {
+        // Status is normalized upstream in the light normalization step.
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            },
+            "spans": [
+                {
+                    "description": "<OrganizationContext>",
+                    "op": "react.mount",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "http.response.status_code": "200"
+                    }
+                }
+            ]
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = AggregatorConfig {
-            max_secs_in_past: 3600,
-            ..Default::default()
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
         };
 
-        let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "http.status_code": "200",
+                    "platform": "other",
+                    "transaction.status": "ok",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {},
+            },
+        ]
+        "###);
+    }
 
-        let mut event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(timestamp),
-            start_timestamp: Annotated::new(timestamp),
-            contexts: Annotated::new({
-                let mut contexts = Contexts::new();
-                contexts.add(Context::Trace(Box::default()));
-                contexts
-            }),
-            ..Default::default()
-        });
+    #[test]
+    fn test_device_class_mobile() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
+            },
+            "measurements": {
+                "frames_frozen": {
+                    "value": 3
+                }
+            },
+            "tags": {
+                "device.class": "2"
+            },
+            "sdk": {
+                "name": "sentry.cocoa"
+            }
+        }
+        "#;
+        let event = Annotated::from_json(json).unwrap();
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        let result = extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
+        let config = TransactionMetricsConfig::default();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let buckets_by_name = extracted
+            .project_metrics
+            .into_iter()
+            .map(|Bucket { name, tags, .. }| (name, tags))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            buckets_by_name["d:transactions/measurements.frames_frozen@none"]["device.class"],
+            "2"
         );
-
-        assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
-        assert_eq!(metrics, &[]);
+        assert_eq!(
+            buckets_by_name["d:transactions/duration@millisecond"]["device.class"],
+            "2"
+        );
     }
 
     /// Helper function to check if the transaction name is set correctly
-    fn extract_transaction_name(json: &str, strategy: AcceptTransactionNames) -> Option<String> {
-        let mut config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
+    fn extract_transaction_name(json: &str) -> Option<String> {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
-        config.accept_transaction_names = strategy;
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        // Logic from `set_default_transaction_source` was previously duplicated in
+        // `extract_transaction_metrics`. Add it here such that tests can remain.
+        set_default_transaction_source(event.value_mut().as_mut().unwrap());
 
-        assert_eq!(metrics.len(), 1);
-        metrics[0].tags.get("transaction").cloned()
+        let config = TransactionMetricsConfig::default();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
+
+        duration_metric.tags.get("transaction").cloned()
     }
 
     #[test]
@@ -2451,34 +1550,27 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("root_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("root_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        insta::assert_debug_snapshot!(sampling_metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.sampling_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "c:transactions/count_per_root_project@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "decision": "keep",
                     "transaction": "root_transaction",
@@ -2489,11 +1581,11 @@ mod tests {
     }
 
     #[test]
-    fn test_js_unknown_strict() {
+    fn test_legacy_js_looks_like_url() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -2501,12 +1593,12 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
     #[test]
-    fn test_js_unknown_client_based() {
+    fn test_legacy_js_does_not_look_like_url() {
         let json = r#"
         {
             "type": "transaction",
@@ -2518,8 +1610,8 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert!(name.is_none());
+        let name = extract_transaction_name(json);
+        assert_eq!(name.as_deref(), Some("foo"));
     }
 
     #[test]
@@ -2536,52 +1628,16 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
     #[test]
-    fn test_js_url_client_based() {
+    fn test_python_404() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.browser"},
-            "transaction_info": {"source": "url"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
-    }
-
-    #[test]
-    fn test_python_404_strict() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.python", "integrations":["django"]},
-            "tags": {"http.status": "404"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
-        assert!(name.is_none());
-    }
-
-    #[test]
-    fn test_python_404_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -2590,16 +1646,16 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
     #[test]
-    fn test_python_200_client_based() {
+    fn test_python_200() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -2608,16 +1664,16 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert_eq!(name, Some("foo".to_owned()));
+        let name = extract_transaction_name(json);
+        assert_eq!(name, Some("foo/".to_owned()));
     }
 
     #[test]
-    fn test_express_options_strict() {
+    fn test_express_options() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -2626,34 +1682,16 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
     #[test]
-    fn test_express_options_client_based() {
+    fn test_express() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
-            "request": {"method": "OPTIONS"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert!(name.is_none());
-    }
-
-    #[test]
-    fn test_express_get_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -2662,16 +1700,16 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert_eq!(name, Some("foo".to_owned()));
+        let name = extract_transaction_name(json);
+        assert_eq!(name, Some("foo/".to_owned()));
     }
 
     #[test]
-    fn test_other_client_unknown_strict() {
+    fn test_other_client_unknown() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -2679,29 +1717,12 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
-        assert!(name.is_none());
+        let name = extract_transaction_name(json);
+        assert_eq!(name.as_deref(), Some("foo/"));
     }
 
     #[test]
-    fn test_other_client_unknown_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert_eq!(name, Some("foo".to_owned()));
-    }
-
-    #[test]
-    fn test_other_client_url_strict() {
+    fn test_other_client_url() {
         let json = r#"
         {
             "type": "transaction",
@@ -2714,30 +1735,12 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
     #[test]
-    fn test_other_client_url_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"},
-            "transaction_info": {"source": "url"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
-        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
-    }
-
-    #[test]
-    fn test_any_client_route_strict() {
+    fn test_any_client_route() {
         let json = r#"
         {
             "type": "transaction",
@@ -2750,35 +1753,17 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
-        assert_eq!(name, Some("foo".to_owned()));
-    }
-
-    #[test]
-    fn test_any_client_route_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"},
-            "transaction_info": {"source": "route"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
     #[test]
     fn test_parse_transaction_name_strategy() {
-        for (config, expected_strategy) in [
-            (r#"{}"#, AcceptTransactionNames::Strict),
+        for (config_str, expected_strategy) in [
+            (r#"{}"#, AcceptTransactionNames::ClientBased),
             (
                 r#"{"acceptTransactionNames": "unknown-strategy"}"#,
-                AcceptTransactionNames::Strict,
+                AcceptTransactionNames::ClientBased,
             ),
             (
                 r#"{"acceptTransactionNames": "strict"}"#,
@@ -2789,8 +1774,8 @@ mod tests {
                 AcceptTransactionNames::ClientBased,
             ),
         ] {
-            let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
-            assert_eq!(config.accept_transaction_names, expected_strategy);
+            let config: TransactionMetricsConfig = serde_json::from_str(config_str).unwrap();
+            assert_eq!(config.deprecated1, expected_strategy, "{}", config_str);
         }
     }
 
@@ -2823,29 +1808,27 @@ mod tests {
             }
         }"#;
 
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
-        let _ = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
+        normalize_event(&mut event, &NormalizationConfig::default());
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
 
-        let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+
+        let metrics_names: Vec<_> = extracted
+            .project_metrics
+            .into_iter()
+            .map(|m| m.name)
+            .collect();
+
         insta::assert_debug_snapshot!(metrics_names, @r###"
         [
             "d:transactions/measurements.frames_frozen@none",
@@ -2855,7 +1838,9 @@ mod tests {
             "d:transactions/measurements.frames_total@none",
             "d:transactions/measurements.stall_percentage@ratio",
             "d:transactions/measurements.stall_total_time@millisecond",
+            "c:transactions/usage@none",
             "d:transactions/duration@millisecond",
+            "d:transactions/duration_light@millisecond",
         ]
         "###);
     }
@@ -2873,7 +1858,10 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "id:ident");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "id:ident"
+        );
 
         let user = User {
             username: Annotated::new("username".to_owned()),
@@ -2882,7 +1870,10 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "username:username");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "username:username"
+        );
 
         let user = User {
             email: Annotated::new("email".to_owned()),
@@ -2890,17 +1881,129 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "email:email");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "email:email"
+        );
 
         let user = User {
             ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "ip:127.0.0.1");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "ip:127.0.0.1"
+        );
 
         let user = User::default();
 
-        assert!(get_eventuser_tag(&user).is_none());
+        assert!(normalize_utils::get_eventuser_tag(&user).is_none());
+    }
+
+    #[test]
+    fn test_conditional_tagging() {
+        let event = Annotated::from_json(
+            r#"{
+                "type": "transaction",
+                "platform": "javascript",
+                "transaction": "foo",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "timestamp": "2021-04-26T08:00:02+0100",
+                "measurements": {
+                    "lcp": {"value": 41, "unit": "millisecond"}
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let config = TransactionMetricsConfig::new();
+        let generic_tags: Vec<TagMapping> = serde_json::from_str(
+            r#"[
+                {
+                    "metrics": ["d:transactions/duration@millisecond"],
+                    "tags": [
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 9001},
+                            "key": "satisfaction",
+                            "value": "frustrated"
+                        },
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 666},
+                            "key": "satisfaction",
+                            "value": "tolerated"
+                        },
+                        {
+                            "condition": {"op": "and", "inner": []},
+                            "key": "satisfaction",
+                            "value": "satisfied"
+                        }
+                    ]
+                }
+            ]"#,
+        )
+        .unwrap();
+
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &generic_tags,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    [
+                        41.0,
+                    ],
+                ),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "javascript",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {
+                    "platform": "javascript",
+                    "satisfaction": "tolerated",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {},
+            },
+        ]
+        "###);
     }
 }

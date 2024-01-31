@@ -1,0 +1,84 @@
+---
+source: relay-server/tests/test_fixtures.rs
+expression: SerializableAnnotated(&event)
+---
+{
+  "event_id": "b308014887f5418c8f797159bfb6fc42",
+  "level": "error",
+  "type": "error",
+  "logentry": {
+    "formatted": "ZeroDivisionError: division by zero"
+  },
+  "logger": "",
+  "modules": {
+    "python": "3.7.0"
+  },
+  "platform": "python",
+  "timestamp": "[timestamp]",
+  "received": "[received]",
+  "exception": {
+    "values": [
+      {
+        "type": "ZeroDivisionError",
+        "value": "division by zero",
+        "module": "builtins",
+        "stacktrace": {
+          "frames": [
+            {
+              "function": "<module>",
+              "module": "__main__",
+              "filename": "<stdin>",
+              "abs_path": "<stdin>",
+              "lineno": 1,
+              "vars": {
+                "Client": "<class 'raven.base.Client'>",
+                "__annotations__": {},
+                "__builtins__": "<module 'builtins' (built-in)>",
+                "__doc__": null,
+                "__loader__": "<class '_frozen_importlib.BuiltinImporter'>",
+                "__name__": "'__main__'",
+                "__package__": null,
+                "__spec__": null,
+                "client": "<raven.base.Client object at 0x1025e9400>"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "tags": [
+    [
+      "server_name",
+      "[.local hostname]"
+    ]
+  ],
+  "extra": {
+    "sys.argv": [
+      "''"
+    ]
+  },
+  "sdk": {
+    "name": "raven-python",
+    "version": "6.9.0"
+  },
+  "_meta": {
+    "tags": {
+      "0": {
+        "1": {
+          "": {
+            "rem": [
+              [
+                "removeDotLocal",
+                "s",
+                0,
+                17
+              ]
+            ],
+            "len": 17
+          }
+        }
+      }
+    }
+  }
+}

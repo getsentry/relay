@@ -93,11 +93,20 @@
 //! }
 //! ```
 
+use std::error::Error;
+use std::time::Duration;
+
+use relay_base_schema::project::ProjectId;
+use relay_event_schema::protocol::{Event, EventId};
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use serde_json::Deserializer;
+
+use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
+
+pub use crate::error::ProfileError;
+pub use crate::outcomes::discard_reason;
 
 mod android;
-mod cocoa;
 mod error;
 mod extract_from_transaction;
 mod measurements;
@@ -107,72 +116,100 @@ mod sample;
 mod transaction_metadata;
 mod utils;
 
-use relay_general::protocol::{Event, EventId};
+const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 
-use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
-
-pub use crate::error::ProfileError;
-pub use crate::outcomes::discard_reason;
+/// Unique identifier for a profile.
+///
+/// Same format as event IDs.
+pub type ProfileId = EventId;
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
     #[serde(alias = "profile_id")]
-    event_id: EventId,
+    event_id: ProfileId,
     platform: String,
     #[serde(default)]
     version: sample::Version,
 }
 
-fn minimal_profile_from_json(payload: &[u8]) -> Result<MinimalProfile, ProfileError> {
-    serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)
+fn minimal_profile_from_json(
+    payload: &[u8],
+) -> Result<MinimalProfile, serde_path_to_error::Error<serde_json::Error>> {
+    let d = &mut Deserializer::from_slice(payload);
+    serde_path_to_error::deserialize(d)
 }
 
-pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
+pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId, ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
-        Err(err) => return Err(err),
+        Err(err) => {
+            relay_log::warn!(
+                error = &err as &dyn Error,
+                from = "minimal",
+                project_id = project_id.value(),
+            );
+            return Err(ProfileError::InvalidJson(err));
+        }
     };
     match profile.version {
         sample::Version::V1 => {
-            let _: sample::ProfileMetadata = match serde_json::from_slice(payload) {
+            let d = &mut Deserializer::from_slice(payload);
+            let _: sample::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                 Ok(profile) => profile,
-                Err(err) => return Err(ProfileError::InvalidJson(err)),
+                Err(err) => {
+                    relay_log::warn!(
+                        error = &err as &dyn Error,
+                        from = "metadata",
+                        platform = profile.platform,
+                        project_id = project_id.value(),
+                        "invalid profile",
+                    );
+                    return Err(ProfileError::InvalidJson(err));
+                }
             };
         }
         _ => match profile.platform.as_str() {
             "android" => {
-                let _: android::ProfileMetadata = match serde_json::from_slice(payload) {
+                let d = &mut Deserializer::from_slice(payload);
+                let _: android::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                     Ok(profile) => profile,
-                    Err(err) => return Err(ProfileError::InvalidJson(err)),
-                };
-            }
-            "cocoa" => {
-                let _: cocoa::ProfileMetadata = match serde_json::from_slice(payload) {
-                    Ok(profile) => profile,
-                    Err(err) => return Err(ProfileError::InvalidJson(err)),
+                    Err(err) => {
+                        relay_log::warn!(
+                            error = &err as &dyn Error,
+                            from = "metadata",
+                            platform = "android",
+                            project_id = project_id.value(),
+                            "invalid profile",
+                        );
+                        return Err(ProfileError::InvalidJson(err));
+                    }
                 };
             }
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    Ok(())
+    Ok(profile.event_id)
 }
 
-pub fn expand_profile(
-    payload: &[u8],
-    event: Option<&Event>,
-) -> Result<(EventId, Vec<u8>), ProfileError> {
+pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
-        Err(err) => return Err(err),
+        Err(err) => {
+            relay_log::warn!(
+                error = &err as &dyn Error,
+                from = "minimal",
+                platform = event.platform.as_str(),
+                project_id = event.project.value().unwrap_or(&0),
+                sdk_name = event.sdk_name(),
+                sdk_version = event.sdk_version(),
+                transaction_id = ?event.id.value(),
+                "invalid profile",
+            );
+            return Err(ProfileError::InvalidJson(err));
+        }
     };
-    let (transaction_metadata, transaction_tags) = match event {
-        Some(event) => (
-            extract_transaction_metadata(event),
-            extract_transaction_tags(event),
-        ),
-        _ => (BTreeMap::new(), BTreeMap::new()),
-    };
+    let transaction_metadata = extract_transaction_metadata(event);
+    let transaction_tags = extract_transaction_tags(event);
     let processed_payload = match profile.version {
         sample::Version::V1 => {
             sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
@@ -181,11 +218,40 @@ pub fn expand_profile(
             "android" => {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
-            "cocoa" => cocoa::parse_cocoa_profile(payload),
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    processed_payload.map(|payload| (profile.event_id, payload))
+    match processed_payload {
+        Ok(payload) => Ok((profile.event_id, payload)),
+        Err(err) => match err {
+            ProfileError::InvalidJson(err) => {
+                relay_log::warn!(
+                    error = &err as &dyn Error,
+                    from = "parsing",
+                    platform = profile.platform,
+                    project_id = event.project.value().unwrap_or(&0),
+                    sdk_name = event.sdk_name(),
+                    sdk_version = event.sdk_version(),
+                    transaction_id = ?event.id.value(),
+                    "invalid profile",
+                );
+                Err(ProfileError::InvalidJson(err))
+            }
+            _ => {
+                relay_log::warn!(
+                    error = &err as &dyn Error,
+                    from = "parsing",
+                    platform = profile.platform,
+                    project_id = event.project.value().unwrap_or(&0),
+                    sdk_name = event.sdk_name(),
+                    sdk_version = event.sdk_version(),
+                    transaction_id = ?event.id.value(),
+                    "invalid profile",
+                );
+                Err(err)
+            }
+        },
+    }
 }
 
 #[cfg(test)]
@@ -202,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_minimal_profile_without_version() {
-        let data = r#"{"platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
+        let data = r#"{"platform":"android","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, sample::Version::Unknown);
@@ -211,12 +277,12 @@ mod tests {
     #[test]
     fn test_expand_profile_with_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        assert!(expand_profile(payload, Some(&Event::default())).is_ok());
+        assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 
     #[test]
     fn test_expand_profile_without_version() {
-        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
-        assert!(expand_profile(payload, Some(&Event::default())).is_ok());
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 }

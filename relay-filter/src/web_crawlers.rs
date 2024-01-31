@@ -2,14 +2,13 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_general::protocol::Event;
-use relay_general::user_agent;
+use relay_event_schema::protocol::Event;
 
 use crate::{FilterConfig, FilterStatKey};
 
 static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?ix)
+        r"(?ix)
         Mediapartners-Google|
         AdsBot-Google|
         Googlebot|
@@ -30,24 +29,25 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         AWS\sSecurity\sScanner|     # AWS Security Scanner causing DisallowedHost errors in Django, see
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
-        HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
-    "#
+        HubSpot\sCrawler|           # HubSpot web crawler (web-crawlers@hubspot.com)
+        Bytespider                  # Bytedance
+    "
     )
     .expect("Invalid web crawlers filter Regex")
 });
 
 static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?ix)
+        r"(?ix)
         Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
-    "#,
+    ",
     )
     .expect("Invalid allowed web crawlers filter Regex")
 });
 
 /// Checks if the event originates from a known web crawler.
 pub fn matches(event: &Event) -> bool {
-    if let Some(user_agent) = user_agent::get_user_agent(&event.request) {
+    if let Some(user_agent) = event.user_agent() {
         WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
     } else {
         false
@@ -115,6 +115,7 @@ mod tests {
             "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
             "AdsBot-Google (+http://www.google.com/adsbot.html)",
             "Mozilla/5.0 (compatible; HubSpot Crawler; web-crawlers@hubspot.com)",
+            "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)"
         ];
 
         for banned_user_agent in &user_agents {

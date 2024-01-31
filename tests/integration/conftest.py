@@ -1,10 +1,10 @@
 import socket
 import subprocess
-import itertools
 import os
 from os import path
 from typing import Optional
 import json
+import redis
 
 import pytest
 
@@ -14,7 +14,7 @@ from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.aws_lambda_runtime import aws_lambda_runtime  # noqa
 from .fixtures.relay import relay, get_relay_binary, latest_relay_version  # noqa
-from .fixtures.processing import (
+from .fixtures.processing import (  # noqa
     kafka_consumer,
     get_topic_name,
     processing_config,
@@ -28,7 +28,9 @@ from .fixtures.processing import (
     metrics_consumer,
     replay_events_consumer,
     monitors_consumer,
-)  # noqa
+    spans_consumer,
+    profiles_consumer,
+)
 
 
 @pytest.fixture
@@ -62,7 +64,7 @@ def config_dir(tmpdir):
     def inner(name):
         counters.setdefault(name, 0)
         counters[name] += 1
-        return tmpdir.mkdir("{}-{}".format(name, counters[name]))
+        return tmpdir.mkdir(f"{name}-{counters[name]}")
 
     return inner
 
@@ -156,7 +158,7 @@ def _fixture_file_path_for_test_file(test_file_path, file_name):
     return path.abspath(path.join(prefix, "fixtures", test_file_name, file_name))
 
 
-class _JsonFixtureProvider(object):
+class _JsonFixtureProvider:
     def __init__(self, test_file_path: str):
         """
         Initializes a JsonFixtureProvider with the current test file path (in order to create
@@ -242,3 +244,8 @@ def pytest_runtest_call(item):
     for marker in item.iter_markers("extra_failure_checks"):
         for check_func in marker.kwargs.get("checks", []):
             check_func()
+
+
+@pytest.fixture
+def redis_client():
+    return redis.Redis(host="127.0.0.1", port=6379, db=0)

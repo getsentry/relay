@@ -1,18 +1,26 @@
-use bytes::Bytes;
-use relay_general::protocol::EventId;
-use relay_sampling::{
-    DynamicSamplingContext, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,
-    SamplingRule, SamplingValue,
-};
+use std::sync::Arc;
 
-use crate::actors::project::ProjectState;
+use bytes::Bytes;
+use relay_config::Config;
+use relay_dynamic_config::ErrorBoundary;
+use relay_event_schema::protocol::EventId;
+use relay_protocol::RuleCondition;
+use relay_sampling::config::{DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue};
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
+use relay_system::Addr;
+use relay_test::mock_service;
+
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::global_config::GlobalConfigHandle;
+use crate::services::outcome::TrackOutcome;
+use crate::services::processor::EnvelopeProcessorService;
+use crate::services::project::ProjectState;
+use crate::services::test_store::TestStore;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
     rule_type: RuleType,
-    mode: SamplingMode,
     condition: RuleCondition,
 ) -> ProjectState {
     let rules = match sample_rate {
@@ -22,27 +30,22 @@ pub fn state_with_rule_and_condition(
             ty: rule_type,
             id: RuleId(1),
             time_range: Default::default(),
-            decaying_fn: relay_sampling::DecayingFunction::Constant,
+            decaying_fn: DecayingFunction::Constant,
         }],
         None => Vec::new(),
     };
 
-    project_state_with_config(SamplingConfig {
-        rules: vec![],
-        rules_v2: rules,
-        mode,
-    })
-}
-
-pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectState {
     let mut state = ProjectState::allowed();
-    state.config.dynamic_sampling = Some(sampling_config);
+    state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
+        rules,
+        ..SamplingConfig::new()
+    }));
     state
 }
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
-        trace_id: relay_common::Uuid::new_v4(),
+        trace_id: uuid::Uuid::new_v4(),
         public_key: "12345678901234567890123456789012".parse().unwrap(),
         release: None,
         environment: None,
@@ -50,6 +53,7 @@ pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingConte
         sample_rate,
         user: Default::default(),
         replay_id: None,
+        sampled: None,
         other: Default::default(),
     }
 }
@@ -94,9 +98,49 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
 }
 
 pub fn empty_envelope() -> Box<Envelope> {
-    let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-        .parse()
-        .unwrap();
+    empty_envelope_with_dsn("e12d836b15bb49d7bbf99e64295d995b")
+}
 
-    Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn))
+pub fn empty_envelope_with_dsn(dsn: &str) -> Box<Envelope> {
+    let dsn = format!("https://{dsn}:@sentry.io/42").parse().unwrap();
+
+    let mut envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
+    envelope.add_item(Item::new(ItemType::Event));
+    envelope
+}
+
+pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+    let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+    let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+    let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+    #[cfg(feature = "processing")]
+    let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+
+    #[cfg(feature = "processing")]
+    let redis = config
+        .redis()
+        .filter(|_| config.processing_enabled())
+        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+
+    EnvelopeProcessorService::new(
+        Arc::new(config),
+        GlobalConfigHandle::fixed(Default::default()),
+        #[cfg(feature = "processing")]
+        redis,
+        outcome_aggregator,
+        project_cache,
+        upstream_relay,
+        test_store,
+        #[cfg(feature = "processing")]
+        _aggregator,
+        #[cfg(feature = "processing")]
+        None,
+    )
+}
+
+pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
+    let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+    let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+    (outcome_aggregator, test_store)
 }

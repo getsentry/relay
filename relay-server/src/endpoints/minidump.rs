@@ -8,7 +8,7 @@ use axum::RequestExt;
 use bytes::Bytes;
 use futures::{future, FutureExt};
 use relay_config::Config;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};

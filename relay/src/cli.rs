@@ -5,10 +5,10 @@ use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};
-use relay_common::Uuid;
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
+use uuid::Uuid;
 
 use crate::cliapp::make_app;
 use crate::utils::get_theme;
@@ -80,6 +80,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
 
     OverridableConfig {
         mode: matches.get_one("mode").cloned(),
+        log_level: matches.get_one("log_level").cloned(),
         upstream: matches.get_one("upstream").cloned(),
         upstream_dsn: matches.get_one("upstream_dsn").cloned(),
         host: matches.get_one("host").cloned(),
@@ -100,6 +101,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
 pub fn extract_config_env_vars() -> OverridableConfig {
     OverridableConfig {
         mode: env::var("RELAY_MODE").ok(),
+        log_level: env::var("RELAY_LOG_LEVEL").ok(),
         upstream: env::var("RELAY_UPSTREAM_URL").ok(),
         upstream_dsn: env::var("RELAY_UPSTREAM_DSN").ok(),
         host: env::var("RELAY_HOST").ok(),
@@ -209,7 +211,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
         } else {
             println!("No credentials");
         }
-    } else if let Some(..) = matches.subcommand_matches("show") {
+    } else if matches.subcommand_matches("show").is_some() {
         if !config.has_credentials() {
             bail!("no stored credentials");
         } else {
@@ -279,22 +281,6 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
             utils::prompt_value("upstream", &mut mincfg.relay.upstream)?;
             utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
             utils::prompt_value("listen port", &mut mincfg.relay.port)?;
-
-            if Confirm::with_theme(get_theme())
-                .with_prompt("do you want listen to TLS")
-                .interact()?
-            {
-                let mut port = mincfg.relay.port.saturating_add(443);
-                utils::prompt_value("tls port", &mut port)?;
-                mincfg.relay.tls_port = Some(port);
-                mincfg.relay.tls_identity_path =
-                    Some(PathBuf::from(utils::prompt_value_no_default::<String>(
-                        "path to your DER-encoded PKCS #12 archive",
-                    )?));
-                mincfg.relay.tls_identity_password = Some(
-                    utils::prompt_value_no_default::<String>("password for your PKCS #12 archive")?,
-                );
-            }
         }
 
         // TODO: Enable this once logging to Sentry is more useful.

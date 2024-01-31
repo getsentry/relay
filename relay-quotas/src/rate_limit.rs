@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 
 use crate::quota::{DataCategories, ItemScoping, Quota, QuotaScope, ReasonCode, Scoping};
 use crate::REJECT_ALL_SECS;
@@ -104,6 +104,8 @@ impl FromStr for RetryAfter {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(test, derive(serde::Serialize))]
 pub enum RateLimitScope {
+    /// Global scope.
+    Global,
     /// An organization with identifier.
     Organization(u64),
     /// A project with identifier.
@@ -116,17 +118,19 @@ impl RateLimitScope {
     /// Extracts a rate limiting scope from the given item scoping for a specific quota.
     pub fn for_quota(scoping: &Scoping, scope: QuotaScope) -> Self {
         match scope {
-            QuotaScope::Organization => RateLimitScope::Organization(scoping.organization_id),
-            QuotaScope::Project => RateLimitScope::Project(scoping.project_id),
-            QuotaScope::Key => RateLimitScope::Key(scoping.project_key),
+            QuotaScope::Global => Self::Global,
+            QuotaScope::Organization => Self::Organization(scoping.organization_id),
+            QuotaScope::Project => Self::Project(scoping.project_id),
+            QuotaScope::Key => Self::Key(scoping.project_key),
             // For unknown scopes, assume the most specific scope:
-            QuotaScope::Unknown => RateLimitScope::Key(scoping.project_key),
+            QuotaScope::Unknown => Self::Key(scoping.project_key),
         }
     }
 
     /// Returns the canonical name of this scope.
     pub fn name(&self) -> &'static str {
         match *self {
+            Self::Global => QuotaScope::Global.name(),
             Self::Key(_) => QuotaScope::Key.name(),
             Self::Project(_) => QuotaScope::Project.name(),
             Self::Organization(_) => QuotaScope::Organization.name(),
@@ -171,6 +175,7 @@ impl RateLimit {
     /// Returns `true` if the rate limiting scope matches the given item.
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
         match self.scope {
+            RateLimitScope::Global => true,
             RateLimitScope::Organization(org_id) => scoping.organization_id == org_id,
             RateLimitScope::Project(project_id) => scoping.project_id == project_id,
             RateLimitScope::Key(ref key) => scoping.project_key == *key,
@@ -533,7 +538,7 @@ mod tests {
             retry_after: RetryAfter::from_secs(10),
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -547,7 +552,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -569,7 +574,7 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -583,7 +588,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -613,7 +618,7 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -642,7 +647,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -665,7 +670,7 @@ mod tests {
         });
 
         let rate_limit = rate_limits.longest().unwrap();
-        insta::assert_ron_snapshot!(rate_limit, @r###"
+        insta::assert_ron_snapshot!(rate_limit, @r#"
         RateLimit(
           categories: [
             transaction,
@@ -674,7 +679,7 @@ mod tests {
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -703,7 +708,7 @@ mod tests {
         rate_limits.clean_expired();
 
         // Check that the expired limit has been removed
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -716,7 +721,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -750,7 +755,7 @@ mod tests {
         });
 
         // Check that the error limit is applied
-        insta::assert_ron_snapshot!(applied_limits, @r###"
+        insta::assert_ron_snapshot!(applied_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -763,7 +768,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -808,7 +813,7 @@ mod tests {
 
         let applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 
-        insta::assert_ron_snapshot!(applied_limits, @r###"
+        insta::assert_ron_snapshot!(applied_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -821,7 +826,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -852,7 +857,7 @@ mod tests {
 
         rate_limits1.merge(rate_limits2);
 
-        insta::assert_ron_snapshot!(rate_limits1, @r###"
+        insta::assert_ron_snapshot!(rate_limits1, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -873,6 +878,6 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 }

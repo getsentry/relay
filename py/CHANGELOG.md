@@ -1,5 +1,109 @@
 # Changelog
 
+## 0.8.45
+
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+- Add ability to block metric tags matching a glob pattern. ([#2973](https://github.com/getsentry/relay/pull/2973))
+
+## 0.8.44
+
+- Add ability to block metrics matching a glob pattern. ([#2954](https://github.com/getsentry/relay/pull/2954))
+
+
+## 0.8.43
+
+- Fix JSON capitalization for cardinality config. ([#2979](https://github.com/getsentry/relay/pull/2979))
+
+## 0.8.42
+
+- Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
+
+## 0.8.41
+
+- This release requires Python 3.9 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.8.
+- Normalize event timestamps before validating them, fixing cases where Relay would drop valid events with reason "invalid_transaction". ([#2878](https://github.com/getsentry/relay/pull/2878))
+- Normalize error and trace-ids. Values must be valid UUIDs. ([#2931](https://github.com/getsentry/relay/pull/2931))
+- Add a data category for indexed spans. ([#2937](https://github.com/getsentry/relay/pull/2937))
+
+## 0.8.39
+
+- Add `_metrics_summary` as temporary key on `Event` for a DDM experiment. ([#2757](https://github.com/getsentry/relay/pull/2757))
+- Add metric_bucket data category. ([#2824](https://github.com/getsentry/relay/pull/2824))
+
+## 0.8.38
+
+- `normalize_performance_score` stores 0 to 1 cdf score instead of weighted score for each performance score component. ([#2734](https://github.com/getsentry/relay/pull/2734))
+
+## 0.8.37
+
+- License is now FSL instead of BSL ([#2739](https://github.com/getsentry/relay/pull/2739))
+- Skip running `NormalizeProcessor` on renormalization. ([#2744](https://github.com/getsentry/relay/pull/2744))
+
+## 0.8.36
+
+- Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
+- Rename `validate_sampling_condition` to `validate_rule_condition`. ([#2720](https://github.com/getsentry/relay/pull/2720))
+
+## 0.8.35
+
+- Add `validate_pii_selector` to validate safe fields. ([#2687](https://github.com/getsentry/relay/pull/2687))
+
+## 0.8.34
+
+- Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
+
+## 0.8.33
+
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+- Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
+- Add `PerformanceScoreConfig` config and performance score calculations to measurements for frontend events. ([#2632](https://github.com/getsentry/relay/pull/2632))
+- Add `locale` ,`screen_width_pixels`, `screen_height_pixels`, and `uuid` to the device context. ([#2640](https://github.com/getsentry/relay/pull/2640))
+- Add feedback DataCategory. ([#2604](https://github.com/getsentry/relay/pull/2604))
+
+## 0.8.32
+
+- Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+
+## 0.8.31
+
+- Add `Reservoir` variant to `SamplingRule`. ([#2550](https://github.com/getsentry/relay/pull/2550))
+- Remove dynamic sampling ABI. ([#2515](https://github.com/getsentry/relay/pull/2515))
+- Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
+
+## 0.8.30
+
+- Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
+- Add a `DataCategory` for monitor seats (crons). ([#2480](https://github.com/getsentry/relay/pull/2480))
+- Expose global config normalization function. ([#2498](https://github.com/getsentry/relay/pull/2498))
+
+## 0.8.29
+
+- Add rudimentary Mypy setup. ([#2384](https://github.com/getsentry/relay/pull/2384))
+
+## 0.8.28
+
+This release requires Python 3.8 or later.
+
+- Add the configuration protocol for generic metrics extraction. ([#2252](https://github.com/getsentry/relay/pull/2252))
+- Modernize python syntax. ([#2264](https://github.com/getsentry/relay/pull/2264))
+
+## 0.8.27
+
+- Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251))
+- Add trace context to CheckIns. ([#2241](https://github.com/getsentry/relay/pull/2241))
+
+## 0.8.26
+
+- Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
+- Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+
+
+## 0.8.25
+
+
+
 ## 0.8.24
 
 - Compile regexes in PII config validation. ([#2152](https://github.com/getsentry/relay/pull/2152))

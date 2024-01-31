@@ -98,7 +98,7 @@
 //! at the beginning of test method. It enables test mode of the logger and customizes log levels
 //! for the current crate.
 //!
-//! ```
+//! ```no_run
 //! #[test]
 //! fn test_something() {
 //!     relay_log::init_test!();
@@ -116,6 +116,9 @@
 mod setup;
 #[cfg(feature = "init")]
 pub use setup::*;
+
+#[cfg(feature = "dashboard")]
+pub mod dashboard;
 
 #[cfg(feature = "test")]
 mod test;

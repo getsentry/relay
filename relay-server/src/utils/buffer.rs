@@ -2,9 +2,10 @@ use std::fmt;
 
 use relay_system::Addr;
 
-use crate::actors::outcome::TrackOutcome;
-use crate::actors::test_store::TestStore;
 use crate::envelope::Envelope;
+use crate::services::outcome::TrackOutcome;
+use crate::services::processor::ProcessingGroup;
+use crate::services::test_store::TestStore;
 use crate::statsd::RelayHistograms;
 use crate::utils::{ManagedEnvelope, Semaphore};
 
@@ -92,6 +93,7 @@ impl BufferGuard {
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Result<ManagedEnvelope, BufferError> {
         let permit = self.inner.try_acquire().ok_or(BufferError)?;
 
@@ -109,6 +111,7 @@ impl BufferGuard {
             permit,
             outcome_aggregator,
             test_store,
+            group,
         ))
     }
 }

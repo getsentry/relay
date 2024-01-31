@@ -200,7 +200,6 @@ def test_normalize_measurement_interface(
         "inp": {"unit": "millisecond", "value": 100.14},
         "fp": {"unit": "millisecond", "value": None},
         "lcp": {"unit": "millisecond", "value": 420.69},
-        "missing_value": None,
     }
 
 
@@ -580,3 +579,53 @@ def test_sample_rates_metrics(mini_sentry, relay_with_processing, events_consume
 
     event, _ = events_consumer.get_event()
     assert event["_metrics"]["sample_rates"] == sample_rates
+
+
+def test_buffer_envelopes_without_global_config(
+    mini_sentry, relay_with_processing, events_consumer
+):
+    """
+    Checks that we buffer envelopes until we have a global config in processing mode.
+    """
+
+    include_global = False
+    original_endpoint = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        nonlocal include_global
+
+        res = original_endpoint().get_json()
+        if not include_global:
+            res.pop("global")
+        return res
+
+    mini_sentry.add_basic_project_config(42)
+    events_consumer = events_consumer()
+    options = {"cache": {"global_config_fetch_interval": 1}}
+    relay = relay_with_processing(options=options)
+
+    try:
+        envelope_qty = 5
+        for _ in range(envelope_qty):
+            envelope = Envelope()
+            envelope.add_event({"message": "hello, world!"})
+            relay.send_envelope(42, envelope)
+
+        events_consumer.assert_empty(timeout=2)
+
+        include_global = True
+        # Clear errors because we log error when we request global config yet we dont receive it.
+        assert len(mini_sentry.test_failures) > 0
+        assert {str(e) for _, e in mini_sentry.test_failures} == {
+            "Relay sent us event: global config missing in upstream response"
+        }
+    finally:
+        mini_sentry.test_failures.clear()
+
+    envelopes = []
+    # Check that we received exactly {envelope_qty} envelopes.
+    for _ in range(envelope_qty):
+        envelopes.append(events_consumer.get_event(timeout=2))
+    events_consumer.assert_empty()
+    assert len(envelopes) == envelope_qty

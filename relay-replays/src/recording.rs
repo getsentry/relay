@@ -21,9 +21,9 @@ use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use once_cell::sync::Lazy;
-use relay_general::pii::{PiiConfig, PiiProcessor};
-use relay_general::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
-use relay_general::types::Meta;
+use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
+use relay_pii::{PiiConfig, PiiProcessor};
+use relay_protocol::Meta;
 use serde::{de, ser, Deserializer};
 use serde_json::value::RawValue;
 
@@ -245,7 +245,7 @@ where
         // then at the redundant parsing.
 
         while let Some(raw) = v.next_element::<&'de RawValue>()? {
-            let helper = serde_json::from_str::<TypeHelper>(raw.get()).unwrap();
+            let helper = serde_json::from_str::<TypeHelper>(raw.get()).map_err(s2d)?;
             // Scrub only sentry-specific events and serialize all others without modification.
             if helper.ty == Self::SENTRY_EVENT_TYPE {
                 seq.serialize_element(&ScrubbedValue(raw, self.scrubber.clone()))
@@ -277,7 +277,7 @@ where
 ///
 /// ```
 /// use relay_replays::recording::RecordingScrubber;
-/// use relay_general::pii::PiiConfig;
+/// use relay_pii::PiiConfig;
 ///
 /// // Obtain a PII config from the project state or create one on-demand.
 /// let pii_config = PiiConfig::default();
@@ -411,7 +411,7 @@ impl<'a> RecordingScrubber<'a> {
 mod tests {
     // End to end test coverage.
 
-    use relay_general::pii::{DataScrubbingConfig, PiiConfig};
+    use relay_pii::{DataScrubbingConfig, PiiConfig};
 
     use crate::recording::scrub_at_path;
 

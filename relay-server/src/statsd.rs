@@ -69,6 +69,12 @@ pub enum RelayHistograms {
     /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
     /// always be one.
     BufferDequeueAttempts,
+    /// The number of batches emitted per partition.
+    BatchesPerPartition,
+    /// The number of buckets in a batch emitted.
+    ///
+    /// This corresponds to the number of buckets that will end up in an envelope.
+    BucketsPerBatch,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -149,6 +155,15 @@ pub enum RelayHistograms {
     /// Size of queries (projectconfig queries, i.e. the request payload, not the response) sent by
     /// Relay over HTTP in bytes.
     UpstreamEnvelopeBodySize,
+
+    /// Size of batched global metrics requests sent by Relay over HTTP in bytes.
+    UpstreamMetricsBodySize,
+
+    /// Distribution of flush buckets over partition keys.
+    ///
+    /// The distribution of buckets should be even.
+    /// If it is not, this metric should expose it.
+    PartitionKeys,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -157,6 +172,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
+            RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
+            RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
@@ -177,6 +194,8 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamRetries => "upstream.retries",
             RelayHistograms::UpstreamQueryBodySize => "upstream.query.body_size",
             RelayHistograms::UpstreamEnvelopeBodySize => "upstream.envelope.body_size",
+            RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
+            RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
         }
     }
 }
@@ -207,6 +226,8 @@ pub enum RelayTimers {
     EventProcessingPii,
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
+    /// Time used to extract span metrics from an event.
+    EventProcessingSpanMetricsExtraction,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -312,12 +333,16 @@ pub enum RelayTimers {
     TimestampDelay,
     /// The time it takes the outcome aggregator to flush aggregated outcomes.
     OutcomeAggregatorFlushTime,
-
-    /// Time in milliseconds spent on converting a transaction event into a metric.
-    TransactionMetricsExtraction,
-
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
+    /// Total time spent to send a request and receive the response from upstream.
+    GlobalConfigRequestDuration,
+    /// Timing in milliseconds for processing a message in the internal CPU pool.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    ProcessMessageDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -333,6 +358,9 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
+            RelayTimers::EventProcessingSpanMetricsExtraction => {
+                "event_processing.span_metrics_extraction"
+            }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
@@ -347,8 +375,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
-            RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
+            RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
+            RelayTimers::ProcessMessageDuration => "processor.message.duration",
         }
     }
 }
@@ -456,6 +485,16 @@ pub enum RelayCounters {
     /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
     /// many attempts were made respectively.
     ProjectUpstreamCompleted,
+    /// Number of times an upstream request for a project config failed.
+    ///
+    /// Failure can happen, for example, when there's a network error. Refer to
+    /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
+    ProjectUpstreamFailed,
+    /// Number of full metric data flushes.
+    ///
+    /// A full flush takes all contained items of the aggregator and flushes them upstream,
+    /// at best this happens once per freshly loaded project.
+    ProjectStateFlushAllMetricMeta,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -491,12 +530,12 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     ///  - `platform`: The event's platform, such as `"javascript"`.
-    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
-    ///    Sentry's SDKs and defaults to "proprietary".
     ///  - `source`: The source of the transaction name on the client. See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
-    EventTransactionSource,
+    ///  - `contains_slashes`: Whether the transaction name contains `/`. We use this as a heuristic
+    ///    to represent URL transactions.
+    EventTransaction,
     /// The number of transaction events processed grouped by transaction name modifications.
     /// This metric is tagged with:
     ///  - `source_in`: The source of the transaction name before normalization.
@@ -532,6 +571,8 @@ pub enum RelayCounters {
     EvictingStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
+    /// Number of times that parsing a metric meta item from an envelope failed.
+    MetricMetaParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
@@ -541,6 +582,12 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     OpenTelemetryEvent,
+    /// Number of global config fetches from upstream. Only 2XX responses are
+    /// considered and ignores send errors (e.g. auth or network errors).
+    ///
+    /// This metric is tagged with:
+    ///  - `success`: whether deserializing the global config succeeded.
+    GlobalConfigFetched,
 }
 
 impl CounterMetric for RelayCounters {
@@ -558,23 +605,93 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectStateNoCache => "project_state.no_cache",
+            RelayCounters::ProjectStateFlushAllMetricMeta => "project_state.flush_all_metric_meta",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
+            RelayCounters::ProjectUpstreamFailed => "project_upstream.failed",
             RelayCounters::ProjectCacheHit => "project_cache.hit",
             RelayCounters::ProjectCacheMiss => "project_cache.miss",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             RelayCounters::EventProtocol => "event.protocol",
-            RelayCounters::EventTransactionSource => "event.transaction_source",
+            RelayCounters::EventTransaction => "event.transaction",
             RelayCounters::TransactionNameChanges => "event.transaction_name_changes",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
+            RelayCounters::MetricMetaParsingFailed => "metrics.meta.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
+            RelayCounters::GlobalConfigFetched => "global_config.fetch",
+        }
+    }
+}
+
+/// Low-cardinality platform that can be used as a statsd tag.
+pub enum PlatformTag {
+    Cocoa,
+    Csharp,
+    Edge,
+    Go,
+    Java,
+    Javascript,
+    Julia,
+    Native,
+    Node,
+    Objc,
+    Other,
+    Perl,
+    Php,
+    Python,
+    Ruby,
+    Swift,
+}
+
+impl PlatformTag {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Cocoa => "cocoa",
+            Self::Csharp => "csharp",
+            Self::Edge => "edge",
+            Self::Go => "go",
+            Self::Java => "java",
+            Self::Javascript => "javascript",
+            Self::Julia => "julia",
+            Self::Native => "native",
+            Self::Node => "node",
+            Self::Objc => "objc",
+            Self::Other => "other",
+            Self::Perl => "perl",
+            Self::Php => "php",
+            Self::Python => "python",
+            Self::Ruby => "ruby",
+            Self::Swift => "swift",
+        }
+    }
+}
+
+impl<S: AsRef<str>> From<S> for PlatformTag {
+    fn from(value: S) -> Self {
+        match value.as_ref() {
+            "cocoa" => Self::Cocoa,
+            "csharp" => Self::Csharp,
+            "edge" => Self::Edge,
+            "go" => Self::Go,
+            "java" => Self::Java,
+            "javascript" => Self::Javascript,
+            "julia" => Self::Julia,
+            "native" => Self::Native,
+            "node" => Self::Node,
+            "objc" => Self::Objc,
+            "perl" => Self::Perl,
+            "php" => Self::Php,
+            "python" => Self::Python,
+            "ruby" => Self::Ruby,
+            "swift" => Self::Swift,
+            _ => Self::Other,
         }
     }
 }

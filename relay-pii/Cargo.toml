@@ -1,0 +1,38 @@
+[package]
+name = "relay-pii"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Scrubbing of personally identifiable information (PII) from events"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "24.1.1"
+edition = "2021"
+license-file = "../LICENSE.md"
+publish = false
+
+[dependencies]
+hmac = "0.12.1"
+minidump = "0.15.2"
+once_cell = { workspace = true }
+pest = "2.1.3"
+pest_derive = "2.1.0"
+regex = { workspace = true }
+relay-common = { path = "../relay-common" }
+relay-event-schema = { path = "../relay-event-schema" }
+relay-log = { path = "../relay-log" }
+relay-protocol = { path = "../relay-protocol" }
+serde = { workspace = true }
+sha1 = "0.10.5"
+smallvec = { workspace = true }
+thiserror = { workspace = true }
+utf16string = "0.2.0"
+
+[dev-dependencies]
+insta = { workspace = true }
+itertools = { workspace = true }
+pretty-hex = "0.3.0"
+relay-protocol = { path = "../relay-protocol", features = ["test"] }
+serde_json = { workspace = true }
+similar-asserts = { workspace = true }
+
+[features]
+default = []

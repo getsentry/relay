@@ -1,0 +1,17 @@
+{
+  "org_id": 1,
+  "project_id": 42,
+  "name": "endpoint.response_time",
+  "unit": "millisecond",
+  "value": [
+    36.0,
+    49.0,
+    57.0,
+    68.0
+  ],
+  "type": "d",
+  "timestamp": 1615889440,
+  "tags": {
+    "route": "user_index"
+  }
+}

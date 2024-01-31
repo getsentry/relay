@@ -27,22 +27,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: 3.8
-
-      - name: Install Dependencies
-        run: pip install -U -r requirements-dev.txt
-
-      - name: Run Black
-        run: black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
-
-      - name: Run Flake8
-        run: flake8 py
+          python-version: 3.9
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
@@ -51,11 +42,7 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - name: Run Rustfmt
-        run: cargo fmt --all -- --check
-
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
+      - run: make style lint
 
       - name: Check Docs
         run: cargo doc --workspace --all-features --no-deps --document-private-items
@@ -72,7 +59,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -100,7 +87,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -139,7 +126,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -157,7 +144,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.8]
+        python-version: [3.9]
 
     # Skip redundant checks for binary releases
     if: "!startsWith(github.ref, 'refs/heads/release/')"
@@ -166,14 +153,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --no-self-update
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -198,22 +185,23 @@ jobs:
       matrix:
         # the arm64 build takes too long, so disable for now
         arch: [amd64]
+        image_name: [relay, relay-pop]
 
-    name: Build Docker Image (${{ matrix.arch }})
+    name: Build Docker Image
     runs-on: ubuntu-latest
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     env:
-      IMG_BASE: ghcr.io/getsentry/relay
-      IMG_DEPS: ghcr.io/getsentry/relay-deps:${{ matrix.arch }}
+      IMG_BASE: ghcr.io/getsentry/${{ matrix.image_name }}
+      IMG_DEPS: ghcr.io/getsentry/${{ matrix.image_name }}-deps:${{ matrix.arch }}
       # GITHUB_SHA in pull requests points to the merge commit
-      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+      IMG_VERSIONED: ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}
       ARCH: ${{ matrix.arch }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -228,17 +216,17 @@ jobs:
         run: |
           # Get the latest stable rust toolchain version available
           TOOLCHAIN=$(curl -s 'https://static.rust-lang.org/dist/channel-rust-stable.toml' | awk '/\[pkg.rust\]/ {getline;print;}' | sed -r 's/^version = "([0-9.]+) .*/\1/')
-          ./scripts/build-docker-image.sh "$ARCH" "$TOOLCHAIN"
+          ./scripts/build-docker-image.sh "$ARCH" "$TOOLCHAIN" ${{ matrix.image_name }}
 
       - name: Export Docker Image
-        run: docker save -o relay-docker-image.tgz $IMG_VERSIONED
+        run: docker save -o ${{ matrix.image_name }}-docker-image.tgz $IMG_VERSIONED
 
       - name: Upload Docker Image to Artifact
         uses: actions/upload-artifact@v3
         with:
           retention-days: 1
-          name: relay-docker-image
-          path: relay-docker-image.tgz
+          name: ${{ matrix.image_name }}-docker-image
+          path: ${{ matrix.image_name }}-docker-image.tgz
 
       - name: Push to ghcr.io
         # Do not run this on forks as they do not have access to secrets
@@ -260,6 +248,10 @@ jobs:
     timeout-minutes: 5
     needs: build
 
+    strategy:
+      matrix:
+        image_name: [relay, relay-pop]
+
     name: Push GCR Docker Image
     runs-on: ubuntu-latest
 
@@ -275,26 +267,26 @@ jobs:
     env:
       # GITHUB_SHA in pull requests points to the merge commit
       REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+      IMG_VERSIONED: ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Download Docker Image
         uses: actions/download-artifact@v3
         with:
-          name: relay-docker-image
+          name: ${{ matrix.image_name }}-docker-image
 
       - name: Import Docker Image
-        run: docker load -i relay-docker-image.tgz
+        run: docker load -i ${{ matrix.image_name }}-docker-image.tgz
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/345757944225/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider
-          service_account: github-actions-gcr@sentryio.iam.gserviceaccount.com
+          workload_identity_provider: projects/868781662168/locations/global/workloadIdentityPools/prod-github/providers/github-oidc-pool
+          service_account: gha-gcr-push@sac-prod-sa.iam.gserviceaccount.com
 
       - name: "Set up Cloud SDK"
-        uses: "google-github-actions/setup-gcloud@v1"
+        uses: "google-github-actions/setup-gcloud@v2"
         with:
           # https://github.com/google-github-actions/auth#authenticating-via-workload-identity-federation
           # You must use the Cloud SDK version 390.0.0 or later to authenticate the bq and gsutil tools.
@@ -307,15 +299,15 @@ jobs:
       - name: Push to us.gcr.io
         run: |
           set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:$REVISION"
-          docker push "us.gcr.io/sentryio/relay:$REVISION"
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/${{ matrix.image_name }}:$REVISION"
+          docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:$REVISION"
 
       - name: Push nightly to us.gcr.io
         if: github.ref == 'refs/heads/master'
         run: |
           set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:nightly"
-          docker push "us.gcr.io/sentryio/relay:nightly"
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
+          docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
 
       - name: Upload gocd deployment assets
         run: |
@@ -337,7 +329,7 @@ jobs:
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
           gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-            "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/" || status=$? && status=$?
+            "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/${{ matrix.image_name }}/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"
 
@@ -379,7 +371,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -393,22 +385,18 @@ jobs:
       - name: Cargo build
         run: cargo build --all-features
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: 3.8
+          python-version: 3.9
 
-      - name: Install dependencies
-        run: pip install -U -r requirements-dev.txt
-
-      - name: Run tests
-        run: pytest tests -n auto -v
+      - run: make test-integration
         env:
           RELAY_VERSION_CHAIN: "20.6.0,latest"
 
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     needs: build
 
     # Skip redundant checks for library releases
@@ -417,7 +405,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: getsentry/sentry
           path: sentry
@@ -437,10 +425,9 @@ jobs:
         uses: ./.github/actions/setup-sentry
         with:
           workdir: sentry
-          cache-files-hash: ${{ hashFiles('sentry/requirements**.txt') }}
-          python-version: 3.8
           snuba: true
           kafka: true
+          symbolicator: true
 
       - name: Download Docker Image
         uses: actions/download-artifact@v3
@@ -458,33 +445,28 @@ jobs:
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
 
-  self-hosted-end-to-end:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  publish-to-dockerhub:
+    name: Publish Relay to DockerHub
     needs: build
-
-    # Skip redundant checks for library releases
-    if: "!startsWith(github.ref, 'refs/heads/release-library/')"
-
+    runs-on: ubuntu-20.04
+    if: ${{ (github.ref_name == 'master') }}
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Download Docker Image
-        uses: actions/download-artifact@v3
-        with:
-          name: relay-docker-image
-
-      - name: Import Docker Image
-        run: docker load -i relay-docker-image.tgz
-
-      - name: Run Sentry self-hosted e2e CI
-        # Skip for dependabot or if it's a fork as the image cannot be uploaded to ghcr since this test attempts to pull
-        # the image from ghcr
-        if: "!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]'"
-        uses: getsentry/action-self-hosted-e2e-tests@f45ef07793b2cc805a9a9401819f486da449a90a
-        with:
-          project_name: relay
-          image_url: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
-          docker_repo: getsentry/relay
-          docker_password: ${{ secrets.DOCKER_HUB_RW_TOKEN }}
+      - uses: actions/checkout@v4
+      - timeout-minutes: 20
+        run: until docker pull "ghcr.io/getsentry/relay:${{ github.sha }}" 2>/dev/null; do sleep 10; done
+      - name: Push built docker image
+        shell: bash
+        run: |
+          IMAGE_URL="ghcr.io/getsentry/relay:${{ github.sha }}"
+          docker login --username=sentrybuilder --password ${{ secrets.DOCKER_HUB_RW_TOKEN }}
+          # We push 3 tags to Dockerhub:
+          # first, the full sha of the commit
+          docker tag "$IMAGE_URL" getsentry/relay:${GITHUB_SHA}
+          docker push getsentry/relay:${GITHUB_SHA}
+          # second, the short sha of the commit
+          SHORT_SHA=$(git rev-parse --short "$GITHUB_SHA")
+          docker tag "$IMAGE_URL" getsentry/relay:${SHORT_SHA}
+          docker push getsentry/relay:${SHORT_SHA}
+          # finally, nightly
+          docker tag "$IMAGE_URL" getsentry/relay:nightly
+          docker push getsentry/relay:nightly

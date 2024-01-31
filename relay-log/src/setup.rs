@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{level_filters::LevelFilter, Level};
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
+#[cfg(feature = "dashboard")]
+use crate::dashboard;
+
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
 
@@ -102,6 +105,11 @@ pub struct LogConfig {
     ///
     /// Otherwise, backtraces can be enabled by setting the `RUST_BACKTRACE` variable to `full`.
     pub enable_backtraces: bool,
+
+    /// Sets the trace sample rate for performance monitoring.
+    ///
+    /// Defaults to `0.0` for release builds and `1.0` for local development builds.
+    pub traces_sample_rate: f32,
 }
 
 impl Default for LogConfig {
@@ -110,11 +118,15 @@ impl Default for LogConfig {
             level: Level::INFO,
             format: LogFormat::Auto,
             enable_backtraces: false,
+            #[cfg(debug_assertions)]
+            traces_sample_rate: 1.0,
+            #[cfg(not(debug_assertions))]
+            traces_sample_rate: 0.0,
         }
     }
 }
 
-/// Controls interal reporting to Sentry.
+/// Controls internal reporting to Sentry.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SentryConfig {
@@ -153,10 +165,10 @@ impl Default for SentryConfig {
 }
 
 /// Captures an envelope from the native crash reporter using the main Sentry SDK.
-#[cfg(feature = "relay-crash")]
+#[cfg(feature = "crash-handler")]
 fn capture_native_envelope(data: &[u8]) {
     if let Some(client) = sentry::Hub::main().client() {
-        match sentry::Envelope::from_slice(data) {
+        match sentry::Envelope::from_bytes_raw(data.to_owned()) {
             Ok(envelope) => client.send_envelope(envelope),
             Err(error) => {
                 let error = &error as &dyn std::error::Error;
@@ -227,14 +239,19 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             .boxed(),
     };
 
-    tracing_subscriber::registry()
+    let logs_subscriber = tracing_subscriber::registry()
         .with(format.with_filter(LevelFilter::from(config.level)))
         .with(sentry::integrations::tracing::layer())
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
             Ok(value) => EnvFilter::new(value),
             Err(_) => get_default_filters(),
-        })
-        .init();
+        });
+
+    // Also add dashboard subscriber if the feature is enabled.
+    #[cfg(feature = "dashboard")]
+    let logs_subscriber = logs_subscriber.with(dashboard::dashboard_subscriber());
+
+    logs_subscriber.init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
         let guard = sentry::init(sentry::ClientOptions {
@@ -243,6 +260,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
+            traces_sample_rate: config.traces_sample_rate,
             ..Default::default()
         });
 
@@ -252,13 +270,15 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
 
     // Initialize native crash reporting after the Rust SDK, so that `capture_native_envelope` has
     // access to an initialized Hub to capture crashes from the previous run.
-    #[cfg(feature = "relay-crash")]
+    #[cfg(feature = "crash-handler")]
     {
         if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
             if let Some(db) = sentry._crash_db.as_deref() {
+                crate::info!("initializing crash handler in {}", db.display());
                 relay_crash::CrashHandler::new(dsn.as_str(), db)
                     .transport(capture_native_envelope)
                     .release(Some(RELEASE))
+                    .environment(sentry.environment.as_deref())
                     .install();
             }
         }

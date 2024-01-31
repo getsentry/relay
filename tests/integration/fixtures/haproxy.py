@@ -11,7 +11,7 @@ HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
 class HAProxy(SentryLike):
     def __init__(self, server_address, process, upstream):
-        super(HAProxy, self).__init__(server_address, upstream)
+        super().__init__(server_address, upstream)
         self.process = process
 
 
@@ -27,21 +27,21 @@ def haproxy(background_process, random_port, config_dir):
         config = config_dir("haproxy").join("config")
 
         config_lines = [
-            f"defaults",
-            f"    mode http",
-            f"    timeout connect 25000ms",
-            f"    timeout client 25000ms",
-            f"    timeout server 25000ms",
-            f"    timeout queue 25000ms",
-            f"    timeout http-request 25000ms",
-            f"    timeout http-keep-alive 25000ms",
-            f"    option forwardfor",
-            f"    option redispatch",
-            f"frontend defaultFront",
+            "defaults",
+            "    mode http",
+            "    timeout connect 25000ms",
+            "    timeout client 25000ms",
+            "    timeout server 25000ms",
+            "    timeout queue 25000ms",
+            "    timeout http-request 25000ms",
+            "    timeout http-keep-alive 25000ms",
+            "    option forwardfor",
+            "    option redispatch",
+            "frontend defaultFront",
             f"    bind {host}:{port}",
-            f"    default_backend defaultBack",
-            f"backend defaultBack",
-            f"    balance roundrobin",
+            "    default_backend defaultBack",
+            "backend defaultBack",
+            "    balance roundrobin",
         ]
 
         for i, upstream in enumerate(upstreams):

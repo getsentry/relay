@@ -1,7 +1,7 @@
 use relay_auth::{KeyParseError, UnpackError};
+use relay_event_normalization::GeoIpError;
+use relay_event_schema::processor::ProcessingAction;
 use relay_ffi::Panic;
-use relay_general::store::GeoIpError;
-use relay_general::types::ProcessingAction;
 use sentry_release_parser::InvalidRelease;
 
 use crate::core::RelayStr;
@@ -26,7 +26,7 @@ pub enum RelayErrorCode {
     UnpackErrorSignatureExpired = 1005,
     UnpackErrorBadEncoding = 1006,
 
-    // relay_general::types::annotated::ProcessingAction
+    // relay_protocol::annotated::ProcessingAction
     ProcessingErrorInvalidTransaction = 2001,
     ProcessingErrorInvalidGeoIp = 2002,
 
@@ -40,7 +40,7 @@ impl RelayErrorCode {
     /// This maps all errors that can possibly happen.
     pub fn from_error(error: &anyhow::Error) -> RelayErrorCode {
         for cause in error.chain() {
-            if let Some(..) = cause.downcast_ref::<Panic>() {
+            if cause.downcast_ref::<Panic>().is_some() {
                 return RelayErrorCode::Panic;
             }
             if cause.downcast_ref::<serde_json::Error>().is_some() {

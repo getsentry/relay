@@ -1,9 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+#[doc(inline)]
+pub use relay_base_schema::data_category::DataCategory;
 
 /// Data scoping information.
 ///
@@ -68,6 +71,7 @@ impl ItemScoping<'_> {
     /// Returns the identifier of the given scope.
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
+            QuotaScope::Global => None,
             QuotaScope::Organization => Some(self.organization_id),
             QuotaScope::Project => Some(self.project_id.value()),
             QuotaScope::Key => self.key_id,
@@ -84,9 +88,6 @@ impl ItemScoping<'_> {
         categories.is_empty() || categories.iter().any(|cat| *cat == self.category)
     }
 }
-
-#[doc(inline)]
-pub use relay_common::DataCategory;
 
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,9 +109,15 @@ impl CategoryUnit {
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
-            | DataCategory::Monitor => Some(Self::Count),
+            | DataCategory::Span
+            | DataCategory::SpanIndexed
+            | DataCategory::MonitorSeat
+            | DataCategory::Monitor
+            | DataCategory::MetricBucket
+            | DataCategory::UserReportV2 => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+
             DataCategory::Unknown => None,
         }
     }
@@ -128,6 +135,8 @@ pub type DataCategories = SmallVec<[DataCategory; 8]>;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuotaScope {
+    /// Global scope, matches everything.
+    Global,
     /// The organization that this project belongs to.
     ///
     /// This is the top-level scope.
@@ -162,6 +171,7 @@ impl QuotaScope {
     /// Returns the canonical name of this scope.
     pub fn name(self) -> &'static str {
         match self {
+            Self::Global => "global",
             Self::Key => "key",
             Self::Project => "project",
             Self::Organization => "organization",
@@ -288,19 +298,21 @@ impl Quota {
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     fn matches_scope(&self, scoping: ItemScoping<'_>) -> bool {
+        if self.scope == QuotaScope::Global {
+            return true;
+        }
+
         // Check for a scope identifier constraint. If there is no constraint, this means that the
         // quota matches any scope. In case the scope is unknown, it will be coerced to the most
         // specific scope later.
-        let scope_id = match self.scope_id {
-            Some(ref scope_id) => scope_id,
-            None => return true,
+        let Some(scope_id) = self.scope_id.as_ref() else {
+            return true;
         };
 
         // Check if the scope identifier in the quota is parseable. If not, this means we cannot
         // fulfill the constraint, so the quota does not match.
-        let parsed = match scope_id.parse::<u64>() {
-            Ok(parsed) => parsed,
-            Err(_) => return false,
+        let Ok(parsed) = scope_id.parse::<u64>() else {
+            return false;
         };
 
         // At this stage, require that the scope is known since we have to fulfill the constraint.
@@ -328,7 +340,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [],
@@ -336,7 +348,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -349,7 +361,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [
@@ -359,7 +371,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -373,7 +385,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -382,7 +394,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -398,7 +410,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("p"),
           categories: [],
@@ -408,7 +420,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -424,7 +436,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("p"),
           categories: [],
@@ -434,7 +446,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -450,7 +462,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("k"),
           categories: [],
@@ -460,7 +472,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -477,7 +489,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("f"),
           categories: [
@@ -489,7 +501,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -501,7 +513,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -509,7 +521,7 @@ mod tests {
           limit: None,
           window: Some(42),
         )
-        "###);
+        "#);
     }
 
     #[test]

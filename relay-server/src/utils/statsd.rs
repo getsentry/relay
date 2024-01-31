@@ -1,8 +1,22 @@
-use relay_common::EventType;
-use relay_general::protocol::Event;
-use relay_general::types::{Annotated, RemarkType};
+use relay_base_schema::events::EventType;
+use relay_event_normalization::utils::extract_http_status_code;
+use relay_event_schema::protocol::{Event, TransactionSource};
+use relay_protocol::{Annotated, RemarkType};
 
 use crate::statsd::RelayCounters;
+
+/// Maps the event's transaction source to a low-cardinality statsd tag.
+pub fn transaction_source_tag(event: &Event) -> &str {
+    let source = event
+        .transaction_info
+        .value()
+        .and_then(|i| i.source.value());
+    match source {
+        None => "none",
+        Some(TransactionSource::Other(_)) => "other",
+        Some(source) => source.as_str(),
+    }
+}
 
 /// Log statsd metrics about transaction name modifications.
 ///
@@ -20,7 +34,7 @@ where
         return f(event);
     }
 
-    let old_source = inner.get_transaction_source().to_string();
+    let old_source = transaction_source_tag(inner).to_string();
     let old_remarks = inner.transaction.meta().iter_remarks().count();
 
     let res = f(event);
@@ -50,16 +64,14 @@ where
         (false, false) => "none",
     };
 
-    let new_source = inner.get_transaction_source();
-    let is_404 = inner
-        .get_tag_value("http.status_code")
-        .map_or(false, |s| s == "404");
+    let new_source = transaction_source_tag(inner);
+    let is_404 = extract_http_status_code(inner).map_or(false, |s| s == "404");
 
     relay_statsd::metric!(
         counter(RelayCounters::TransactionNameChanges) += 1,
         source_in = old_source.as_str(),
         changes = changes,
-        source_out = new_source.as_str(),
+        source_out = new_source,
         is_404 = if is_404 { "true" } else { "false" },
     );
 
