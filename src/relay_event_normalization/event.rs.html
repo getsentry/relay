@@ -3074,11 +3074,11 @@
     }
 }
 
-<span class="doccomment">/// Computes performance score measurements.
+<span class="doccomment">/// Computes performance score measurements for an event.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
-</span><span class="kw">fn </span>normalize_performance_score(
+</span><span class="kw">pub fn </span>normalize_performance_score(
     event: <span class="kw-2">&amp;mut </span>Event,
     performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>PerformanceScoreConfig&gt;,
 ) {
@@ -3102,8 +3102,8 @@
                     // a measurement with weight is missing.
                     </span><span class="kw">break</span>;
                 }
-                <span class="kw">let </span><span class="kw-2">mut </span>score_total = <span class="number">0.0</span>;
-                <span class="kw">let </span><span class="kw-2">mut </span>weight_total = <span class="number">0.0</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>score_total = <span class="number">0.0f64</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>weight_total = <span class="number">0.0f64</span>;
                 <span class="kw">for </span>component <span class="kw">in </span><span class="kw-2">&amp;</span>profile.score_components {
                     <span class="comment">// Skip optional components if they are not present on the event.
                     </span><span class="kw">if </span>component.optional

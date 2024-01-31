@@ -219,6 +219,8 @@
 <a href="#219" id="219">219</a>
 <a href="#220" id="220">220</a>
 <a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization and processing.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -261,7 +263,9 @@
     TransactionValidationConfig,
 };
 <span class="kw">pub mod </span>replay;
-<span class="kw">pub use </span>event::{normalize_event, normalize_measurements, NormalizationConfig};
+<span class="kw">pub use </span>event::{
+    normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,
+};
 <span class="kw">pub use </span>normalize::breakdowns::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>normalize::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>remove_other::RemoveOtherProcessor;

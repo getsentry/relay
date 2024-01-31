@@ -435,6 +435,38 @@
 <a href="#435" id="435">435</a>
 <a href="#436" id="436">436</a>
 <a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -446,13 +478,13 @@
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::span::tag_extraction;
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_measurements, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
-    TransactionsProcessor,
+    normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
+    validate_span, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
+    RawUserAgentInfo, TransactionsProcessor,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
-<span class="kw">use </span>relay_event_schema::protocol::Span;
-<span class="kw">use </span>relay_metrics::UnixTimestamp;
-<span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace};
+<span class="kw">use </span>relay_event_schema::protocol::{Contexts, Event, Span};
+<span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty};
 
@@ -478,6 +510,19 @@
         state.managed_envelope.received_at(),
         global_config.measurements.as_ref(),
         state.project_state.config().measurements.as_ref(),
+        state.project_state.config().performance_score.as_ref(),
+    );
+
+    <span class="kw">let </span>meta = state.managed_envelope.envelope().meta();
+    <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+    <span class="kw">let </span>user_agent_info = RawUserAgentInfo {
+        user_agent: meta.user_agent(),
+        client_hints: meta.client_hints().as_deref(),
+    };
+    normalize_user_agent_info_generic(
+        <span class="kw-2">&amp;mut </span>contexts,
+        <span class="kw-2">&amp;</span>Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
+        <span class="kw-2">&amp;</span>user_agent_info,
     );
 
     state.managed_envelope.retain_items(|item| {
@@ -502,7 +547,11 @@
             <span class="kw">_ </span>=&gt; <span class="kw">return </span>ItemAction::Keep,
         };
 
-        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = normalize(<span class="kw-2">&amp;mut </span>annotated_span, normalize_span_config.clone()) {
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = normalize(
+            <span class="kw-2">&amp;mut </span>annotated_span,
+            normalize_span_config.clone(),
+            Annotated::new(contexts.clone()),
+        ) {
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to normalize span: {}&quot;</span>, e);
             <span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         };
@@ -659,6 +708,8 @@
     </span><span class="kw">pub </span>timestamp_range: std::ops::Range&lt;UnixTimestamp&gt;,
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     </span><span class="kw">pub </span>max_tag_value_size: usize,
+    <span class="doccomment">/// Configuration for generating performance score measurements for web vitals
+    </span><span class="kw">pub </span>performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PerformanceScoreConfig&gt;,
     <span class="doccomment">/// Configuration for measurement normalization in transaction events.
     ///
     /// Has an optional [`relay_event_normalization::MeasurementsConfig`] from both the project and the global level.
@@ -677,6 +728,7 @@
     received_at: DateTime&lt;Utc&gt;,
     global_measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
     project_measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
+    performance_score: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PerformanceScoreConfig&gt;,
 ) -&gt; NormalizeSpanConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">let </span>aggregator_config =
         AggregatorConfig::from(config.aggregator_config_for(MetricNamespace::Spans));
@@ -696,6 +748,7 @@
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
         ),
+        performance_score,
     }
 }
 
@@ -703,6 +756,7 @@
 </span><span class="kw">fn </span>normalize(
     annotated_span: <span class="kw-2">&amp;mut </span>Annotated&lt;Span&gt;,
     config: NormalizeSpanConfig,
+    contexts: Annotated&lt;Contexts&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">use </span>relay_event_normalization::{SchemaProcessor, TimestampProcessor, TrimmingProcessor};
 
@@ -710,6 +764,7 @@
         received_at,
         timestamp_range: timestmap_range,
         max_tag_value_size,
+        performance_score,
         measurements,
         max_name_and_unit_len,
     } = config;
@@ -771,6 +826,15 @@
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
             .collect(),
     );
+
+    <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+        contexts,
+        measurements: span.measurements.clone(),
+        spans: Annotated::from(<span class="macro">vec!</span>[Annotated::new(span.clone())]),
+        ..Default::default()
+    };
+    normalize_performance_score(<span class="kw-2">&amp;mut </span>event, performance_score);
+    span.measurements = event.measurements;
 
     tag_extraction::extract_measurements(span);
 
