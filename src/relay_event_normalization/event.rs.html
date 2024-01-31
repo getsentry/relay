@@ -2596,6 +2596,12 @@
 
         normalize(event, meta, config);
     }
+
+    <span class="kw">if </span>config.enable_trimming {
+        <span class="comment">// Trim large strings and databags down
+        </span><span class="kw">let _ </span>=
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
+    }
 }
 
 <span class="doccomment">/// Normalizes the given event based on the given config.
@@ -2692,12 +2698,6 @@
                 max_tag_value_size: config.max_tag_value_length,
             },
         );
-    }
-
-    <span class="kw">if </span>config.enable_trimming {
-        <span class="comment">// Trim large strings and databags down
-        </span><span class="kw">let _ </span>=
-            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 }
 
