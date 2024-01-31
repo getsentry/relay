@@ -700,9 +700,9 @@ fn get_event_start_type(event: Event, is_mobile: bool) -> Option<String> {
     }
 
     // Check the measurements on the event to determine what kind of start type the event is
-    if let Some(_) = event.measurement("app_start_cold") {
+    if event.measurement("app_start_cold").is_some() {
         Some("app.start.cold".to_owned())
-    } else if let Some(_) = event.measurement("app_start_warm") {
+    } else if event.measurement("app_start_warm").is_some() {
         Some("app.start.warm".to_owned())
     } else {
         None
