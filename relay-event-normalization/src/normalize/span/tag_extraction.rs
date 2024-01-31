@@ -146,7 +146,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
-    let start_type = is_mobile.then(|| get_event_start_type(&event)).flatten();
+    let start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
     let Some(spans) = event.spans.value_mut() else {
         return;
