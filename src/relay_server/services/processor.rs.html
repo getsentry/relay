@@ -5005,7 +5005,7 @@
     <span class="kw">use </span>std::hash::{Hash, Hasher};
 
     <span class="kw">let </span>partitions = partitions<span class="question-mark">?</span>.max(<span class="number">1</span>);
-    <span class="kw">let </span>key = (project_key, bucket.timestamp, <span class="kw-2">&amp;</span>bucket.name, <span class="kw-2">&amp;</span>bucket.tags);
+    <span class="kw">let </span>key = (project_key, <span class="kw-2">&amp;</span>bucket.name, <span class="kw-2">&amp;</span>bucket.tags);
 
     <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
     key.hash(<span class="kw-2">&amp;mut </span>hasher);
