@@ -1090,6 +1090,12 @@ mod tests {
                     "version": "16.2"
                 }
             },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 1.0,
+                    "unit": "millisecond"
+                }
+            },
             "spans": [
                 {
                     "op": "app.start.cold",
@@ -1143,7 +1149,10 @@ mod tests {
                     "span_id": "bd429c44b67a3eb2",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "app_start_type": "app.start.cold"
+                    }
                 }
             ]
         }
