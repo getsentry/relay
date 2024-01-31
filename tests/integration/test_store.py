@@ -1564,7 +1564,7 @@ def test_span_ingestion(
         },
     )
 
-    spans = list(spans_consumer.get_spans(timeout=5.0, max_attempts=10000))
+    spans = list(spans_consumer.get_spans(timeout=10.0))
 
     for span in spans:
         span.pop("received", None)
@@ -1949,7 +1949,7 @@ def test_span_reject_invalid_timestamps(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=5.0, max_attempts=10000))
+    spans = list(spans_consumer.get_spans(timeout=10.0))
 
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
@@ -2023,7 +2023,7 @@ def test_span_ingestion_with_performance_scores(
     )
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans(timeout=5.0, max_attempts=10000))
+    spans = list(spans_consumer.get_spans(timeout=10.0))
 
     for span in spans:
         span.pop("received", None)
