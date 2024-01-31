@@ -40,7 +40,9 @@ pub use validation::{
     TransactionValidationConfig,
 };
 pub mod replay;
-pub use event::{normalize_event, normalize_measurements, NormalizationConfig};
+pub use event::{
+    normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,
+};
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;

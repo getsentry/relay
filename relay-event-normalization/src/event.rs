@@ -627,11 +627,11 @@ pub fn normalize_measurements(
     }
 }
 
-/// Computes performance score measurements.
+/// Computes performance score measurements for an event.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
-fn normalize_performance_score(
+pub fn normalize_performance_score(
     event: &mut Event,
     performance_score: Option<&PerformanceScoreConfig>,
 ) {
@@ -655,8 +655,8 @@ fn normalize_performance_score(
                     // a measurement with weight is missing.
                     break;
                 }
-                let mut score_total = 0.0;
-                let mut weight_total = 0.0;
+                let mut score_total = 0.0f64;
+                let mut weight_total = 0.0f64;
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
