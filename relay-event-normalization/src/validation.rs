@@ -6,7 +6,7 @@ use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
-use relay_event_schema::protocol::{Event, Span, TraceContext};
+use relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
 use relay_protocol::{Annotated, ErrorKind, Meta};
 
 use crate::{ClockDriftProcessor, TimestampProcessor};
@@ -44,7 +44,9 @@ pub fn validate_transaction(
 
     validate_transaction_timestamps(event, config)?;
     validate_trace_context(event)?;
-    validate_spans(event)?;
+    // There are no timestamp range requirements for span timestamps.
+    // Transaction will be rejected only if either end or start timestamp is missing.
+    validate_spans(event, None)?;
 
     Ok(())
 }
@@ -59,25 +61,7 @@ fn validate_transaction_timestamps(
         transaction_event.timestamp.value(),
     ) {
         (Some(start), Some(end)) => {
-            if end < start {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "end timestamp is smaller than start timestamp",
-                ));
-            }
-
-            if let Some(ref range) = config.timestamp_range {
-                let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "invalid unix timestamp",
-                    ));
-                };
-                if !range.contains(&timestamp) {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "timestamp is out of the valid range for metrics",
-                    ));
-                }
-            }
-
+            validate_timestamps(start, end, config.timestamp_range.as_ref())?;
             Ok(())
         }
         (_, None) => Err(ProcessingAction::InvalidTransaction(
@@ -88,6 +72,36 @@ fn validate_transaction_timestamps(
             "start_timestamp hard-required for transaction events",
         )),
     }
+}
+
+/// Validates that start <= end timestamps and that the end timestamp is inside the valid range.
+fn validate_timestamps(
+    start: &Timestamp,
+    end: &Timestamp,
+    valid_range: Option<&Range<UnixTimestamp>>,
+) -> ProcessingResult {
+    if end < start {
+        return Err(ProcessingAction::InvalidTransaction(
+            "end timestamp is smaller than start timestamp",
+        ));
+    }
+
+    let Some(range) = valid_range else {
+        return Ok(());
+    };
+
+    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+        return Err(ProcessingAction::InvalidTransaction(
+            "invalid unix timestamp",
+        ));
+    };
+    if !range.contains(&timestamp) {
+        return Err(ProcessingAction::InvalidTransaction(
+            "timestamp is out of the valid range for metrics",
+        ));
+    }
+
+    Ok(())
 }
 
 /// Validates the trace context in a transaction.
@@ -123,14 +137,17 @@ fn validate_trace_context(transaction: &Event) -> ProcessingResult {
 ///
 /// A [`ProcessingResult`] error is returned if there's an invalid span. For
 /// span validity, see [`validate_span`].
-fn validate_spans(transaction: &Event) -> ProcessingResult {
+fn validate_spans(
+    transaction: &Event,
+    timestamp_range: Option<&Range<UnixTimestamp>>,
+) -> ProcessingResult {
     let Some(spans) = transaction.spans.value() else {
         return Ok(());
     };
 
     for span in spans {
         if let Some(span) = span.value() {
-            validate_span(span)?;
+            validate_span(span, timestamp_range)?;
         } else {
             return Err(ProcessingAction::InvalidTransaction(
                 "spans must be valid in transaction event",
@@ -150,14 +167,13 @@ fn validate_spans(transaction: &Event) -> ProcessingResult {
 /// - Start timestamp must be no later than end timestamp.
 /// - A trace id exists.
 /// - A span id exists.
-pub fn validate_span(span: &Span) -> ProcessingResult {
+pub fn validate_span(
+    span: &Span,
+    timestamp_range: Option<&Range<UnixTimestamp>>,
+) -> ProcessingResult {
     match (span.start_timestamp.value(), span.timestamp.value()) {
         (Some(start), Some(end)) => {
-            if end < start {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "end timestamp in span is smaller than start timestamp",
-                ));
-            }
+            validate_timestamps(start, end, timestamp_range)?;
         }
         (_, None) => {
             // XXX: Maybe do the same as event.timestamp?
