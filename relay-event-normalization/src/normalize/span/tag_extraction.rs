@@ -1,4 +1,4 @@
-//! Logic for persisting items into `span.data` fields.
+//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -60,6 +60,8 @@ pub enum SpanTagKey {
     FileExtension,
     /// Span started on main thread.
     MainTread,
+    /// The start type of the application when the span occurred
+    AppStartType,
 }
 
 impl SpanTagKey {
@@ -95,6 +97,7 @@ impl SpanTagKey {
             SpanTagKey::FileExtension => "file_extension",
             SpanTagKey::MainTread => "main_thread",
             SpanTagKey::OsName => "os.name",
+            SpanTagKey::AppStartType => "app_start_type",
         }
     }
 }
@@ -143,6 +146,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
+    let start_type = get_event_start_type(event.clone(), is_mobile);
 
     let Some(spans) = event.spans.value_mut() else {
         return;
@@ -156,7 +160,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             continue;
         };
 
-        let tags = extract_tags(span, config, ttid, ttfd, is_mobile);
+        let tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type.clone());
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -231,7 +235,7 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     tags
 }
 
-/// Writes fields into [`Span::data`].
+/// Writes fields into [`Span::sentry_tags`].
 ///
 /// Generating new span data fields is based on a combination of looking at
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
@@ -243,6 +247,7 @@ pub fn extract_tags(
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
     is_mobile: bool,
+    start_type: Option<String>,
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
@@ -452,6 +457,19 @@ pub fn extract_tags(
             if thread_name == MAIN_THREAD_NAME {
                 span_tags.insert(SpanTagKey::MainTread, "true".to_owned());
             }
+        }
+
+        // Attempt to read the start type from span.data if it exists, else
+        // pass along the start_type from the event.
+        if let Some(span_data_start_type) = span
+            .data
+            .value()
+            .and_then(|data| data.get(SpanTagKey::AppStartType.sentry_tag_key()))
+            .and_then(|value| value.as_str())
+        {
+            span_tags.insert(SpanTagKey::AppStartType, span_data_start_type.to_owned());
+        } else if let Some(start_type) = start_type {
+            span_tags.insert(SpanTagKey::AppStartType, start_type.to_owned());
         }
     }
 
@@ -671,6 +689,23 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         ) => category,
         // Map everything else to unknown:
         _ => None,
+    }
+}
+
+/// Reads the event measurements to determine the start type of the event
+fn get_event_start_type(event: Event, is_mobile: bool) -> Option<String> {
+    // Only collect start type for mobile spans
+    if !is_mobile {
+        return None;
+    }
+
+    // Check the measurements on the event to determine what kind of start type the event is
+    if let Some(_) = event.measurement("app_start_cold") {
+        Some("app.start.cold".to_owned())
+    } else if let Some(_) = event.measurement("app_start_warm") {
+        Some("app.start.warm".to_owned())
+    } else {
+        None
     }
 }
 
@@ -1212,6 +1247,12 @@ LIMIT 1
                         "version": "8.1.0"
                     }
                 },
+                "measurements": {
+                    "app_start_warm": {
+                        "value": 1.0,
+                        "unit": "millisecond"
+                    }
+                },
                 "spans": [
                     {
                         "op": "ui.load",
@@ -1221,7 +1262,8 @@ LIMIT 1
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "data": {
                             "thread.id": 1,
-                            "thread.name": "main"
+                            "thread.name": "main",
+                            "app_start_type": "app.start.cold"
                         }
                     },
                     {
@@ -1263,15 +1305,27 @@ LIMIT 1
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
         assert_eq!(tags.get("os.name").unwrap().as_str(), Some("Android"));
+        assert_eq!(
+            tags.get("app_start_type").unwrap().as_str(),
+            Some("app.start.cold")
+        );
 
         let span = &event.spans.value().unwrap()[1];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread"), None);
+        assert_eq!(
+            tags.get("app_start_type").unwrap().as_str(),
+            Some("app.start.warm")
+        );
 
         let span = &event.spans.value().unwrap()[2];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread"), None);
+        assert_eq!(
+            tags.get("app_start_type").unwrap().as_str(),
+            Some("app.start.warm")
+        );
     }
 }
