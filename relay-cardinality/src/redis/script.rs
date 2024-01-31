@@ -96,7 +96,7 @@ impl CardinalityScript {
 
         let mut num_hashes = 0;
         for hash in hashes {
-            invocation.arg(hash);
+            invocation.arg(&hash.to_le_bytes());
             num_hashes += 1;
         }
 

@@ -19,6 +19,11 @@ use relay_common::time::UnixTimestamp;
 
 /// Key prefix used for Redis keys.
 const KEY_PREFIX: &str = "relay:cardinality";
+/// Redis key version.
+///
+/// The version is embedded in the key as a static segment, increment the version whenever there are
+/// breaking changes made to the keys or storage format in Redis.
+const KEY_VERSION: u32 = 1;
 
 /// Configuration options for the [`RedisSetLimiter`].
 pub struct RedisSetLimiterOptions {
@@ -216,7 +221,7 @@ impl QuotaScoping {
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
 
-        format!("{KEY_PREFIX}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
+        format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
     }
 }
 
@@ -395,7 +400,10 @@ mod tests {
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
         fn flush(&self, scoping: Scoping) {
-            let pattern = format!("{KEY_PREFIX}:scope-{{{o}-*", o = scoping.organization_id);
+            let pattern = format!(
+                "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
+                o = scoping.organization_id
+            );
 
             let mut client = self.redis.client().unwrap();
             let mut connection = client.connection().unwrap();
@@ -415,7 +423,10 @@ mod tests {
         }
 
         fn redis_sets(&self, scoping: Scoping) -> Vec<(String, usize)> {
-            let pattern = format!("{KEY_PREFIX}:scope-{{{o}-*", o = scoping.organization_id);
+            let pattern = format!(
+                "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
+                o = scoping.organization_id
+            );
 
             let mut client = self.redis.client().unwrap();
             let mut connection = client.connection().unwrap();
