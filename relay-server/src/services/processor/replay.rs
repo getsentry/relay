@@ -208,7 +208,6 @@ mod tests {
     use crate::services::processor::ProcessEnvelope;
     use crate::services::processor::ProcessingGroup;
     use crate::services::project::ProjectState;
-    use crate::services::{outcome_aggregator, test_store};
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
     use relay_dynamic_config::Feature;
