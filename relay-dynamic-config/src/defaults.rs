@@ -176,7 +176,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("span.main_thread")
                     .from_field("span.sentry_tags.main_thread")
                     .when(is_mobile.clone()),
-                Tag::with_key("span.app_start_type")
+                Tag::with_key("app_start_type")
                     .from_field("span.sentry_tags.app_start_type")
                     .when(is_mobile.clone()),
                 // Resource module:
@@ -228,7 +228,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                 Tag::with_key("release")
                     .from_field("span.sentry_tags.release")
                     .when(is_mobile.clone()),
-                Tag::with_key("span.app_start_type")
+                Tag::with_key("app_start_type")
                     .from_field("span.sentry_tags.app_start_type")
                     .when(is_mobile.clone()),
                 // Resource module:

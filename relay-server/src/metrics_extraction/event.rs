@@ -1151,7 +1151,7 @@ mod tests {
                     "timestamp": 1597976303.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "data": {
-                        "app_start_type": "app.start.cold"
+                        "app_start_type": "cold"
                     }
                 }
             ]

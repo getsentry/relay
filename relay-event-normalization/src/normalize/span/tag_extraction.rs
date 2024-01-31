@@ -60,7 +60,7 @@ pub enum SpanTagKey {
     FileExtension,
     /// Span started on main thread.
     MainTread,
-    /// The start type of the application when the span occurred
+    /// The start type of the application when the span occurred.
     AppStartType,
 }
 
@@ -146,7 +146,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
-    let start_type = get_event_start_type(event.clone(), is_mobile);
+    let start_type = is_mobile.then(|| get_event_start_type(&event)).flatten();
 
     let Some(spans) = event.spans.value_mut() else {
         return;
@@ -693,17 +693,12 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 }
 
 /// Reads the event measurements to determine the start type of the event
-fn get_event_start_type(event: Event, is_mobile: bool) -> Option<String> {
-    // Only collect start type for mobile spans
-    if !is_mobile {
-        return None;
-    }
-
+fn get_event_start_type(event: &Event) -> Option<String> {
     // Check the measurements on the event to determine what kind of start type the event is
     if event.measurement("app_start_cold").is_some() {
-        Some("app.start.cold".to_owned())
+        Some("cold".to_owned())
     } else if event.measurement("app_start_warm").is_some() {
-        Some("app.start.warm".to_owned())
+        Some("warm".to_owned())
     } else {
         None
     }
@@ -1263,7 +1258,7 @@ LIMIT 1
                         "data": {
                             "thread.id": 1,
                             "thread.name": "main",
-                            "app_start_type": "app.start.cold"
+                            "app_start_type": "cold"
                         }
                     },
                     {
@@ -1305,27 +1300,18 @@ LIMIT 1
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
         assert_eq!(tags.get("os.name").unwrap().as_str(), Some("Android"));
-        assert_eq!(
-            tags.get("app_start_type").unwrap().as_str(),
-            Some("app.start.cold")
-        );
+        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("cold"));
 
         let span = &event.spans.value().unwrap()[1];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread"), None);
-        assert_eq!(
-            tags.get("app_start_type").unwrap().as_str(),
-            Some("app.start.warm")
-        );
+        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("warm"));
 
         let span = &event.spans.value().unwrap()[2];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(tags.get("main_thread"), None);
-        assert_eq!(
-            tags.get("app_start_type").unwrap().as_str(),
-            Some("app.start.warm")
-        );
+        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("warm"));
     }
 }
