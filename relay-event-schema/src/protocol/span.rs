@@ -242,6 +242,9 @@ mod tests {
                 "data": {
                     "foo": {"bar": 1},
                     "foo.bar": 2
+                },
+                "measurements": {
+                    "some": {"value": 100.0}
                 }
             }"#,
         )
@@ -255,6 +258,11 @@ mod tests {
         assert_eq!(span.get_value("span.data"), None);
         assert_eq!(span.get_value("span.data."), None);
         assert_eq!(span.get_value("span.data.x"), None);
+
+        assert_eq!(
+            span.get_value("span.measurements.some.value"),
+            Some(Val::F64(100.0))
+        );
     }
 
     #[test]
