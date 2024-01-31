@@ -93,14 +93,6 @@
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a>
 <a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -131,24 +123,24 @@
     /// This function is used to calculate keys for storing the number of
     /// requests made in each granule.
     ///
-    /// The iteration is done in reverse-order (newest timestamp to oldest),
+    /// The iteration is done in natural-order (oldest timestamp to newest),
     /// starting with the key to which a currently-processed request should be
     /// added. That request&#39;s timestamp is `request_timestamp`.
     ///
-    /// * `request_timestamp / self.granularity_seconds - 1`
-    /// * `request_timestamp / self.granularity_seconds - 2`
-    /// * `request_timestamp / self.granularity_seconds - 3`
+    /// * `request_timestamp / self.granularity_seconds`
+    /// * `request_timestamp / self.granularity_seconds + 1`
+    /// * `request_timestamp / self.granularity_seconds + 2`
     /// * ...
     </span><span class="kw">pub fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp) -&gt; <span class="kw">impl </span>Iterator&lt;Item = Slot&gt; {
         <span class="kw">let </span>value = timestamp.as_secs() / <span class="self">self</span>.granularity_seconds;
         (<span class="number">0</span>..<span class="self">self</span>.window_seconds / <span class="self">self</span>.granularity_seconds)
-            .map(<span class="kw">move </span>|i| value.saturating_sub(i + <span class="number">1</span>))
+            .map(<span class="kw">move </span>|i| value + i)
             .map(Slot)
     }
 
     <span class="doccomment">/// The active bucket is the oldest active granule.
     </span><span class="kw">pub fn </span>active_slot(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp) -&gt; Slot {
-        <span class="self">self</span>.iter(timestamp).last().unwrap_or(Slot(<span class="number">0</span>))
+        <span class="self">self</span>.iter(timestamp).next().unwrap_or(Slot(<span class="number">0</span>))
     }
 }
 
@@ -175,23 +167,15 @@
             granularity_seconds: <span class="number">720</span>,
         };
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">1701775000</span>);
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">7200</span>);
         <span class="kw">let </span>r = window.iter(timestamp).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_eq!</span>(
             r.len() <span class="kw">as </span>u64,
             window.window_seconds / window.granularity_seconds
         );
-        <span class="macro">assert_eq!</span>(
-            r,
-            <span class="macro">vec!</span>[
-                Slot(<span class="number">2363575</span>),
-                Slot(<span class="number">2363574</span>),
-                Slot(<span class="number">2363573</span>),
-                Slot(<span class="number">2363572</span>),
-                Slot(<span class="number">2363571</span>)
-            ]
-        );
-        <span class="macro">assert_eq!</span>(window.active_slot(timestamp), <span class="kw-2">*</span>r.last().unwrap());
+
+        <span class="macro">assert_eq!</span>(r, <span class="macro">vec!</span>[Slot(<span class="number">10</span>), Slot(<span class="number">11</span>), Slot(<span class="number">12</span>), Slot(<span class="number">13</span>), Slot(<span class="number">14</span>)]);
+        <span class="macro">assert_eq!</span>(window.active_slot(timestamp), <span class="kw-2">*</span>r.first().unwrap());
 
         <span class="kw">let </span>r2 = window
             .iter(timestamp + Duration::from_secs(<span class="number">10</span>))

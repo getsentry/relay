@@ -13,13 +13,13 @@ sliding window, configure what the granularity of that window is.</p>
 (absolute) granule.</p>
 <p>This function is used to calculate keys for storing the number of
 requests made in each granule.</p>
-<p>The iteration is done in reverse-order (newest timestamp to oldest),
+<p>The iteration is done in natural-order (oldest timestamp to newest),
 starting with the key to which a currently-processed request should be
 added. That request’s timestamp is <code>request_timestamp</code>.</p>
 <ul>
-<li><code>request_timestamp / self.granularity_seconds - 1</code></li>
-<li><code>request_timestamp / self.granularity_seconds - 2</code></li>
-<li><code>request_timestamp / self.granularity_seconds - 3</code></li>
+<li><code>request_timestamp / self.granularity_seconds</code></li>
+<li><code>request_timestamp / self.granularity_seconds + 1</code></li>
+<li><code>request_timestamp / self.granularity_seconds + 2</code></li>
 <li>…</li>
 </ul>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.active_slot" class="method"><a class="src rightside" href="../src/relay_cardinality/window.rs.html#47-49">source</a><h4 class="code-header">pub fn <a href="#method.active_slot" class="fn">active_slot</a>(&amp;self, timestamp: <a class="struct" href="../relay_common/time/struct.UnixTimestamp.html" title="struct relay_common::time::UnixTimestamp">UnixTimestamp</a>) -&gt; Slot</h4></section></summary><div class="docblock"><p>The active bucket is the oldest active granule.</p>
