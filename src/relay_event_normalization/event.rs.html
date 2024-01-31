@@ -2591,6 +2591,9 @@
     </span><span class="kw">let _ </span>= legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
     <span class="kw">if </span>!is_renormalize {
+        <span class="comment">// Check for required and non-empty values
+        </span><span class="kw">let _ </span>= schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+
         normalize(event, meta, config);
     }
 }
@@ -2604,9 +2607,6 @@
     </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor =
         transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
     <span class="kw">let _ </span>= transactions_processor.process_event(event, meta, ProcessingState::root());
-
-    <span class="comment">// Check for required and non-empty values
-    </span><span class="kw">let _ </span>= schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
     <span class="comment">// Process security reports first to ensure all props.
     </span>normalize_security_report(event, config.client_ip, <span class="kw-2">&amp;</span>config.user_agent);
