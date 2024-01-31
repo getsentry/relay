@@ -197,6 +197,7 @@ fn process_replays_combine_items(state: &mut ProcessEnvelopeState) -> Result<(),
             }
         }
     }
+
     Ok(())
 }
 
@@ -205,6 +206,7 @@ mod tests {
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::services::processor::ProcessEnvelope;
+    use crate::services::processor::ProcessingGroup;
     use crate::services::project::ProjectState;
     use crate::services::{outcome_aggregator, test_store};
     use crate::testutils::create_test_processor;
@@ -245,8 +247,6 @@ mod tests {
                 "timestamp": 1597977777.6189718,
                 "replay_start_timestamp": 1597976392.6542819,
                 "urls": ["sentry.io"],
-                "error_ids": ["1", "2"],
-                "trace_ids": ["3", "4"],
                 "dist": "1.12",
                 "platform": "javascript",
                 "environment": "production",
@@ -297,12 +297,13 @@ mod tests {
             .0
             .insert(Feature::SessionReplayCombinedEnvelopeItems);
 
-        let mut envelopes = crate::services::processor::ProcessingGroup::split_envelope(*envelope);
-
-        let (group, envelope) = envelopes.pop().unwrap();
-
         let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(envelope, Addr::dummy(), Addr::dummy(), group),
+            envelope: ManagedEnvelope::standalone(
+                envelope,
+                Addr::dummy(),
+                Addr::dummy(),
+                ProcessingGroup::Replay,
+            ),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
             reservoir_counters: ReservoirCounters::default(),

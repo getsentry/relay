@@ -13,6 +13,7 @@ pub enum Feature {
     SessionReplayRecordingScrubbing,
     /// Enables combining session replay envelope item (Replay Recordings and Replay Events).
     /// into one item.
+    #[serde(rename = "organizations:session-replay-combined-envelope-items")]
     SessionReplayCombinedEnvelopeItems,
     /// Enables new User Feedback ingest.
     ///

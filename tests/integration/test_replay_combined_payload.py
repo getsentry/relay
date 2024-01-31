@@ -42,10 +42,11 @@ def test_replay_combined_with_processing(
 
     payload = msgpack.unpackb(combined_replay_message["payload"])
 
-    replay_event = json.loads(payload["replay_event"])
+    replay_event = json.loads(bytes(payload["replay_event"]))
+
     assert replay_event["replay_id"] == "515539018c9b4260a6f999572f1661ee"
 
-    assert payload["replay_recording"] == replay_recording_bytes
+    assert bytes(payload["replay_recording"]) == replay_recording_bytes
 
 
 # TODO: figure out behavior for this test
