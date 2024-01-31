@@ -395,14 +395,12 @@ mod tests {
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
         fn flush(&self, scoping: Scoping) {
-            let organization_id = scoping.organization_id;
-            let pattern = format!("{KEY_PREFIX}:scope-{{{organization_id}-*");
+            let pattern = format!("{KEY_PREFIX}:scope-{{{o}-*", o = scoping.organization_id);
 
             let mut client = self.redis.client().unwrap();
             let mut connection = client.connection().unwrap();
 
-            let mut keys = redis::cmd("KEYS");
-            let keys = keys
+            let keys = redis::cmd("KEYS")
                 .arg(pattern)
                 .query::<Vec<String>>(&mut connection)
                 .unwrap();
@@ -414,6 +412,28 @@ mod tests {
                 }
                 del.query::<()>(&mut connection).unwrap();
             }
+        }
+
+        fn redis_sets(&self, scoping: Scoping) -> Vec<(String, usize)> {
+            let pattern = format!("{KEY_PREFIX}:scope-{{{o}-*", o = scoping.organization_id);
+
+            let mut client = self.redis.client().unwrap();
+            let mut connection = client.connection().unwrap();
+
+            redis::cmd("KEYS")
+                .arg(pattern)
+                .query::<Vec<String>>(&mut connection)
+                .unwrap()
+                .into_iter()
+                .map(move |key| {
+                    let size = redis::cmd("SCARD")
+                        .arg(&key)
+                        .query::<usize>(&mut connection)
+                        .unwrap();
+
+                    (key, size)
+                })
+                .collect()
         }
 
         fn test_limits<I>(
@@ -672,6 +692,90 @@ mod tests {
             // 2 transactions accepted -> no rejections.
             assert!(!rejected.contains(&EntryId(4)));
             assert!(!rejected.contains(&EntryId(5)));
+        }
+    }
+
+    #[test]
+    fn test_limiter_sliding_window_full() {
+        let mut limiter = build_limiter();
+        let scoping = new_scoping(&limiter);
+
+        let window = SlidingWindow {
+            window_seconds: 300,
+            granularity_seconds: 100,
+        };
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window,
+            limit: 100,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
+
+        macro_rules! test {
+            ($r:expr) => {{
+                let entries = $r
+                    .map(|i| Entry::new(EntryId(i as usize), MetricNamespace::Custom, i))
+                    .collect::<Vec<_>>();
+
+                limiter.test_limits(scoping, limits, entries)
+            }};
+        }
+
+        // Fill the first window with values.
+        assert!(test!(0..100).is_empty());
+
+        // Refresh 0..50 - Full.
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds);
+        assert!(test!(0..50).is_empty());
+        assert_eq!(test!(100..125).len(), 25);
+
+        // Refresh 0..50 - Full.
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 2);
+        assert!(test!(0..50).is_empty());
+        assert_eq!(test!(125..150).len(), 25);
+
+        // Refresh 0..50 - 50..100 fell out of the window, add 25 (size 50 -> 75).
+        // --> Set 4 has size 75.
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 3);
+        assert!(test!(0..50).is_empty());
+        assert!(test!(150..175).is_empty());
+
+        // Refresh 0..50 - Still 25 available (size 75 -> 100).
+        limiter.time_offset = Duration::from_secs(1 + window.granularity_seconds * 4);
+        assert!(test!(0..50).is_empty());
+        assert!(test!(175..200).is_empty());
+
+        // From this point on it is repeating:
+        //  - Always refresh 0..50.
+        //  - First granule is full.
+        //  - Next two granules each have space for 25 -> immediately filled.
+        for i in 0..21 {
+            let start = 200 + i * 25;
+            let end = start + 25;
+
+            limiter.time_offset =
+                Duration::from_secs(1 + window.granularity_seconds * (i as u64 + 5));
+            assert!(test!(0..50).is_empty());
+
+            if i % 3 == 0 {
+                assert_eq!(test!(start..end).len(), 25);
+            } else {
+                assert!(test!(start..end).is_empty());
+            }
+        }
+
+        let mut sets = limiter.redis_sets(scoping);
+        sets.sort();
+
+        let len = sets.len();
+        for (i, (_, size)) in sets.into_iter().enumerate() {
+            // Set 4 and the last set were never fully filled.
+            if i == 3 || i + 1 == len {
+                assert_eq!(size, 75);
+            } else {
+                assert_eq!(size, 100);
+            }
         }
     }
 }
