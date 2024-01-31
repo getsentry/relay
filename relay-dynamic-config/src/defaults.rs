@@ -74,7 +74,7 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
     let is_allowed_browser = RuleCondition::eq(
-        "span.browser.name",
+        "span.sentry_tags.browser.name",
         vec!["Chrome", "Firefox", "Safari", "Edge", "Opera"],
     );
 
