@@ -12,6 +12,7 @@
 
 - Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
 - Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
+- Adds support for combining replay envelope items ([#3035](https://github.com/getsentry/relay/pull/3035))
 
 ## 24.1.1
 
