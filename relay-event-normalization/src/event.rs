@@ -3,7 +3,6 @@
 //! This module provides a function to normalize events.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -14,8 +13,8 @@ use relay_base_schema::metrics::{
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
-    SpanStatus, Tags, Timestamp, User,
+    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
+    Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -228,14 +227,9 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
-    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        // XXX(iker): span normalization runs in the store processor, but
-        // the exclusive time is required for span metrics. Most of
-        // transactions don't have many spans, but if this is no longer the
-        // case and we roll this flag out for most projects, we may want to
-        // reconsider this approach.
+    if event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
-        span::attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
+        span::attributes::compute_span_exclusive_time(event);
     }
 
     if config.enrich_spans {
