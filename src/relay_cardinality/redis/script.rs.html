@@ -217,7 +217,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>num_hashes = <span class="number">0</span>;
         <span class="kw">for </span>hash <span class="kw">in </span>hashes {
-            invocation.arg(hash);
+            invocation.arg(<span class="kw-2">&amp;</span>hash.to_le_bytes());
             num_hashes += <span class="number">1</span>;
         }
 

@@ -779,6 +779,17 @@
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -800,6 +811,11 @@
 
 <span class="doccomment">/// Key prefix used for Redis keys.
 </span><span class="kw">const </span>KEY_PREFIX: <span class="kw-2">&amp;</span>str = <span class="string">&quot;relay:cardinality&quot;</span>;
+<span class="doccomment">/// Redis key version.
+///
+/// The version is embedded in the key as a static segment, increment the version whenever there are
+/// breaking changes made to the keys or storage format in Redis.
+</span><span class="kw">const </span>KEY_VERSION: u32 = <span class="number">1</span>;
 
 <span class="doccomment">/// Configuration options for the [`RedisSetLimiter`].
 </span><span class="kw">pub struct </span>RedisSetLimiterOptions {
@@ -997,7 +1013,7 @@
         <span class="kw">let </span>project_id = <span class="self">self</span>.project_id.map(|p| p.value()).unwrap_or(<span class="number">0</span>);
         <span class="kw">let </span>namespace = <span class="self">self</span>.namespace.map(|ns| ns.as_str()).unwrap_or(<span class="string">&quot;&quot;</span>);
 
-        <span class="macro">format!</span>(<span class="string">&quot;{KEY_PREFIX}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}&quot;</span>)
+        <span class="macro">format!</span>(<span class="string">&quot;{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}&quot;</span>)
     }
 }
 
@@ -1176,7 +1192,10 @@
     <span class="kw">impl </span>RedisSetLimiter {
         <span class="doccomment">/// Remove all redis state for an organization.
         </span><span class="kw">fn </span>flush(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping) {
-            <span class="kw">let </span>pattern = <span class="macro">format!</span>(<span class="string">&quot;{KEY_PREFIX}:scope-{{{o}-*&quot;</span>, o = scoping.organization_id);
+            <span class="kw">let </span>pattern = <span class="macro">format!</span>(
+                <span class="string">&quot;{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*&quot;</span>,
+                o = scoping.organization_id
+            );
 
             <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.redis.client().unwrap();
             <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection().unwrap();
@@ -1196,7 +1215,10 @@
         }
 
         <span class="kw">fn </span>redis_sets(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: Scoping) -&gt; Vec&lt;(String, usize)&gt; {
-            <span class="kw">let </span>pattern = <span class="macro">format!</span>(<span class="string">&quot;{KEY_PREFIX}:scope-{{{o}-*&quot;</span>, o = scoping.organization_id);
+            <span class="kw">let </span>pattern = <span class="macro">format!</span>(
+                <span class="string">&quot;{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*&quot;</span>,
+                o = scoping.organization_id
+            );
 
             <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.redis.client().unwrap();
             <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection().unwrap();
