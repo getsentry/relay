@@ -217,7 +217,6 @@ mod tests {
     use std::sync::Arc;
 
     #[tokio::test]
-    #[cfg(feature = "processing")]
     async fn test_replays_combined_payload() {
         let processor = create_test_processor(Default::default());
         let event_id = EventId::new();
