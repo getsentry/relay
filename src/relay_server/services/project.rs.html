@@ -1704,6 +1704,7 @@
 <a href="#1704" id="1704">1704</a>
 <a href="#1705" id="1705">1705</a>
 <a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2887,6 +2888,7 @@
         <span class="kw">let </span>item_scoping = ItemScoping {
             category: DataCategory::MetricBucket,
             scoping: <span class="kw-2">&amp;</span>scoping,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="kw">let </span>limits = <span class="self">self

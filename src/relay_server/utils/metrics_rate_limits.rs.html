@@ -519,6 +519,10 @@
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -798,6 +802,7 @@
                 <span class="kw">let </span>item_scoping = ItemScoping {
                     category: DataCategory::Transaction,
                     scoping: <span class="kw-2">&amp;</span><span class="self">self</span>.scoping,
+                    namespace: <span class="prelude-val">None</span>,
                 };
                 <span class="kw">let </span>active_rate_limits =
                     rate_limits.check_with_quotas(<span class="self">self</span>.quotas.as_ref(), item_scoping);
@@ -814,6 +819,7 @@
                     </span><span class="kw">let </span>item_scoping = ItemScoping {
                         category: DataCategory::Profile,
                         scoping: <span class="kw-2">&amp;</span><span class="self">self</span>.scoping,
+                        namespace: <span class="prelude-val">None</span>,
                     };
                     <span class="kw">let </span>active_rate_limits =
                         rate_limits.check_with_quotas(<span class="self">self</span>.quotas.as_ref(), item_scoping);
@@ -908,6 +914,7 @@
             limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         }];
         <span class="kw">let </span>(outcome_sink, <span class="kw-2">mut </span>rx) = Addr::custom();
 
@@ -996,6 +1003,7 @@
             limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         }];
         <span class="kw">let </span>(outcome_sink, <span class="kw-2">mut </span>rx) = Addr::custom();
 

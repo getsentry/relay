@@ -1539,6 +1539,7 @@
 <a href="#1539" id="1539">1539</a>
 <a href="#1540" id="1540">1540</a>
 <a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -1631,6 +1632,7 @@
                 scope: RateLimitScope::for_quota(scoping, QuotaScope::Key),
                 reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">&quot;generic&quot;</span>)),
                 retry_after: <span class="self">self</span>.retry_after,
+                namespace: <span class="prelude-val">None</span>,
             });
         }
         rate_limits

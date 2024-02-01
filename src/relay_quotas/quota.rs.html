@@ -812,9 +812,58 @@
 <a href="#812" id="812">812</a>
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
+<span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -849,6 +898,7 @@
         ItemScoping {
             category,
             scoping: <span class="self">self</span>,
+            namespace: <span class="prelude-val">None</span>,
         }
     }
 }
@@ -865,6 +915,9 @@
 
     <span class="doccomment">/// Scoping of the data.
     </span><span class="kw">pub </span>scoping: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Scoping,
+
+    <span class="doccomment">/// Namespace if applicable. `None` matches any namespace.
+    </span><span class="kw">pub </span>namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
 }
 
 <span class="kw">impl </span>AsRef&lt;Scoping&gt; <span class="kw">for </span>ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt; {
@@ -975,6 +1028,7 @@
     <span class="doccomment">/// Returns the quota scope corresponding to the given name.
     </span><span class="kw">pub fn </span>from_name(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>string {
+            <span class="string">&quot;global&quot; </span>=&gt; <span class="self">Self</span>::Global,
             <span class="string">&quot;organization&quot; </span>=&gt; <span class="self">Self</span>::Organization,
             <span class="string">&quot;project&quot; </span>=&gt; <span class="self">Self</span>::Project,
             <span class="string">&quot;key&quot; </span>=&gt; <span class="self">Self</span>::Key,
@@ -1078,6 +1132,11 @@
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>window: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 
+    <span class="doccomment">/// The namespace the quota applies to.
+    ///
+    /// If `None`, it will match any namespace.
+    </span><span class="kw">pub </span>namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
+
     <span class="doccomment">/// A machine readable reason returned when this quota is exceeded. Required in all cases except
     /// `limit=None`, since unlimited quotas can never be exceeded.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
@@ -1112,6 +1171,11 @@
     ///  - the `scope_id` constraint is not numeric
     ///  - the scope identifier matches the one from ascoping and the scope is known
     </span><span class="kw">fn </span>matches_scope(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; bool {
+        <span class="comment">// Accept all types of namespaces if none are configured in the quota.
+        </span><span class="kw">if </span><span class="self">self</span>.namespace.is_some() &amp;&amp; <span class="self">self</span>.namespace != scoping.namespace {
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        }
+
         <span class="kw">if </span><span class="self">self</span>.scope == QuotaScope::Global {
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
@@ -1154,15 +1218,16 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: None,
           categories: [],
           scope: organization,
           limit: Some(0),
+          namespace: None,
           reasonCode: Some(ReasonCode(&quot;not_yet&quot;)),
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1175,7 +1240,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: None,
           categories: [
@@ -1183,9 +1248,10 @@
           ],
           scope: organization,
           limit: Some(0),
+          namespace: None,
           reasonCode: Some(ReasonCode(&quot;not_yet&quot;)),
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1199,16 +1265,17 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: Some(&quot;o&quot;),
           categories: [],
           scope: organization,
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1224,7 +1291,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: Some(&quot;p&quot;),
           categories: [],
@@ -1232,9 +1299,10 @@
           scopeId: Some(&quot;1&quot;),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1250,7 +1318,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: Some(&quot;p&quot;),
           categories: [],
@@ -1258,9 +1326,10 @@
           scopeId: Some(&quot;1&quot;),
           limit: Some(4294967296),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1276,7 +1345,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: Some(&quot;k&quot;),
           categories: [],
@@ -1284,9 +1353,10 @@
           scopeId: Some(&quot;1&quot;),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1303,7 +1373,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: Some(&quot;f&quot;),
           categories: [
@@ -1313,9 +1383,10 @@
           scopeId: Some(&quot;1&quot;),
           limit: Some(4711),
           window: Some(42),
+          namespace: None,
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1327,15 +1398,16 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
         Quota(
           id: Some(&quot;o&quot;),
           categories: [],
           scope: organization,
           limit: None,
           window: Some(42),
+          namespace: None,
         )
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1348,6 +1420,7 @@
             limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(quota.is_valid());
@@ -1363,6 +1436,7 @@
             limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(!quota.is_valid());
@@ -1378,6 +1452,7 @@
             limit: <span class="prelude-val">Some</span>(<span class="number">0</span>),
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(quota.is_valid());
@@ -1393,6 +1468,7 @@
             limit: <span class="prelude-val">Some</span>(<span class="number">1000</span>),
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="comment">// This category is limited and counted, but has multiple units.
@@ -1409,6 +1485,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="comment">// This category is unlimited and counted, but has multiple units.
@@ -1425,6 +1502,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
@@ -1434,7 +1512,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
     }
 
@@ -1448,6 +1527,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
@@ -1457,7 +1537,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
     }
 
@@ -1471,6 +1552,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
@@ -1480,7 +1562,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
@@ -1490,7 +1573,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
     }
 
@@ -1504,6 +1588,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
@@ -1513,7 +1598,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
     }
 
@@ -1527,6 +1613,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
@@ -1536,7 +1623,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
@@ -1546,7 +1634,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
     }
 
@@ -1560,6 +1649,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
@@ -1569,7 +1659,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
@@ -1579,7 +1670,8 @@
                 project_id: ProjectId::new(<span class="number">0</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
     }
 
@@ -1593,6 +1685,7 @@
             limit: <span class="prelude-val">None</span>,
             window: <span class="prelude-val">None</span>,
             reason_code: <span class="prelude-val">None</span>,
+            namespace: <span class="prelude-val">None</span>,
         };
 
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
@@ -1602,7 +1695,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
@@ -1612,7 +1706,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
 
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
@@ -1622,7 +1717,8 @@
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
-            }
+            },
+            namespace: <span class="prelude-val">None</span>,
         }));
     }
 }

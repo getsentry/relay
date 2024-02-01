@@ -615,11 +615,11 @@
 
     <span class="kw">fn </span>from_str(ns: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">match </span>ns {
-            <span class="string">&quot;sessions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Sessions),
-            <span class="string">&quot;transactions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Transactions),
-            <span class="string">&quot;spans&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Spans),
-            <span class="string">&quot;custom&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Custom),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported),
+            <span class="string">&quot;sessions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Sessions),
+            <span class="string">&quot;transactions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Transactions),
+            <span class="string">&quot;spans&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Spans),
+            <span class="string">&quot;custom&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Custom),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Unsupported),
         }
     }
 }
