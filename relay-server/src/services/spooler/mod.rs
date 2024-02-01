@@ -38,6 +38,7 @@ use std::sync::Arc;
 use futures::stream::{self, StreamExt};
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
+use relay_statsd::metric;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
@@ -54,7 +55,7 @@ use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
 use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 mod sql;
@@ -215,6 +216,18 @@ pub enum Buffer {
     RemoveMany(RemoveMany),
     Health(Health),
     RestoreIndex(RestoreIndex),
+}
+
+impl Buffer {
+    pub fn variant(&self) -> &'static str {
+        match self {
+            Buffer::Enqueue(_) => "Enqueue",
+            Buffer::DequeueMany(_) => "DequeueMany",
+            Buffer::RemoveMany(_) => "RemoveMany",
+            Buffer::Health(_) => "Health",
+            Buffer::RestoreIndex(_) => "RestoreIndex",
+        }
+    }
 }
 
 impl Interface for Buffer {}
@@ -1135,13 +1148,20 @@ impl BufferService {
 
     /// Handles all the incoming messages from the [`Buffer`] interface.
     async fn handle_message(&mut self, message: Buffer) -> Result<(), BufferError> {
-        match message {
-            Buffer::Enqueue(message) => self.handle_enqueue(message).await,
-            Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
-            Buffer::RemoveMany(message) => self.handle_remove(message).await,
-            Buffer::Health(message) => self.handle_health(message).await,
-            Buffer::RestoreIndex(message) => self.handle_restore_index(message).await,
-        }
+        let ty = message.variant();
+        metric!(
+            timer(RelayTimers::BufferMessageProcessDuration),
+            message = ty,
+            {
+                match message {
+                    Buffer::Enqueue(message) => self.handle_enqueue(message).await,
+                    Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
+                    Buffer::RemoveMany(message) => self.handle_remove(message).await,
+                    Buffer::Health(message) => self.handle_health(message).await,
+                    Buffer::RestoreIndex(message) => self.handle_restore_index(message).await,
+                }
+            }
+        )
     }
 
     /// Handle the shutdown notification.
