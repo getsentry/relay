@@ -144,11 +144,11 @@ impl std::str::FromStr for MetricNamespace {
 
     fn from_str(ns: &str) -> Result<Self, Self::Err> {
         match ns {
-            "sessions" => Ok(MetricNamespace::Sessions),
-            "transactions" => Ok(MetricNamespace::Transactions),
-            "spans" => Ok(MetricNamespace::Spans),
-            "custom" => Ok(MetricNamespace::Custom),
-            _ => Ok(MetricNamespace::Unsupported),
+            "sessions" => Ok(Self::Sessions),
+            "transactions" => Ok(Self::Transactions),
+            "spans" => Ok(Self::Spans),
+            "custom" => Ok(Self::Custom),
+            _ => Ok(Self::Unsupported),
         }
     }
 }

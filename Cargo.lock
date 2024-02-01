@@ -3853,6 +3853,7 @@ version = "24.1.1"
 dependencies = [
  "hashbrown 0.13.2",
  "insta",
+ "itertools",
  "relay-base-schema",
  "relay-common",
  "relay-log",
