@@ -1408,6 +1408,7 @@ LIMIT 1
             None,
             None,
             false,
+            None,
         );
 
         assert_eq!(
