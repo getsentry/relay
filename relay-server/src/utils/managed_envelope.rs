@@ -328,6 +328,7 @@ impl ManagedEnvelope {
                 let summary = &self.context.summary;
 
                 relay_log::error!(
+                    tags.project_key = self.scoping().project_key.to_string(),
                     tags.has_attachments = summary.attachment_quantity > 0,
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity > 0,
