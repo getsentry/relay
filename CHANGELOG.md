@@ -4,7 +4,7 @@
 
 **Internal**
 
-- Add ability to rate limit buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
+- Add ability to rate limit metric buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
 
 ## 24.1.1
 
