@@ -46,12 +46,13 @@ use tokio::sync::Semaphore;
 use {
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{EnvelopeLimiter, ItemAction, MetricsLimiter},
+    itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, RedisSetLimiter, RedisSetLimiterOptions,
     },
     relay_dynamic_config::CardinalityLimiterMode,
     relay_metrics::{Aggregator, RedisMetricMetaStore},
-    relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_quotas::{ItemScoping, RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -1643,6 +1644,7 @@ impl EnvelopeProcessorService {
             let item_scoping = relay_quotas::ItemScoping {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
+                namespace: None,
             };
 
             // We set over_accept_once such that the limit is actually reached, which allows subsequent
@@ -1680,28 +1682,52 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Returns `true` if the batches should be rate limited.
     #[cfg(feature = "processing")]
-    fn rate_limit_batches(
+    fn rate_limit_buckets_by_namespace(
         &self,
         scoping: Scoping,
-        buckets: &[Bucket],
-        project_state: &ProjectState,
+        buckets: Vec<Bucket>,
+        quotas: &[relay_quotas::Quota],
         mode: ExtractionMode,
-    ) -> bool {
+    ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
-            return false;
+            return buckets;
         };
 
+        let buckets_by_ns: HashMap<MetricNamespace, Vec<Bucket>> = buckets
+            .into_iter()
+            .filter_map(|bucket| Some((bucket.parse_namespace().ok()?, bucket)))
+            .into_group_map();
+
+        buckets_by_ns
+            .into_iter()
+            .filter_map(|(namespace, buckets)| {
+                let item_scoping = ItemScoping {
+                    category: DataCategory::MetricBucket,
+                    scoping: &scoping,
+                    namespace: Some(namespace),
+                };
+
+                (!self.rate_limit_buckets(item_scoping, &buckets, quotas, mode, rate_limiter))
+                    .then_some(buckets)
+            })
+            .flatten()
+            .collect()
+    }
+
+    /// Returns `true` if the batches should be rate limited.
+    #[cfg(feature = "processing")]
+    fn rate_limit_buckets(
+        &self,
+        item_scoping: relay_quotas::ItemScoping,
+        buckets: &[Bucket],
+        quotas: &[relay_quotas::Quota],
+        mode: ExtractionMode,
+        rate_limiter: &RedisRateLimiter,
+    ) -> bool {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let batched_bucket_iter = BucketsView::new(buckets).by_size(batch_size).flatten();
         let quantities = utils::extract_metric_quantities(batched_bucket_iter, mode);
-
-        let quotas = &project_state.config.quotas;
-        let item_scoping = relay_quotas::ItemScoping {
-            category: DataCategory::MetricBucket,
-            scoping: &scoping,
-        };
 
         // Check with redis if the throughput limit has been exceeded, while also updating
         // the count so that other relays will be updated too.
@@ -1716,26 +1742,26 @@ impl EnvelopeProcessorService {
                 utils::reject_metrics(
                     &self.inner.outcome_aggregator,
                     quantities,
-                    scoping,
+                    *item_scoping.scoping,
                     Outcome::RateLimited(reason_code),
                 );
 
-                self.inner
-                    .project_cache
-                    .send(UpdateRateLimits::new(scoping.project_key, limits));
+                self.inner.project_cache.send(UpdateRateLimits::new(
+                    item_scoping.scoping.project_key,
+                    limits,
+                ));
 
-                return true;
+                true
             }
-            Ok(_) => {} // not rate limited
+            Ok(_) => false,
             Err(e) => {
                 relay_log::error!(
                     error = &e as &dyn std::error::Error,
                     "failed to check redis rate limits"
                 );
+                false
             }
         }
-
-        false
     }
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
@@ -1814,7 +1840,14 @@ impl EnvelopeProcessorService {
                 buckets = self.cardinality_limit_buckets(scoping, limits, buckets, mode);
             }
 
-            if self.rate_limit_batches(scoping, &buckets, &project_state, mode) {
+            let buckets = self.rate_limit_buckets_by_namespace(
+                scoping,
+                buckets,
+                &project_state.config.quotas,
+                mode,
+            );
+
+            if buckets.is_empty() {
                 continue;
             }
 
@@ -2438,6 +2471,7 @@ mod tests {
                     limit: Some(0),
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
+                    namespace: None,
                 };
 
                 let mut config = ProjectConfig::default();

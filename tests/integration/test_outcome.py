@@ -1927,3 +1927,116 @@ def test_span_outcomes_invalid(
         outcome.pop("event_id")
 
     assert outcomes == expected_outcomes, outcomes
+
+
+def test_global_rate_limit_by_namespace(
+    mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
+):
+    """
+    Checks that we can hit a namespace quota first, and then have more quota left for the global limit.
+    """
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    bucket_interval = 1  # second
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 2 * 86400},
+            "aggregator": {
+                "bucket_interval": bucket_interval,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    metric_bucket_limit = 9
+    transaction_limit = 5
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    mini_sentry.add_dsn_key_to_project(project_id)
+
+    global_reason_code = "global rate limit hit"
+    transaction_reason_code = "global rate limit for transactions hit"
+
+    unique_id = str(uuid.uuid4())
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": "testlimit" + unique_id,
+            "scope": "global",
+            "categories": ["metric_bucket"],
+            "limit": metric_bucket_limit,
+            "window": 1000,
+            "reasonCode": global_reason_code,
+        },
+        {
+            "id": "testlimit" + unique_id,
+            "scope": "global",
+            "categories": ["metric_bucket"],
+            "limit": transaction_limit,
+            "namespace": "transactions",
+            "window": 1000,
+            "reasonCode": transaction_reason_code,
+        },
+    ]
+
+    ts = datetime.utcnow().timestamp()
+
+    def send_buckets(n, name, value, ty):
+        for i in range(n):
+            bucket = [
+                {
+                    "org_id": 1,
+                    "project_id": project_id,
+                    "timestamp": ts,
+                    "name": name,
+                    "type": ty,
+                    "value": value,
+                    "width": bucket_interval,
+                    "tags": {"foo": str(i)},
+                }
+            ]
+
+            envelope = Envelope()
+            envelope.add_item(
+                Item(payload=PayloadRef(json=bucket), type="metric_buckets")
+            )
+            relay.send_envelope(project_id, envelope)
+
+        time.sleep(3)
+
+    transaction_name = "d:transactions/measurements.lcp@millisecond"
+    transaction_value = [1.0]
+
+    session_name = "s:sessions/user@none"
+    session_value = [12345423]
+
+    # Send as many transactions as we can.
+    send_buckets(transaction_limit, transaction_name, transaction_value, "d")
+
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+
+    send_buckets(1, transaction_name, transaction_value, "d")
+
+    # assert we hit the transaction throughput limit configured.
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == transaction_reason_code
+
+    # Fill up the global limit
+    global_quota_remaining = metric_bucket_limit - transaction_limit
+    send_buckets(global_quota_remaining, session_name, session_value, "s")
+
+    # Assert we didn't get ratelimited
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 0
+
+    # Send more than we have of global quota.
+    send_buckets(1, session_name, session_value, "s")
+
+    # Assert we hit the global limit
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == global_reason_code
