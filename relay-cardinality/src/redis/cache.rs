@@ -5,7 +5,7 @@ use std::time::Duration;
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
 
-use crate::redis::QuotaScoping;
+use crate::redis::quota::QuotaScoping;
 use crate::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
 use crate::window::Slot;
 
