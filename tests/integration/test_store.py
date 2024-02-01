@@ -2039,6 +2039,7 @@ def test_span_ingestion_with_performance_scores(
             "retention_days": 90,
             "segment_id": "bd429c44b67a3eb1",
             "sentry_tags": {
+                "browser.name": "Python Requests",
                 "op": "ui.interaction.click",
             },
             "span_id": "bd429c44b67a3eb1",

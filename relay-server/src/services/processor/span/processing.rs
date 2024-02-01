@@ -16,7 +16,7 @@ use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{Annotated, Empty, Object};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
@@ -56,10 +56,6 @@ pub fn process(
         &user_agent_info,
     );
 
-    let browser_name = contexts
-        .get::<BrowserContext>()
-        .and_then(|v| v.name.value());
-
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => {
@@ -81,19 +77,6 @@ pub fn process(
 
             _ => return ItemAction::Keep,
         };
-
-        if let Some(browser_name) = browser_name {
-            annotated_span
-                .value_mut()
-                .as_mut()
-                .and_then(|span| span.data.value_mut().as_mut())
-                .map(|data| {
-                    data.insert(
-                        "browser.name".into(),
-                        Annotated::new(browser_name.to_owned().into()),
-                    )
-                });
-        }
 
         if let Err(e) = normalize(
             &mut annotated_span,
@@ -345,6 +328,18 @@ fn normalize(
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
+
+    if let Some(browser_name) = contexts
+        .value()
+        .and_then(|contexts| contexts.get::<BrowserContext>())
+        .and_then(|v| v.name.value())
+    {
+        let data = span.data.value_mut().get_or_insert_with(Object::new);
+        data.insert(
+            "browser.name".into(),
+            Annotated::new(browser_name.to_owned().into()),
+        );
+    }
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
