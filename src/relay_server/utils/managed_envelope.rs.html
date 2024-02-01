@@ -450,6 +450,7 @@
 <a href="#450" id="450">450</a>
 <a href="#451" id="451">451</a>
 <a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Envelope context type and helpers to ensure outcomes.
 
 </span><span class="kw">use </span>std::mem::size_of;
@@ -780,6 +781,7 @@
                 <span class="kw">let </span>summary = <span class="kw-2">&amp;</span><span class="self">self</span>.context.summary;
 
                 <span class="macro">relay_log::error!</span>(
+                    tags.project_key = <span class="self">self</span>.scoping().project_key.to_string(),
                     tags.has_attachments = summary.attachment_quantity &gt; <span class="number">0</span>,
                     tags.has_sessions = summary.session_quantity &gt; <span class="number">0</span>,
                     tags.has_profiles = summary.profile_quantity &gt; <span class="number">0</span>,
