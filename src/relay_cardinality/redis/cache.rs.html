@@ -382,19 +382,8 @@
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+</pre></div><pre class="rust"><code><span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+<span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -439,7 +428,7 @@
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheRead`] must be dropped.
     </span><span class="kw">pub fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp) -&gt; CacheRead&lt;<span class="lifetime">&#39;_</span>&gt; {
-        <span class="kw">let </span>inner = <span class="self">self</span>.inner.read().unwrap_or_else(PoisonError::into_inner);
+        <span class="kw">let </span>inner = <span class="self">self</span>.inner.read();
         CacheRead::new(inner, timestamp)
     }
 
@@ -448,7 +437,7 @@
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
     </span><span class="kw">pub fn </span>update(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: QuotaScoping, timestamp: UnixTimestamp) -&gt; CacheUpdate&lt;<span class="lifetime">&#39;_</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.inner.write().unwrap_or_else(PoisonError::into_inner);
+        <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.inner.write();
 
         inner.vacuum(timestamp);
 
@@ -471,7 +460,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Cache {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">let </span>inner = <span class="self">self</span>.inner.read().unwrap_or_else(PoisonError::into_inner);
+        <span class="kw">let </span>inner = <span class="self">self</span>.inner.read();
         f.debug_tuple(<span class="string">&quot;Cache&quot;</span>).field(<span class="kw-2">&amp;</span>inner.cache).finish()
     }
 }
@@ -504,35 +493,24 @@
 <span class="doccomment">/// Cache update handle.
 ///
 /// Holds a cache write lock, the lock is released on drop.
-</span><span class="kw">pub struct </span>CacheUpdate&lt;<span class="lifetime">&#39;a</span>&gt;(CacheUpdateInner&lt;<span class="lifetime">&#39;a</span>&gt;);
-
-<span class="doccomment">/// Internal state for [`CacheUpdate`].
-</span><span class="kw">enum </span>CacheUpdateInner&lt;<span class="lifetime">&#39;a</span>&gt; {
-    Noop,
-    Cache {
-        inner: RwLockWriteGuard&lt;<span class="lifetime">&#39;a</span>, Inner&gt;,
-        key: QuotaScoping,
-    },
-}
+</span><span class="kw">pub struct </span>CacheUpdate&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="prelude-ty">Option</span>&lt;MappedRwLockWriteGuard&lt;<span class="lifetime">&#39;a</span>, ScopedCache&gt;&gt;);
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; CacheUpdate&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// Creates a new [`CacheUpdate`] which operates on the passed cache.
     </span><span class="kw">fn </span>new(inner: RwLockWriteGuard&lt;<span class="lifetime">&#39;a</span>, Inner&gt;, key: QuotaScoping) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(CacheUpdateInner::Cache { inner, key })
+        <span class="self">Self</span>(RwLockWriteGuard::try_map(inner, |inner| inner.cache.get_mut(<span class="kw-2">&amp;</span>key)).ok())
     }
 
     <span class="doccomment">/// Creates a new noop [`CacheUpdate`] which does not require a lock.
     </span><span class="kw">fn </span>noop() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(CacheUpdateInner::Noop)
+        <span class="self">Self</span>(<span class="prelude-val">None</span>)
     }
 
     <span class="doccomment">/// Marks a hash as accepted in the cache, future checks of the item will immediately mark the
     /// item as accepted.
     </span><span class="kw">pub fn </span>accept(<span class="kw-2">&amp;mut </span><span class="self">self</span>, hash: u32) {
-        <span class="kw">if let </span>CacheUpdateInner::Cache { inner, key } = <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0 </span>{
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(cache) = inner.cache.get_mut(key) {
-                cache.insert(hash);
-            }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(cache) = <span class="self">self</span>.<span class="number">0</span>.as_mut() {
+            cache.insert(hash);
         }
     }
 }
