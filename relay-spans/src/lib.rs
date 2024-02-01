@@ -9,6 +9,8 @@
 pub use crate::span::OtelSpan;
 pub use crate::trace::TracesData;
 
+pub use opentelemetry_proto::tonic::trace::v1 as Otlp;
+
 mod otel_to_sentry_tags;
 mod span;
 mod status_codes;

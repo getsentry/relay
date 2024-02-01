@@ -13,6 +13,7 @@ publish = false
 chrono.workspace = true
 enumset = "1.0.4"
 once_cell.workspace = true
+opentelemetry-proto = { version = "0.4.0", features = ["gen-tonic", "with-serde", "trace"] }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-protocol = { path = "../relay-protocol" }
 serde.workspace = true

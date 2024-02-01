@@ -1,22 +1,38 @@
 use axum::extract::{DefaultBodyLimit, Json};
-use axum::http::StatusCode;
+use axum::http::{Request, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
+use axum::RequestExt;
+use axum_extra::protobuf::Protobuf;
 use bytes::Bytes;
 
 use relay_config::Config;
-use relay_spans::TracesData;
+use relay_spans::Otlp;
 
-use crate::endpoints::common::{self, BadStoreRequest};
+use crate::endpoints::common;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
 
-async fn handle(
+async fn handle<B>(
     state: ServiceState,
+    content_type: RawContentType,
     meta: RequestMeta,
-    Json(trace): Json<TracesData>,
-) -> Result<impl IntoResponse, BadStoreRequest> {
+    request: Request<B>,
+) -> axum::response::Result<impl IntoResponse>
+where
+    B: axum::body::HttpBody + Send + 'static,
+    B::Data: Send + Into<Bytes>,
+    B::Error: Into<axum::BoxError>,
+{
+    let trace = if content_type.as_ref().starts_with("application/json") {
+        let json: Json<Otlp::TracesData> = request.extract().await?;
+        json.0
+    } else {
+        let protobuf: Protobuf<Otlp::TracesData> = request.extract().await?;
+        protobuf.0
+    };
+
     let mut envelope = Envelope::from_request(None, meta);
     for resource_span in trace.resource_spans {
         for scope_span in resource_span.scope_spans {
