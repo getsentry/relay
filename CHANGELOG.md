@@ -13,7 +13,7 @@
 - Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
 - Drop timestamp from metrics partition key. ([#3025](https://github.com/getsentry/relay/pull/3025))
 - Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
-- Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969))
+- Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969), [#3041](https://github.com/getsentry/relay/pull/3041))
 
 ## 24.1.1
 
