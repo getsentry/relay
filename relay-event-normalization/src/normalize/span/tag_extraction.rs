@@ -477,6 +477,15 @@ pub fn extract_tags(
         }
     }
 
+    if let Some(browser_name) = span
+        .data
+        .value()
+        .and_then(|data| data.get("browser.name"))
+        .and_then(|browser_name| browser_name.as_str())
+    {
+        span_tags.insert(SpanTagKey::BrowserName, browser_name.into());
+    }
+
     span_tags
 }
 

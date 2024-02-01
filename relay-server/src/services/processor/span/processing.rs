@@ -7,14 +7,13 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
-use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    validate_span, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-    RawUserAgentInfo, TransactionsProcessor,
+    span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{Contexts, Event, Span};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, JsonLenientString, Span};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
@@ -50,11 +49,16 @@ pub fn process(
         user_agent: meta.user_agent(),
         client_hints: meta.client_hints().as_deref(),
     };
+
     normalize_user_agent_info_generic(
         &mut contexts,
         &Annotated::new("".to_string()),
         &user_agent_info,
     );
+
+    let browser_name = contexts
+        .get::<BrowserContext>()
+        .and_then(|v| v.name.value());
 
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
@@ -77,6 +81,19 @@ pub fn process(
 
             _ => return ItemAction::Keep,
         };
+
+        if let Some(browser_name) = browser_name {
+            annotated_span
+                .value_mut()
+                .as_mut()
+                .and_then(|span| span.data.value_mut().as_mut())
+                .map(|data| {
+                    data.insert(
+                        "browser.name".into(),
+                        Annotated::new(browser_name.to_owned().into()),
+                    )
+                });
+        }
 
         if let Err(e) = normalize(
             &mut annotated_span,
