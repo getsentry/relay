@@ -820,7 +820,7 @@
     <span class="comment">// Tag extraction:
     </span><span class="kw">let </span>config = tag_extraction::Config { max_tag_value_size };
     <span class="kw">let </span>is_mobile = <span class="bool-val">false</span>; <span class="comment">// TODO: find a way to determine is_mobile from a standalone span.
-    </span><span class="kw">let </span>tags = tag_extraction::extract_tags(span, <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, is_mobile);
+    </span><span class="kw">let </span>tags = tag_extraction::extract_tags(span, <span class="kw-2">&amp;</span>config, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, is_mobile, <span class="prelude-val">None</span>);
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))

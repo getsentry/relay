@@ -1333,7 +1333,47 @@
 <a href="#1333" id="1333">1333</a>
 <a href="#1334" id="1334">1334</a>
 <a href="#1335" id="1335">1335</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
+<a href="#1336" id="1336">1336</a>
+<a href="#1337" id="1337">1337</a>
+<a href="#1338" id="1338">1338</a>
+<a href="#1339" id="1339">1339</a>
+<a href="#1340" id="1340">1340</a>
+<a href="#1341" id="1341">1341</a>
+<a href="#1342" id="1342">1342</a>
+<a href="#1343" id="1343">1343</a>
+<a href="#1344" id="1344">1344</a>
+<a href="#1345" id="1345">1345</a>
+<a href="#1346" id="1346">1346</a>
+<a href="#1347" id="1347">1347</a>
+<a href="#1348" id="1348">1348</a>
+<a href="#1349" id="1349">1349</a>
+<a href="#1350" id="1350">1350</a>
+<a href="#1351" id="1351">1351</a>
+<a href="#1352" id="1352">1352</a>
+<a href="#1353" id="1353">1353</a>
+<a href="#1354" id="1354">1354</a>
+<a href="#1355" id="1355">1355</a>
+<a href="#1356" id="1356">1356</a>
+<a href="#1357" id="1357">1357</a>
+<a href="#1358" id="1358">1358</a>
+<a href="#1359" id="1359">1359</a>
+<a href="#1360" id="1360">1360</a>
+<a href="#1361" id="1361">1361</a>
+<a href="#1362" id="1362">1362</a>
+<a href="#1363" id="1363">1363</a>
+<a href="#1364" id="1364">1364</a>
+<a href="#1365" id="1365">1365</a>
+<a href="#1366" id="1366">1366</a>
+<a href="#1367" id="1367">1367</a>
+<a href="#1368" id="1368">1368</a>
+<a href="#1369" id="1369">1369</a>
+<a href="#1370" id="1370">1370</a>
+<a href="#1371" id="1371">1371</a>
+<a href="#1372" id="1372">1372</a>
+<a href="#1373" id="1373">1373</a>
+<a href="#1374" id="1374">1374</a>
+<a href="#1375" id="1375">1375</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::fmt::Write;
@@ -1396,6 +1436,8 @@
     </span>FileExtension,
     <span class="doccomment">/// Span started on main thread.
     </span>MainTread,
+    <span class="doccomment">/// The start type of the application when the span occurred.
+    </span>AppStartType,
 }
 
 <span class="kw">impl </span>SpanTagKey {
@@ -1432,6 +1474,7 @@
             SpanTagKey::FileExtension =&gt; <span class="string">&quot;file_extension&quot;</span>,
             SpanTagKey::MainTread =&gt; <span class="string">&quot;main_thread&quot;</span>,
             SpanTagKey::OsName =&gt; <span class="string">&quot;os.name&quot;</span>,
+            SpanTagKey::AppStartType =&gt; <span class="string">&quot;app_start_type&quot;</span>,
         }
     }
 }
@@ -1480,6 +1523,7 @@
     <span class="kw">let </span>is_mobile = shared_tags
         .get(<span class="kw-2">&amp;</span>SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == <span class="string">&quot;true&quot;</span>);
+    <span class="kw">let </span>start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{
         <span class="kw">return</span>;
@@ -1493,7 +1537,7 @@
             <span class="kw">continue</span>;
         };
 
-        <span class="kw">let </span>tags = extract_tags(span, config, ttid, ttfd, is_mobile);
+        <span class="kw">let </span>tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -1575,7 +1619,7 @@
     tags
 }
 
-<span class="doccomment">/// Writes fields into [`Span::data`].
+<span class="doccomment">/// Writes fields into [`Span::sentry_tags`].
 ///
 /// Generating new span data fields is based on a combination of looking at
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
@@ -1587,6 +1631,7 @@
     initial_display: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
     full_display: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
     is_mobile: bool,
+    start_type: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
 ) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>span_tags: BTreeMap&lt;SpanTagKey, String&gt; = BTreeMap::new();
 
@@ -1796,6 +1841,19 @@
             <span class="kw">if </span>thread_name == MAIN_THREAD_NAME {
                 span_tags.insert(SpanTagKey::MainTread, <span class="string">&quot;true&quot;</span>.to_owned());
             }
+        }
+
+        <span class="comment">// Attempt to read the start type from span.data if it exists, else
+        // pass along the start_type from the event.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(span_data_start_type) = span
+            .data
+            .value()
+            .and_then(|data| data.get(SpanTagKey::AppStartType.sentry_tag_key()))
+            .and_then(|value| value.as_str())
+        {
+            span_tags.insert(SpanTagKey::AppStartType, span_data_start_type.to_owned());
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(start_type) = start_type {
+            span_tags.insert(SpanTagKey::AppStartType, start_type.to_owned());
         }
     }
 
@@ -2016,6 +2074,18 @@
         <span class="comment">// Map everything else to unknown:
         </span><span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
+}
+
+<span class="doccomment">/// Reads the event measurements to determine the start type of the event.
+</span><span class="kw">fn </span>get_event_start_type(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
+    <span class="comment">// Check the measurements on the event to determine what kind of start type the event is.
+    </span><span class="kw">if </span>event.measurement(<span class="string">&quot;app_start_cold&quot;</span>).is_some() {
+        <span class="prelude-val">Some</span>(<span class="string">&quot;cold&quot;</span>)
+    } <span class="kw">else if </span>event.measurement(<span class="string">&quot;app_start_warm&quot;</span>).is_some() {
+        <span class="prelude-val">Some</span>(<span class="string">&quot;warm&quot;</span>)
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>}
 }
 
 <span class="attr">#[cfg(test)]
@@ -2555,6 +2625,12 @@ LIMIT 1
                         &quot;version&quot;: &quot;8.1.0&quot;
                     }
                 },
+                &quot;measurements&quot;: {
+                    &quot;app_start_warm&quot;: {
+                        &quot;value&quot;: 1.0,
+                        &quot;unit&quot;: &quot;millisecond&quot;
+                    }
+                },
                 &quot;spans&quot;: [
                     {
                         &quot;op&quot;: &quot;ui.load&quot;,
@@ -2564,7 +2640,8 @@ LIMIT 1
                         &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
                         &quot;data&quot;: {
                             &quot;thread.id&quot;: 1,
-                            &quot;thread.name&quot;: &quot;main&quot;
+                            &quot;thread.name&quot;: &quot;main&quot;,
+                            &quot;app_start_type&quot;: &quot;cold&quot;
                         }
                     },
                     {
@@ -2606,16 +2683,19 @@ LIMIT 1
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;main_thread&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>));
         <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;os.name&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;Android&quot;</span>));
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;app_start_type&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;cold&quot;</span>));
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;main_thread&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;app_start_type&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;warm&quot;</span>));
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">2</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;main_thread&quot;</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get(<span class="string">&quot;app_start_type&quot;</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;warm&quot;</span>));
     }
 
     <span class="attr">#[test]

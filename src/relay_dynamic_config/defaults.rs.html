@@ -499,6 +499,9 @@
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
 <a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -730,6 +733,9 @@
                     .when(is_mobile.clone()),
                 Tag::with_key(<span class="string">&quot;release&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.release&quot;</span>)
+                    .when(is_mobile.clone()),
+                Tag::with_key(<span class="string">&quot;app_start_type&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.app_start_type&quot;</span>)
                     .when(is_mobile.clone()),
                 <span class="comment">// Resource module:
                 </span>Tag::with_key(<span class="string">&quot;file_extension&quot;</span>)
