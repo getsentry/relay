@@ -872,7 +872,6 @@
 <a href="#872" id="872">872</a>
 <a href="#873" id="873">873</a>
 <a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1261,7 +1260,6 @@
         sent_at: envelope.sent_at(),
         received_at: <span class="prelude-val">Some</span>(managed_envelope.received_at()),
         breakdowns: project_state.config.breakdowns_v2.clone(),
-        span_attributes: project_state.config.span_attributes.clone(),
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
         client_hints: envelope.meta().client_hints().to_owned(),

@@ -2435,22 +2435,11 @@
 <a href="#2435" id="2435">2435</a>
 <a href="#2436" id="2436">2436</a>
 <a href="#2437" id="2437">2437</a>
-<a href="#2438" id="2438">2438</a>
-<a href="#2439" id="2439">2439</a>
-<a href="#2440" id="2440">2440</a>
-<a href="#2441" id="2441">2441</a>
-<a href="#2442" id="2442">2442</a>
-<a href="#2443" id="2443">2443</a>
-<a href="#2444" id="2444">2444</a>
-<a href="#2445" id="2445">2445</a>
-<a href="#2446" id="2446">2446</a>
-<a href="#2447" id="2447">2447</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
 
 </span><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
-<span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
@@ -2461,8 +2450,8 @@
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, MaxChars, ProcessingAction, ProcessingState, Processor};
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute,
-    SpanStatus, Tags, Timestamp, User,
+    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
+    Timestamp, User,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -2530,9 +2519,6 @@
     <span class="doccomment">/// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     </span><span class="kw">pub </span>enrich_spans: bool,
 
-    <span class="doccomment">/// When `true`, computes and materializes attributes in spans based on the given configuration.
-    </span><span class="kw">pub </span>normalize_spans: bool,
-
     <span class="doccomment">/// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     </span><span class="kw">pub </span>max_tag_value_length: usize, <span class="comment">// TODO: move span related fields into separate config.
 
@@ -2565,7 +2551,6 @@
             is_renormalize: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
-            normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
@@ -2681,14 +2666,9 @@
     <span class="comment">// Some contexts need to be normalized before metrics extraction takes place.
     </span>normalize_contexts(<span class="kw-2">&amp;mut </span>event.contexts);
 
-    <span class="kw">if </span>config.normalize_spans &amp;&amp; event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-        <span class="comment">// XXX(iker): span normalization runs in the store processor, but
-        // the exclusive time is required for span metrics. Most of
-        // transactions don&#39;t have many spans, but if this is no longer the
-        // case and we roll this flag out for most projects, we may want to
-        // reconsider this approach.
-        </span><span class="kw">crate</span>::normalize::normalize_app_start_spans(event);
-        span::attributes::normalize_spans(event, <span class="kw-2">&amp;</span>BTreeSet::from([SpanAttribute::ExclusiveTime]));
+    <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) &amp;&amp; !config.is_renormalize {
+        <span class="kw">crate</span>::normalize::normalize_app_start_spans(event);
+        span::exclusive_time::compute_span_exclusive_time(event);
     }
 
     <span class="kw">if </span>config.enrich_spans {

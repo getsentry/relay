@@ -2503,14 +2503,6 @@
 <a href="#2503" id="2503">2503</a>
 <a href="#2504" id="2504">2504</a>
 <a href="#2505" id="2505">2505</a>
-<a href="#2506" id="2506">2506</a>
-<a href="#2507" id="2507">2507</a>
-<a href="#2508" id="2508">2508</a>
-<a href="#2509" id="2509">2509</a>
-<a href="#2510" id="2510">2510</a>
-<a href="#2511" id="2511">2511</a>
-<a href="#2512" id="2512">2512</a>
-<a href="#2513" id="2513">2513</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -2636,13 +2628,6 @@
                     ..Default::default()
                 })
         })
-    }
-
-    <span class="kw">fn </span>normalize_spans(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) {
-        <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-            normalize_app_start_spans(event);
-            span::attributes::normalize_spans(event, <span class="kw-2">&amp;</span><span class="self">self</span>.config.span_attributes);
-        }
     }
 
     <span class="kw">fn </span>normalize_metrics_summaries(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) {
@@ -2933,8 +2918,7 @@
         }
 
         <span class="comment">// Normalize connected attributes and interfaces
-        </span><span class="self">self</span>.normalize_spans(event);
-        <span class="self">self</span>.normalize_metrics_summaries(event);
+        </span><span class="self">self</span>.normalize_metrics_summaries(event);
         <span class="self">self</span>.normalize_trace_context(event);
         <span class="self">self</span>.normalize_replay_context(event);
 

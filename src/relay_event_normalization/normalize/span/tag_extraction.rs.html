@@ -1333,7 +1333,6 @@
 <a href="#1333" id="1333">1333</a>
 <a href="#1334" id="1334">1334</a>
 <a href="#1335" id="1335">1335</a>
-<a href="#1336" id="1336">1336</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -2098,7 +2097,6 @@
                     <span class="kw-2">&amp;mut </span>event,
                     <span class="kw-2">&amp;</span>NormalizationConfig {
                         enrich_spans: <span class="bool-val">true</span>,
-                        normalize_spans: <span class="bool-val">true</span>,
                         ..Default::default()
                     },
                 );

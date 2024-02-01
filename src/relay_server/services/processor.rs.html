@@ -2770,11 +2770,6 @@
 <a href="#2770" id="2770">2770</a>
 <a href="#2771" id="2771">2771</a>
 <a href="#2772" id="2772">2772</a>
-<a href="#2773" id="2773">2773</a>
-<a href="#2774" id="2774">2774</a>
-<a href="#2775" id="2775">2775</a>
-<a href="#2776" id="2776">2776</a>
-<a href="#2777" id="2777">2777</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3824,10 +3819,6 @@
         <span class="kw">let </span>request_meta = state.managed_envelope.envelope().meta();
         <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        <span class="kw">let </span>normalize_spans = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction);
-
         <span class="kw">let </span>transaction_aggregator_config = <span class="self">self
             </span>.inner
             .config
@@ -3875,7 +3866,6 @@
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
-                normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 enable_trimming: <span class="bool-val">true</span>,
