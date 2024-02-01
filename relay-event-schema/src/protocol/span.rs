@@ -160,6 +160,15 @@ impl Getter for Span {
                     val.into()
                 } else if let Some(key) = path.strip_prefix("sentry_tags.") {
                     self.sentry_tags.value()?.get(key)?.as_str()?.into()
+                } else if let Some(rest) = path.strip_prefix("measurements.") {
+                    let name = rest.strip_suffix(".value")?;
+                    self.measurements
+                        .value()?
+                        .get(name)?
+                        .value()?
+                        .value
+                        .value()?
+                        .into()
                 } else {
                     return None;
                 }
@@ -233,6 +242,9 @@ mod tests {
                 "data": {
                     "foo": {"bar": 1},
                     "foo.bar": 2
+                },
+                "measurements": {
+                    "some": {"value": 100.0}
                 }
             }"#,
         )
@@ -246,6 +258,11 @@ mod tests {
         assert_eq!(span.get_value("span.data"), None);
         assert_eq!(span.get_value("span.data."), None);
         assert_eq!(span.get_value("span.data.x"), None);
+
+        assert_eq!(
+            span.get_value("span.measurements.some.value"),
+            Some(Val::F64(100.0))
+        );
     }
 
     #[test]

@@ -1048,10 +1048,6 @@ impl EnvelopeProcessorService {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let normalize_spans = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction);
-
         let transaction_aggregator_config = self
             .inner
             .config
@@ -1099,7 +1095,6 @@ impl EnvelopeProcessorService {
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
                 is_renormalize: false,
-                normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
@@ -2261,7 +2256,7 @@ fn partition_key(project_key: ProjectKey, bucket: &Bucket, partitions: Option<u6
     use std::hash::{Hash, Hasher};
 
     let partitions = partitions?.max(1);
-    let key = (project_key, bucket.timestamp, &bucket.name, &bucket.tags);
+    let key = (project_key, &bucket.name, &bucket.tags);
 
     let mut hasher = FnvHasher::default();
     key.hash(&mut hasher);

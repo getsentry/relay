@@ -1792,7 +1792,7 @@ def test_span_outcomes(
         project_id, make_envelope("ho")
     )  # should be kept by dynamic sampling
 
-    outcomes = outcomes_consumer.get_outcomes()
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_source = {
@@ -1895,7 +1895,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes()
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     expected_outcomes = [

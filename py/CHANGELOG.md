@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- This release requires Python 3.10 or later. There are no intentionally breaking changes included in this release, but we stopped testing against Python 3.9.
+
 ## 0.8.45
 
 - Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))

@@ -73,6 +73,11 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
 
     let is_mobile_sdk = RuleCondition::eq("span.sentry_tags.mobile", "true");
 
+    let is_allowed_browser = RuleCondition::eq(
+        "span.sentry_tags.browser.name",
+        vec!["Chrome", "Firefox", "Safari", "Edge", "Opera"],
+    );
+
     // This filter is based on
     // https://github.com/getsentry/sentry/blob/e01885215ff1a5b4e0da3046b4d929398a946360/static/app/views/starfish/views/screens/screenLoadSpans/spanOpSelector.tsx#L31-L34
     let is_screen = RuleCondition::eq("span.sentry_tags.transaction.op", "ui.load")
@@ -397,6 +402,98 @@ fn span_metrics() -> impl IntoIterator<Item = MetricSpec> {
                     .always(), // already guarded by condition on metric
                 Tag::with_key("environment")
                     .from_field("span.sentry_tags.environment")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/webvital.score.total@ratio".into(),
+            field: Some("span.measurements.score.total.value".into()),
+            condition: Some(is_allowed_browser.clone()),
+            tags: vec![
+                Tag::with_key("transaction.op")
+                    .from_field("span.sentry_tags.transaction.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("browser.name")
+                    .from_field("span.browser.name")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/webvital.score.inp@ratio".into(),
+            field: Some("span.measurements.score.inp.value".into()),
+            condition: Some(is_allowed_browser.clone()),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("browser.name")
+                    .from_field("span.sentry_tags.browser.name")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/webvital.score.weight.inp@ratio".into(),
+            field: Some("span.measurements.score.weight.inp.value".into()),
+            condition: Some(is_allowed_browser.clone()),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("browser.name")
+                    .from_field("span.sentry_tags.browser.name")
+                    .always(), // already guarded by condition on metric
+            ],
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "d:spans/webvital.inp@millisecond".into(),
+            field: Some("span.measurements.inp.value".into()),
+            condition: Some(is_allowed_browser),
+            tags: vec![
+                Tag::with_key("span.op")
+                    .from_field("span.sentry_tags.op")
+                    .always(),
+                Tag::with_key("transaction")
+                    .from_field("span.sentry_tags.transaction")
+                    .always(),
+                Tag::with_key("environment")
+                    .from_field("span.sentry_tags.environment")
+                    .always(),
+                Tag::with_key("release")
+                    .from_field("span.sentry_tags.release")
+                    .always(),
+                Tag::with_key("browser.name")
+                    .from_field("span.sentry_tags.browser.name")
                     .always(), // already guarded by condition on metric
             ],
         },
