@@ -1,5 +1,5 @@
+use parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::fmt;
-use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::Duration;
 
 use relay_common::time::UnixTimestamp;
@@ -44,7 +44,7 @@ impl Cache {
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheRead`] must be dropped.
     pub fn read(&self, timestamp: UnixTimestamp) -> CacheRead<'_> {
-        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
+        let inner = self.inner.read();
         CacheRead::new(inner, timestamp)
     }
 
@@ -53,7 +53,7 @@ impl Cache {
     /// All operations done on the handle share the same lock. To release the lock
     /// the returned [`CacheUpdate`] must be dropped.
     pub fn update(&self, scope: QuotaScoping, timestamp: UnixTimestamp) -> CacheUpdate<'_> {
-        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
+        let mut inner = self.inner.write();
 
         inner.vacuum(timestamp);
 
@@ -76,7 +76,7 @@ impl Cache {
 
 impl fmt::Debug for Cache {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let inner = self.inner.read().unwrap_or_else(PoisonError::into_inner);
+        let inner = self.inner.read();
         f.debug_tuple("Cache").field(&inner.cache).finish()
     }
 }
@@ -109,35 +109,24 @@ impl<'a> CacheRead<'a> {
 /// Cache update handle.
 ///
 /// Holds a cache write lock, the lock is released on drop.
-pub struct CacheUpdate<'a>(CacheUpdateInner<'a>);
-
-/// Internal state for [`CacheUpdate`].
-enum CacheUpdateInner<'a> {
-    Noop,
-    Cache {
-        inner: RwLockWriteGuard<'a, Inner>,
-        key: QuotaScoping,
-    },
-}
+pub struct CacheUpdate<'a>(Option<MappedRwLockWriteGuard<'a, ScopedCache>>);
 
 impl<'a> CacheUpdate<'a> {
     /// Creates a new [`CacheUpdate`] which operates on the passed cache.
     fn new(inner: RwLockWriteGuard<'a, Inner>, key: QuotaScoping) -> Self {
-        Self(CacheUpdateInner::Cache { inner, key })
+        Self(RwLockWriteGuard::try_map(inner, |inner| inner.cache.get_mut(&key)).ok())
     }
 
     /// Creates a new noop [`CacheUpdate`] which does not require a lock.
     fn noop() -> Self {
-        Self(CacheUpdateInner::Noop)
+        Self(None)
     }
 
     /// Marks a hash as accepted in the cache, future checks of the item will immediately mark the
     /// item as accepted.
     pub fn accept(&mut self, hash: u32) {
-        if let CacheUpdateInner::Cache { inner, key } = &mut self.0 {
-            if let Some(cache) = inner.cache.get_mut(key) {
-                cache.insert(hash);
-            }
+        if let Some(cache) = self.0.as_mut() {
+            cache.insert(hash);
         }
     }
 }
