@@ -1720,6 +1720,26 @@
 <a href="#1720" id="1720">1720</a>
 <a href="#1721" id="1721">1721</a>
 <a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1760,6 +1780,7 @@
 <span class="kw">use </span>futures::stream::{<span class="self">self</span>, StreamExt};
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 <span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>sqlx::migrate::MigrateError;
 <span class="kw">use </span>sqlx::sqlite::{
@@ -1776,7 +1797,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{BufferGuard, ManagedEnvelope};
 
 <span class="kw">mod </span>sql;
@@ -1937,6 +1958,18 @@
     RemoveMany(RemoveMany),
     Health(Health),
     RestoreIndex(RestoreIndex),
+}
+
+<span class="kw">impl </span>Buffer {
+    <span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            Buffer::Enqueue(<span class="kw">_</span>) =&gt; <span class="string">&quot;Enqueue&quot;</span>,
+            Buffer::DequeueMany(<span class="kw">_</span>) =&gt; <span class="string">&quot;DequeueMany&quot;</span>,
+            Buffer::RemoveMany(<span class="kw">_</span>) =&gt; <span class="string">&quot;RemoveMany&quot;</span>,
+            Buffer::Health(<span class="kw">_</span>) =&gt; <span class="string">&quot;Health&quot;</span>,
+            Buffer::RestoreIndex(<span class="kw">_</span>) =&gt; <span class="string">&quot;RestoreIndex&quot;</span>,
+        }
+    }
 }
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>Buffer {}
@@ -2857,13 +2890,20 @@
 
     <span class="doccomment">/// Handles all the incoming messages from the [`Buffer`] interface.
     </span><span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Buffer) -&gt; <span class="prelude-ty">Result</span>&lt;(), BufferError&gt; {
-        <span class="kw">match </span>message {
-            Buffer::Enqueue(message) =&gt; <span class="self">self</span>.handle_enqueue(message).<span class="kw">await</span>,
-            Buffer::DequeueMany(message) =&gt; <span class="self">self</span>.handle_dequeue(message).<span class="kw">await</span>,
-            Buffer::RemoveMany(message) =&gt; <span class="self">self</span>.handle_remove(message).<span class="kw">await</span>,
-            Buffer::Health(message) =&gt; <span class="self">self</span>.handle_health(message).<span class="kw">await</span>,
-            Buffer::RestoreIndex(message) =&gt; <span class="self">self</span>.handle_restore_index(message).<span class="kw">await</span>,
-        }
+        <span class="kw">let </span>ty = message.variant();
+        <span class="macro">metric!</span>(
+            timer(RelayTimers::BufferMessageProcessDuration),
+            message = ty,
+            {
+                <span class="kw">match </span>message {
+                    Buffer::Enqueue(message) =&gt; <span class="self">self</span>.handle_enqueue(message).<span class="kw">await</span>,
+                    Buffer::DequeueMany(message) =&gt; <span class="self">self</span>.handle_dequeue(message).<span class="kw">await</span>,
+                    Buffer::RemoveMany(message) =&gt; <span class="self">self</span>.handle_remove(message).<span class="kw">await</span>,
+                    Buffer::Health(message) =&gt; <span class="self">self</span>.handle_health(message).<span class="kw">await</span>,
+                    Buffer::RestoreIndex(message) =&gt; <span class="self">self</span>.handle_restore_index(message).<span class="kw">await</span>,
+                }
+            }
+        )
     }
 
     <span class="doccomment">/// Handle the shutdown notification.

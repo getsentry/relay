@@ -695,6 +695,13 @@
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
 <a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1040,6 +1047,12 @@
     ///
     ///  - `message`: The type of message that was processed.
     </span>ProcessMessageDuration,
+    <span class="doccomment">/// Timing in milliseconds for processing a message in the buffer service.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    </span>BufferMessageProcessDuration,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1075,6 +1088,7 @@
             RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">&quot;replay.recording.process&quot;</span>,
             RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">&quot;global_config.requests.duration&quot;</span>,
             RelayTimers::ProcessMessageDuration =&gt; <span class="string">&quot;processor.message.duration&quot;</span>,
+            RelayTimers::BufferMessageProcessDuration =&gt; <span class="string">&quot;buffer.message.duration&quot;</span>,
         }
     }
 }
