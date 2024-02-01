@@ -1,9 +1,9 @@
 //! Span attribute materialization.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::time::Duration;
 
-use relay_event_schema::protocol::{Contexts, Event, Span, SpanAttribute, SpanId, TraceContext};
+use relay_event_schema::protocol::{Contexts, Event, Span, SpanId, TraceContext};
 use relay_protocol::Annotated;
 
 use crate::normalize::breakdowns::TimeWindowSpan;
@@ -31,16 +31,6 @@ fn interval_exclusive_time(mut parent: TimeWindowSpan, intervals: &[TimeWindowSp
 
     // Add the remaining duration after the last interval ended
     exclusive_time + parent.duration()
-}
-
-/// Computes and materializes attributes in spans based on the given configuration.
-pub fn normalize_spans(event: &mut Event, attributes: &BTreeSet<SpanAttribute>) {
-    for attribute in attributes {
-        match attribute {
-            SpanAttribute::ExclusiveTime => compute_span_exclusive_time(event),
-            SpanAttribute::Unknown => (), // ignored
-        }
-    }
 }
 
 fn set_event_exclusive_time(
@@ -94,7 +84,8 @@ fn set_span_exclusive_time(
     span.exclusive_time = Annotated::new(relay_common::time::duration_to_millis(exclusive_time));
 }
 
-fn compute_span_exclusive_time(event: &mut Event) {
+/// Computes the exclusive time for all spans in the event.
+pub fn compute_span_exclusive_time(event: &mut Event) {
     let contexts = match event.contexts.value_mut() {
         Some(contexts) => contexts,
         _ => return,
@@ -221,51 +212,6 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_exclusive_time() {
-        let mut event = make_event(
-            Utc.timestamp_opt(1609455600, 0).unwrap().into(),
-            Utc.timestamp_opt(1609455605, 0).unwrap().into(),
-            "aaaaaaaaaaaaaaaa",
-            vec![
-                make_span(
-                    "db",
-                    "SELECT * FROM table;",
-                    Utc.timestamp_opt(1609455601, 0).unwrap().into(),
-                    Utc.timestamp_opt(1609455604, 0).unwrap().into(),
-                    "bbbbbbbbbbbbbbbb",
-                    "aaaaaaaaaaaaaaaa",
-                ),
-                make_span(
-                    "db",
-                    "SELECT * FROM table;",
-                    Utc.timestamp_opt(1609455601, 0).unwrap().into(),
-                    Utc.timestamp_opt(1609455603, 500_000_000).unwrap().into(),
-                    "cccccccccccccccc",
-                    "aaaaaaaaaaaaaaaa",
-                ),
-                make_span(
-                    "db",
-                    "SELECT * FROM table;",
-                    Utc.timestamp_opt(1609455603, 0).unwrap().into(),
-                    Utc.timestamp_opt(1609455604, 877_000_000).unwrap().into(),
-                    "dddddddddddddddd",
-                    "aaaaaaaaaaaaaaaa",
-                ),
-            ],
-        );
-
-        // do not insert `exclusive-time`
-        normalize_spans(&mut event, &BTreeSet::default());
-
-        let context = event.context::<TraceContext>().unwrap();
-        assert!(context.exclusive_time.value().is_none());
-
-        for span in event.spans.value().unwrap() {
-            assert_eq!(span.value().unwrap().exclusive_time.value(), None)
-        }
-    }
-
-    #[test]
     fn test_childless_spans() {
         let mut event = make_event(
             Utc.timestamp_opt(1609455600, 0).unwrap().into(),
@@ -299,9 +245,7 @@ mod tests {
             ],
         );
 
-        let mut config = BTreeSet::new();
-        config.insert(SpanAttribute::ExclusiveTime);
-        normalize_spans(&mut event, &config);
+        compute_span_exclusive_time(&mut event);
 
         assert_eq!(
             extract_span_exclusive_times(&event),
@@ -348,9 +292,7 @@ mod tests {
             ],
         );
 
-        let mut config = BTreeSet::new();
-        config.insert(SpanAttribute::ExclusiveTime);
-        normalize_spans(&mut event, &config);
+        compute_span_exclusive_time(&mut event);
 
         assert_eq!(
             extract_span_exclusive_times(&event),
@@ -397,9 +339,7 @@ mod tests {
             ],
         );
 
-        let mut config = BTreeSet::new();
-        config.insert(SpanAttribute::ExclusiveTime);
-        normalize_spans(&mut event, &config);
+        compute_span_exclusive_time(&mut event);
 
         assert_eq!(
             extract_span_exclusive_times(&event),
@@ -446,9 +386,7 @@ mod tests {
             ],
         );
 
-        let mut config = BTreeSet::new();
-        config.insert(SpanAttribute::ExclusiveTime);
-        normalize_spans(&mut event, &config);
+        compute_span_exclusive_time(&mut event);
 
         assert_eq!(
             extract_span_exclusive_times(&event),
@@ -495,9 +433,7 @@ mod tests {
             ],
         );
 
-        let mut config = BTreeSet::new();
-        config.insert(SpanAttribute::ExclusiveTime);
-        normalize_spans(&mut event, &config);
+        compute_span_exclusive_time(&mut event);
 
         assert_eq!(
             extract_span_exclusive_times(&event),
@@ -544,9 +480,7 @@ mod tests {
             ],
         );
 
-        let mut config = BTreeSet::new();
-        config.insert(SpanAttribute::ExclusiveTime);
-        normalize_spans(&mut event, &config);
+        compute_span_exclusive_time(&mut event);
 
         assert_eq!(
             extract_span_exclusive_times(&event),
@@ -595,9 +529,7 @@ mod tests {
             ],
         );
 
-        let mut config = BTreeSet::new();
-        config.insert(SpanAttribute::ExclusiveTime);
-        normalize_spans(&mut event, &config);
+        compute_span_exclusive_time(&mut event);
 
         assert_eq!(
             extract_span_exclusive_times(&event),

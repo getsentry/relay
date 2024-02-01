@@ -762,7 +762,6 @@ mod tests {
                     &mut event,
                     &NormalizationConfig {
                         enrich_spans: true,
-                        normalize_spans: true,
                         ..Default::default()
                     },
                 );

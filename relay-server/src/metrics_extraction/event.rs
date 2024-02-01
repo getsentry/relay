@@ -505,7 +505,6 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 enrich_spans: true,
-                normalize_spans: true,
                 ..Default::default()
             },
         );
@@ -1046,7 +1045,6 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 enrich_spans: true,
-                normalize_spans: true,
                 ..Default::default()
             },
         );
@@ -1158,7 +1156,6 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 enrich_spans: true,
-                normalize_spans: true,
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
@@ -1252,7 +1249,6 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 enrich_spans: true,
-                normalize_spans: true,
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
