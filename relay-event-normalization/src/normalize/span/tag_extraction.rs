@@ -160,7 +160,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             continue;
         };
 
-        let tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type.clone());
+        let tags = extract_tags(span, config, ttid, ttfd, is_mobile, start_type);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -247,7 +247,7 @@ pub fn extract_tags(
     initial_display: Option<Timestamp>,
     full_display: Option<Timestamp>,
     is_mobile: bool,
-    start_type: Option<String>,
+    start_type: Option<&str>,
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
@@ -692,13 +692,13 @@ fn span_op_to_category(op: &str) -> Option<&str> {
     }
 }
 
-/// Reads the event measurements to determine the start type of the event
-fn get_event_start_type(event: &Event) -> Option<String> {
-    // Check the measurements on the event to determine what kind of start type the event is
+/// Reads the event measurements to determine the start type of the event.
+fn get_event_start_type(event: &Event) -> Option<&'static str> {
+    // Check the measurements on the event to determine what kind of start type the event is.
     if event.measurement("app_start_cold").is_some() {
-        Some("cold".to_owned())
+        Some("cold")
     } else if event.measurement("app_start_warm").is_some() {
-        Some("warm".to_owned())
+        Some("warm")
     } else {
         None
     }
