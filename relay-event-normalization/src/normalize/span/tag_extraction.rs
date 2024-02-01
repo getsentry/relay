@@ -1293,7 +1293,7 @@ LIMIT 1
     }
 
     #[test]
-    fn test_browser_name_and_geo_country_code() {
+    fn test_span_tags_extraction_from_event_browser_name() {
         let json = r#"
             {
                 "type": "transaction",
@@ -1339,6 +1339,40 @@ LIMIT 1
         assert_eq!(
             tags.get("browser.name"),
             Some(&Annotated::new("Chrome".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_span_tags_extraction_from_span_browser_name() {
+        let json = r#"
+            {
+                "op": "resource.script",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "browser.name": "Chrome"
+                }
+            }
+        "#;
+        let span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(
+            &span,
+            &Config {
+                max_tag_value_size: 200,
+            },
+            None,
+            None,
+            false,
+        );
+
+        assert_eq!(
+            tags.get(&SpanTagKey::BrowserName),
+            Some(&"Chrome".to_string())
         );
     }
 }
