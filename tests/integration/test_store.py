@@ -1809,7 +1809,6 @@ def test_span_extraction_with_ddm(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
         ),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "_metrics_summary": metrics_summary,
     }
 
     spans_consumer.assert_empty()
@@ -1877,7 +1876,6 @@ def test_span_extraction_with_ddm_missing_values(
             start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
         ),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "_metrics_summary": metrics_summary,
         "measurements": {},
     }
 
