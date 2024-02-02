@@ -46,10 +46,7 @@ pub fn prepare_delete_query(keys: Vec<QueueKey>) -> String {
 ///
 /// The query will perform the delete once executed returning deleted envelope and timestamp when
 /// the envelope was received. This will create a prepared statement which is cached and re-used.
-pub fn delete_and_fetch<'a>(
-    query: &'a str,
-    batch_size: i64,
-) -> Query<'a, Sqlite, SqliteArguments<'a>> {
+pub fn delete_and_fetch(query: &str, batch_size: i64) -> Query<'_, Sqlite, SqliteArguments<'_>> {
     sqlx::query(query).bind(batch_size)
 }
 
