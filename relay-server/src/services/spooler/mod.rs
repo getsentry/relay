@@ -37,6 +37,7 @@ use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
 use hashbrown::HashSet;
+use itertools::Itertools;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use relay_statsd::metric;
@@ -334,13 +335,9 @@ impl InMemory {
     }
 
     /// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
-    fn dequeue(
-        &mut self,
-        keys: &HashSet<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
-    ) {
+    fn dequeue(&mut self, keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) {
         for key in keys {
-            for envelope in self.buffer.remove(key).unwrap_or_default() {
+            for envelope in self.buffer.remove(&key).unwrap_or_default() {
                 self.used_memory -= envelope.estimated_size();
                 self.envelope_count = self.envelope_count.saturating_sub(1);
                 sender.send(envelope).ok();
@@ -501,15 +498,15 @@ impl OnDisk {
     /// Returns the amount of envelopes deleted from disk.
     async fn delete_and_fetch(
         &mut self,
-        key: QueueKey,
-        sender: &mpsc::UnboundedSender<ManagedEnvelope>,
+        mut keys: Vec<QueueKey>,
+        sender: mpsc::UnboundedSender<ManagedEnvelope>,
         services: &Services,
-    ) -> Result<(), QueueKey> {
+    ) -> Result<(), Vec<QueueKey>> {
         loop {
             // Before querying the db, make sure that the buffer guard has enough availability:
             self.dequeue_attempts += 1;
             if !self.buffer_guard.is_below_low_watermark() {
-                return Err(key);
+                break;
             }
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferDequeueAttempts) = self.dequeue_attempts as u64
@@ -521,7 +518,8 @@ impl OnDisk {
             // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
             // but only one batch, and the rest of them will stay on disk for the next iteration
             // to pick up.
-            let envelopes = sql::delete_and_fetch(key, self.unspool_batch())
+            let query = sql::prepare_delete_query(std::mem::take(&mut keys));
+            let envelopes = sql::delete_and_fetch(&query, self.unspool_batch())
                 .fetch(&self.db)
                 .peekable();
             let mut envelopes = pin!(envelopes);
@@ -529,7 +527,7 @@ impl OnDisk {
 
             // Stream is empty, we can break the loop, since we read everything by now.
             if envelopes.as_mut().peek().await.is_none() {
-                return Ok(());
+                break;
             }
 
             let mut count: i64 = 0;
@@ -537,15 +535,13 @@ impl OnDisk {
                 count += 1;
                 let envelope = match envelope {
                     Ok(envelope) => envelope,
-
-                    // Bail if there are errors in the stream.
                     Err(err) => {
                         relay_log::error!(
                             error = &err as &dyn Error,
                             "failed to read the buffer stream from the disk",
                         );
                         self.track_count(-count);
-                        return Err(key);
+                        continue;
                     }
                 };
 
@@ -564,6 +560,12 @@ impl OnDisk {
 
             self.track_count(-count);
         }
+
+        if !keys.is_empty() {
+            return Err(keys);
+        }
+
+        Ok(())
     }
 
     /// Unspools the entire contents of the on-disk spool.
@@ -629,15 +631,27 @@ impl OnDisk {
     /// back into index.
     async fn dequeue(
         &mut self,
-        keys: &mut HashSet<QueueKey>,
+        mut keys: HashSet<QueueKey>,
         sender: mpsc::UnboundedSender<ManagedEnvelope>,
         services: &Services,
     ) {
+        if keys.is_empty() {
+            return;
+        }
+
         let mut unused_keys = HashSet::new();
-        for key in keys.drain() {
+        // Chunk up the incoming keys in batches of size `BATCH_SIZE`.
+        let chunks: Vec<Vec<_>> = keys
+            .drain()
+            .chunks(BATCH_SIZE as usize)
+            .into_iter()
+            .map(|chunk| chunk.collect::<Vec<_>>())
+            .collect();
+
+        for chunk in chunks.into_iter() {
             // If the error with a key is returned we must save it for the next iteration.
-            if let Err(key) = self.delete_and_fetch(key, &sender, services).await {
-                unused_keys.insert(key);
+            if let Err(failed_keys) = self.delete_and_fetch(chunk, sender.clone(), services).await {
+                unused_keys.extend(failed_keys);
             };
         }
         if !unused_keys.is_empty() {
@@ -1028,15 +1042,15 @@ impl BufferService {
     ///
     /// This method removes the envelopes from the buffer and stream them to the sender.
     async fn handle_dequeue(&mut self, message: DequeueMany) -> Result<(), BufferError> {
-        let DequeueMany { mut keys, sender } = message;
+        let DequeueMany { keys, sender } = message;
 
         match self.state {
             BufferState::Memory(ref mut ram)
             | BufferState::MemoryFileStandby { ref mut ram, .. } => {
-                ram.dequeue(&keys, sender);
+                ram.dequeue(keys, sender);
             }
             BufferState::Disk(ref mut disk) => {
-                disk.dequeue(&mut keys, sender, &self.services).await;
+                disk.dequeue(keys, sender, &self.services).await;
             }
         }
         let state = std::mem::take(&mut self.state);
@@ -1711,5 +1725,118 @@ mod tests {
         assert_eq!(index.len(), 2);
         assert!(index.contains(&key1));
         assert!(index.contains(&key2));
+    }
+
+    #[tokio::test]
+    async fn chunked_unspool() {
+        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let buffer_guard: Arc<_> = BufferGuard::new(10000).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": db_path,
+                    "max_memory_size": "10KB",
+                    "max_disk_size": "20MB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let services = services();
+        let buffer = BufferService::create(buffer_guard, services, config)
+            .await
+            .unwrap();
+        let addr = buffer.start();
+
+        let mut keys = HashSet::new();
+        for _ in 1..=300 {
+            let project_key = uuid::Uuid::new_v4().as_simple().to_string();
+            let key = ProjectKey::parse(&project_key).unwrap();
+            let index_key = QueueKey {
+                own_key: key,
+                sampling_key: key,
+            };
+            keys.insert(index_key);
+            addr.send(Enqueue::new(index_key, empty_managed_envelope()))
+        }
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        // Dequeue all the keys at once.
+        addr.send(DequeueMany {
+            keys,
+            sender: tx.clone(),
+        });
+        drop(tx);
+
+        let mut count = 0;
+        while rx.recv().await.is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 300);
+    }
+
+    #[tokio::test]
+    async fn over_the_low_watermark() {
+        let db_path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let buffer_guard: Arc<_> = BufferGuard::new(300).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": db_path,
+                    "max_memory_size": "10KB",
+                    "max_disk_size": "20MB",
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let index = Arc::new(Mutex::new(HashSet::new()));
+        let mut services = services();
+        let index_in = index.clone();
+        let (project_cache, _) = mock_service("project_cache", (), move |(), msg: ProjectCache| {
+            // First chunk in the unspool will take us over the low watermark, that means we will get
+            // small portion of the keys back.
+            let ProjectCache::UpdateSpoolIndex(new_index) = msg else {
+                return;
+            };
+            index_in.lock().unwrap().extend(new_index.0);
+        });
+
+        services.project_cache = project_cache;
+        let buffer = BufferService::create(buffer_guard, services, config)
+            .await
+            .unwrap();
+        let addr = buffer.start();
+
+        let mut keys = HashSet::new();
+        for _ in 1..=300 {
+            let project_key = uuid::Uuid::new_v4().as_simple().to_string();
+            let key = ProjectKey::parse(&project_key).unwrap();
+            let index_key = QueueKey {
+                own_key: key,
+                sampling_key: key,
+            };
+            keys.insert(index_key);
+            addr.send(Enqueue::new(index_key, empty_managed_envelope()))
+        }
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        // Dequeue all the keys at once.
+        addr.send(DequeueMany {
+            keys,
+            sender: tx.clone(),
+        });
+        drop(tx);
+
+        let mut envelopes = Vec::new();
+        while let Some(envelope) = rx.recv().await {
+            envelopes.push(envelope);
+        }
+
+        assert_eq!(envelopes.len(), 200);
+        let index = index.lock().unwrap().clone();
+        assert_eq!(index.len(), 100);
     }
 }

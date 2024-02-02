@@ -184,7 +184,7 @@ pub struct AddMetricMeta {
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
-pub struct UpdateSpoolIndex(HashSet<QueueKey>);
+pub struct UpdateSpoolIndex(pub HashSet<QueueKey>);
 
 impl UpdateSpoolIndex {
     pub fn new(keys: HashSet<QueueKey>) -> Self {
@@ -910,6 +910,7 @@ impl ProjectCacheBroker {
 
         // If we don't yet have the global config, we will defer dequeuing until we do.
         if let GlobalConfigStatus::Pending = self.global_config {
+            self.buffer_unspool_backoff.reset();
             self.schedule_unspool();
             return;
         }
@@ -921,20 +922,19 @@ impl ProjectCacheBroker {
         }
 
         let mut index = std::mem::take(&mut self.index);
-
         let values = index
             .drain_filter(|key| self.is_state_valid(key))
             .collect::<HashSet<_>>();
 
         if !values.is_empty() {
             self.dequeue(values);
-            self.buffer_unspool_backoff.reset();
         }
 
         // Return all the un-used items to the index.
         self.index.extend(index);
 
         // Schedule unspool once we are done.
+        self.buffer_unspool_backoff.reset();
         self.schedule_unspool();
     }
 

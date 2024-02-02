@@ -2,6 +2,7 @@
 //! the on-disk spool (currently backed by SQLite).
 
 use futures::stream::{Stream, StreamExt};
+use itertools::Itertools;
 use sqlx::query::Query;
 use sqlx::sqlite::SqliteArguments;
 use sqlx::{Pool, QueryBuilder, Sqlite};
@@ -17,25 +18,39 @@ use crate::statsd::RelayCounters;
 /// Keep it on the lower side for now.
 const SQLITE_LIMIT_VARIABLE_NUMBER: usize = 999;
 
+/// Prepares a DELETE query, by properly genering IN clauses for provided keys.
+pub fn prepare_delete_query(keys: Vec<QueueKey>) -> String {
+    let (own_keys, sampling_keys) = keys.iter().fold(
+        (Vec::new(), Vec::new()),
+        |(mut own_keys, mut sampling_keys), key| {
+            own_keys.push(format!(r#""{}""#, key.own_key));
+            sampling_keys.push(format!(r#""{}""#, key.sampling_key));
+            (own_keys, sampling_keys)
+        },
+    );
+
+    let own_keys = own_keys.into_iter().join(",");
+    let sampling_keys = sampling_keys.into_iter().join(",");
+
+    format!(
+        "DELETE FROM
+            envelopes
+         WHERE id IN (SELECT id FROM envelopes WHERE own_key in ({}) AND sampling_key in ({}) LIMIT ?)
+         RETURNING
+            received_at, own_key, sampling_key, envelope", own_keys, sampling_keys
+    )
+}
+
 /// Creates a DELETE query binding to the provided [`QueueKey`] which returns the envelopes and
 /// timestamp.
 ///
 /// The query will perform the delete once executed returning deleted envelope and timestamp when
 /// the envelope was received. This will create a prepared statement which is cached and re-used.
 pub fn delete_and_fetch<'a>(
-    key: QueueKey,
+    query: &'a str,
     batch_size: i64,
 ) -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query(
-        "DELETE FROM
-            envelopes
-         WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ? LIMIT ?)
-         RETURNING
-            received_at, own_key, sampling_key, envelope",
-    )
-    .bind(key.own_key.to_string())
-    .bind(key.sampling_key.to_string())
-    .bind(batch_size)
+    sqlx::query(query).bind(batch_size)
 }
 
 /// Creates a DELETE query which returns the requested batch of the envelopes with the timestamp
