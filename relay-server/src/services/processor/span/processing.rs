@@ -7,17 +7,16 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
-use relay_event_normalization::span::tag_extraction;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    validate_span, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-    RawUserAgentInfo, TransactionsProcessor,
+    span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{Contexts, Event, Span};
+use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{Annotated, Empty, Object};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
@@ -50,6 +49,7 @@ pub fn process(
         user_agent: meta.user_agent(),
         client_hints: meta.client_hints().as_deref(),
     };
+
     normalize_user_agent_info_generic(
         &mut contexts,
         &Annotated::new("".to_string()),
@@ -329,6 +329,18 @@ fn normalize(
         return Err(ProcessingError::NoEventPayload);
     };
 
+    if let Some(browser_name) = contexts
+        .value()
+        .and_then(|contexts| contexts.get::<BrowserContext>())
+        .and_then(|v| v.name.value())
+    {
+        let data = span.data.value_mut().get_or_insert_with(Object::new);
+        data.insert(
+            "browser.name".into(),
+            Annotated::new(browser_name.to_owned().into()),
+        );
+    }
+
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
             measurement_values,
@@ -351,7 +363,7 @@ fn normalize(
     // Tag extraction:
     let config = tag_extraction::Config { max_tag_value_size };
     let is_mobile = false; // TODO: find a way to determine is_mobile from a standalone span.
-    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile);
+    let tags = tag_extraction::extract_tags(span, &config, None, None, is_mobile, None);
     span.sentry_tags = Annotated::new(
         tags.into_iter()
             .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
