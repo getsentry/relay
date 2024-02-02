@@ -467,6 +467,18 @@
 <a href="#467" id="467">467</a>
 <a href="#468" id="468">468</a>
 <a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -476,17 +488,16 @@
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
-<span class="kw">use </span>relay_event_normalization::span::tag_extraction;
 <span class="kw">use </span>relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
-    validate_span, DynamicMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig,
-    RawUserAgentInfo, TransactionsProcessor,
+    span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
+    PerformanceScoreConfig, RawUserAgentInfo, TransactionsProcessor,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
-<span class="kw">use </span>relay_event_schema::protocol::{Contexts, Event, Span};
+<span class="kw">use </span>relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
 <span class="kw">use </span>relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 <span class="kw">use </span>relay_pii::PiiProcessor;
-<span class="kw">use </span>relay_protocol::{Annotated, Empty};
+<span class="kw">use </span>relay_protocol::{Annotated, Empty, Object};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics;
@@ -519,6 +530,7 @@
         user_agent: meta.user_agent(),
         client_hints: meta.client_hints().as_deref(),
     };
+
     normalize_user_agent_info_generic(
         <span class="kw-2">&amp;mut </span>contexts,
         <span class="kw-2">&amp;</span>Annotated::new(<span class="string">&quot;&quot;</span>.to_string()),
@@ -797,6 +809,18 @@
     <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::NoEventPayload);
     };
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_name) = contexts
+        .value()
+        .and_then(|contexts| contexts.get::&lt;BrowserContext&gt;())
+        .and_then(|v| v.name.value())
+    {
+        <span class="kw">let </span>data = span.data.value_mut().get_or_insert_with(Object::new);
+        data.insert(
+            <span class="string">&quot;browser.name&quot;</span>.into(),
+            Annotated::new(browser_name.to_owned().into()),
+        );
+    }
 
     <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>measurement_values), <span class="kw-2">ref mut </span>meta) = span.measurements {
         normalize_measurements(
