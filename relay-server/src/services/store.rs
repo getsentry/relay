@@ -871,6 +871,12 @@ impl StoreService {
             }
         };
 
+        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
+        span.event_id = event_id;
+        span.project_id = scoping.project_id.value();
+        span.retention_days = retention_days;
+        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
                 v.as_ref()
@@ -896,13 +902,38 @@ impl StoreService {
                     false
                 }
             });
-        }
 
-        span.duration_ms = ((span.end_timestamp - span.start_timestamp) * 1e3) as u32;
-        span.event_id = event_id;
-        span.project_id = scoping.project_id.value();
-        span.retention_days = retention_days;
-        span.start_timestamp_ms = (span.start_timestamp * 1e3) as u64;
+            let sentry_tags = span.sentry_tags.unwrap_or_default();
+            let group: u64 = sentry_tags
+                .get("group")
+                .map(|group| u64::from_str_radix(group, 16).unwrap_or_default())
+                .unwrap_or_default();
+
+            for (mri, summary) in metrics_summary.value().as_ref() {
+                self.produce(
+                    KafkaTopic::MetricsSummaries,
+                    scoping.organization_id,
+                    KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
+                        count: summary.count,
+                        duration_ms: span.duration_ms,
+                        end_timestamp: span.end_timestamp,
+                        group: span.group,
+                        is_segment: span.is_segment,
+                        max: summary.max,
+                        mri,
+                        min: summary.min,
+                        project_id: span.project_id,
+                        retention_days: span.retention_days,
+                        segment_id: span.segment_id,
+                        span_id: span.span_id,
+                        sum: summary.sum,
+                        tags: summary.tags,
+                        trace_id: span.trace_id,
+                    }),
+                );
+            }
+            span.metrics_summary = None;
+        }
 
         self.produce(
             KafkaTopic::Spans,
@@ -1278,6 +1309,25 @@ struct SpanKafkaMessage<'a> {
     trace_id: &'a str,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct MetricsSummaryKafkaMessage<'a> {
+    count: u64,
+    duration_ms: u32,
+    end_timestamp: f64,
+    group: &'a str,
+    is_segment: bool,
+    max: f64,
+    mri: &'a str,
+    min: f64,
+    project_id: u64,
+    retention_days: u16,
+    segment_id: &'a str,
+    span_id: &'a str,
+    sum: f64,
+    tags: BTreeMap<&'a str, String>,
+    trace_id: &'a str,
+}
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -1299,6 +1349,7 @@ enum KafkaMessage<'a> {
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
     Span(SpanKafkaMessage<'a>),
+    MetricsSummary(MetricsSummaryKafkaMessage<'a>),
 }
 
 impl Message for KafkaMessage<'_> {
@@ -1315,6 +1366,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span(_) => "span",
+            KafkaMessage::MetricsSummary(_) => "metrics_summary",
         }
     }
 
@@ -1337,7 +1389,8 @@ impl Message for KafkaMessage<'_> {
             Self::Session(_)
             | Self::Profile(_)
             | Self::ReplayRecordingNotChunked(_)
-            | Self::Span(_) => Uuid::nil(),
+            | Self::Span(_)
+            | Self::MetricsSummary(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
             Self::Metric { .. } => Uuid::nil(),
@@ -1383,6 +1436,10 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Span(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
+            KafkaMessage::MetricsSummary(message) => {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
+
             _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),
         }
     }
