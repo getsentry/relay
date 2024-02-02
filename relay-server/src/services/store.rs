@@ -903,34 +903,43 @@ impl StoreService {
                 }
             });
 
-            let sentry_tags = span.sentry_tags.unwrap_or_default();
-            let group: u64 = sentry_tags
-                .get("group")
-                .map(|group| u64::from_str_radix(group, 16).unwrap_or_default())
-                .unwrap_or_default();
+            let group = span
+                .sentry_tags
+                .as_ref()
+                .and_then(|sentry_tags| sentry_tags.get("group"))
+                .unwrap_or(&"");
 
-            for (mri, summary) in metrics_summary.value().as_ref() {
-                self.produce(
-                    KafkaTopic::MetricsSummaries,
-                    scoping.organization_id,
-                    KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
-                        count: summary.count,
-                        duration_ms: span.duration_ms,
-                        end_timestamp: span.end_timestamp,
-                        group: span.group,
-                        is_segment: span.is_segment,
-                        max: summary.max,
-                        mri,
-                        min: summary.min,
-                        project_id: span.project_id,
-                        retention_days: span.retention_days,
-                        segment_id: span.segment_id,
-                        span_id: span.span_id,
-                        sum: summary.sum,
-                        tags: summary.tags,
-                        trace_id: span.trace_id,
-                    }),
-                );
+            for (mri, summaries) in metrics_summary {
+                let Some(summaries) = summaries else {
+                    continue;
+                };
+                for summary in summaries {
+                    let Some(summary) = summary else {
+                        continue;
+                    };
+                    // Ignore immedate errors on produce.
+                    let _ = self.produce(
+                        KafkaTopic::MetricsSummaries,
+                        scoping.organization_id,
+                        KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
+                            count: summary.count.unwrap_or_default(),
+                            duration_ms: span.duration_ms,
+                            end_timestamp: span.end_timestamp,
+                            group,
+                            is_segment: span.is_segment,
+                            max: summary.max.unwrap_or_default(),
+                            mri,
+                            min: summary.min.unwrap_or_default(),
+                            project_id: span.project_id,
+                            retention_days: span.retention_days,
+                            segment_id: span.segment_id.unwrap_or_default(),
+                            span_id: span.span_id,
+                            sum: summary.sum.unwrap_or_default(),
+                            tags: summary.tags.clone().unwrap_or_default(),
+                            trace_id: span.trace_id,
+                        }),
+                    );
+                }
             }
             span.metrics_summary = None;
         }
@@ -1300,7 +1309,7 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    sentry_tags: Option<&'a RawValue>,
+    sentry_tags: Option<BTreeMap<&'a str, &'a str>>,
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
@@ -1324,7 +1333,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     segment_id: &'a str,
     span_id: &'a str,
     sum: f64,
-    tags: BTreeMap<&'a str, String>,
+    tags: BTreeMap<String, String>,
     trace_id: &'a str,
 }
 
