@@ -883,9 +883,8 @@ impl ProjectCacheBroker {
                 .map_or(false, |state| !state.invalid())
         });
 
-        if is_own_state_valid && own_key != sampling_key {
-            return self
-                .projects
+        let is_sampling_state_valid = if own_key != sampling_key {
+            self.projects
                 .get_mut(sampling_key)
                 .map_or(false, |project| {
                     // Returns `Some` if the project is cache otherwise None and also triggers refresh
@@ -894,10 +893,12 @@ impl ProjectCacheBroker {
                         .get_cached_state(self.services.project_cache.clone(), false)
                         // Makes sure that the state also is valid.
                         .map_or(false, |state| !state.invalid())
-                });
-        }
+                })
+        } else {
+            is_own_state_valid
+        };
 
-        is_own_state_valid
+        is_own_state_valid && is_sampling_state_valid
     }
 
     /// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
