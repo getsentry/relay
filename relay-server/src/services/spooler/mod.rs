@@ -36,6 +36,7 @@ use std::pin::pin;
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
+use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use relay_statsd::metric;
@@ -145,22 +146,13 @@ impl Enqueue {
 /// Removes messages from the internal buffer and streams them to the sender.
 #[derive(Debug)]
 pub struct DequeueMany {
-    project_key: ProjectKey,
-    keys: Vec<QueueKey>,
+    keys: HashSet<QueueKey>,
     sender: mpsc::UnboundedSender<ManagedEnvelope>,
 }
 
 impl DequeueMany {
-    pub fn new(
-        project_key: ProjectKey,
-        keys: Vec<QueueKey>,
-        sender: mpsc::UnboundedSender<ManagedEnvelope>,
-    ) -> Self {
-        Self {
-            project_key,
-            keys,
-            sender,
-        }
+    pub fn new(keys: HashSet<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) -> Self {
+        Self { keys, sender }
     }
 }
 
@@ -342,7 +334,11 @@ impl InMemory {
     }
 
     /// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
-    fn dequeue(&mut self, keys: &Vec<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) {
+    fn dequeue(
+        &mut self,
+        keys: &HashSet<QueueKey>,
+        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+    ) {
         for key in keys {
             for envelope in self.buffer.remove(key).unwrap_or_default() {
                 self.used_memory -= envelope.estimated_size();
@@ -633,13 +629,12 @@ impl OnDisk {
     /// back into index.
     async fn dequeue(
         &mut self,
-        project_key: ProjectKey,
-        keys: &mut Vec<QueueKey>,
+        keys: &mut HashSet<QueueKey>,
         sender: mpsc::UnboundedSender<ManagedEnvelope>,
         services: &Services,
     ) {
-        let mut unused_keys = BTreeSet::new();
-        while let Some(key) = keys.pop() {
+        let mut unused_keys = HashSet::new();
+        for key in keys.drain() {
             // If the error with a key is returned we must save it for the next iteration.
             if let Err(key) = self.delete_and_fetch(key, &sender, services).await {
                 unused_keys.insert(key);
@@ -648,7 +643,7 @@ impl OnDisk {
         if !unused_keys.is_empty() {
             services
                 .project_cache
-                .send(UpdateSpoolIndex::new(project_key, unused_keys))
+                .send(UpdateSpoolIndex::new(unused_keys))
         }
     }
 
@@ -741,9 +736,7 @@ impl OnDisk {
     }
 
     /// Returns the index from the on-disk spool.
-    async fn get_spooled_index(
-        db: &Pool<Sqlite>,
-    ) -> Result<BTreeMap<ProjectKey, BTreeSet<QueueKey>>, BufferError> {
+    async fn get_spooled_index(db: &Pool<Sqlite>) -> Result<HashSet<QueueKey>, BufferError> {
         let keys = sql::get_keys()
             .fetch_all(db)
             .await
@@ -753,15 +746,7 @@ impl OnDisk {
             .into_iter()
             // Collect only keys we could extract.
             .filter_map(Self::extract_key)
-            // Fold the list into the index format.
-            .fold(
-                BTreeMap::new(),
-                |mut acc: BTreeMap<ProjectKey, BTreeSet<QueueKey>>, key| {
-                    acc.entry(key.own_key).or_default().insert(key);
-                    acc.entry(key.sampling_key).or_default().insert(key);
-                    acc
-                },
-            );
+            .collect();
 
         Ok(index)
     }
@@ -1043,11 +1028,7 @@ impl BufferService {
     ///
     /// This method removes the envelopes from the buffer and stream them to the sender.
     async fn handle_dequeue(&mut self, message: DequeueMany) -> Result<(), BufferError> {
-        let DequeueMany {
-            project_key,
-            mut keys,
-            sender,
-        } = message;
+        let DequeueMany { mut keys, sender } = message;
 
         match self.state {
             BufferState::Memory(ref mut ram)
@@ -1055,8 +1036,7 @@ impl BufferService {
                 ram.dequeue(&keys, sender);
             }
             BufferState::Disk(ref mut disk) => {
-                disk.dequeue(project_key, &mut keys, sender, &self.services)
-                    .await;
+                disk.dequeue(&mut keys, sender, &self.services).await;
             }
         }
         let state = std::mem::take(&mut self.state);
@@ -1350,7 +1330,6 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(1000 * result)).await;
 
             addr.send(DequeueMany {
-                project_key,
                 keys: [key].into(),
                 sender: tx.clone(),
             });
@@ -1403,7 +1382,6 @@ mod tests {
 
         // Dequeue an envelope:
         addr.send(DequeueMany {
-            project_key,
             keys: [key].into(),
             sender: tx.clone(),
         });
@@ -1432,7 +1410,6 @@ mod tests {
         });
         // Request to dequeue:
         addr.send(DequeueMany {
-            project_key,
             keys: [key].into(),
             sender: tx.clone(),
         });
@@ -1447,7 +1424,6 @@ mod tests {
 
         // Dequeue an envelope:
         addr.send(DequeueMany {
-            project_key,
             keys: [key].into(),
             sender: tx.clone(),
         });
@@ -1505,7 +1481,6 @@ mod tests {
                 let (tx, mut rx) = mpsc::unbounded_channel();
                 service
                     .handle_dequeue(DequeueMany {
-                        project_key,
                         keys: [key].into(),
                         sender: tx,
                     })
@@ -1701,7 +1676,7 @@ mod tests {
 
         assert_eq!(result.rows_affected(), 2);
 
-        let index = Arc::new(Mutex::new(BTreeMap::new()));
+        let index = Arc::new(Mutex::new(HashSet::new()));
         let mut services = services();
         let index_in = index.clone();
         let (project_cache, _) = mock_service("project_cache", (), move |(), msg: ProjectCache| {
@@ -1724,19 +1699,17 @@ mod tests {
         // Get the index out of the mutex.
         let index = index.lock().unwrap().clone();
 
-        assert_eq!(index.len(), 3);
-        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f00").unwrap()));
-        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f11").unwrap()));
-        assert!(index.contains_key(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap()));
-        let result_for_key = BTreeSet::from([QueueKey {
+        let key1 = QueueKey {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-        }]);
-        assert_eq!(
-            index
-                .get(&ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap())
-                .unwrap(),
-            &result_for_key
-        );
+        };
+        let key2 = QueueKey {
+            own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f00").unwrap(),
+            sampling_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971f11").unwrap(),
+        };
+
+        assert_eq!(index.len(), 2);
+        assert!(index.contains(&key1));
+        assert!(index.contains(&key2));
     }
 }
