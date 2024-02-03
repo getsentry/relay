@@ -5,6 +5,7 @@
 use relay_config::Config;
 
 use crate::envelope::ItemType;
+use crate::services::processor::state::ProcessState;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils;
 

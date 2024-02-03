@@ -67,6 +67,9 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::state::{
+    ProcessEvent, ProcessExtractedMetrics, ProcessSpan, ProcessState,
+};
 use crate::services::project::ProjectState;
 use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
 use crate::services::test_store::{Capture, TestStore};
@@ -84,6 +87,7 @@ mod replay;
 mod report;
 mod session;
 mod span;
+mod state;
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -454,7 +458,30 @@ struct ProcessEnvelopeState<'a> {
     reservoir: ReservoirEvaluator<'a>,
 }
 
-impl<'a> ProcessEnvelopeState<'a> {
+impl<'a> ProcessSpan for ProcessEnvelopeState<'a> {}
+
+impl<'a> ProcessExtractedMetrics for ProcessEnvelopeState<'a> {
+    fn event_metrics_extracted(&self) -> bool {
+        self.event_metrics_extracted
+    }
+
+    fn extend_metrics(&mut self, metrics: Vec<Bucket>) {
+        self.extracted_metrics.project_metrics.extend(metrics);
+    }
+}
+
+impl<'a> ProcessState for ProcessEnvelopeState<'a> {
+    fn managed_envelope_mut(&mut self) -> &mut ManagedEnvelope {
+        &mut self.managed_envelope
+    }
+
+    fn managed_envelope(&self) -> &ManagedEnvelope {
+        &self.managed_envelope
+    }
+
+    fn project_state(&self) -> &Arc<ProjectState> {
+        &self.project_state
+    }
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
         self.managed_envelope.envelope()
@@ -464,7 +491,9 @@ impl<'a> ProcessEnvelopeState<'a> {
     fn envelope_mut(&mut self) -> &mut Envelope {
         self.managed_envelope.envelope_mut()
     }
+}
 
+impl<'a> ProcessEvent for ProcessEnvelopeState<'a> {
     /// Returns true if there is an event in the processing state.
     ///
     /// The event was previously removed from the Envelope. This returns false if there was an
@@ -927,13 +956,16 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn enforce_quotas<State>(&self, state: &mut State) -> Result<(), ProcessingError>
+    where
+        State: ProcessState + ProcessExtractedMetrics + ProcessEvent,
+    {
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),
         };
 
-        let project_state = &state.project_state;
+        let project_state = state.project_state().clone();
         let quotas = project_state.config.quotas.as_slice();
         if quotas.is_empty() {
             return Ok(());
@@ -951,12 +983,12 @@ impl EnvelopeProcessorService {
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         if let Some(category) = event_category {
-            envelope_limiter.assume_event(category, state.event_metrics_extracted);
+            envelope_limiter.assume_event(category, state.event_metrics_extracted());
         }
 
-        let scoping = state.managed_envelope.scoping();
+        let scoping = state.managed_envelope().scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.managed_envelope.envelope_mut(), &scoping)?
+            envelope_limiter.enforce(state.envelope_mut(), &scoping)?
         });
 
         if limits.is_limited() {
@@ -972,7 +1004,7 @@ impl EnvelopeProcessorService {
 
         enforcement.track_outcomes(
             state.envelope(),
-            &state.managed_envelope.scoping(),
+            &state.managed_envelope().scoping(),
             self.inner.outcome_aggregator.clone(),
         );
 
@@ -1261,7 +1293,10 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes spans.
-    fn process_spans(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_spans<State>(&self, state: &mut State) -> Result<(), ProcessingError>
+    where
+        State: ProcessState + ProcessSpan + ProcessExtractedMetrics + ProcessEvent,
+    {
         span::filter(state);
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
@@ -2442,6 +2477,7 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
+    use crate::services::processor::ProcessingGroup;
     use crate::testutils::{self, create_test_processor};
 
     #[cfg(feature = "processing")]

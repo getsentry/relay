@@ -17,6 +17,7 @@ use relay_statsd::metric;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::state::ProcessState;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;

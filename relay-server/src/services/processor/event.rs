@@ -29,6 +29,7 @@ use {
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
+use crate::services::processor::state::{ProcessEvent, ProcessState};
 use crate::services::processor::{
     ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
 };

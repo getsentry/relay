@@ -14,6 +14,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
+use crate::services::processor::state::{ProcessEvent, ProcessState};
 use crate::services::processor::{profile, ProcessEnvelopeState};
 use crate::utils::{self, ItemAction, SamplingResult};
 

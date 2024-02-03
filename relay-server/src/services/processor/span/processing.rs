@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig, ProjectConfig};
+use relay_event_normalization::RemoveOtherProcessor;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, normalize_user_agent_info_generic,
     span::tag_extraction, validate_span, DynamicMeasurementsConfig, MeasurementsConfig,
@@ -21,29 +22,30 @@ use relay_protocol::{Annotated, Empty, Object};
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::state::{
+    ProcessEvent, ProcessExtractedMetrics, ProcessSpan, ProcessState,
+};
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils::ItemAction;
 
-pub fn process(
-    state: &mut ProcessEnvelopeState,
-    config: Arc<Config>,
-    global_config: &GlobalConfig,
-) {
-    use relay_event_normalization::RemoveOtherProcessor;
-
-    let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
+pub fn process<State>(state: &mut State, config: Arc<Config>, global_config: &GlobalConfig)
+where
+    State: ProcessState + ProcessSpan + ProcessExtractedMetrics,
+{
+    let project_state = state.project_state().clone();
+    let span_metrics_extraction_config = match project_state.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
     let normalize_span_config = get_normalize_span_config(
         config,
-        state.managed_envelope.received_at(),
+        state.managed_envelope().received_at(),
         global_config.measurements.as_ref(),
-        state.project_state.config().measurements.as_ref(),
-        state.project_state.config().performance_score.as_ref(),
+        project_state.config().measurements.as_ref(),
+        project_state.config().performance_score.as_ref(),
     );
 
-    let meta = state.managed_envelope.envelope().meta();
+    let meta = state.envelope().meta();
     let mut contexts = Contexts::new();
     let user_agent_info = RawUserAgentInfo {
         user_agent: meta.user_agent(),
@@ -56,7 +58,8 @@ pub fn process(
         &user_agent_info,
     );
 
-    state.managed_envelope.retain_items(|item| {
+    let mut extracted_metrics = Vec::new();
+    state.managed_envelope_mut().retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => {
                 match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
@@ -92,13 +95,13 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             let metrics = extract_metrics(span, config, Some(&global_config.options));
-            state.extracted_metrics.project_metrics.extend(metrics);
+            extracted_metrics.extend(metrics);
             item.set_metrics_extracted(true);
         }
 
         // TODO: dynamic sampling
 
-        if let Err(e) = scrub(&mut annotated_span, &state.project_state.config) {
+        if let Err(e) = scrub(&mut annotated_span, &project_state.config) {
             relay_log::error!("failed to scrub span: {e}");
         }
 
@@ -137,6 +140,8 @@ pub fn process(
 
         ItemAction::Keep
     });
+
+    state.extend_metrics(extracted_metrics);
 }
 
 pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
