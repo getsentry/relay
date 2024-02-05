@@ -9,7 +9,10 @@ use crate::{
         cache::{Cache, CacheOutcome},
         script::{CardinalityScript, Status},
     },
-    statsd::{CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterTimers},
+    statsd::{
+        CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterSets,
+        CardinalityLimiterTimers,
+    },
     window::Slot,
     CardinalityLimit, CardinalityScope, OrganizationId, Result, SlidingWindow,
 };
@@ -236,10 +239,16 @@ struct LimitState<'a> {
     /// The limit of the quota.
     pub limit: u64,
 
-    /// Amount of cache hits `(hits, misses)`.
-    cache_hits: (i64, i64),
-    /// Amount of accepts and rejections `(accepts, rejections)`.
-    accepts_rejections: (i64, i64),
+    /// The original/full scoping.
+    scoping: Scoping,
+    /// Amount of cache hits.
+    cache_hits: i64,
+    /// Amount of cache misses.
+    cache_misses: i64,
+    /// Amount of accepts,
+    accepts: i64,
+    /// Amount of rejections.
+    rejections: i64,
 }
 
 impl<'a> LimitState<'a> {
@@ -249,8 +258,11 @@ impl<'a> LimitState<'a> {
             entries: Vec::new(),
             scope: QuotaScoping::new(scoping, limit)?,
             limit: limit.limit,
-            cache_hits: (0, 0),
-            accepts_rejections: (0, 0),
+            scoping,
+            cache_hits: 0,
+            cache_misses: 0,
+            accepts: 0,
+            rejections: 0,
         })
     }
 
@@ -266,40 +278,48 @@ impl<'a> LimitState<'a> {
     }
 
     pub fn cache_hit(&mut self) {
-        self.cache_hits.0 += 1;
+        self.cache_hits += 1;
     }
 
     pub fn cache_miss(&mut self) {
-        self.cache_hits.1 += 1;
+        self.cache_misses += 1;
     }
 
     pub fn accepted(&mut self) {
-        self.accepts_rejections.0 += 1;
+        self.accepts += 1;
     }
 
     pub fn rejected(&mut self) {
-        self.accepts_rejections.1 += 1;
+        self.rejections += 1;
     }
 }
 
 impl<'a> Drop for LimitState<'a> {
     fn drop(&mut self) {
         metric!(
-            counter(CardinalityLimiterCounters::RedisCacheHit) += self.cache_hits.0,
+            counter(CardinalityLimiterCounters::RedisCacheHit) += self.cache_hits,
             id = self.id
         );
         metric!(
-            counter(CardinalityLimiterCounters::RedisCacheMiss) += self.cache_hits.1,
+            counter(CardinalityLimiterCounters::RedisCacheMiss) += self.cache_misses,
             id = self.id
         );
         metric!(
-            counter(CardinalityLimiterCounters::Accepted) += self.accepts_rejections.0,
+            counter(CardinalityLimiterCounters::Accepted) += self.accepts,
             id = self.id
         );
         metric!(
-            counter(CardinalityLimiterCounters::Rejected) += self.accepts_rejections.1,
+            counter(CardinalityLimiterCounters::Rejected) += self.rejections,
             id = self.id
         );
+
+        let organization_id = self.scoping.organization_id as i64;
+        let status = if self.rejections > 0 { "limited" } else { "ok" };
+        metric!(
+            set(CardinalityLimiterSets::Organizations) = organization_id,
+            id = self.id,
+            status = status,
+        )
     }
 }
 
