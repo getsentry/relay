@@ -685,6 +685,9 @@
                 Tag::with_key(<span class="string">&quot;span.main_thread&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.main_thread&quot;</span>)
                     .when(is_mobile.clone()),
+                Tag::with_key(<span class="string">&quot;app_start_type&quot;</span>)
+                    .from_field(<span class="string">&quot;span.sentry_tags.app_start_type&quot;</span>)
+                    .when(is_mobile.clone()),
                 <span class="comment">// Resource module:
                 </span>Tag::with_key(<span class="string">&quot;file_extension&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.file_extension&quot;</span>)
@@ -733,9 +736,6 @@
                     .when(is_mobile.clone()),
                 Tag::with_key(<span class="string">&quot;release&quot;</span>)
                     .from_field(<span class="string">&quot;span.sentry_tags.release&quot;</span>)
-                    .when(is_mobile.clone()),
-                Tag::with_key(<span class="string">&quot;app_start_type&quot;</span>)
-                    .from_field(<span class="string">&quot;span.sentry_tags.app_start_type&quot;</span>)
                     .when(is_mobile.clone()),
                 <span class="comment">// Resource module:
                 </span>Tag::with_key(<span class="string">&quot;file_extension&quot;</span>)
