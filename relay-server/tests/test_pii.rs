@@ -1,4 +1,6 @@
-use relay_event_normalization::{StoreConfig, StoreProcessor};
+use relay_event_normalization::{
+    normalize_event, NormalizationConfig, StoreConfig, StoreProcessor,
+};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::Event;
 use relay_pii::{DataScrubbingConfig, PiiProcessor};
@@ -24,7 +26,9 @@ fn test_reponse_context_pii() {
         .into(),
     );
 
-    // Run store processort, to make sure that all the normalizations steps are done.
+    // Run all normalization steps.
+    let normalization_config = NormalizationConfig::default();
+    normalize_event(&mut data, &normalization_config);
     let store_config = StoreConfig::default();
     let mut store_processor = StoreProcessor::new(store_config, None);
     processor::process_value(&mut data, &mut store_processor, ProcessingState::root()).unwrap();
