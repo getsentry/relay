@@ -78,7 +78,7 @@ impl_str_serde!(Level, "The logging level.");
 
 impl Level {
     /// Returns the tracing [`LevelFilter`].
-    pub fn level_filter(&self) -> LevelFilter {
+    pub const fn level_filter(&self) -> LevelFilter {
         match self {
             Level::Error => LevelFilter::ERROR,
             Level::Warn => LevelFilter::WARN,
@@ -142,7 +142,7 @@ pub struct LogConfig {
 
 impl LogConfig {
     /// Returns the tracing [`LevelFilter`].
-    pub fn level_filter(&self) -> LevelFilter {
+    pub const fn level_filter(&self) -> LevelFilter {
         self.level.level_filter()
     }
 }
