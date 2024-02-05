@@ -2262,7 +2262,7 @@ impl UpstreamRequest for SendEnvelope {
     }
 }
 
-/// Returns a boolean wether the current item should be sampled or discarded
+/// Returns a boolean whether the current item should be sampled or discarded
 /// using the passed `rate` (0 <= rate <= 1).
 #[cfg(feature = "processing")]
 fn sample(rate: f32) -> bool {

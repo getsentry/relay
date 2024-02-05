@@ -166,7 +166,7 @@ impl<'a, T> CardinalityLimits<'a, T> {
         }
     }
 
-    /// Wether any items are rejected.
+    /// Whether any items are rejected.
     pub fn has_rejections(&self) -> bool {
         !self.rejections.is_empty()
     }
