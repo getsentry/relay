@@ -2262,8 +2262,9 @@ impl UpstreamRequest for SendEnvelope {
     }
 }
 
-/// Returns a boolean whether the current item should be sampled or discarded
-/// using the passed `rate` (0 <= rate <= 1).
+/// Returns `true` if the current item should be sampled.
+///
+/// The passed `rate` is expected to be `0 <= rate <= 1`.
 #[cfg(feature = "processing")]
 fn sample(rate: f32) -> bool {
     (rate >= 1.0) || (rate > 0.0 && rand::random::<f32>() < rate)
