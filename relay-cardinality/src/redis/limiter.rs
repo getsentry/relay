@@ -239,6 +239,8 @@ struct LimitState<'a> {
     /// The limit of the quota.
     pub limit: u64,
 
+    /// The original/full scoping.
+    scoping: Scoping,
     /// Amount of cache hits.
     cache_hits: i64,
     /// Amount of cache misses.
@@ -256,6 +258,7 @@ impl<'a> LimitState<'a> {
             entries: Vec::new(),
             scope: QuotaScoping::new(scoping, limit)?,
             limit: limit.limit,
+            scoping,
             cache_hits: 0,
             cache_misses: 0,
             accepts: 0,
@@ -310,15 +313,13 @@ impl<'a> Drop for LimitState<'a> {
             id = self.id
         );
 
-        if let Some(organization_id) = self.scope.organization_id {
-            let organization_id = organization_id as i64;
-            let status = if self.rejections > 0 { "limited" } else { "ok" };
-            metric!(
-                set(CardinalityLimiterSets::Organizations) = organization_id,
-                id = self.id,
-                status = status,
-            )
-        }
+        let organization_id = self.scoping.organization_id as i64;
+        let status = if self.rejections > 0 { "limited" } else { "ok" };
+        metric!(
+            set(CardinalityLimiterSets::Organizations) = organization_id,
+            id = self.id,
+            status = status,
+        )
     }
 }
 
