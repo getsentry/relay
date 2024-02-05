@@ -7,7 +7,7 @@ use axum_extra::protobuf::Protobuf;
 use bytes::Bytes;
 
 use relay_config::Config;
-use relay_spans::Otlp;
+use relay_spans::OtelTrace::TracesData;
 
 use crate::endpoints::common;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
@@ -26,10 +26,10 @@ where
     B::Error: Into<axum::BoxError>,
 {
     let trace = if content_type.as_ref().starts_with("application/json") {
-        let json: Json<Otlp::TracesData> = request.extract().await?;
+        let json: Json<TracesData> = request.extract().await?;
         json.0
     } else {
-        let protobuf: Protobuf<Otlp::TracesData> = request.extract().await?;
+        let protobuf: Protobuf<TracesData> = request.extract().await?;
         protobuf.0
     };
 

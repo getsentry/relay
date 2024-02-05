@@ -4,6 +4,8 @@ use std::str::FromStr;
 use serde::{de, Deserialize};
 use serde_json::{Map, Value};
 
+// TODO-neel-protobuf do this shit idk how
+#[allow(dead_code)]
 pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     D: de::Deserializer<'de>,

@@ -6,13 +6,12 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-pub use crate::span::OtelSpan;
-pub use crate::trace::TracesData;
+pub use crate::span::OtelSpanExt;
 
-pub use opentelemetry_proto::tonic::trace::v1 as Otlp;
+pub use opentelemetry_proto::tonic::common::v1 as OtelCommon;
+pub use opentelemetry_proto::tonic::trace::v1 as OtelTrace;
 
 mod otel_to_sentry_tags;
 mod span;
 mod status_codes;
-mod trace;
 mod utils;
