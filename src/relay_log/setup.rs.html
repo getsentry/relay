@@ -284,13 +284,51 @@
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
 <a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::env;
+<span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
 <span class="kw">use </span>std::path::PathBuf;
+<span class="kw">use </span>std::str::FromStr;
 
+<span class="kw">use </span>relay_common::impl_str_serde;
 <span class="kw">use </span>sentry::types::Dsn;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>tracing::{level_filters::LevelFilter, Level};
+<span class="kw">use </span>tracing::level_filters::LevelFilter;
 <span class="kw">use </span>tracing_subscriber::{prelude::<span class="kw-2">*</span>, EnvFilter, Layer};
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
@@ -333,53 +371,78 @@
     </span>Json,
 }
 
-<span class="kw">mod </span>level_serde {
-    <span class="kw">use </span>std::fmt;
+<span class="doccomment">/// The logging level parse error.
+</span><span class="attr">#[derive(Clone, Debug)]
+</span><span class="kw">pub struct </span>LevelParseError(String);
 
-    <span class="kw">use </span>serde::de::{Error, Unexpected, Visitor};
-    <span class="kw">use </span>serde::{Deserializer, Serializer};
-    <span class="kw">use </span>tracing::Level;
-
-    <span class="kw">pub fn </span>serialize&lt;S&gt;(filter: <span class="kw-2">&amp;</span>Level, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: Serializer,
-    {
-        serializer.collect_str(filter)
-    }
-
-    <span class="kw">pub fn </span>deserialize&lt;<span class="lifetime">&#39;de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Level, D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    {
-        <span class="kw">struct </span>V;
-
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Visitor&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>V {
-            <span class="kw">type </span>Value = Level;
-
-            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, formatter: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-                formatter.write_str(<span class="string">&quot;a log level&quot;</span>)
-            }
-
-            <span class="kw">fn </span>visit_str&lt;E&gt;(<span class="self">self</span>, value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Level, E&gt;
-            <span class="kw">where
-                </span>E: Error,
-            {
-                value
-                    .parse()
-                    .map_err(|<span class="kw">_</span>| Error::invalid_value(Unexpected::Str(value), <span class="kw-2">&amp;</span><span class="self">self</span>))
-            }
-        }
-
-        deserializer.deserialize_str(V)
+<span class="kw">impl </span>Display <span class="kw">for </span>LevelParseError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="macro">write!</span>(
+            f,
+            <span class="string">r#&quot;error parsing &quot;{}&quot; as level: expected one of &quot;error&quot;, &quot;warn&quot;, &quot;info&quot;, &quot;debug&quot;, &quot;trace&quot;, &quot;off&quot;&quot;#</span>,
+            <span class="self">self</span>.<span class="number">0
+        </span>)
     }
 }
+
+<span class="attr">#[derive(Clone, Copy, Debug)]
+</span><span class="kw">pub enum </span>Level {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+    Off,
+}
+
+<span class="macro">impl_str_serde!</span>(Level, <span class="string">&quot;The logging level.&quot;</span>);
+
+<span class="kw">impl </span>Level {
+    <span class="doccomment">/// Returns the tracing [`LevelFilter`].
+    </span><span class="kw">pub const fn </span>level_filter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LevelFilter {
+        <span class="kw">match </span><span class="self">self </span>{
+            Level::Error =&gt; LevelFilter::ERROR,
+            Level::Warn =&gt; LevelFilter::WARN,
+            Level::Info =&gt; LevelFilter::INFO,
+            Level::Debug =&gt; LevelFilter::DEBUG,
+            Level::Trace =&gt; LevelFilter::TRACE,
+            Level::Off =&gt; LevelFilter::OFF,
+        }
+    }
+}
+
+<span class="kw">impl </span>Display <span class="kw">for </span>Level {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="self">self</span>).to_lowercase())
+    }
+}
+
+<span class="kw">impl </span>FromStr <span class="kw">for </span>Level {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= LevelParseError;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">let </span>result = <span class="kw">match </span>s {
+            <span class="string">&quot;&quot; </span>=&gt; Level::Error,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;error&quot;</span>) =&gt; Level::Error,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;warn&quot;</span>) =&gt; Level::Warn,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;info&quot;</span>) =&gt; Level::Info,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;debug&quot;</span>) =&gt; Level::Debug,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;trace&quot;</span>) =&gt; Level::Trace,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">&quot;off&quot;</span>) =&gt; Level::Off,
+            s =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(LevelParseError(s.into())),
+        };
+
+        <span class="prelude-val">Ok</span>(result)
+    }
+}
+
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>LevelParseError {}
 
 <span class="doccomment">/// Controls the logging system.
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 </span><span class="kw">pub struct </span>LogConfig {
     <span class="doccomment">/// The log level for Relay.
-    </span><span class="attr">#[serde(with = <span class="string">&quot;level_serde&quot;</span>)]
     </span><span class="kw">pub </span>level: Level,
 
     <span class="doccomment">/// Controls the log output format.
@@ -398,10 +461,17 @@
     </span><span class="kw">pub </span>traces_sample_rate: f32,
 }
 
+<span class="kw">impl </span>LogConfig {
+    <span class="doccomment">/// Returns the tracing [`LevelFilter`].
+    </span><span class="kw">pub const fn </span>level_filter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LevelFilter {
+        <span class="self">self</span>.level.level_filter()
+    }
+}
+
 <span class="kw">impl </span>Default <span class="kw">for </span>LogConfig {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            level: Level::INFO,
+            level: Level::Info,
             format: LogFormat::Auto,
             enable_backtraces: <span class="bool-val">false</span>,
             <span class="attr">#[cfg(debug_assertions)]
@@ -526,7 +596,7 @@
     };
 
     <span class="kw">let </span>logs_subscriber = tracing_subscriber::registry()
-        .with(format.with_filter(LevelFilter::from(config.level)))
+        .with(format.with_filter(config.level_filter()))
         .with(sentry::integrations::tracing::layer())
         .with(<span class="kw">match </span>env::var(EnvFilter::DEFAULT_ENV) {
             <span class="prelude-val">Ok</span>(value) =&gt; EnvFilter::new(value),
