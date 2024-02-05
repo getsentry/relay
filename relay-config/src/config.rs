@@ -1291,12 +1291,21 @@ pub struct CardinalityLimiter {
     ///
     /// Defaults to 180 seconds, 3 minutes.
     pub cache_vacuum_interval: u64,
+
+    /// Sample rate for Cardinality Limiter Sentry errors.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all cardinality limiter rejections will be logged as a Sentry error.
+    ///
+    /// Defaults to 1% (0.01).
+    pub error_sample_rate: f32,
 }
 
 impl Default for CardinalityLimiter {
     fn default() -> Self {
         Self {
             cache_vacuum_interval: 180,
+            error_sample_rate: 0.01,
         }
     }
 }
@@ -2157,6 +2166,11 @@ impl Config {
     /// The cache will scan for expired values based on this interval.
     pub fn cardinality_limiter_cache_vacuum_interval(&self) -> Duration {
         Duration::from_secs(self.values.cardinality_limiter.cache_vacuum_interval)
+    }
+
+    /// Sample rate for Cardinality Limiter Sentry errors.
+    pub fn cardinality_limiter_error_sample_rate(&self) -> f32 {
+        self.values.cardinality_limiter.error_sample_rate
     }
 
     /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.

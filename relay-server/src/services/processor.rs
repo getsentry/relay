@@ -1801,6 +1801,18 @@ impl EnvelopeProcessorService {
             }
         };
 
+        if limits.has_rejections()
+            && sample(self.inner.config.cardinality_limiter_error_sample_rate())
+        {
+            for limit_id in limits.enforced_limits() {
+                relay_log::error!(
+                    tags.organization_id = scoping.organization_id,
+                    tags.limit_id = limit_id,
+                    "Cardinality Limit"
+                );
+            }
+        }
+
         if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Passive) {
             return limits.into_source();
         }
@@ -2249,6 +2261,13 @@ impl UpstreamRequest for SendEnvelope {
             }
         })
     }
+}
+
+/// Returns a boolean wether the current item should be sampled or discarded
+/// using the passed `rate` (0 <= rate <= 1).
+#[cfg(feature = "processing")]
+fn sample(rate: f32) -> bool {
+    (rate >= 1.0) || (rate > 0.0 && rand::random::<f32>() <= rate)
 }
 
 /// Computes a stable partitioning key for sharded metric requests.
