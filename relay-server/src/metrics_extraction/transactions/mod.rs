@@ -7,7 +7,7 @@ use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
-use relay_metrics::{Bucket, DurationUnit};
+use relay_metrics::{Bucket, DurationUnit, FiniteF64};
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -285,14 +285,20 @@ impl TransactionExtractor<'_> {
             .collect();
         if let Some(measurements) = event.measurements.value() {
             for (name, annotated) in measurements.iter() {
-                let measurement = match annotated.value() {
-                    Some(m) => m,
-                    None => continue,
+                let Some(measurement) = annotated.value() else {
+                    continue;
                 };
 
-                let value = match measurement.value.value() {
-                    Some(value) => *value,
-                    None => continue,
+                let Some(value) = measurement.value.value().copied() else {
+                    continue;
+                };
+
+                let Some(value) = FiniteF64::new(value) else {
+                    relay_log::error!(
+                        tags.field = format_args!("measurements.{name}"),
+                        "non-finite float value in transaction metric extraction"
+                    );
+                    continue;
                 };
 
                 // We treat a measurement as "performance score" if its name is the name of another
@@ -304,7 +310,7 @@ impl TransactionExtractor<'_> {
                         .map_or(false, |suffix| measurement_names.contains(suffix));
 
                 let measurement_tags = TransactionMeasurementTags {
-                    measurement_rating: get_measurement_rating(name, value),
+                    measurement_rating: get_measurement_rating(name, value.to_f64()),
                     universal_tags: if is_performance_score {
                         CommonTags(
                             tags.0
@@ -341,15 +347,23 @@ impl TransactionExtractor<'_> {
                             continue;
                         }
 
-                        let measurement = match annotated.value() {
-                            Some(m) => m,
-                            None => continue,
+                        let Some(measurement) = annotated.value() else {
+                            continue;
                         };
 
-                        let value = match measurement.value.value() {
-                            Some(value) => *value,
-                            None => continue,
+                        let Some(value) = measurement.value.value().copied() else {
+                            continue;
                         };
+
+                        let Some(value) = FiniteF64::new(value) else {
+                            relay_log::error!(
+                                tags.field =
+                                    format_args!("breakdowns.{breakdown}.{measurement_name}"),
+                                "non-finite float value in transaction metric extraction"
+                            );
+                            continue;
+                        };
+
                         metrics.project_metrics.push(
                             TransactionMetric::Breakdown {
                                 name: format!("{breakdown}.{measurement_name}"),
@@ -375,33 +389,40 @@ impl TransactionExtractor<'_> {
 
         // Duration
         let duration = relay_common::time::chrono_to_positive_millis(end - start);
-        let has_profile = if self.config.version >= 3 {
-            false
+        if let Some(duration) = FiniteF64::new(duration) {
+            let has_profile = if self.config.version >= 3 {
+                false
+            } else {
+                self.has_profile
+            };
+
+            metrics.project_metrics.push(
+                TransactionMetric::Duration {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: TransactionDurationTags {
+                        has_profile,
+                        universal_tags: tags.clone(),
+                    },
+                }
+                .into_metric(timestamp),
+            );
+
+            // Lower cardinality duration
+            metrics.project_metrics.push(
+                TransactionMetric::DurationLight {
+                    unit: DurationUnit::MilliSecond,
+                    value: duration,
+                    tags: light_tags,
+                }
+                .into_metric(timestamp),
+            );
         } else {
-            self.has_profile
-        };
-
-        metrics.project_metrics.push(
-            TransactionMetric::Duration {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: TransactionDurationTags {
-                    has_profile,
-                    universal_tags: tags.clone(),
-                },
-            }
-            .into_metric(timestamp),
-        );
-
-        // Lower cardinality duration
-        metrics.project_metrics.push(
-            TransactionMetric::DurationLight {
-                unit: DurationUnit::MilliSecond,
-                value: duration,
-                tags: light_tags,
-            }
-            .into_metric(timestamp),
-        );
+            relay_log::error!(
+                tags.field = "duration",
+                "non-finite float value in transaction metric extraction"
+            );
+        }
 
         let root_counter_tags = {
             let mut universal_tags = CommonTags(BTreeMap::default());
@@ -410,12 +431,14 @@ impl TransactionExtractor<'_> {
                     .0
                     .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
+            let decision = if self.sampling_result.should_keep() {
+                "keep"
+            } else {
+                "drop"
+            };
+
             TransactionCPRTags {
-                decision: if self.sampling_result.should_keep() {
-                    "keep".to_owned()
-                } else {
-                    "drop".to_owned()
-                },
+                decision: decision.to_owned(),
                 universal_tags,
             }
         };
@@ -471,9 +494,10 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
-        normalize_event, set_default_transaction_source, BreakdownsConfig,
-        DynamicMeasurementsConfig, MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig,
-        PerformanceScoreProfile, PerformanceScoreWeightedComponent,
+        normalize_event, set_default_transaction_source, validate_event_timestamps,
+        validate_transaction, BreakdownsConfig, DynamicMeasurementsConfig, EventValidationConfig,
+        MeasurementsConfig, NormalizationConfig, PerformanceScoreConfig, PerformanceScoreProfile,
+        PerformanceScoreWeightedComponent, TransactionValidationConfig,
     };
     use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
@@ -552,13 +576,15 @@ mod tests {
         )
         .unwrap();
 
-        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        // Validate and normalize first, to make sure that all things are correct as in the real pipeline:
+        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
+        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
-                normalize_spans: true,
                 performance_score: Some(&PerformanceScoreConfig {
                     profiles: vec![PerformanceScoreProfile {
                         name: Some("".into()),
@@ -574,8 +600,7 @@ mod tests {
                 }),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"{
@@ -858,7 +883,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -979,7 +1004,7 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1104,7 +1129,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        assert_eq!(duration_metric.value, BucketValue::distribution(59000.0));
+        assert_eq!(
+            duration_metric.value,
+            BucketValue::distribution(59000.into())
+        );
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
@@ -1154,8 +1182,7 @@ mod tests {
                 measurements: Some(config),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1782,7 +1809,7 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
-        let _ = normalize_event(&mut event, &NormalizationConfig::default());
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {

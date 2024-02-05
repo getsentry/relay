@@ -1,5 +1,5 @@
 use relay_common::time::UnixTimestamp;
-use relay_dynamic_config::MetricExtractionConfig;
+use relay_dynamic_config::{MetricExtractionConfig, Options};
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -43,14 +43,18 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config);
+pub fn extract_metrics(
+    event: &Event,
+    config: &MetricExtractionConfig,
+    global_options: Option<&Options>,
+) -> Vec<Bucket> {
+    let mut metrics = generic::extract_metrics(event, config, global_options);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, config));
+                    metrics.extend(generic::extract_metrics(span, config, global_options));
                 }
             }
         }
@@ -477,27 +481,33 @@ mod tests {
                         "http.response_content_length": 0,
                         "http.response_transfer_size": 0
                     }
+                },
+                {
+                    "timestamp": 1702474613.0495,
+                    "start_timestamp": 1702474613.0175,
+                    "description": "input.app-123.adfasf456[type=\"range\"][name=\"replay-timeline\"]",
+                    "op": "ui.interaction.click",
+                    "span_id": "9b01bd820a083e63",
+                    "parent_span_id": "a1e13f3f06239d69",
+                    "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+                    "data": {
+                        "ui.component_name": "my-component-name"
+                    }
                 }
             ]
         }
         "#;
 
         let mut event = Annotated::from_json(json).unwrap();
-        let features = FeatureSet(BTreeSet::from([
-            Feature::SpanMetricsExtraction,
-            Feature::SpanMetricsExtractionAllModules,
-        ]));
+        let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
-        // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 enrich_spans: true,
-                normalize_spans: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
@@ -507,7 +517,7 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -1002,6 +1012,26 @@ mod tests {
                         "resource.render_blocking_status": "blocking"
                     },
                     "hash": "e2fae740cccd3789"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_content_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking",
+                        "server.address": "subdomain.example.com:5688",
+                        "url.same_origin": true,
+                        "url.scheme": "https"
+                    },
+                    "hash": "e2fae740cccd3789"
                 }
             ]
         }
@@ -1015,11 +1045,9 @@ mod tests {
             &mut event,
             &NormalizationConfig {
                 enrich_spans: true,
-                normalize_spans: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
@@ -1029,13 +1057,11 @@ mod tests {
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
         insta::assert_debug_snapshot!(metrics);
     }
 
-    #[test]
-    fn test_extract_span_metrics_mobile() {
-        let json = r#"
+    const MOBILE_EVENT: &str = r#"
         {
             "type": "transaction",
             "sdk": {"name": "sentry.javascript.react-native"},
@@ -1060,6 +1086,12 @@ mod tests {
                 "os": {
                     "name": "iOS",
                     "version": "16.2"
+                }
+            },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 1.0,
+                    "unit": "millisecond"
                 }
             },
             "spans": [
@@ -1115,40 +1147,38 @@ mod tests {
                     "span_id": "bd429c44b67a3eb2",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "app_start_type": "cold"
+                    }
                 }
             ]
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+    #[test]
+    fn test_extract_span_metrics_mobile() {
+        let mut event = Annotated::from_json(MOBILE_EVENT).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 enrich_spans: true,
-                normalize_spans: true,
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [
-                Feature::SpanMetricsExtraction,
-                Feature::SpanMetricsExtractionAllModules,
-            ]
-            .into_iter()
-            .collect(),
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
@@ -1197,23 +1227,17 @@ mod tests {
             ]
         }
         "#;
-
         let event = Annotated::from_json(json).unwrap();
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [
-                Feature::SpanMetricsExtraction,
-                Feature::SpanMetricsExtractionAllModules,
-            ]
-            .into_iter()
-            .collect(),
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
-        let metrics = extract_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config, None);
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
@@ -1225,6 +1249,50 @@ mod tests {
             .any(|b| b.name == "d:spans/exclusive_time_light@millisecond"));
     }
 
+    #[test]
+    fn test_extract_span_metrics_usage() {
+        let mut event = Annotated::from_json(MOBILE_EVENT).unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                device_class_synthesis_config: true,
+                ..Default::default()
+            },
+        );
+
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(
+            event.value().unwrap(),
+            &config,
+            Some(&{
+                let mut o = Options::default();
+                o.span_usage_metric = true;
+                o
+            }),
+        );
+
+        let usage_metrics = metrics
+            .into_iter()
+            .filter(|b| b.name == "c:spans/usage@none")
+            .collect::<Vec<_>>();
+
+        let expected_usage = 6; // There are 7 spans, but `custom.op` is not counted.
+        assert_eq!(usage_metrics.len(), expected_usage);
+        for m in usage_metrics {
+            assert!(m.tags.is_empty());
+        }
+    }
+
     /// Helper function for span metric extraction tests.
     fn extract_span_metrics(span: &Span) -> Vec<Bucket> {
         let mut config = ProjectConfig::default();
@@ -1232,7 +1300,7 @@ mod tests {
         config.sanitize(); // apply defaults for span extraction
 
         let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(span, &extraction_config)
+        generic::extract_metrics(span, &extraction_config, None)
     }
 
     /// Helper function for span metric extraction tests.
@@ -1361,6 +1429,42 @@ mod tests {
             }
             assert_eq!(metric.tag("ttid"), Some("ttid"));
             assert_eq!(metric.tag("ttfd"), Some("ttfd"));
+        }
+    }
+
+    #[test]
+    fn test_extract_span_metrics_performance_score() {
+        let json = r#"
+            {
+                "op": "ui.interaction.click",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "exclusive_time": 2000.0,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "sentry_tags": {
+                    "browser.name": "Chrome",
+                    "op": "ui.interaction.click"
+                },
+                "measurements": {
+                    "score.total": {"value": 1.0},
+                    "score.inp": {"value": 1.0},
+                    "score.weight.inp": {"value": 1.0},
+                    "inp": {"value": 1.0}
+                }
+            }
+        "#;
+        let span = Annotated::from_json(json).unwrap();
+        let metrics = extract_span_metrics(span.value().unwrap());
+
+        for mri in [
+            "d:spans/webvital.inp@millisecond",
+            "d:spans/webvital.score.inp@ratio",
+            "d:spans/webvital.score.total@ratio",
+            "d:spans/webvital.score.weight.inp@ratio",
+        ] {
+            assert!(metrics.iter().any(|b| b.name == mri));
         }
     }
 }

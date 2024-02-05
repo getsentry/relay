@@ -3,36 +3,29 @@
 //! This module provides a function to normalize events.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
-use std::ops::Range;
 
-use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{
     can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
-use relay_common::time::UnixTimestamp;
-use relay_event_schema::processor::{
-    self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
-};
+use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, User,
+    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
+    Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
 use crate::normalize::request;
 use crate::span::tag_extraction::{self, extract_span_tags};
-use crate::timestamp::TimestampProcessor;
 use crate::utils::{self, MAX_DURATION_MOBILE_MS};
 use crate::{
-    breakdowns, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
-    BreakdownsConfig, ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup,
-    PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
+    breakdowns, legacy, mechanism, schema, span, stacktrace, transactions, trimming, user_agent,
+    BreakdownsConfig, DynamicMeasurementsConfig, GeoIpLookup, PerformanceScoreConfig,
+    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
 /// Configuration for [`normalize_event`].
@@ -50,27 +43,6 @@ pub struct NormalizationConfig<'a> {
     /// information should the event payload contain no such data. If no client hints are present,
     /// normalization falls back to the user agent.
     pub user_agent: RawUserAgentInfo<&'a str>,
-
-    /// The time at which the event was received in this Relay.
-    ///
-    /// This timestamp is persisted into the event payload.
-    pub received_at: Option<DateTime<Utc>>,
-
-    /// The maximum amount of seconds an event can be dated in the past.
-    ///
-    /// If the event's timestamp is older, the received timestamp is assumed.
-    pub max_secs_in_past: Option<i64>,
-
-    /// The maximum amount of seconds an event can be predated into the future.
-    ///
-    /// If the event's timestamp lies further into the future, the received timestamp is assumed.
-    pub max_secs_in_future: Option<i64>,
-
-    /// Timestamp range in which a transaction must end.
-    ///
-    /// Transactions that finish outside of this range are considered invalid.
-    /// This check is skipped if no range is provided.
-    pub transaction_range: Option<Range<UnixTimestamp>>,
 
     /// The maximum length for names of custom measurements.
     ///
@@ -110,9 +82,6 @@ pub struct NormalizationConfig<'a> {
     /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     pub enrich_spans: bool,
 
-    /// When `true`, computes and materializes attributes in spans based on the given configuration.
-    pub normalize_spans: bool,
-
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
 
@@ -138,10 +107,6 @@ impl<'a> Default for NormalizationConfig<'a> {
         Self {
             client_ip: Default::default(),
             user_agent: Default::default(),
-            received_at: Default::default(),
-            max_secs_in_past: Default::default(),
-            max_secs_in_future: Default::default(),
-            transaction_range: Default::default(),
             max_name_and_unit_len: Default::default(),
             breakdowns_config: Default::default(),
             normalize_user_agent: Default::default(),
@@ -149,7 +114,6 @@ impl<'a> Default for NormalizationConfig<'a> {
             is_renormalize: Default::default(),
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
-            normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             performance_score: Default::default(),
@@ -160,56 +124,43 @@ impl<'a> Default for NormalizationConfig<'a> {
     }
 }
 
-/// Normalizes an event, rejecting it if necessary.
+/// Normalizes an event.
 ///
 /// Normalization consists of applying a series of transformations on the event
 /// payload based on the given configuration.
-///
-/// The returned [`ProcessingResult`] indicates whether the passed event should
-/// be ingested or dropped.
-pub fn normalize_event(
-    event: &mut Annotated<Event>,
-    config: &NormalizationConfig,
-) -> ProcessingResult {
+pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfig) {
     let Annotated(Some(ref mut event), ref mut meta) = event else {
-        return Ok(());
+        return;
     };
 
     let is_renormalize = config.is_renormalize;
 
+    // Convert legacy data structures to current format
+    let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
+
     if !is_renormalize {
-        normalize(event, meta, config)?;
+        // Check for required and non-empty values
+        let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+
+        normalize(event, meta, config);
     }
 
-    Ok(())
+    if config.enable_trimming {
+        // Trim large strings and databags down
+        let _ =
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
+    }
 }
 
 /// Normalizes the given event based on the given config.
-///
-/// The returned [`ProcessingResult`] indicates whether the passed event should
-/// be ingested or dropped.
-fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -> ProcessingResult {
-    // Validate and normalize transaction
+fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
+    // Normalize the transaction.
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
     // can revert some changes to ProcessingAction)
-    let mut transactions_processor = transactions::TransactionsProcessor::new(
-        config.transaction_name_config.clone(),
-        config.transaction_range.clone(),
-    );
-    transactions_processor.process_event(event, meta, ProcessingState::root())?;
-
-    // Check for required and non-empty values
-    let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
-
-    normalize_timestamps(
-        event,
-        meta,
-        config.received_at,
-        config.max_secs_in_past,
-        config.max_secs_in_future,
-    ); // Timestamps are core in the metrics extraction
-    TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
+    let mut transactions_processor =
+        transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
+    let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 
     // Process security reports first to ensure all props.
     normalize_security_report(event, config.client_ip, &config.user_agent);
@@ -227,7 +178,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
 
     if let Some(geoip_lookup) = config.geoip_lookup {
         if let Some(user) = event.user.value_mut() {
-            normalize_user_geoinfo(geoip_lookup, user)
+            normalize_user_geoinfo(geoip_lookup, user);
         }
     }
 
@@ -253,6 +204,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_logentry(&mut event.logentry, meta);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
+    normalize_platform_and_level(event);
 
     // TODO: Consider moving to store normalization
     if config.device_class_synthesis_config {
@@ -261,7 +213,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     normalize_stacktraces(event);
     normalize_exceptions(event); // Browser extension filters look at the stacktrace
     normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-    normalize_measurements(
+    normalize_event_measurements(
         event,
         config.measurements.clone(),
         config.max_name_and_unit_len,
@@ -277,14 +229,9 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
-    if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
-        // XXX(iker): span normalization runs in the store processor, but
-        // the exclusive time is required for span metrics. Most of
-        // transactions don't have many spans, but if this is no longer the
-        // case and we roll this flag out for most projects, we may want to
-        // reconsider this approach.
-        normalize_app_start_spans(event);
-        span::attributes::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
+    if event.ty.value() == Some(&EventType::Transaction) && !config.is_renormalize {
+        crate::normalize::normalize_app_start_spans(event);
+        span::exclusive_time::compute_span_exclusive_time(event);
     }
 
     if config.enrich_spans {
@@ -295,14 +242,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) -
             },
         );
     }
-
-    if config.enable_trimming {
-        // Trim large strings and databags down
-        let _ =
-            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
-    }
-
-    Ok(())
 }
 
 /// Backfills the client IP address on for the NEL reports.
@@ -418,7 +357,7 @@ pub fn normalize_ip_addresses(
 }
 
 /// Sets the user's GeoIp info based on user's IP address.
-fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
+pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     // Infer user.geo from user.ip_address
     if user.geo.value().is_none() {
         if let Some(ip_address) = user.ip_address.value() {
@@ -455,62 +394,16 @@ fn normalize_dist(distribution: &mut Annotated<String>) {
     });
 }
 
-/// Validates the timestamp range and sets a default value.
-fn normalize_timestamps(
-    event: &mut Event,
-    meta: &mut Meta,
-    received_at: Option<DateTime<Utc>>,
-    max_secs_in_past: Option<i64>,
-    max_secs_in_future: Option<i64>,
-) {
-    let received_at = received_at.unwrap_or_else(Utc::now);
-
-    let mut sent_at = None;
-    let mut error_kind = ErrorKind::ClockDrift;
-
-    let _ = processor::apply(&mut event.timestamp, |timestamp, _meta| {
-        if let Some(secs) = max_secs_in_future {
-            if *timestamp > received_at + Duration::seconds(secs) {
-                error_kind = ErrorKind::FutureTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        if let Some(secs) = max_secs_in_past {
-            if *timestamp < received_at - Duration::seconds(secs) {
-                error_kind = ErrorKind::PastTimestamp;
-                sent_at = Some(*timestamp);
-                return Ok(());
-            }
-        }
-
-        Ok(())
+/// Defaults the `platform` and `level` required attributes.
+fn normalize_platform_and_level(event: &mut Event) {
+    // The defaulting behavior, was inherited from `StoreNormalizeProcessor` and it's put here since only light
+    // normalization happens before metrics extraction and we want the metrics extraction pipeline to already work
+    // on some normalized data.
+    event.platform.get_or_insert_with(|| "other".to_string());
+    event.level.get_or_insert_with(|| match event.ty.value() {
+        Some(EventType::Transaction) => Level::Info,
+        _ => Level::Error,
     });
-
-    let _ = ClockDriftProcessor::new(sent_at.map(|ts| ts.into_inner()), received_at)
-        .error_kind(error_kind)
-        .process_event(event, meta, ProcessingState::root());
-
-    // Apply this after clock drift correction, otherwise we will malform it.
-    event.received = Annotated::new(received_at.into());
-
-    if event.timestamp.value().is_none() {
-        event.timestamp.set_value(Some(received_at.into()));
-    }
-
-    let _ = processor::apply(&mut event.time_spent, |time_spent, _| {
-        validate_bounded_integer_field(*time_spent)
-    });
-}
-
-/// Validate fields that go into a `sentry.models.BoundedIntegerField`.
-fn validate_bounded_integer_field(value: u64) -> ProcessingResult {
-    if value < 2_147_483_647 {
-        Ok(())
-    } else {
-        Err(ProcessingAction::DeleteValueHard)
-    }
 }
 
 struct DedupCache(SmallVec<[u64; 16]>);
@@ -680,8 +573,8 @@ fn normalize_user_agent(_event: &mut Event, normalize_user_agent: Option<bool>) 
     }
 }
 
-/// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(
+/// Ensures measurements interface is only present for transaction events.
+fn normalize_event_measurements(
     event: &mut Event,
     measurements_config: Option<DynamicMeasurementsConfig>,
     max_mri_len: Option<usize>,
@@ -690,26 +583,45 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_mobile_measurements(measurements);
-        normalize_units(measurements);
-        if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
-        }
-
-        let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
-            (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
-            _ => 0.0,
-        };
-
-        compute_measurements(duration_millis, measurements);
+        normalize_measurements(
+            measurements,
+            meta,
+            measurements_config,
+            max_mri_len,
+            event.start_timestamp.0,
+            event.timestamp.0,
+        );
     }
 }
 
-/// Computes performance score measurements.
+/// Ensure only valid measurements are ingested.
+pub fn normalize_measurements(
+    measurements: &mut Measurements,
+    meta: &mut Meta,
+    measurements_config: Option<DynamicMeasurementsConfig>,
+    max_mri_len: Option<usize>,
+    start_timestamp: Option<Timestamp>,
+    end_timestamp: Option<Timestamp>,
+) {
+    normalize_mobile_measurements(measurements);
+    normalize_units(measurements);
+
+    let duration_millis = match (start_timestamp, end_timestamp) {
+        (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
+        _ => 0.0,
+    };
+
+    compute_measurements(duration_millis, measurements);
+    if let Some(measurements_config) = measurements_config {
+        remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
+    }
+}
+
+/// Computes performance score measurements for an event.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
-fn normalize_performance_score(
+pub fn normalize_performance_score(
     event: &mut Event,
     performance_score: Option<&PerformanceScoreConfig>,
 ) {
@@ -733,8 +645,8 @@ fn normalize_performance_score(
                     // a measurement with weight is missing.
                     break;
                 }
-                let mut score_total = 0.0;
-                let mut weight_total = 0.0;
+                let mut score_total = 0.0f64;
+                let mut weight_total = 0.0f64;
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
@@ -754,7 +666,11 @@ fn normalize_performance_score(
                     let mut normalized_component_weight = 0.0;
                     if let Some(value) = measurements.get_value(component.measurement.as_str()) {
                         normalized_component_weight = component.weight / weight_total;
-                        let cdf = utils::calculate_cdf_score(value, component.p10, component.p50);
+                        let cdf = utils::calculate_cdf_score(
+                            value.max(0.0), // Webvitals can't be negative, but we need to clamp in case of bad data.
+                            component.p10,
+                            component.p50,
+                        );
                         let component_score = cdf * normalized_component_weight;
                         score_total += component_score;
                         should_add_total = true;
@@ -851,38 +767,6 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
     match breakdowns_config {
         None => {}
         Some(config) => breakdowns::normalize_breakdowns(event, config),
-    }
-}
-
-/// Replaces snake_case app start spans op with dot.case op.
-///
-/// This is done for the affected React Native SDK versions (from 3 to 4.4).
-fn normalize_app_start_spans(event: &mut Event) {
-    if !event.sdk_name().eq("sentry.javascript.react-native")
-        || !(event.sdk_version().starts_with("4.4")
-            || event.sdk_version().starts_with("4.3")
-            || event.sdk_version().starts_with("4.2")
-            || event.sdk_version().starts_with("4.1")
-            || event.sdk_version().starts_with("4.0")
-            || event.sdk_version().starts_with('3'))
-    {
-        return;
-    }
-
-    if let Some(spans) = event.spans.value_mut() {
-        for span in spans {
-            if let Some(span) = span.value_mut() {
-                if let Some(op) = span.op.value() {
-                    if op == "app_start_cold" {
-                        span.op.set_value(Some("app.start.cold".to_string()));
-                        break;
-                    } else if op == "app_start_warm" {
-                        span.op.set_value(Some("app.start.warm".to_string()));
-                        break;
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -990,6 +874,16 @@ fn remove_invalid_measurements(
         // Check if this is a builtin measurement:
         for builtin_measurement in measurements_config.builtin_measurement_keys() {
             if builtin_measurement.name() == name {
+                let value = measurement.value.value().unwrap_or(&0.0);
+                // Drop negative values if the builtin measurement does not allow them.
+                if !builtin_measurement.allow_negative() && *value < 0.0 {
+                    meta.add_error(Error::invalid(format!(
+                        "Negative value for measurement {name} not allowed: {value}",
+                    )));
+                    removed_measurements
+                        .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                    return false;
+                }
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
                 // and just drop it instead.
@@ -1112,6 +1006,48 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_platform_and_level_with_transaction_event() {
+        let json = r#"
+        {
+            "type": "transaction"
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        normalize_platform_and_level(&mut event);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "level": "info",
+          "type": "transaction",
+          "platform": "other",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_platform_and_level_with_error_event() {
+        let json = r#"
+        {
+            "type": "error"
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        normalize_platform_and_level(&mut event);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "level": "error",
+          "type": "error",
+          "platform": "other",
+        }
+        "###);
+    }
+
+    #[test]
     fn test_computed_measurements() {
         let json = r#"
         {
@@ -1129,7 +1065,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, None, None);
+        normalize_event_measurements(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
@@ -1201,7 +1137,7 @@ mod tests {
         let dynamic_measurement_config =
             DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
 
-        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
+        normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
@@ -2377,59 +2313,125 @@ mod tests {
         "###);
     }
 
-    /// Test that timestamp normalization updates a transaction's timestamps to
-    /// be acceptable, when both timestamps are similarly stale.
     #[test]
-    fn test_accept_recent_transactions_with_stale_timestamps() {
-        let config = NormalizationConfig {
-            received_at: Some(Utc::now()),
-            max_secs_in_past: Some(2),
-            max_secs_in_future: Some(1),
-            ..Default::default()
-        };
+    fn test_computed_performance_score_negative_value() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
+            }
+        }
+        "#;
 
-        let json = r#"{
-  "event_id": "52df9022835246eeb317dbd739ccd059",
-  "transaction": "I have a stale timestamp, but I'm recent!",
-  "start_timestamp": -2,
-  "timestamp": -1
-}"#;
-        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        assert!(normalize_event(&mut event, &config).is_ok());
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "ttfb",
+                            "weight": 1.0,
+                            "p10": 100.0,
+                            "p50": 250.0
+                        },
+                    ],
+                    "condition": {
+                        "op":"and",
+                        "inner": []
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {
+            "score.total": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "score.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "score.weight.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
+            "ttfb": {
+              "value": -100.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
     }
 
-    /// Test that transactions are rejected as invalid when timestamp normalization isn't enough.
-    ///
-    /// When the end timestamp is recent but the start timestamp is stale, timestamp normalization
-    /// will fix the timestamps based on the end timestamp. The start timestamp will be more recent,
-    /// but not recent enough for the transaction to be accepted. The transaction will be rejected.
     #[test]
-    fn test_reject_stale_transactions_after_timestamp_normalization() {
-        let now = Utc::now();
-        let config = NormalizationConfig {
-            received_at: Some(now),
-            max_secs_in_past: Some(2),
-            max_secs_in_future: Some(1),
-            ..Default::default()
-        };
+    fn test_filter_negative_web_vital_measurements() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "ttfb": {"value": -100, "unit": "millisecond"}
+            }
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        let json = format!(
-            r#"{{
-          "event_id": "52df9022835246eeb317dbd739ccd059",
-          "transaction": "clockdrift is not enough to accept me :(",
-          "start_timestamp": -62135811111,
-          "timestamp": {}
-        }}"#,
-            now.timestamp()
-        );
-        let mut event = Annotated::<Event>::from_json(json.as_str()).unwrap();
+        // Allow ttfb as a builtinMeasurement with allow_negative defaulted to false.
+        let project_measurement_config: MeasurementsConfig = serde_json::from_value(json!({
+            "builtinMeasurements": [
+                {"name": "ttfb", "unit": "millisecond"},
+            ],
+        }))
+        .unwrap();
 
-        assert_eq!(
-            normalize_event(&mut event, &config)
-                .unwrap_err()
-                .to_string(),
-            "invalid transaction event: timestamp is too stale"
-        );
+        let dynamic_measurement_config =
+            DynamicMeasurementsConfig::new(Some(&project_measurement_config), None);
+
+        normalize_event_measurements(&mut event, Some(dynamic_measurement_config), None);
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "measurements": {},
+          "_meta": {
+            "measurements": {
+              "": Meta(Some(MetaInner(
+                err: [
+                  [
+                    "invalid_data",
+                    {
+                      "reason": "Negative value for measurement ttfb not allowed: -100",
+                    },
+                  ],
+                ],
+                val: Some({
+                  "ttfb": {
+                    "unit": "millisecond",
+                    "value": -100.0,
+                  },
+                }),
+              ))),
+            },
+          },
+        }
+        "###);
     }
 }

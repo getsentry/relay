@@ -27,9 +27,7 @@ pub enum Feature {
     /// Allow ingestion of metrics in the "custom" namespace.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
-    /// Enable extracting spans for all modules.
-    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
-    SpanMetricsExtractionAllModules,
+
     /// Enable processing profiles
     #[serde(rename = "organizations:profiling")]
     Profiling,
@@ -42,6 +40,11 @@ pub enum Feature {
     /// Enable the Relay cardinality limiter.
     #[serde(rename = "organizations:relay-cardinality-limiter")]
     CardinalityLimiter,
+    /// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
+    ///
+    /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
+    #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
+    IngestUnsampledProfiles,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
@@ -55,6 +58,9 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "projects:span-metrics-extraction-resource")]
     Deprecated5,
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
+    Deprected6,
     /// Forward compatibility.
     #[serde(other)]
     Unknown,

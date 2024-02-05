@@ -1,3 +1,4 @@
+from datetime import datetime
 import uuid
 import json
 
@@ -6,7 +7,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import queue
 
 
-def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
+def _create_transaction_item(trace_id=None, event_id=None, transaction=None, **kwargs):
     """
     Creates a transaction item that can be added to an envelope
 
@@ -29,6 +30,7 @@ def _create_transaction_item(trace_id=None, event_id=None, transaction=None):
         },
         "spans": [],
         "extra": {"id": event_id},
+        **kwargs,
     }
     return item, trace_id, event_id
 
@@ -194,11 +196,16 @@ def _create_event_envelope(
 
 
 def _create_transaction_envelope(
-    public_key, client_sample_rate=None, trace_id=None, event_id=None, transaction=None
+    public_key,
+    client_sample_rate=None,
+    trace_id=None,
+    event_id=None,
+    transaction=None,
+    **kwargs,
 ):
     envelope = Envelope()
     transaction_event, trace_id, event_id = _create_transaction_item(
-        trace_id=trace_id, event_id=event_id, transaction=transaction
+        trace_id=trace_id, event_id=event_id, transaction=transaction, **kwargs
     )
     envelope.add_transaction(transaction_event)
     _add_trace_info(
@@ -589,3 +596,172 @@ def test_relay_chain(
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     envelope.get_transaction_event()
+
+
+def test_relay_chain_keep_unsampled_profile(
+    mini_sentry, relay, relay_with_processing, profiles_consumer
+):
+    mini_sentry.global_config["options"] = {
+        "profiling.profile_metrics.unsampled_profiles.platforms": ["python"],
+        "profiling.profile_metrics.unsampled_profiles.sample_rate": 1.0,
+        "profiling.profile_metrics.unsampled_profiles.enabled": True,
+    }
+
+    profiles_consumer = profiles_consumer()
+
+    # Create an envelope with a profile:
+    def make_envelope(public_key):
+        trace_uuid = "414e119d37694a32869f9d81b76a0bbb"
+        transaction_uuid = "414e119d37694a32869f9d81b76a0baa"
+
+        envelope, trace_id, event_id = _create_transaction_envelope(
+            public_key,
+            trace_id=trace_uuid,
+            event_id=transaction_uuid,
+            transaction="my_first_transaction",
+            platform="python",
+        )
+        transaction = envelope.get_transaction_event()
+        profile_payload = get_profile_payload(transaction)
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(profile_payload).encode()),
+                type="profile",
+            )
+        )
+        return envelope
+
+    project_id = 42
+    relay = relay(relay_with_processing())
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["transactionMetrics"] = {"version": 1}
+    config["config"]["features"] = ["projects:profiling-ingest-unsampled-profiles"]
+
+    public_key = config["publicKeys"][0]["publicKey"]
+    _add_sampling_config(config, sample_rate=0.0, rule_type="transaction")
+
+    envelope = make_envelope(public_key)
+
+    relay.send_envelope(project_id, envelope)
+
+    profile, headers = profiles_consumer.get_profile()
+
+    assert headers == [("sampled", b"false")]
+    profile_payload = json.loads(profile["payload"])
+    assert (
+        profile_payload["transaction_metadata"]["transaction"] == "my_first_transaction"
+    )
+
+
+def get_profile_payload(transaction):
+    return {
+        "debug_meta": {"images": []},
+        "device": {
+            "architecture": "x86_64",
+            "classification": "",
+            "locale": "",
+            "manufacturer": "",
+            "model": "",
+        },
+        "event_id": "429c1ffa194f41f5b6a6650929744177",
+        "os": {"build_number": "", "name": "Linux", "version": "5.15.107+"},
+        "organization_id": 1,
+        "platform": "python",
+        "project_id": 1,
+        "retention_days": 90,
+        "runtime": {"name": "CPython", "version": "3.8.18"},
+        "timestamp": datetime.fromtimestamp(transaction["start_timestamp"]).isoformat()
+        + "Z",
+        "profile": {
+            "frames": [
+                {
+                    "data": {},
+                    "filename": "concurrent/futures/thread.py",
+                    "function": "_worker",
+                    "in_app": False,
+                    "lineno": 78,
+                    "module": "concurrent.futures.thread",
+                    "abs_path": "/usr/local/lib/python3.8/concurrent/futures/thread.py",
+                },
+                {
+                    "data": {},
+                    "filename": "threading.py",
+                    "function": "Thread.run",
+                    "in_app": False,
+                    "lineno": 870,
+                    "module": "threading",
+                    "abs_path": "/usr/local/lib/python3.8/threading.py",
+                },
+                {
+                    "data": {},
+                    "filename": "sentry_sdk/integrations/threading.py",
+                    "function": "run",
+                    "in_app": False,
+                    "lineno": 70,
+                    "module": "sentry_sdk.integrations.threading",
+                    "abs_path": "/usr/local/lib/python3.8/site-packages/sentry_sdk/integrations/threading.py",
+                },
+                {
+                    "data": {},
+                    "filename": "threading.py",
+                    "function": "Thread._bootstrap_inner",
+                    "in_app": False,
+                    "lineno": 932,
+                    "module": "threading",
+                    "abs_path": "/usr/local/lib/python3.8/threading.py",
+                },
+                {
+                    "data": {},
+                    "filename": "threading.py",
+                    "function": "Thread._bootstrap",
+                    "in_app": False,
+                    "lineno": 890,
+                    "module": "threading",
+                    "abs_path": "/usr/local/lib/python3.8/threading.py",
+                },
+            ],
+            "queue_metadata": None,
+            "samples": [
+                {
+                    "elapsed_since_start_ns": 2668948,
+                    "stack_id": 0,
+                    "thread_id": 140510151571200,
+                },
+                {
+                    "elapsed_since_start_ns": 2668948,
+                    "stack_id": 0,
+                    "thread_id": 140510673217280,
+                },
+                {
+                    "elapsed_since_start_ns": 2668948,
+                    "stack_id": 0,
+                    "thread_id": 140510673217280,
+                },
+            ],
+            "stacks": [[0, 1, 2, 3, 4]],
+            "thread_metadata": {
+                "140510151571200": {"name": "ThreadPoolExecutor-1_4"},
+                "140510673217280": {"name": "ThreadPoolExecutor-1_3"},
+                "140510710716160": {"name": "Thread-19"},
+                "140510719108864": {"name": "Thread-18"},
+                "140510727501568": {"name": "ThreadPoolExecutor-1_2"},
+                "140511074039552": {"name": "ThreadPoolExecutor-1_1"},
+                "140511082432256": {"name": "ThreadPoolExecutor-1_0"},
+                "140511090824960": {"name": "Thread-17"},
+                "140511099217664": {"name": "raven-sentry.BackgroundWorker"},
+                "140511117047552": {"name": "raven-sentry.BackgroundWorker"},
+                "140511574738688": {"name": "sentry.profiler.ThreadScheduler"},
+                "140511583131392": {"name": "sentry.monitor"},
+                "140512539440896": {"name": "uWSGIWorker6Core1"},
+                "140512620431104": {"name": "Thread-1"},
+                "140514768926528": {"name": "uWSGIWorker6Core0"},
+            },
+        },
+        "transaction": {
+            "active_thread_id": 140512539440896,
+            "id": transaction["event_id"],
+            "name": "/api/0/organizations/{organization_slug}/broadcasts/",
+            "trace_id": transaction["contexts"]["trace"]["trace_id"],
+        },
+        "version": "1",
+    }

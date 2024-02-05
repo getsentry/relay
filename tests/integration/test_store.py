@@ -491,7 +491,7 @@ def test_processing_quotas(
             relay.send_event(
                 project_id, transform({"message": f"otherkey{i}"}), dsn_key_idx=1
             )
-        event, _ = events_consumer.get_event()
+        event, _ = events_consumer.get_event(timeout=5)
 
         if event_type == "nel":
             assert event["logentry"]["formatted"] == "application / http.error"
@@ -1564,7 +1564,8 @@ def test_span_ingestion(
         },
     )
 
-    spans = list(spans_consumer.get_spans())
+    spans = list(spans_consumer.get_spans(timeout=10.0))
+
     for span in spans:
         span.pop("received", None)
 
@@ -1580,7 +1581,11 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "a342abb1214ca181",
-            "sentry_tags": {"category": "db", "op": "db.query"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "category": "db",
+                "op": "db.query",
+            },
             "span_id": "a342abb1214ca181",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -1594,6 +1599,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "segment_id": "bd429c44b67a3eb1",
             "sentry_tags": {
+                "browser.name": "Python Requests",
                 "category": "resource",
                 "description": "https://example.com/*/blah.js",
                 "domain": "example.com",
@@ -1613,7 +1619,7 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "cd429c44b67a3eb1",
-            "sentry_tags": {"op": "default"},
+            "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
@@ -1627,7 +1633,10 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "d342abb1214ca182",
-            "sentry_tags": {"op": "default"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "default",
+            },
             "span_id": "d342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -1639,7 +1648,10 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "ed429c44b67a3eb1",
-            "sentry_tags": {"op": "default"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "default",
+            },
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
@@ -1647,7 +1659,7 @@ def test_span_ingestion(
     ]
 
     metrics = [metric for (metric, _headers) in metrics_consumer.get_metrics()]
-    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items())))
+    metrics.sort(key=lambda m: (m["name"], sorted(m["tags"].items()), m["timestamp"]))
     for metric in metrics:
         try:
             metric["value"].sort()
@@ -1812,3 +1824,255 @@ def test_span_extraction_with_ddm(
     }
 
     spans_consumer.assert_empty()
+
+
+def test_span_extraction_with_ddm_missing_values(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["spanAttributes"] = ["exclusive-time"]
+    project_config["config"]["features"] = [
+        "organizations:custom-metrics",
+    ]
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    metrics_summary = {
+        "c:spans/some_metric@none": [
+            {
+                "min": None,
+                "max": 2.0,
+                "count": 4,
+                "tags": {
+                    "environment": "test",
+                },
+            },
+        ],
+    }
+    event["_metrics_summary"] = metrics_summary
+    event["measurements"] = {
+        "somemeasurement": None,
+        "anothermeasurement": {
+            "value": None,
+            "unit": "byte",
+        },
+    }
+
+    relay.send_event(project_id, event)
+
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"])
+    end_timestamp = datetime.fromisoformat(event["timestamp"])
+    duration_ms = int((end_timestamp - start_timestamp).total_seconds() * 1e3)
+
+    metrics_summary["c:spans/some_metric@none"][0].pop("min", None)
+
+    transaction_span = spans_consumer.get_span()
+    del transaction_span["received"]
+    assert transaction_span == {
+        "duration_ms": duration_ms,
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "retention_days": 90,
+        "description": "hi",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+        "span_id": "968cff94913ebb07",
+        "start_timestamp_ms": int(
+            start_timestamp.replace(tzinfo=timezone.utc).timestamp() * 1e3
+        ),
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "_metrics_summary": metrics_summary,
+        "measurements": {},
+    }
+
+    spans_consumer.assert_empty()
+
+
+def test_span_reject_invalid_timestamps(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing(
+        options={
+            "aggregator": {
+                "max_secs_in_past": 10,
+                "max_secs_in_future": 10,
+            }
+        }
+    )
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "organizations:standalone-span-ingestion",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    yesterday_delta = timedelta(days=1)
+
+    end_yesterday = datetime.utcnow().replace(tzinfo=timezone.utc) - yesterday_delta
+    start_yesterday = end_yesterday - duration
+
+    end_today = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start_today = end_today - duration
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="otel_span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
+                        "spanId": "a342abb1214ca181",
+                        "name": "span with invalid timestamps",
+                        "startTimeUnixNano": int(start_yesterday.timestamp() * 1e9),
+                        "endTimeUnixNano": int(end_yesterday.timestamp() * 1e9),
+                    },
+                ).encode()
+            ),
+        )
+    )
+    envelope.add_item(
+        Item(
+            type="otel_span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "traceId": "89143b0763095bd9c9955e8175d1fb23",
+                        "spanId": "a342abb1214ca181",
+                        "name": "span with valid timestamps",
+                        "startTimeUnixNano": int(start_today.timestamp() * 1e9),
+                        "endTimeUnixNano": int(end_today.timestamp() * 1e9),
+                    },
+                ).encode()
+            ),
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    spans = list(spans_consumer.get_spans(timeout=10.0))
+
+    assert len(spans) == 1
+    assert spans[0]["description"] == "span with valid timestamps"
+
+
+def test_span_ingestion_with_performance_scores(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["performanceScore"] = {
+        "profiles": [
+            {
+                "name": "Desktop",
+                "scoreComponents": [
+                    {"measurement": "fcp", "weight": 0.15, "p10": 900, "p50": 1600},
+                    {"measurement": "lcp", "weight": 0.30, "p10": 1200, "p50": 2400},
+                    {"measurement": "fid", "weight": 0.30, "p10": 100, "p50": 300},
+                    {"measurement": "cls", "weight": 0.25, "p10": 0.1, "p50": 0.25},
+                    {"measurement": "ttfb", "weight": 0.0, "p10": 0.2, "p50": 0.4},
+                ],
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.browser.name",
+                    "value": "Python Requests",
+                },
+            },
+        ],
+    }
+    project_config["config"]["features"] = [
+        "organizations:performance-calculate-score-relay",
+        "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "op": "ui.interaction.click",
+                        "span_id": "bd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "measurements": {
+                            "cls": {"value": 100},
+                            "fcp": {"value": 200},
+                            "fid": {"value": 300},
+                            "lcp": {"value": 400},
+                            "ttfb": {"value": 500},
+                        },
+                    },
+                ).encode()
+            ),
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    spans = list(spans_consumer.get_spans(timeout=10.0))
+
+    for span in spans:
+        span.pop("received", None)
+
+    spans.sort(key=lambda msg: msg["span_id"])  # endpoint might overtake envelope
+
+    assert spans == [
+        {
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "bd429c44b67a3eb1",
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "ui.interaction.click",
+            },
+            "span_id": "bd429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "measurements": {
+                "score.fcp": {"value": 0.14999972769539766},
+                "score.fid": {"value": 0.14999999985},
+                "score.lcp": {"value": 0.29986141375718806},
+                "score.total": {"value": 0.5998611413025857},
+                "score.ttfb": {"value": 0.0},
+                "score.weight.cls": {"value": 0.25},
+                "score.weight.fcp": {"value": 0.15},
+                "score.weight.fid": {"value": 0.3},
+                "score.weight.lcp": {"value": 0.3},
+                "score.weight.ttfb": {"value": 0.0},
+                "cls": {"value": 100.0},
+                "fcp": {"value": 200.0},
+                "fid": {"value": 300.0},
+                "lcp": {"value": 400.0},
+                "ttfb": {"value": 500.0},
+                "score.cls": {"value": 0.0},
+            },
+        },
+    ]

@@ -7,11 +7,11 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::processor::ProcessingGroup;
-use crate::actors::test_store::{Capture, TestStore};
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::services::processor::ProcessingGroup;
+use crate::services::test_store::{Capture, TestStore};
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{EnvelopeSummary, SemaphorePermit};
 
@@ -143,14 +143,9 @@ impl ManagedEnvelope {
         envelope: Box<Envelope>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
+        group: ProcessingGroup,
     ) -> Self {
-        Self::new_internal(
-            envelope,
-            None,
-            outcome_aggregator,
-            test_store,
-            ProcessingGroup::Ungrouped,
-        )
+        Self::new_internal(envelope, None, outcome_aggregator, test_store, group)
     }
 
     /// Computes a managed envelope from the given envelope and binds it to the processing queue.
@@ -253,6 +248,16 @@ impl ManagedEnvelope {
         self
     }
 
+    /// Removes event item(s) and log an outcome.
+    ///
+    /// Note: This function relies on the envelope summary being correct.
+    pub fn reject_event(&mut self, outcome: Outcome) {
+        if let Some(event_category) = self.event_category() {
+            self.envelope.retain_items(|item| !item.creates_event());
+            self.track_outcome(outcome, event_category, 1);
+        }
+    }
+
     /// Records an outcome scoped to this envelope's context.
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
@@ -323,6 +328,7 @@ impl ManagedEnvelope {
                 let summary = &self.context.summary;
 
                 relay_log::error!(
+                    tags.project_key = self.scoping().project_key.to_string(),
                     tags.has_attachments = summary.attachment_quantity > 0,
                     tags.has_sessions = summary.session_quantity > 0,
                     tags.has_profiles = summary.profile_quantity > 0,

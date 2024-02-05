@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::mem;
 use std::sync::Arc;
 
 use itertools::Itertools;
@@ -11,12 +10,12 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, NelContext, ReplayContext, Request, Stacktrace, TraceContext, User,
+    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
     VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
-    Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
+    RuleCondition, Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +36,12 @@ mod contexts;
 pub struct BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
+    #[serde(skip_serializing_if = "is_false")]
+    allow_negative: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !b
 }
 
 impl BuiltinMeasurementKey {
@@ -45,6 +50,7 @@ impl BuiltinMeasurementKey {
         Self {
             name: name.into(),
             unit,
+            allow_negative: false,
         }
     }
 
@@ -56,6 +62,11 @@ impl BuiltinMeasurementKey {
     /// Returns the unit of the built in measurement key.
     pub fn unit(&self) -> &MetricUnit {
         &self.unit
+    }
+
+    /// Return true if the built in measurement key allows negative values.
+    pub fn allow_negative(&self) -> &bool {
+        &self.allow_negative
     }
 }
 
@@ -112,13 +123,6 @@ impl<'a> StoreNormalizeProcessor<'a> {
                     ..Default::default()
                 })
         })
-    }
-
-    fn normalize_spans(&self, event: &mut Event) {
-        if event.ty.value() == Some(&EventType::Transaction) {
-            normalize_app_start_spans(event);
-            span::attributes::normalize_spans(event, &self.config.span_attributes);
-        }
     }
 
     fn normalize_metrics_summaries(&self, event: &mut Event) {
@@ -185,7 +189,7 @@ impl<'a> StoreNormalizeProcessor<'a> {
 /// Replaces snake_case app start spans op with dot.case op.
 ///
 /// This is done for the affected React Native SDK versions (from 3 to 4.4).
-fn normalize_app_start_spans(event: &mut Event) {
+pub fn normalize_app_start_spans(event: &mut Event) {
     if !event.sdk_name().eq("sentry.javascript.react-native")
         || !(event.sdk_version().starts_with("4.4")
             || event.sdk_version().starts_with("4.3")
@@ -219,28 +223,22 @@ fn normalize_app_start_spans(event: &mut Event) {
 /// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
 /// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
 /// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
-fn normalize_metrics_summary_mris(value: &mut Value) {
-    let Value::Object(metrics) = value else {
-        return;
-    };
-
-    let metrics = mem::take(metrics)
-        .into_iter()
-        .filter_map(|(key, value)| {
-            Some((
-                MetricResourceIdentifier::parse(&key).ok()?.to_string(),
-                value,
-            ))
+fn normalize_metrics_summary_mris(m: MetricSummaryMapping) -> MetricSummaryMapping {
+    m.into_iter()
+        .map(|(key, value)| match MetricResourceIdentifier::parse(&key) {
+            Ok(mri) => (mri.to_string(), value),
+            Err(err) => (
+                key,
+                Annotated::from_error(Error::invalid(err), value.0.map(IntoValue::into_value)),
+            ),
         })
-        .collect();
-
-    *value = Value::Object(metrics);
+        .collect()
 }
 
 /// Normalizes all the metrics summaries across the event payload.
 fn normalize_all_metrics_summaries(event: &mut Event) {
     if let Some(metrics_summary) = event._metrics_summary.value_mut().as_mut() {
-        normalize_metrics_summary_mris(metrics_summary)
+        metrics_summary.update_value(normalize_metrics_summary_mris);
     }
 
     let Some(spans) = event.spans.value_mut() else {
@@ -254,81 +252,7 @@ fn normalize_all_metrics_summaries(event: &mut Event) {
             .and_then(|span| span._metrics_summary.value_mut().as_mut());
 
         if let Some(ms) = metrics_summary {
-            normalize_metrics_summary_mris(ms)
-        }
-    }
-}
-
-/// Backfills IP addresses in various places.
-pub fn normalize_ip_addresses(
-    request: &mut Annotated<Request>,
-    user: &mut Annotated<User>,
-    platform: Option<&str>,
-    client_ip: Option<&IpAddr>,
-) {
-    // NOTE: This is highly order dependent, in the sense that both the statements within this
-    // function need to be executed in a certain order, and that other normalization code
-    // (geoip lookup) needs to run after this.
-    //
-    // After a series of regressions over the old Python spaghetti code we decided to put it
-    // back into one function. If a desire to split this code up overcomes you, put this in a
-    // new processor and make sure all of it runs before the rest of normalization.
-
-    // Resolve {{auto}}
-    if let Some(client_ip) = client_ip {
-        if let Some(ref mut request) = request.value_mut() {
-            if let Some(ref mut env) = request.env.value_mut() {
-                if let Some(&mut Value::String(ref mut http_ip)) = env
-                    .get_mut("REMOTE_ADDR")
-                    .and_then(|annotated| annotated.value_mut().as_mut())
-                {
-                    if http_ip == "{{auto}}" {
-                        *http_ip = client_ip.to_string();
-                    }
-                }
-            }
-        }
-
-        if let Some(ref mut user) = user.value_mut() {
-            if let Some(ref mut user_ip) = user.ip_address.value_mut() {
-                if user_ip.is_auto() {
-                    *user_ip = client_ip.to_owned();
-                }
-            }
-        }
-    }
-
-    // Copy IPs from request interface to user, and resolve platform-specific backfilling
-    let http_ip = request
-        .value()
-        .and_then(|request| request.env.value())
-        .and_then(|env| env.get("REMOTE_ADDR"))
-        .and_then(Annotated::<Value>::as_str)
-        .and_then(|ip| IpAddr::parse(ip).ok());
-
-    if let Some(http_ip) = http_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        user.ip_address.value_mut().get_or_insert(http_ip);
-    } else if let Some(client_ip) = client_ip {
-        let user = user.value_mut().get_or_insert_with(User::default);
-        // auto is already handled above
-        if user.ip_address.value().is_none() {
-            // In an ideal world all SDKs would set {{auto}} explicitly.
-            if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                user.ip_address = Annotated::new(client_ip.to_owned());
-            }
-        }
-    }
-}
-
-// Sets the user's GeoIp info based on user's IP address.
-fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
-    // Infer user.geo from user.ip_address
-    if user.geo.value().is_none() {
-        if let Some(ip_address) = user.ip_address.value() {
-            if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-                user.geo.set_value(Some(geo));
-            }
+            ms.update_value(normalize_metrics_summary_mris);
         }
     }
 }
@@ -489,7 +413,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         }
 
         // Normalize connected attributes and interfaces
-        self.normalize_spans(event);
         self.normalize_metrics_summaries(event);
         self.normalize_trace_context(event);
         self.normalize_replay_context(event);
@@ -531,7 +454,7 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         // Infer user.geo from user.ip_address
         if let Some(geoip_lookup) = self.geoip_lookup {
-            normalize_user_geoinfo(geoip_lookup, user)
+            crate::event::normalize_user_geoinfo(geoip_lookup, user)
         }
 
         Ok(())
@@ -766,8 +689,9 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, LenientString, LogEntry, PairList, RawStacktrace,
-        Span, SpanId, TagEntry, Tags, TraceId, Values,
+        ContextInner, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry, MetricSummary,
+        MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry, Tags, TraceId,
+        Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
@@ -777,7 +701,10 @@ mod tests {
     use std::collections::BTreeMap;
     use uuid::Uuid;
 
-    use crate::{normalize_event, NormalizationConfig};
+    use crate::{
+        normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
+        NormalizationConfig, TransactionValidationConfig,
+    };
 
     use super::*;
 
@@ -955,7 +882,7 @@ mod tests {
 
         let config = StoreConfig::default();
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
 
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -983,7 +910,7 @@ mod tests {
 
         let config = StoreConfig::default();
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(Annotated::empty(), event.value().unwrap().user);
@@ -1009,8 +936,7 @@ mod tests {
                 client_ip: Some(&ip_address),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let ip_addr = get_value!(event.user.ip_address!);
@@ -1041,8 +967,7 @@ mod tests {
                 client_ip: Some(&ip_address),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
@@ -1070,8 +995,7 @@ mod tests {
                 client_ip: Some(&ip_address),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
@@ -1083,7 +1007,7 @@ mod tests {
     fn test_event_level_defaulted() {
         let processor = &mut StoreNormalizeProcessor::default();
         let mut event = Annotated::new(Event::default());
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.level), Some(&Level::Error));
     }
@@ -1109,7 +1033,7 @@ mod tests {
             },
             ..Event::default()
         });
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.level), Some(&Level::Info));
     }
@@ -1125,7 +1049,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1146,7 +1070,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1163,7 +1087,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
         assert_eq!(get_value!(event.environment), None);
     }
@@ -1179,7 +1103,7 @@ mod tests {
             ..StoreConfig::default()
         };
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1202,7 +1126,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let environment = get_path!(event.environment!);
@@ -1227,7 +1151,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let release = get_path!(event.release!);
@@ -1260,7 +1184,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.site), None);
@@ -1314,7 +1238,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.tags!).len(), 1);
@@ -1341,7 +1265,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1392,7 +1316,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         // should keep the first occurrence of every tag
@@ -1432,7 +1356,7 @@ mod tests {
             ..StoreConfig::default()
         };
         let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let event = event.value().unwrap();
@@ -1486,7 +1410,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1584,7 +1508,7 @@ mod tests {
     });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1616,7 +1540,7 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let dist = &event.value().unwrap().dist;
@@ -1651,7 +1575,7 @@ mod tests {
         });
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1680,7 +1604,7 @@ mod tests {
             None,
         );
 
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(
@@ -1702,7 +1626,8 @@ mod tests {
 
         let mut processor = StoreNormalizeProcessor::default();
 
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.received!), get_value!(event.timestamp!));
@@ -1728,7 +1653,8 @@ mod tests {
             None,
         );
 
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1774,7 +1700,7 @@ mod tests {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         let mut processor = StoreNormalizeProcessor::default();
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
@@ -1831,16 +1757,17 @@ mod tests {
             }),
             None,
         );
-        normalize_event(
+        validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
+        validate_event_timestamps(
             &mut event,
-            &NormalizationConfig {
+            &EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
-                ..Default::default()
             },
         )
         .unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -1893,16 +1820,16 @@ mod tests {
             }),
             None,
         );
-        normalize_event(
+        validate_event_timestamps(
             &mut event,
-            &NormalizationConfig {
+            &EventValidationConfig {
                 received_at,
                 max_secs_in_past,
                 max_secs_in_future,
-                ..Default::default()
             },
         )
         .unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
@@ -2109,19 +2036,19 @@ mod tests {
             event
         }
 
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         let first = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
         // Expected some fields (such as timestamps) exist after first light normalization.
 
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         let second = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
         assert_eq!(&first, &second, "idempotency check failed");
 
-        normalize_event(&mut event, &NormalizationConfig::default()).unwrap();
+        normalize_event(&mut event, &NormalizationConfig::default());
         let third = remove_received_from_event(&mut event.clone())
             .to_json()
             .unwrap();
@@ -2182,7 +2109,8 @@ mod tests {
                 .spans
                 .set_value(Some(vec![Annotated::<Span>::from_json(span).unwrap()]));
 
-            let res = normalize_event(&mut modified_event, &NormalizationConfig::default());
+            let res =
+                validate_transaction(&modified_event, &TransactionValidationConfig::default());
 
             assert!(res.is_err(), "{span:?}");
         }
@@ -2200,15 +2128,13 @@ mod tests {
         )
         .unwrap();
 
-        let result = normalize_event(
+        normalize_event(
             &mut event,
             &NormalizationConfig {
                 is_renormalize: true,
                 ..Default::default()
             },
         );
-
-        assert!(result.is_ok());
 
         assert_debug_snapshot!(event.value().unwrap().tags, @r#"
         Tags(
@@ -2264,8 +2190,7 @@ mod tests {
                 geoip_lookup: Some(&lookup),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
 
         // Extract user's geo information after normalization.
         let user_geo = event
@@ -2413,31 +2338,47 @@ mod tests {
 
     #[test]
     fn test_normalize_metrics_summary_metric_identifiers() {
+        let mut metric_tags = BTreeMap::new();
+        metric_tags.insert(
+            "transaction".to_string(),
+            Annotated::new("/hello".to_string()),
+        );
+
+        let metric_summary = vec![Annotated::new(MetricSummary {
+            min: Annotated::new(1.0),
+            max: Annotated::new(20.0),
+            sum: Annotated::new(21.0),
+            count: Annotated::new(2),
+            tags: Annotated::new(metric_tags),
+        })];
+
         let mut metrics_summary = BTreeMap::new();
         metrics_summary.insert(
             "d:page_duration@millisecond".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
+            Annotated::new(metric_summary.clone()),
         );
         metrics_summary.insert(
             "c:custom/page_click@none".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
+            Annotated::new(Default::default()),
         );
         metrics_summary.insert(
             "s:user@none".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
+            Annotated::new(metric_summary.clone()),
         );
+        metrics_summary.insert("invalid".to_string(), Annotated::new(metric_summary));
         metrics_summary.insert(
             "g:page_load@second".to_string(),
-            Annotated::new(Value::Array(Vec::new())),
+            Annotated::new(Default::default()),
         );
+        let metrics_summary = MetricsSummary(metrics_summary);
 
         let mut event = Annotated::new(Event {
             spans: Annotated::new(vec![Annotated::new(Span {
                 op: Annotated::new("my_span".to_owned()),
-                _metrics_summary: Annotated::new(Value::Object(metrics_summary.clone())),
+                _metrics_summary: Annotated::new(metrics_summary.clone()),
                 ..Default::default()
             })]),
-            _metrics_summary: Annotated::new(Value::Object(metrics_summary)),
+            _metrics_summary: Annotated::new(metrics_summary),
             ..Default::default()
         });
         normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
@@ -2448,34 +2389,117 @@ mod tests {
               "op": "my_span",
               "_metrics_summary": {
                 "c:custom/page_click@none": [],
-                "d:custom/page_duration@millisecond": [],
+                "d:custom/page_duration@millisecond": [
+                  {
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
+                    }
+                  }
+                ],
                 "g:custom/page_load@second": [],
-                "s:custom/user@none": []
+                "invalid": null,
+                "s:custom/user@none": [
+                  {
+                    "min": 1.0,
+                    "max": 20.0,
+                    "sum": 21.0,
+                    "count": 2,
+                    "tags": {
+                      "transaction": "/hello"
+                    }
+                  }
+                ]
               }
             }
           ],
           "_metrics_summary": {
             "c:custom/page_click@none": [],
-            "d:custom/page_duration@millisecond": [],
+            "d:custom/page_duration@millisecond": [
+              {
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
+                }
+              }
+            ],
             "g:custom/page_load@second": [],
-            "s:custom/user@none": []
+            "invalid": null,
+            "s:custom/user@none": [
+              {
+                "min": 1.0,
+                "max": 20.0,
+                "sum": 21.0,
+                "count": 2,
+                "tags": {
+                  "transaction": "/hello"
+                }
+              }
+            ]
+          },
+          "_meta": {
+            "_metrics_summary": {
+              "invalid": {
+                "": {
+                  "err": [
+                    [
+                      "invalid_data",
+                      {
+                        "reason": "failed to parse metric"
+                      }
+                    ]
+                  ],
+                  "val": [
+                    {
+                      "count": 2,
+                      "max": 20.0,
+                      "min": 1.0,
+                      "sum": 21.0,
+                      "tags": {
+                        "transaction": "/hello"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "spans": {
+              "0": {
+                "_metrics_summary": {
+                  "invalid": {
+                    "": {
+                      "err": [
+                        [
+                          "invalid_data",
+                          {
+                            "reason": "failed to parse metric"
+                          }
+                        ]
+                      ],
+                      "val": [
+                        {
+                          "count": 2,
+                          "max": 20.0,
+                          "min": 1.0,
+                          "sum": 21.0,
+                          "tags": {
+                            "transaction": "/hello"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         "###);
-    }
-
-    #[test]
-    fn test_reject_stale_transaction() {
-        let json = r#"{
-  "event_id": "52df9022835246eeb317dbd739ccd059",
-  "start_timestamp": -2,
-  "timestamp": -1
-}"#;
-        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
-        let res = normalize_event(&mut transaction, &NormalizationConfig::default());
-        assert_eq!(
-            res.unwrap_err().to_string(),
-            "invalid transaction event: timestamp is too stale"
-        );
     }
 }

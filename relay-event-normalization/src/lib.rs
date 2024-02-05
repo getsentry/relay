@@ -6,12 +6,11 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use relay_event_schema::processor::{ProcessingResult, ProcessingState, Processor};
-use relay_event_schema::protocol::{Event, IpAddr, SpanAttribute};
+use relay_event_schema::protocol::{Event, IpAddr};
 use relay_protocol::Meta;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -33,9 +32,16 @@ mod statsd;
 mod timestamp;
 mod transactions;
 mod trimming;
+mod validation;
 
+pub use validation::{
+    validate_event_timestamps, validate_span, validate_transaction, EventValidationConfig,
+    TransactionValidationConfig,
+};
 pub mod replay;
-pub use event::{normalize_event, NormalizationConfig};
+pub use event::{
+    normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,
+};
 pub use normalize::breakdowns::*;
 pub use normalize::*;
 pub use remove_other::RemoveOtherProcessor;
@@ -143,9 +149,6 @@ pub struct StoreConfig {
     /// Emit breakdowns based on given configuration.
     pub breakdowns: Option<normalize::breakdowns::BreakdownsConfig>,
 
-    /// Emit additional span attributes based on given configuration.
-    pub span_attributes: BTreeSet<SpanAttribute>,
-
     /// The SDK's sample rate as communicated via envelope headers.
     ///
     /// It is persisted into the event payload.
@@ -195,9 +198,6 @@ impl<'a> Processor for StoreProcessor<'a> {
     ) -> ProcessingResult {
         let is_renormalize = self.config.is_renormalize.unwrap_or(false);
         let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
-
-        // Convert legacy data structures to current format
-        legacy::LegacyProcessor.process_event(event, meta, state)?;
 
         if !is_renormalize {
             // Normalize data in all interfaces

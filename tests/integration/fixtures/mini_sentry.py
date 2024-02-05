@@ -1,4 +1,5 @@
 import datetime
+import copy
 import gzip
 import json
 import os
@@ -36,6 +37,7 @@ class Sentry(SentryLike):
 
         self.app = app
         self.project_configs = {}
+        self.global_config = copy.deepcopy(GLOBAL_CONFIG)
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
         self.captured_metrics = Queue()
@@ -318,7 +320,7 @@ def mini_sentry(request):  # noqa
         version = flask_request.args.get("version")
 
         if version == "3" and flask_request.json.get("global"):
-            global_ = GLOBAL_CONFIG
+            global_ = sentry.global_config
 
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
@@ -458,5 +460,6 @@ GLOBAL_CONFIG = {
             {"name": "time_to_initial_display", "unit": "millisecond"},
         ],
         "maxCustomMeasurements": 10,
-    }
+    },
+    "options": {},
 }

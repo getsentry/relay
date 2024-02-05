@@ -343,6 +343,12 @@ pub enum RelayTimers {
     ///
     ///  - `message`: The type of message that was processed.
     ProcessMessageDuration,
+    /// Timing in milliseconds for processing a message in the buffer service.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///  - `message`: The type of message that was processed.
+    BufferMessageProcessDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -378,6 +384,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
+            RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
         }
     }
 }
@@ -488,7 +495,7 @@ pub enum RelayCounters {
     /// Number of times an upstream request for a project config failed.
     ///
     /// Failure can happen, for example, when there's a network error. Refer to
-    /// [`UpstreamRequestError`](crate::actors::upstream::UpstreamRequestError) for all cases.
+    /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
     ProjectUpstreamFailed,
     /// Number of full metric data flushes.
     ///

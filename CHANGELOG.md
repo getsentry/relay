@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `raw_domain` tag to indexed spans. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
+- Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
+- Add `app_start_type` as self time tag for app start spans. ([#3027](https://github.com/getsentry/relay/pull/3027))
+
+**Internal**:
+
+- Emit a usage metric for total spans. ([#3007](https://github.com/getsentry/relay/pull/3007))
+- Drop timestamp from metrics partition key. ([#3025](https://github.com/getsentry/relay/pull/3025))
+- Drop spans ending outside the valid timestamp range. ([#3013](https://github.com/getsentry/relay/pull/3013))
+- Extract INP metrics from spans. ([#2969](https://github.com/getsentry/relay/pull/2969), [#3041](https://github.com/getsentry/relay/pull/3041))
+- Add ability to rate limit metric buckets by namespace. ([#2941](https://github.com/getsentry/relay/pull/2941))
+
+## 24.1.1
+
+**Features**:
+
+- Add new legacy browser filters. ([#2950](https://github.com/getsentry/relay/pull/2950))
+
+**Internal**:
+
+- Implement quota system for cardinality limiter. ([#2972](https://github.com/getsentry/relay/pull/2972))
+- Use cardinality limits from project config instead of Relay config. ([#2990](https://github.com/getsentry/relay/pull/2990))
+- Proactively move on-disk spool to memory. ([#2949](https://github.com/getsentry/relay/pull/2949))
+- Default missing `Event.platform` and `Event.level` fields during light normalization. ([#2961](https://github.com/getsentry/relay/pull/2961))
+- Copy event measurements to span & normalize span measurements. ([#2953](https://github.com/getsentry/relay/pull/2953))
+- Add `allow_negative` to `BuiltinMeasurementKey`. Filter out negative BuiltinMeasurements if `allow_negative` is false. ([#2982](https://github.com/getsentry/relay/pull/2982))
+- Add possiblity to block metrics or their tags with glob-patterns. ([#2954](https://github.com/getsentry/relay/pull/2954), [#2973](https://github.com/getsentry/relay/pull/2973))
+- Forward profiles of non-sampled transactions. ([#2940](https://github.com/getsentry/relay/pull/2940))
+- Enable throttled periodic unspool of the buffered envelopes. ([#2993](https://github.com/getsentry/relay/pull/2993))
+
+**Bug Fixes**:
+
+- Add automatic PII scrubbing to `logentry.params`. ([#2956](https://github.com/getsentry/relay/pull/2956))
+- Avoid producing `null` values in metric data. These values were the result of Infinity or NaN values extracted from event data. The values are now discarded during extraction. ([#2958](https://github.com/getsentry/relay/pull/2958))
+- Fix processing of user reports. ([#2981](https://github.com/getsentry/relay/pull/2981), [#2984](https://github.com/getsentry/relay/pull/2984))
+- Fetch project config when metrics are received. ([#2987](https://github.com/getsentry/relay/pull/2987))
+
 ## 24.1.0
 
 **Features**:

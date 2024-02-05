@@ -56,6 +56,7 @@ def processing_config(get_topic_name):
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
+                "profiles": get_topic_name("profiles"),
             }
 
         if not processing.get("redis"):
@@ -309,6 +310,11 @@ def spans_consumer(kafka_consumer):
     return lambda timeout=None: SpansConsumer(timeout=timeout, *kafka_consumer("spans"))
 
 
+@pytest.fixture
+def profiles_consumer(kafka_consumer):
+    return lambda: ProfileConsumer(*kafka_consumer("profiles"))
+
+
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
@@ -372,6 +378,15 @@ class AttachmentsConsumer(EventsConsumer):
 
         v = msgpack.unpackb(message.value(), raw=False, use_list=False)
         assert v["type"] == "attachment", v["type"]
+        return v
+
+    def get_user_report(self, timeout=None):
+        message = self.poll(timeout)
+        assert message is not None
+        assert message.error() is None
+
+        v = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        assert v["type"] == "user_report", v["type"]
         return v
 
 
@@ -445,3 +460,12 @@ class SpansConsumer(ConsumerBase):
             else:
                 assert message.error() is None
                 yield json.loads(message.value())
+
+
+class ProfileConsumer(ConsumerBase):
+    def get_profile(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return msgpack.loads(message.value()), message.headers()

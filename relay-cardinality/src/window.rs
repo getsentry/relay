@@ -1,5 +1,11 @@
+use std::fmt;
+
+use relay_common::time::UnixTimestamp;
+use serde::{Deserialize, Serialize};
+
 /// A sliding window.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SlidingWindow {
     /// The number of seconds to apply the limit to.
     pub window_seconds: u64,
@@ -22,28 +28,41 @@ impl SlidingWindow {
     /// This function is used to calculate keys for storing the number of
     /// requests made in each granule.
     ///
-    /// The iteration is done in reverse-order (newest timestamp to oldest),
+    /// The iteration is done in natural-order (oldest timestamp to newest),
     /// starting with the key to which a currently-processed request should be
     /// added. That request's timestamp is `request_timestamp`.
     ///
-    /// * `request_timestamp / self.granularity_seconds - 1`
-    /// * `request_timestamp / self.granularity_seconds - 2`
-    /// * `request_timestamp / self.granularity_seconds - 3`
+    /// * `request_timestamp / self.granularity_seconds`
+    /// * `request_timestamp / self.granularity_seconds + 1`
+    /// * `request_timestamp / self.granularity_seconds + 2`
     /// * ...
-    pub fn iter(&self, timestamp: u64) -> impl Iterator<Item = u64> {
-        let value = timestamp / self.granularity_seconds;
+    pub fn iter(&self, timestamp: UnixTimestamp) -> impl Iterator<Item = Slot> {
+        let value = timestamp.as_secs() / self.granularity_seconds;
         (0..self.window_seconds / self.granularity_seconds)
-            .map(move |i| value.saturating_sub(i + 1))
+            .map(move |i| value + i)
+            .map(Slot)
     }
 
     /// The active bucket is the oldest active granule.
-    pub fn active_time_bucket(&self, timestamp: u64) -> u64 {
-        self.iter(timestamp).last().unwrap_or(0)
+    pub fn active_slot(&self, timestamp: UnixTimestamp) -> Slot {
+        self.iter(timestamp).next().unwrap_or(Slot(0))
+    }
+}
+
+/// A single slot from a [`SlidingWindow`].
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Slot(u64);
+
+impl fmt::Display for Slot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     #[test]
@@ -53,20 +72,23 @@ mod tests {
             granularity_seconds: 720,
         };
 
-        let timestamp = 1701775000;
+        let timestamp = UnixTimestamp::from_secs(7200);
         let r = window.iter(timestamp).collect::<Vec<_>>();
         assert_eq!(
             r.len() as u64,
             window.window_seconds / window.granularity_seconds
         );
-        assert_eq!(r, vec![2363575, 2363574, 2363573, 2363572, 2363571]);
-        assert_eq!(window.active_time_bucket(timestamp), *r.last().unwrap());
 
-        let r2 = window.iter(timestamp + 10).collect::<Vec<_>>();
+        assert_eq!(r, vec![Slot(10), Slot(11), Slot(12), Slot(13), Slot(14)]);
+        assert_eq!(window.active_slot(timestamp), *r.first().unwrap());
+
+        let r2 = window
+            .iter(timestamp + Duration::from_secs(10))
+            .collect::<Vec<_>>();
         assert_eq!(r2, r);
 
         let r3 = window
-            .iter(timestamp + window.granularity_seconds)
+            .iter(timestamp + Duration::from_secs(window.granularity_seconds))
             .collect::<Vec<_>>();
         assert_ne!(r3, r);
     }

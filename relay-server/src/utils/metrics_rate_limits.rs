@@ -7,8 +7,8 @@ use relay_metrics::{
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
-use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::envelope::SourceQuantities;
+use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
@@ -60,7 +60,7 @@ fn count_metric_bucket(metric: BucketView<'_>, mode: ExtractionMode) -> Option<T
 
     let usage = matches!(mode, ExtractionMode::Usage);
     let count = match metric.value() {
-        BucketViewValue::Counter(c) if usage && mri.name == "usage" => c as usize,
+        BucketViewValue::Counter(c) if usage && mri.name == "usage" => c.to_f64() as usize,
         BucketViewValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
         _ => 0,
     };
@@ -277,6 +277,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 let item_scoping = ItemScoping {
                     category: DataCategory::Transaction,
                     scoping: &self.scoping,
+                    namespace: None,
                 };
                 let active_rate_limits =
                     rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
@@ -293,6 +294,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     let item_scoping = ItemScoping {
                         category: DataCategory::Profile,
                         scoping: &self.scoping,
+                        namespace: None,
                     };
                     let active_rate_limits =
                         rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
@@ -344,7 +346,7 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
-                value: BucketValue::distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
             Bucket {
                 // transaction with profile
@@ -352,7 +354,7 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(456.0),
+                value: BucketValue::distribution(456.into()),
             },
             Bucket {
                 // transaction without profile
@@ -360,7 +362,7 @@ mod tests {
                 width: 0,
                 name: "c:transactions/usage@none".to_string(),
                 tags: Default::default(),
-                value: BucketValue::counter(1.0),
+                value: BucketValue::counter(1.into()),
             },
             Bucket {
                 // transaction with profile
@@ -368,7 +370,7 @@ mod tests {
                 width: 0,
                 name: "c:transactions/usage@none".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::counter(1.0),
+                value: BucketValue::counter(1.into()),
             },
             Bucket {
                 // unrelated metric
@@ -376,7 +378,7 @@ mod tests {
                 width: 0,
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
         ];
         let quotas = vec![Quota {
@@ -387,6 +389,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         }];
         let (outcome_sink, mut rx) = Addr::custom();
 
@@ -432,7 +435,7 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
-                value: BucketValue::distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
             Bucket {
                 // transaction with profile
@@ -440,7 +443,7 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(456.0),
+                value: BucketValue::distribution(456.into()),
             },
             Bucket {
                 // transaction without profile
@@ -448,7 +451,7 @@ mod tests {
                 width: 0,
                 name: "c:transactions/usage@none".to_string(),
                 tags: Default::default(),
-                value: BucketValue::counter(1.0),
+                value: BucketValue::counter(1.into()),
             },
             Bucket {
                 // transaction with profile
@@ -456,7 +459,7 @@ mod tests {
                 width: 0,
                 name: "c:transactions/usage@none".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::counter(1.0),
+                value: BucketValue::counter(1.into()),
             },
             Bucket {
                 // unrelated metric
@@ -464,7 +467,7 @@ mod tests {
                 width: 0,
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(123.0),
+                value: BucketValue::distribution(123.into()),
             },
         ];
         let quotas = vec![Quota {
@@ -475,6 +478,7 @@ mod tests {
             limit: Some(0),
             window: None,
             reason_code: None,
+            namespace: None,
         }];
         let (outcome_sink, mut rx) = Addr::custom();
 

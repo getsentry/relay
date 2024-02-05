@@ -10,12 +10,13 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_system::Addr;
 use relay_test::mock_service;
 
-use crate::actors::outcome::TrackOutcome;
-use crate::actors::processor::EnvelopeProcessorService;
-use crate::actors::project::ProjectState;
-use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::services::global_config::GlobalConfigHandle;
+use crate::services::outcome::TrackOutcome;
+use crate::services::processor::EnvelopeProcessorService;
+use crate::services::project::ProjectState;
+use crate::services::test_store::TestStore;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
@@ -97,9 +98,11 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
 }
 
 pub fn empty_envelope() -> Box<Envelope> {
-    let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-        .parse()
-        .unwrap();
+    empty_envelope_with_dsn("e12d836b15bb49d7bbf99e64295d995b")
+}
+
+pub fn empty_envelope_with_dsn(dsn: &str) -> Box<Envelope> {
+    let dsn = format!("https://{dsn}:@sentry.io/42").parse().unwrap();
 
     let mut envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
     envelope.add_item(Item::new(ItemType::Event));
@@ -114,10 +117,17 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     let (_aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
 
+    #[cfg(feature = "processing")]
+    let redis = config
+        .redis()
+        .filter(|_| config.processing_enabled())
+        .map(|redis_config| relay_redis::RedisPool::new(redis_config).unwrap());
+
     EnvelopeProcessorService::new(
         Arc::new(config),
+        GlobalConfigHandle::fixed(Default::default()),
         #[cfg(feature = "processing")]
-        None,
+        redis,
         outcome_aggregator,
         project_cache,
         upstream_relay,

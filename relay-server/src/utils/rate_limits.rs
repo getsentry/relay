@@ -7,8 +7,8 @@ use relay_quotas::{
 };
 use relay_system::Addr;
 
-use crate::actors::outcome::{Outcome, TrackOutcome};
 use crate::envelope::{Envelope, Item, ItemType};
+use crate::services::outcome::{Outcome, TrackOutcome};
 
 /// Name of the rate limits header.
 pub const RATE_LIMITS_HEADER: &str = "X-Sentry-Rate-Limits";
@@ -75,6 +75,7 @@ pub fn parse_rate_limits(scoping: &Scoping, string: &str) -> RateLimits {
             scope,
             reason_code,
             retry_after,
+            namespace: None,
         });
     }
 
@@ -684,6 +685,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
+            namespace: None,
         });
 
         // Add a more specific rate limit for just one category.
@@ -692,6 +694,7 @@ mod tests {
             scope: RateLimitScope::Project(ProjectId::new(21)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(4711),
+            namespace: None,
         });
 
         let formatted = format_rate_limits(&rate_limits);
@@ -736,6 +739,7 @@ mod tests {
                     scope: RateLimitScope::Organization(42),
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
+                    namespace: None,
                 },
                 RateLimit {
                     categories: smallvec![
@@ -746,6 +750,7 @@ mod tests {
                     scope: RateLimitScope::Project(ProjectId::new(21)),
                     reason_code: None,
                     retry_after: rate_limits[1].retry_after,
+                    namespace: None,
                 }
             ]
         );
@@ -775,6 +780,7 @@ mod tests {
                 scope: RateLimitScope::Organization(42),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
+                namespace: None,
             },]
         );
     }
@@ -816,6 +822,7 @@ mod tests {
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
+            namespace: None,
         }
     }
 

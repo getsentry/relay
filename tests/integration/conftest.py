@@ -4,6 +4,7 @@ import os
 from os import path
 from typing import Optional
 import json
+import redis
 
 import pytest
 
@@ -28,6 +29,7 @@ from .fixtures.processing import (  # noqa
     replay_events_consumer,
     monitors_consumer,
     spans_consumer,
+    profiles_consumer,
 )
 
 
@@ -242,3 +244,8 @@ def pytest_runtest_call(item):
     for marker in item.iter_markers("extra_failure_checks"):
         for check_func in marker.kwargs.get("checks", []):
             check_func()
+
+
+@pytest.fixture
+def redis_client():
+    return redis.Redis(host="127.0.0.1", port=6379, db=0)
