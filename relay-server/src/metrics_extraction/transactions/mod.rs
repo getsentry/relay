@@ -585,7 +585,6 @@ mod tests {
             &NormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
                 enrich_spans: false,
-                normalize_spans: true,
                 performance_score: Some(&PerformanceScoreConfig {
                     profiles: vec![PerformanceScoreProfile {
                         name: Some("".into()),

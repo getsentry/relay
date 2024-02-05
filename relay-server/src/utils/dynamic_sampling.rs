@@ -117,9 +117,7 @@ pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSa
         return None;
     }
 
-    let Some(trace) = event.context::<TraceContext>() else {
-        return None;
-    };
+    let trace = event.context::<TraceContext>()?;
     let trace_id = trace.trace_id.value()?.0.parse().ok()?;
     let user = event.user.value();
 
