@@ -1,10 +1,12 @@
 use std::borrow::Cow;
 use std::env;
+use std::fmt::Display;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use sentry::types::Dsn;
 use serde::{Deserialize, Serialize};
-use tracing::{level_filters::LevelFilter, Level};
+use tracing::{level_filters::LevelFilter, Level as TracingLevel};
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
 #[cfg(feature = "dashboard")]
@@ -47,53 +49,87 @@ pub enum LogFormat {
     Json,
 }
 
-mod level_serde {
-    use std::fmt;
+/// The logging level parse error.
+#[derive(Clone, Debug)]
+pub struct LevelParseError(String);
 
-    use serde::de::{Error, Unexpected, Visitor};
-    use serde::{Deserializer, Serializer};
-    use tracing::Level;
-
-    pub fn serialize<S>(filter: &Level, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.collect_str(filter)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Level, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct V;
-
-        impl<'de> Visitor<'de> for V {
-            type Value = Level;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("a log level")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Level, E>
-            where
-                E: Error,
-            {
-                value
-                    .parse()
-                    .map_err(|_| Error::invalid_value(Unexpected::Str(value), &self))
-            }
-        }
-
-        deserializer.deserialize_str(V)
+impl Display for LevelParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            r#"error parsing "{}" as level: expected one of "error", "warn", "info", "debug", "trace", "off""#,
+            self.0
+        )
     }
 }
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Level {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+    Off,
+}
+
+impl Level {
+    pub fn level_filter(&self) -> LevelFilter {
+        match self {
+            Level::Error => LevelFilter::ERROR,
+            Level::Warn => LevelFilter::WARN,
+            Level::Info => LevelFilter::INFO,
+            Level::Debug => LevelFilter::DEBUG,
+            Level::Trace => LevelFilter::TRACE,
+            Level::Off => LevelFilter::OFF,
+        }
+    }
+
+    pub fn level(&self) -> TracingLevel {
+        match self {
+            Level::Error => TracingLevel::ERROR,
+            Level::Warn => TracingLevel::WARN,
+            Level::Info => TracingLevel::INFO,
+            Level::Debug => TracingLevel::DEBUG,
+            Level::Trace => TracingLevel::TRACE,
+            Level::Off => TracingLevel::ERROR,
+        }
+    }
+}
+
+impl Display for Level {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
+impl FromStr for Level {
+    type Err = LevelParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let result = match s {
+            "" => Level::Error,
+            s if s.eq_ignore_ascii_case("error") => Level::Error,
+            s if s.eq_ignore_ascii_case("warn") => Level::Warn,
+            s if s.eq_ignore_ascii_case("info") => Level::Info,
+            s if s.eq_ignore_ascii_case("debug") => Level::Debug,
+            s if s.eq_ignore_ascii_case("trace") => Level::Trace,
+            s if s.eq_ignore_ascii_case("off") => Level::Off,
+            s => return Err(LevelParseError(s.into())),
+        };
+
+        Ok(result)
+    }
+}
+
+impl std::error::Error for LevelParseError {}
 
 /// Controls the logging system.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct LogConfig {
     /// The log level for Relay.
-    #[serde(with = "level_serde")]
     pub level: Level,
 
     /// Controls the log output format.
@@ -112,10 +148,17 @@ pub struct LogConfig {
     pub traces_sample_rate: f32,
 }
 
+impl LogConfig {
+    /// Returns the string representation of the level
+    pub fn level_filter(&self) -> LevelFilter {
+        self.level.level_filter()
+    }
+}
+
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            level: Level::INFO,
+            level: Level::Info,
             format: LogFormat::Auto,
             enable_backtraces: false,
             #[cfg(debug_assertions)]
@@ -240,7 +283,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     };
 
     let logs_subscriber = tracing_subscriber::registry()
-        .with(format.with_filter(LevelFilter::from(config.level)))
+        .with(format.with_filter(config.level_filter()))
         .with(sentry::integrations::tracing::layer())
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
             Ok(value) => EnvFilter::new(value),
