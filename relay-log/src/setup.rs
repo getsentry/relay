@@ -75,6 +75,7 @@ pub enum Level {
 }
 
 impl Level {
+    /// Returns the tracing [`LevelFilter`].
     pub fn level_filter(&self) -> LevelFilter {
         match self {
             Level::Error => LevelFilter::ERROR,
@@ -86,6 +87,7 @@ impl Level {
         }
     }
 
+    /// Returns the tracing logging [`tracing::Level`].
     pub fn level(&self) -> TracingLevel {
         match self {
             Level::Error => TracingLevel::ERROR,
@@ -149,7 +151,7 @@ pub struct LogConfig {
 }
 
 impl LogConfig {
-    /// Returns the string representation of the level
+    /// Returns the tracing [`LevelFilter`].
     pub fn level_filter(&self) -> LevelFilter {
         self.level.level_filter()
     }
