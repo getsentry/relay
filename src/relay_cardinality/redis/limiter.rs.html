@@ -916,16 +916,16 @@
 }
 
 <span class="kw">impl </span>Limiter <span class="kw">for </span>RedisSetLimiter {
-    <span class="kw">fn </span>check_cardinality_limits&lt;E, R&gt;(
+    <span class="kw">fn </span>check_cardinality_limits&lt;<span class="lifetime">&#39;a</span>, E, R&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
-        limits: <span class="kw-2">&amp;</span>[CardinalityLimit],
+        limits: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[CardinalityLimit],
         entries: E,
         rejections: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;
     <span class="kw">where
         </span>E: IntoIterator&lt;Item = Entry&gt;,
-        R: Rejections,
+        R: Rejections&lt;<span class="lifetime">&#39;a</span>&gt;,
     {
         <span class="kw">let </span>timestamp = UnixTimestamp::now();
         <span class="comment">// Allows to fast forward time in tests.
@@ -950,7 +950,7 @@
                     }
                     CacheOutcome::Rejected =&gt; {
                         <span class="comment">// Rejected, add it to the rejected list and move on.
-                        </span>rejections.reject(entry.id);
+                        </span>rejections.reject(state.id, entry.id);
                         state.cache_hit();
                         state.rejected();
                     }
@@ -982,7 +982,7 @@
             </span><span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="self">self</span>.cache.update(state.scope, timestamp); <span class="comment">// Acquire a write lock.
             </span><span class="kw">for </span>(entry, status) <span class="kw">in </span>results {
                 <span class="kw">if </span>status.is_rejected() {
-                    rejections.reject(entry.id);
+                    rejections.reject(state.id, entry.id);
                     state.rejected();
                 } <span class="kw">else </span>{
                     cache.accept(entry.hash);
@@ -1172,8 +1172,8 @@
     <span class="attr">#[derive(Debug, Default, PartialEq, Eq)]
     </span><span class="kw">struct </span>Rejections(HashSet&lt;EntryId&gt;);
 
-    <span class="kw">impl </span><span class="kw">super</span>::Rejections <span class="kw">for </span>Rejections {
-        <span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry_id: EntryId) {
+    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; <span class="kw">super</span>::Rejections&lt;<span class="lifetime">&#39;a</span>&gt; <span class="kw">for </span>Rejections {
+        <span class="kw">fn </span>reject(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _limit_id: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, entry_id: EntryId) {
             <span class="self">self</span>.<span class="number">0</span>.insert(entry_id);
         }
     }
