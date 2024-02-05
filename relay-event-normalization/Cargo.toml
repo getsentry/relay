@@ -30,7 +30,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = "0.7.1"
 smallvec = { workspace = true }
-# Use a fork of sqlparser until https://github.com/sqlparser-rs/sqlparser-rs/pull/1065 gets merged:
 sqlparser = { version = "0.43.1", features = ["visitor"] }
 thiserror = { workspace = true }
 url = { workspace = true }
