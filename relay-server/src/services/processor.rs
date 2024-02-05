@@ -1774,7 +1774,7 @@ impl EnvelopeProcessorService {
         mode: ExtractionMode,
     ) -> Vec<Bucket> {
         let global_config = self.inner.global_config.current();
-        let cardinality_limiter_mode = global_config.cardinality_limiter_mode();
+        let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
         if matches!(cardinality_limiter_mode, CardinalityLimiterMode::Disabled) {
             return buckets;
@@ -1801,9 +1801,8 @@ impl EnvelopeProcessorService {
             }
         };
 
-        if limits.has_rejections()
-            && sample(self.inner.config.cardinality_limiter_error_sample_rate())
-        {
+        let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
+        if limits.has_rejections() && sample(error_sample_rate) {
             for limit_id in limits.enforced_limits() {
                 relay_log::error!(
                     tags.organization_id = scoping.organization_id,
@@ -2267,7 +2266,7 @@ impl UpstreamRequest for SendEnvelope {
 /// using the passed `rate` (0 <= rate <= 1).
 #[cfg(feature = "processing")]
 fn sample(rate: f32) -> bool {
-    (rate >= 1.0) || (rate > 0.0 && rand::random::<f32>() <= rate)
+    (rate >= 1.0) || (rate > 0.0 && rand::random::<f32>() < rate)
 }
 
 /// Computes a stable partitioning key for sharded metric requests.
