@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 use std::env;
-use std::fmt::Display;
+use std::fmt::{self, Display};
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use relay_common::impl_str_serde;
 use sentry::types::Dsn;
 use serde::{Deserialize, Serialize};
-use tracing::{level_filters::LevelFilter, Level as TracingLevel};
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
 #[cfg(feature = "dashboard")]
@@ -63,8 +64,7 @@ impl Display for LevelParseError {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug)]
 pub enum Level {
     Error,
     Warn,
@@ -73,6 +73,8 @@ pub enum Level {
     Trace,
     Off,
 }
+
+impl_str_serde!(Level, "The logging level.");
 
 impl Level {
     /// Returns the tracing [`LevelFilter`].
@@ -84,18 +86,6 @@ impl Level {
             Level::Debug => LevelFilter::DEBUG,
             Level::Trace => LevelFilter::TRACE,
             Level::Off => LevelFilter::OFF,
-        }
-    }
-
-    /// Returns the tracing logging [`tracing::Level`].
-    pub fn level(&self) -> TracingLevel {
-        match self {
-            Level::Error => TracingLevel::ERROR,
-            Level::Warn => TracingLevel::WARN,
-            Level::Info => TracingLevel::INFO,
-            Level::Debug => TracingLevel::DEBUG,
-            Level::Trace => TracingLevel::TRACE,
-            Level::Off => TracingLevel::ERROR,
         }
     }
 }
