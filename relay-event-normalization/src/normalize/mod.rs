@@ -10,7 +10,7 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
+    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext,
     VALID_PLATFORMS,
 };
 use relay_protocol::{
@@ -19,7 +19,7 @@ use relay_protocol::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{GeoIpLookup, StoreConfig};
+use crate::StoreConfig;
 
 pub mod breakdowns;
 pub mod nel;
@@ -96,18 +96,14 @@ pub fn is_valid_platform(platform: &str) -> bool {
 }
 
 /// The processor that normalizes events for store.
-pub struct StoreNormalizeProcessor<'a> {
+pub struct StoreNormalizeProcessor {
     config: Arc<StoreConfig>,
-    geoip_lookup: Option<&'a GeoIpLookup>,
 }
 
-impl<'a> StoreNormalizeProcessor<'a> {
+impl<'a> StoreNormalizeProcessor {
     /// Creates a new normalization processor.
-    pub fn new(config: Arc<StoreConfig>, geoip_lookup: Option<&'a GeoIpLookup>) -> Self {
-        StoreNormalizeProcessor {
-            config,
-            geoip_lookup,
-        }
+    pub fn new(config: Arc<StoreConfig>) -> Self {
+        StoreNormalizeProcessor { config }
     }
 
     /// Returns the SDK info from the config.
@@ -359,7 +355,7 @@ pub struct PerformanceScoreConfig {
     pub profiles: Vec<PerformanceScoreProfile>,
 }
 
-impl<'a> Processor for StoreNormalizeProcessor<'a> {
+impl<'a> Processor for StoreNormalizeProcessor {
     fn process_event(
         &mut self,
         event: &mut Event,
@@ -434,27 +430,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
 
         if breadcrumb.level.value().is_none() {
             breadcrumb.level.set_value(Some(Level::Info));
-        }
-
-        Ok(())
-    }
-
-    fn process_user(
-        &mut self,
-        user: &mut User,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        if !user.other.is_empty() {
-            let data = user.data.value_mut().get_or_insert_with(Object::new);
-            data.extend(std::mem::take(&mut user.other));
-        }
-
-        user.process_child_values(self, state)?;
-
-        // Infer user.geo from user.ip_address
-        if let Some(geoip_lookup) = self.geoip_lookup {
-            crate::event::normalize_user_geoinfo(geoip_lookup, user)
         }
 
         Ok(())
@@ -689,9 +664,9 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry, MetricSummary,
-        MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry, Tags, TraceId,
-        Values,
+        Context, ContextInner, Contexts, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry,
+        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry,
+        Tags, TraceId, User, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
@@ -703,14 +678,14 @@ mod tests {
 
     use crate::{
         normalize_event, validate_event_timestamps, validate_transaction, EventValidationConfig,
-        NormalizationConfig, TransactionValidationConfig,
+        GeoIpLookup, NormalizationConfig, TransactionValidationConfig,
     };
 
     use super::*;
 
-    impl Default for StoreNormalizeProcessor<'_> {
+    impl Default for StoreNormalizeProcessor {
         fn default() -> Self {
-            StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()), None)
+            StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()))
         }
     }
 
@@ -793,7 +768,7 @@ mod tests {
 
     #[test]
     fn test_rejects_empty_exception_fields() {
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()));
 
         let mut exception = Annotated::new(Exception {
             value: Annotated::new("".to_string().into()),
@@ -842,15 +817,21 @@ mod tests {
     #[test]
     fn test_geo_from_ip_address() {
         let lookup = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-        let mut processor =
-            StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()), Some(&lookup));
 
-        let mut user = Annotated::new(User {
-            ip_address: Annotated::new(IpAddr("2.125.160.216".to_string())),
-            ..User::default()
-        });
+        let json = r#"{
+            "user": {
+                "ip_address": "2.125.160.216"
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                geoip_lookup: Some(&lookup),
+                ..Default::default()
+            },
+        );
 
         let expected = Annotated::new(Geo {
             country_code: Annotated::new("GB".to_string()),
@@ -859,7 +840,7 @@ mod tests {
             region: Annotated::new("United Kingdom".to_string()),
             ..Geo::default()
         });
-        assert_eq!(user.value().unwrap().geo, expected)
+        assert_eq!(get_value!(event.user!).geo, expected);
     }
 
     #[test]
@@ -881,7 +862,7 @@ mod tests {
         });
 
         let config = StoreConfig::default();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
 
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -909,7 +890,7 @@ mod tests {
         });
 
         let config = StoreConfig::default();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -929,7 +910,7 @@ mod tests {
             ..StoreConfig::default()
         };
 
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(
             &mut event,
             &NormalizationConfig {
@@ -954,21 +935,16 @@ mod tests {
         });
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-        let config = StoreConfig {
-            client_ip: Some(ip_address.clone()),
-            ..StoreConfig::default()
-        };
 
         let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), Some(&geo));
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 client_ip: Some(&ip_address),
+                geoip_lookup: Some(&geo),
                 ..Default::default()
             },
         );
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
         let ip_addr = user.ip_address.value().expect("ip address missing");
@@ -982,21 +958,15 @@ mod tests {
         let mut event = Annotated::new(Event::default());
 
         let ip_address = IpAddr::parse("2.125.160.216").unwrap();
-        let config = StoreConfig {
-            client_ip: Some(ip_address.clone()),
-            ..StoreConfig::default()
-        };
-
         let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), Some(&geo));
         normalize_event(
             &mut event,
             &NormalizationConfig {
                 client_ip: Some(&ip_address),
+                geoip_lookup: Some(&geo),
                 ..Default::default()
             },
         );
-        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         let user = get_value!(event.user!);
         assert!(user.ip_address.value().is_none());
@@ -1102,7 +1072,7 @@ mod tests {
             replay_id: Some(replay_id),
             ..StoreConfig::default()
         };
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1355,7 +1325,7 @@ mod tests {
         let config = StoreConfig {
             ..StoreConfig::default()
         };
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(config), None);
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(config));
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1366,37 +1336,6 @@ mod tests {
             event_trace_context.status,
             Annotated::new(SpanStatus::Unknown)
         )
-    }
-
-    #[test]
-    fn test_user_data_moved() {
-        let mut user = Annotated::new(User {
-            other: {
-                let mut map = Object::new();
-                map.insert(
-                    "other".to_string(),
-                    Annotated::new(Value::String("value".to_owned())),
-                );
-                map
-            },
-            ..User::default()
-        });
-
-        let mut processor = StoreNormalizeProcessor::default();
-        process_value(&mut user, &mut processor, ProcessingState::root()).unwrap();
-
-        let user = user.value().unwrap();
-
-        assert_eq!(user.data, {
-            let mut map = Object::new();
-            map.insert(
-                "other".to_string(),
-                Annotated::new(Value::String("value".to_owned())),
-            );
-            Annotated::new(map)
-        });
-
-        assert_eq!(user.other, Object::new());
     }
 
     #[test]
@@ -1596,13 +1535,10 @@ mod tests {
     #[test]
     fn test_parses_sdk_info_from_header() {
         let mut event = Annotated::new(Event::default());
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                client: Some("_fooBar/0.0.0".to_string()),
-                ..StoreConfig::default()
-            }),
-            None,
-        );
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            client: Some("_fooBar/0.0.0".to_string()),
+            ..StoreConfig::default()
+        }));
 
         normalize_event(&mut event, &NormalizationConfig::default());
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1643,15 +1579,12 @@ mod tests {
             ..Default::default()
         });
 
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                grouping_config: Some(json!({
-                    "id": "legacy:1234-12-12".to_string(),
-                })),
-                ..Default::default()
-            }),
-            None,
-        );
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            grouping_config: Some(json!({
+                "id": "legacy:1234-12-12".to_string(),
+            })),
+            ..Default::default()
+        }));
 
         validate_event_timestamps(&mut event, &EventValidationConfig::default()).unwrap();
         normalize_event(&mut event, &NormalizationConfig::default());
@@ -1748,15 +1681,12 @@ mod tests {
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                received_at,
-                max_secs_in_past,
-                max_secs_in_future,
-                ..Default::default()
-            }),
-            None,
-        );
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
+            ..Default::default()
+        }));
         validate_transaction(&event, &TransactionValidationConfig::default()).unwrap();
         validate_event_timestamps(
             &mut event,
@@ -1811,15 +1741,12 @@ mod tests {
         let max_secs_in_past = Some(30 * 24 * 3600);
         let max_secs_in_future = Some(60);
 
-        let mut processor = StoreNormalizeProcessor::new(
-            Arc::new(StoreConfig {
-                received_at,
-                max_secs_in_past,
-                max_secs_in_future,
-                ..Default::default()
-            }),
-            None,
-        );
+        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig {
+            received_at,
+            max_secs_in_past,
+            max_secs_in_future,
+            ..Default::default()
+        }));
         validate_event_timestamps(
             &mut event,
             &EventValidationConfig {

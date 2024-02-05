@@ -26,7 +26,7 @@ fn test_reponse_context_pii() {
 
     // Run store processort, to make sure that all the normalizations steps are done.
     let store_config = StoreConfig::default();
-    let mut store_processor = StoreProcessor::new(store_config, None);
+    let mut store_processor = StoreProcessor::new(store_config);
     processor::process_value(&mut data, &mut store_processor, ProcessingState::root()).unwrap();
 
     let mut ds_config = DataScrubbingConfig::default();
