@@ -1,4 +1,4 @@
-use relay_statsd::{CounterMetric, HistogramMetric, TimerMetric};
+use relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
 
 /// Counter metrics for the Relay Cardinality Limiter.
 pub enum CardinalityLimiterCounters {
@@ -99,6 +99,26 @@ impl HistogramMetric for CardinalityLimiterHistograms {
             Self::RedisCheckHashes => "cardinality.limiter.redis.check_hashes",
             #[cfg(feature = "redis")]
             Self::RedisSetCardinality => "cardinality.limiter.redis.set_cardinality",
+        }
+    }
+}
+
+pub enum CardinalityLimiterSets {
+    /// Set containing all organizations which have had any metric sent through the cardinality
+    /// limiter.
+    ///
+    /// This metric is tagged with:
+    ///  - `id`: The id of the enforced limit.
+    ///  - `status`: Wether the organization was cardinality limited.
+    #[cfg(feature = "redis")]
+    Organizations,
+}
+
+impl SetMetric for CardinalityLimiterSets {
+    fn name(&self) -> &'static str {
+        match *self {
+            #[cfg(feature = "redis")]
+            Self::Organizations => "cardinality.limiter.organizations",
         }
     }
 }
