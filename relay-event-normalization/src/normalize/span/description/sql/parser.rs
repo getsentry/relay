@@ -336,8 +336,15 @@ impl VisitorMut for NormalizeVisitor {
                 self.transform_query(query);
             }
             // `INSERT INTO col1, col2 VALUES (val1, val2)` becomes `INSERT INTO .. VALUES (%s)`.
-            Statement::Insert { columns, .. } => {
+            Statement::Insert {
+                columns, source, ..
+            } => {
                 *columns = vec![Self::ellipsis()];
+                if let Some(source) = source.as_mut() {
+                    if let SetExpr::Values(v) = &mut *source.body {
+                        v.rows = vec![vec![Expr::Value(Self::placeholder())]]
+                    }
+                }
             }
             // Simple lists of col = value assignments are collapsed to `..`.
             Statement::Update { assignments, .. } => {
