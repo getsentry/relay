@@ -810,6 +810,20 @@
 <a href="#810" id="810">810</a>
 <a href="#811" id="811">811</a>
 <a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -819,26 +833,16 @@
     limiter::{Entry, EntryId, Limiter, Rejections, Scoping},
     redis::{
         cache::{Cache, CacheOutcome},
+        quota::QuotaScoping,
         script::{CardinalityScript, Status},
     },
     statsd::{
         CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterSets,
         CardinalityLimiterTimers,
     },
-    window::Slot,
-    CardinalityLimit, CardinalityScope, OrganizationId, <span class="prelude-ty">Result</span>, SlidingWindow,
+    CardinalityLimit, <span class="prelude-ty">Result</span>,
 };
-<span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
-<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-
-<span class="doccomment">/// Key prefix used for Redis keys.
-</span><span class="kw">const </span>KEY_PREFIX: <span class="kw-2">&amp;</span>str = <span class="string">&quot;relay:cardinality&quot;</span>;
-<span class="doccomment">/// Redis key version.
-///
-/// The version is embedded in the key as a static segment, increment the version whenever there are
-/// breaking changes made to the keys or storage format in Redis.
-</span><span class="kw">const </span>KEY_VERSION: u32 = <span class="number">1</span>;
 
 <span class="doccomment">/// Configuration options for the [`RedisSetLimiter`].
 </span><span class="kw">pub struct </span>RedisSetLimiterOptions {
@@ -897,7 +901,7 @@
         // but since this is only used for cleanup, this is not an issue.
         </span><span class="kw">let </span>result = <span class="self">self
             </span>.script
-            .invoke(con, limit, scope.window.window_seconds, hashes, keys)<span class="question-mark">?</span>;
+            .invoke(con, limit, scope.redis_key_ttl(), hashes, keys)<span class="question-mark">?</span>;
 
         <span class="macro">metric!</span>(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
@@ -989,54 +993,6 @@
         </span>}
 
         <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="doccomment">/// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
-</span><span class="attr">#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-</span><span class="kw">pub struct </span>QuotaScoping {
-    <span class="kw">pub </span>window: SlidingWindow,
-    <span class="kw">pub </span>namespace: <span class="prelude-ty">Option</span>&lt;MetricNamespace&gt;,
-    <span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;OrganizationId&gt;,
-    <span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
-}
-
-<span class="kw">impl </span>QuotaScoping {
-    <span class="doccomment">/// Creates a new [`QuotaScoping`] from a [`Scoping`] and [`CardinalityLimit`].
-    ///
-    /// Returns `None` for limits with scope [`CardinalityScope::Unknown`].
-    </span><span class="kw">pub fn </span>new(scoping: Scoping, limit: <span class="kw-2">&amp;</span>CardinalityLimit) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>(organization_id, project_id) = <span class="kw">match </span>limit.scope {
-            CardinalityScope::Organization =&gt; (<span class="prelude-val">Some</span>(scoping.organization_id), <span class="prelude-val">None</span>),
-            <span class="comment">// Invalid/unknown scope -&gt; ignore the limit.
-            </span>CardinalityScope::Unknown =&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
-        };
-
-        <span class="prelude-val">Some</span>(<span class="self">Self </span>{
-            window: limit.window,
-            namespace: limit.namespace,
-            organization_id,
-            project_id,
-        })
-    }
-
-    <span class="doccomment">/// Wether the scoping applies to the passed entry.
-    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, entry: <span class="kw-2">&amp;</span>Entry) -&gt; bool {
-        <span class="self">self</span>.namespace.is_none() || <span class="self">self</span>.namespace == <span class="prelude-val">Some</span>(entry.namespace)
-    }
-
-    <span class="doccomment">/// Returns all slots of the sliding window for a specific timestamp.
-    </span><span class="kw">pub fn </span>slots(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp) -&gt; <span class="kw">impl </span>Iterator&lt;Item = Slot&gt; {
-        <span class="self">self</span>.window.iter(timestamp)
-    }
-
-    <span class="doccomment">/// Turns the scoping into a Redis key for the passed slot.
-    </span><span class="kw">fn </span>into_redis_key(<span class="self">self</span>, slot: Slot) -&gt; String {
-        <span class="kw">let </span>organization_id = <span class="self">self</span>.organization_id.unwrap_or(<span class="number">0</span>);
-        <span class="kw">let </span>project_id = <span class="self">self</span>.project_id.map(|p| p.value()).unwrap_or(<span class="number">0</span>);
-        <span class="kw">let </span>namespace = <span class="self">self</span>.namespace.map(|ns| ns.as_str()).unwrap_or(<span class="string">&quot;&quot;</span>);
-
-        <span class="macro">format!</span>(<span class="string">&quot;{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}&quot;</span>)
     }
 }
 
@@ -1139,9 +1095,9 @@
 </span><span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">struct </span>RedisEntry {
     <span class="doccomment">/// The correlating entry id.
-    </span>id: EntryId,
+    </span><span class="kw">pub </span>id: EntryId,
     <span class="doccomment">/// The entry hash.
-    </span>hash: u32,
+    </span><span class="kw">pub </span>hash: u32,
 }
 
 <span class="kw">impl </span>RedisEntry {
@@ -1181,6 +1137,7 @@
     <span class="kw">use </span>relay_redis::{redis, RedisConfigOptions};
 
     <span class="kw">use </span><span class="kw">crate</span>::limiter::EntryId;
+    <span class="kw">use </span><span class="kw">crate</span>::redis::{KEY_PREFIX, KEY_VERSION};
     <span class="kw">use crate</span>::{CardinalityScope, SlidingWindow};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -1334,6 +1291,77 @@
         </span>limit.limit = <span class="number">6</span>;
         <span class="kw">let </span>rejected3 = limiter.test_limits(scoping, <span class="kw-2">&amp;</span>[limit], entries);
         <span class="macro">assert_eq!</span>(rejected3.len(), <span class="number">0</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_limiter_org_based_time_shift() {
+        <span class="kw">let </span><span class="kw-2">mut </span>limiter = build_limiter();
+
+        <span class="kw">let </span>granularity_seconds = <span class="number">10_000</span>;
+
+        <span class="kw">let </span>scoping1 = Scoping {
+            organization_id: granularity_seconds,
+            project_id: ProjectId::new(<span class="number">1</span>),
+        };
+        <span class="kw">let </span>scoping2 = Scoping {
+            <span class="comment">// Time shift relative to `scoping1` should be half the granularity.
+            </span>organization_id: granularity_seconds / <span class="number">2</span>,
+            project_id: ProjectId::new(<span class="number">1</span>),
+        };
+
+        <span class="kw">let </span>limits = <span class="kw-2">&amp;</span>[CardinalityLimit {
+            id: <span class="string">&quot;limit&quot;</span>.to_owned(),
+            window: SlidingWindow {
+                window_seconds: granularity_seconds * <span class="number">3</span>,
+                granularity_seconds,
+            },
+            limit: <span class="number">1</span>,
+            scope: CardinalityScope::Organization,
+            namespace: <span class="prelude-val">Some</span>(MetricNamespace::Custom),
+        }];
+
+        <span class="kw">let </span>entries1 = [Entry::new(EntryId(<span class="number">0</span>), MetricNamespace::Custom, <span class="number">0</span>)];
+        <span class="macro">assert!</span>(limiter.test_limits(scoping1, limits, entries1).is_empty());
+        <span class="macro">assert!</span>(limiter.test_limits(scoping2, limits, entries1).is_empty());
+
+        <span class="comment">// Make sure `entries2` is not accepted.
+        </span><span class="kw">let </span>entries2 = [Entry::new(EntryId(<span class="number">1</span>), MetricNamespace::Custom, <span class="number">1</span>)];
+        <span class="macro">assert_eq!</span>(limiter.test_limits(scoping1, limits, entries2).len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(limiter.test_limits(scoping2, limits, entries2).len(), <span class="number">1</span>);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>scoping1_accept = <span class="prelude-val">None</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>scoping2_accept = <span class="prelude-val">None</span>;
+
+        <span class="comment">// Measure time required until `entries2` is accepted.
+        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">100 </span>{
+            <span class="kw">let </span>offset = i * granularity_seconds / <span class="number">10</span>;
+
+            limiter.time_offset = Duration::from_secs(offset);
+
+            <span class="kw">if </span>scoping1_accept.is_none()
+                &amp;&amp; limiter.test_limits(scoping1, limits, entries2).is_empty()
+            {
+                scoping1_accept = <span class="prelude-val">Some</span>(offset <span class="kw">as </span>i64);
+            }
+
+            <span class="kw">if </span>scoping2_accept.is_none()
+                &amp;&amp; limiter.test_limits(scoping2, limits, entries2).is_empty()
+            {
+                scoping2_accept = <span class="prelude-val">Some</span>(offset <span class="kw">as </span>i64);
+            }
+
+            <span class="kw">if </span>scoping1_accept.is_some() &amp;&amp; scoping2_accept.is_some() {
+                <span class="kw">break</span>;
+            }
+        }
+
+        <span class="kw">let </span>scoping1_accept = scoping1_accept.unwrap();
+        <span class="kw">let </span>scoping2_accept = scoping2_accept.unwrap();
+
+        <span class="kw">let </span>diff = (scoping1_accept - scoping2_accept).abs();
+        <span class="kw">let </span>expected = granularity_seconds <span class="kw">as </span>i64 / <span class="number">2</span>;
+        <span class="comment">// Make sure they are perfectly offset.
+        </span><span class="macro">assert_eq!</span>(diff, expected);
     }
 
     <span class="attr">#[test]

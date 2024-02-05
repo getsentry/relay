@@ -382,6 +382,9 @@
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
@@ -389,7 +392,7 @@
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_statsd::metric;
 
-<span class="kw">use </span><span class="kw">crate</span>::redis::QuotaScoping;
+<span class="kw">use </span><span class="kw">crate</span>::redis::quota::QuotaScoping;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
 <span class="kw">use </span><span class="kw">crate</span>::window::Slot;
 
@@ -441,7 +444,7 @@
 
         inner.vacuum(timestamp);
 
-        <span class="kw">let </span>slot = scope.window.active_slot(timestamp);
+        <span class="kw">let </span>slot = scope.active_slot(timestamp);
         <span class="kw">let </span>cache = inner.cache.entry(scope).or_default();
 
         <span class="comment">// If the slot is older, don&#39;t do anything and give up the lock early.
@@ -485,7 +488,7 @@
             <span class="kw">return </span>CacheOutcome::Unknown;
         };
 
-        <span class="kw">let </span>slot = scope.window.active_slot(<span class="self">self</span>.timestamp);
+        <span class="kw">let </span>slot = scope.active_slot(<span class="self">self</span>.timestamp);
         cache.check(slot, hash, limit)
     }
 }
@@ -534,7 +537,7 @@
 
         <span class="kw">let </span>expired = <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::CacheVacuum), {
             <span class="self">self</span>.cache
-                .drain_filter(|scope, cache| cache.current_slot &lt; scope.window.active_slot(ts))
+                .drain_filter(|scope, cache| cache.current_slot &lt; scope.active_slot(ts))
                 .count()
         });
         <span class="macro">metric!</span>(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired <span class="kw">as </span>i64);
@@ -582,25 +585,40 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::time::Duration;
 
-    <span class="kw">use </span><span class="kw">crate</span>::SlidingWindow;
+    <span class="kw">use </span>relay_base_schema::project::ProjectId;
+
+    <span class="kw">use crate</span>::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">fn </span>build_scoping(organization_id: OrganizationId, window: SlidingWindow) -&gt; QuotaScoping {
+        QuotaScoping::new(
+            Scoping {
+                organization_id,
+                project_id: ProjectId::new(<span class="number">1</span>),
+            },
+            <span class="kw-2">&amp;</span>CardinalityLimit {
+                id: String::new(),
+                window,
+                limit: <span class="number">100</span>,
+                scope: CardinalityScope::Organization,
+                namespace: <span class="prelude-val">None</span>,
+            },
+        )
+        .unwrap()
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cache() {
         <span class="kw">let </span>cache = Cache::new(Duration::from_secs(<span class="number">180</span>));
 
-        <span class="kw">let </span>scope = QuotaScoping {
-            window: SlidingWindow {
-                window_seconds: <span class="number">100</span>,
-                granularity_seconds: <span class="number">10</span>,
-            },
-            namespace: <span class="prelude-val">None</span>,
-            organization_id: <span class="prelude-val">None</span>,
-            project_id: <span class="prelude-val">None</span>,
+        <span class="kw">let </span>window = SlidingWindow {
+            window_seconds: <span class="number">100</span>,
+            granularity_seconds: <span class="number">10</span>,
         };
+        <span class="kw">let </span>scope = build_scoping(<span class="number">1</span>, window);
         <span class="kw">let </span>now = UnixTimestamp::now();
-        <span class="kw">let </span>future = now + Duration::from_secs(scope.window.granularity_seconds + <span class="number">1</span>);
+        <span class="kw">let </span>future = now + Duration::from_secs(window.granularity_seconds + <span class="number">1</span>);
 
         {
             <span class="kw">let </span>cache = cache.read(now);
@@ -654,19 +672,13 @@
     </span><span class="kw">fn </span>test_cache_different_scopings() {
         <span class="kw">let </span>cache = Cache::new(Duration::from_secs(<span class="number">180</span>));
 
-        <span class="kw">let </span>scope1 = QuotaScoping {
-            window: SlidingWindow {
-                window_seconds: <span class="number">100</span>,
-                granularity_seconds: <span class="number">10</span>,
-            },
-            namespace: <span class="prelude-val">None</span>,
-            organization_id: <span class="prelude-val">None</span>,
-            project_id: <span class="prelude-val">None</span>,
+        <span class="kw">let </span>window = SlidingWindow {
+            window_seconds: <span class="number">100</span>,
+            granularity_seconds: <span class="number">10</span>,
         };
-        <span class="kw">let </span>scope2 = QuotaScoping {
-            organization_id: <span class="prelude-val">Some</span>(<span class="number">100</span>),
-            ..scope1
-        };
+        <span class="kw">let </span>scope1 = build_scoping(<span class="number">1</span>, window);
+        <span class="kw">let </span>scope2 = build_scoping(<span class="number">2</span>, window);
+
         <span class="kw">let </span>now = UnixTimestamp::now();
 
         {
@@ -698,19 +710,13 @@
         <span class="kw">let </span>vacuum_interval = Duration::from_secs(<span class="number">30</span>);
         <span class="kw">let </span>cache = Cache::new(vacuum_interval);
 
-        <span class="kw">let </span>scope1 = QuotaScoping {
-            window: SlidingWindow {
-                window_seconds: vacuum_interval.as_secs() * <span class="number">10</span>,
-                granularity_seconds: vacuum_interval.as_secs() * <span class="number">2</span>,
-            },
-            namespace: <span class="prelude-val">None</span>,
-            organization_id: <span class="prelude-val">None</span>,
-            project_id: <span class="prelude-val">None</span>,
+        <span class="kw">let </span>window = SlidingWindow {
+            window_seconds: vacuum_interval.as_secs() * <span class="number">10</span>,
+            granularity_seconds: vacuum_interval.as_secs() * <span class="number">2</span>,
         };
-        <span class="kw">let </span>scope2 = QuotaScoping {
-            organization_id: <span class="prelude-val">Some</span>(<span class="number">100</span>),
-            ..scope1
-        };
+        <span class="kw">let </span>scope1 = build_scoping(<span class="number">1</span>, window);
+        <span class="kw">let </span>scope2 = build_scoping(<span class="number">2</span>, window);
+
         <span class="kw">let </span>now = UnixTimestamp::now();
         <span class="kw">let </span>in_interval = now + Duration::from_secs(vacuum_interval.as_secs() - <span class="number">1</span>);
         <span class="kw">let </span>future = now + Duration::from_secs(vacuum_interval.as_secs() * <span class="number">3</span>);
