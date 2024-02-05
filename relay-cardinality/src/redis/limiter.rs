@@ -90,16 +90,16 @@ impl RedisSetLimiter {
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<E, R>(
+    fn check_cardinality_limits<'a, E, R>(
         &self,
         scoping: Scoping,
-        limits: &[CardinalityLimit],
+        limits: &'a [CardinalityLimit],
         entries: E,
         rejections: &mut R,
     ) -> Result<()>
     where
         E: IntoIterator<Item = Entry>,
-        R: Rejections,
+        R: Rejections<'a>,
     {
         let timestamp = UnixTimestamp::now();
         // Allows to fast forward time in tests.
@@ -124,7 +124,7 @@ impl Limiter for RedisSetLimiter {
                     }
                     CacheOutcome::Rejected => {
                         // Rejected, add it to the rejected list and move on.
-                        rejections.reject(entry.id);
+                        rejections.reject(state.id, entry.id);
                         state.cache_hit();
                         state.rejected();
                     }
@@ -156,7 +156,7 @@ impl Limiter for RedisSetLimiter {
             let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
             for (entry, status) in results {
                 if status.is_rejected() {
-                    rejections.reject(entry.id);
+                    rejections.reject(state.id, entry.id);
                     state.rejected();
                 } else {
                     cache.accept(entry.hash);
@@ -346,8 +346,8 @@ mod tests {
     #[derive(Debug, Default, PartialEq, Eq)]
     struct Rejections(HashSet<EntryId>);
 
-    impl super::Rejections for Rejections {
-        fn reject(&mut self, entry_id: EntryId) {
+    impl<'a> super::Rejections<'a> for Rejections {
+        fn reject(&mut self, _limit_id: &'a str, entry_id: EntryId) {
             self.0.insert(entry_id);
         }
     }
