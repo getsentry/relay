@@ -100,7 +100,7 @@ pub struct StoreNormalizeProcessor {
     config: Arc<StoreConfig>,
 }
 
-impl<'a> StoreNormalizeProcessor {
+impl StoreNormalizeProcessor {
     /// Creates a new normalization processor.
     pub fn new(config: Arc<StoreConfig>) -> Self {
         StoreNormalizeProcessor { config }
@@ -355,7 +355,7 @@ pub struct PerformanceScoreConfig {
     pub profiles: Vec<PerformanceScoreProfile>,
 }
 
-impl<'a> Processor for StoreNormalizeProcessor {
+impl Processor for StoreNormalizeProcessor {
     fn process_event(
         &mut self,
         event: &mut Event,
