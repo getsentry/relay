@@ -530,7 +530,7 @@ impl ProjectCacheBroker {
     ///
     /// All the found envelopes will be send back through the `buffer_tx` channel and directly
     /// forwarded to `handle_processing`.
-    pub fn dequeue(&mut self, keys: HashSet<QueueKey>) {
+    pub fn dequeue(&self, keys: HashSet<QueueKey>) {
         self.buffer
             .send(DequeueMany::new(keys, self.buffer_tx.clone()))
     }
@@ -868,6 +868,8 @@ impl ProjectCacheBroker {
     /// Returns `true` if the project state valid for the [`QueueKey`].
     ///
     /// Which includes the own key and the samplig key for the project.
+    /// Note: this function will trigger [`ProjectState`] refresh if it's already expired or not
+    /// valid.
     fn is_state_valid(&mut self, key: &QueueKey) -> bool {
         let QueueKey {
             own_key,
@@ -875,7 +877,7 @@ impl ProjectCacheBroker {
         } = key;
 
         let is_own_state_valid = self.projects.get_mut(own_key).map_or(false, |project| {
-            // Returns `Some` if the project is cache otherwise None and also triggers refresh
+            // Returns `Some` if the project is cached otherwise None and also triggers refresh
             // in background.
             project
                 .get_cached_state(self.services.project_cache.clone(), false)
@@ -887,7 +889,7 @@ impl ProjectCacheBroker {
             self.projects
                 .get_mut(sampling_key)
                 .map_or(false, |project| {
-                    // Returns `Some` if the project is cache otherwise None and also triggers refresh
+                    // Returns `Some` if the project is cached otherwise None and also triggers refresh
                     // in background.
                     project
                         .get_cached_state(self.services.project_cache.clone(), false)
@@ -917,7 +919,7 @@ impl ProjectCacheBroker {
         }
         // If there is nothing spooled, schedule the next check a little bit later.
         // And do *not* attempt to unspool if the assigned permits over low watermark.
-        if self.index.is_empty() && !self.buffer_guard.is_below_low_watermark() {
+        if self.index.is_empty() || !self.buffer_guard.is_below_low_watermark() {
             self.schedule_unspool();
             return;
         }
