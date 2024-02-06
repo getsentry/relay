@@ -370,7 +370,7 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
 }
 
 fn normalize_user(user: &mut Annotated<User>) {
-    let Annotated(Some(user), _meta) = user else {
+    let Annotated(Some(user), _) = user else {
         return;
     };
     if !user.other.is_empty() {
