@@ -1,6 +1,5 @@
 //! Replay related processor code.
 
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::net::IpAddr;
 
@@ -16,7 +15,7 @@ use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 
-use crate::envelope::{ContentType, Item, ItemType};
+use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::statsd::RelayTimers;
@@ -114,8 +113,6 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         _ => ItemAction::Keep,
     });
 
-    process_replays_combine_items(state)?;
-
     Ok(())
 }
 
@@ -153,169 +150,4 @@ fn process_replay_event(
     }
 
     Ok(replay)
-}
-
-fn process_replays_combine_items(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-    let project_state = &state.project_state;
-    let combined_envelope_items =
-        project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
-
-    if combined_envelope_items {
-        // If this flag is enabled, combine both items into a single item,
-        // and remove the original items.
-        // The combined Item's payload is a MsgPack map with the keys
-        // "replay_event" and "replay_recording".
-        // The values are the original payloads of the items.
-        let envelope = &mut state.envelope_mut();
-        if let Some(replay_event_item) =
-            envelope.take_item_by(|item| item.ty() == &ItemType::ReplayEvent)
-        {
-            if let Some(replay_recording_item) =
-                envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
-            {
-                let mut data = Vec::new();
-                let mut combined_item_payload = BTreeMap::new();
-
-                combined_item_payload.insert("replay_event", replay_event_item.payload().to_vec());
-                combined_item_payload
-                    .insert("replay_recording", replay_recording_item.payload().to_vec());
-
-                if let Err(e) = rmp_serde::encode::write(&mut data, &combined_item_payload) {
-                    relay_log::error!(
-                        "failed to serialize combined replay event and recording: {}",
-                        e
-                    );
-                    // TODO: what to do here? Drop + emit outcome?
-                }
-
-                let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
-
-                combined_item.set_payload(ContentType::MsgPack, data);
-                envelope.add_item(combined_item);
-            } else {
-                envelope.add_item(replay_event_item)
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::envelope::{ContentType, Envelope, Item, ItemType};
-    use crate::extractors::RequestMeta;
-    use crate::services::processor::ProcessEnvelope;
-    use crate::services::processor::ProcessingGroup;
-    use crate::services::project::ProjectState;
-    use crate::testutils::create_test_processor;
-    use crate::utils::ManagedEnvelope;
-    use relay_dynamic_config::Feature;
-    use relay_event_schema::protocol::EventId;
-    use relay_sampling::evaluation::ReservoirCounters;
-    use relay_system::Addr;
-    use std::sync::Arc;
-
-    #[tokio::test]
-    async fn test_replays_combined_payload() {
-        let processor = create_test_processor(Default::default());
-        let event_id = EventId::new();
-
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::ReplayRecording);
-            item.set_payload(ContentType::OctetStream, r###"{"foo": "bar"}"###);
-            item
-        });
-
-        envelope.add_item({
-            let mut item = Item::new(ItemType::ReplayEvent);
-            item.set_payload(ContentType::Json, r#"{
-                "type": "replay_event",
-                "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-                "replay_type": "session",
-                "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-                "segment_id": 0,
-                "timestamp": 1597977777.6189718,
-                "replay_start_timestamp": 1597976392.6542819,
-                "urls": ["sentry.io"],
-                "dist": "1.12",
-                "platform": "javascript",
-                "environment": "production",
-                "release": 42,
-                "tags": {
-                    "transaction": "/organizations/:orgId/performance/:eventSlug/"
-                },
-                "sdk": {
-                    "name": "name",
-                    "version": "veresion"
-                },
-                "user": {
-                    "id": "123",
-                    "username": "user",
-                    "email": "user@site.com",
-                    "ip_address": "192.168.11.12"
-                },
-                "request": {
-                    "url": null,
-                    "headers": {
-                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
-                    }
-                },
-                "contexts": {
-                    "trace": {
-                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                        "span_id": "FA90FDEAD5F74052",
-                        "type": "trace"
-                    },
-                    "replay": {
-                        "error_sample_rate": 0.125,
-                        "session_sample_rate": 0.5
-                    }
-                }
-            }"#);
-            item
-        });
-
-        let mut project_state = ProjectState::allowed();
-        project_state
-            .config
-            .features
-            .0
-            .insert(Feature::SessionReplay);
-        project_state
-            .config
-            .features
-            .0
-            .insert(Feature::SessionReplayCombinedEnvelopeItems);
-
-        let message = ProcessEnvelope {
-            envelope: ManagedEnvelope::standalone(
-                envelope,
-                Addr::dummy(),
-                Addr::dummy(),
-                ProcessingGroup::Replay,
-            ),
-            project_state: Arc::new(project_state),
-            sampling_project_state: None,
-            reservoir_counters: ReservoirCounters::default(),
-        };
-
-        let envelope_response = processor.process(message).unwrap();
-        let ctx = envelope_response.envelope.unwrap();
-        let new_envelope = ctx.envelope();
-
-        assert_eq!(new_envelope.len(), 1);
-
-        assert_eq!(
-            new_envelope.items().next().unwrap().ty(),
-            &ItemType::CombinedReplayEventAndRecording
-        );
-    }
 }

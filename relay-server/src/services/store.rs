@@ -194,6 +194,9 @@ impl StoreService {
         };
 
         let mut attachments = Vec::new();
+        let mut replay_items: Vec<&Item> = Vec::new();
+
+        // if self.config
 
         for item in envelope.items() {
             match item.ty() {
@@ -244,24 +247,20 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::ReplayRecording => {
-                    self.produce_replay_recording(event_id, scoping, item, start_time, retention)?
+                    self.produce_replay_recording(event_id, scoping, item, start_time, retention)?;
+                    replay_items.push(item);
                 }
-                ItemType::ReplayEvent => self.produce_replay_event(
-                    event_id.ok_or(StoreError::NoEventId)?,
-                    scoping.organization_id,
-                    scoping.project_id,
-                    start_time,
-                    retention,
-                    item,
-                )?,
-                ItemType::CombinedReplayEventAndRecording => self
-                    .produce_combined_replay_event_and_recording(
+                ItemType::ReplayEvent => {
+                    self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        scoping,
-                        retention,
+                        scoping.organization_id,
+                        scoping.project_id,
                         start_time,
+                        retention,
                         item,
-                    )?,
+                    )?;
+                    replay_items.push(item);
+                }
                 ItemType::CheckIn => self.produce_check_in(
                     scoping.organization_id,
                     scoping.project_id,
@@ -274,6 +273,28 @@ impl StoreService {
                     self.produce_span(scoping, start_time, event_id, retention, item)?
                 }
                 _ => {}
+            }
+        }
+
+        println!("replay_items: {:?}", replay_items.len());
+        if replay_items.len() == 2 {
+            let combined_replay_kafka_message = Self::extract_combined_replay_kafka_message(
+                event_id.ok_or(StoreError::NoEventId)?,
+                replay_items,
+                scoping,
+                start_time,
+                retention,
+            );
+            if let Some(combined_replay_kafka_message) = combined_replay_kafka_message {
+                self.produce(
+                    KafkaTopic::ReplayRecordings,
+                    scoping.organization_id,
+                    combined_replay_kafka_message,
+                )?;
+                metric!(
+                    counter(RelayCounters::ProcessingMessageProduced) += 1,
+                    event_type = "replay_recording_combined"
+                );
             }
         }
 
@@ -405,6 +426,42 @@ impl StoreService {
         });
 
         attachment_iterator.chain(event_iterator)
+    }
+
+    fn extract_combined_replay_kafka_message(
+        event_id: EventId,
+        replay_items: Vec<&Item>,
+        scoping: Scoping,
+        start_time: Instant,
+        retention: u16,
+    ) -> Option<KafkaMessage> {
+        let mut replay_event_item = None;
+        let mut replay_recording_item = None;
+
+        for item in replay_items {
+            match item.ty() {
+                ItemType::ReplayEvent => replay_event_item = Some(item),
+                ItemType::ReplayRecording => replay_recording_item = Some(item),
+                _ => {}
+            }
+        }
+
+        match (replay_event_item, replay_recording_item) {
+            (Some(replay_event_item), Some(replay_recording_item)) => Some(
+                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
+                    replay_id: event_id,
+                    project_id: scoping.project_id,
+                    org_id: scoping.organization_id,
+                    key_id: scoping.key_id,
+                    retention_days: retention,
+                    received: UnixTimestamp::from_instant(start_time).as_secs(),
+                    version: Some(1),
+                    payload: replay_recording_item.payload(),
+                    replay_event: Some(replay_event_item.payload()),
+                }),
+            ),
+            _ => None,
+        }
     }
 
     fn produce(
@@ -802,6 +859,7 @@ impl StoreService {
                     retention_days: retention,
                     payload: item.payload(),
                     version: None,
+                    replay_event: None,
                 });
 
             self.produce(
@@ -821,38 +879,6 @@ impl StoreService {
         Ok(())
     }
 
-    fn produce_combined_replay_event_and_recording(
-        &self,
-        replay_id: EventId,
-        scoping: Scoping,
-        retention_days: u16,
-        start_time: Instant,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        let message =
-            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                replay_id,
-                project_id: scoping.project_id,
-                org_id: scoping.organization_id,
-                key_id: scoping.key_id,
-                retention_days,
-                received: UnixTimestamp::from_instant(start_time).as_secs(),
-                version: Some(1),
-                payload: item.payload(),
-            });
-
-        self.produce(
-            KafkaTopic::ReplayRecordings,
-            scoping.organization_id,
-            message,
-        )?;
-
-        metric!(
-            counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "replay_recording_not_chunked"
-        );
-        Ok(())
-    }
     fn produce_check_in(
         &self,
         organization_id: u64,
@@ -1036,6 +1062,49 @@ where
         .serialize(serializer)
 }
 
+// pub fn process_replays_combine_items(
+//     items: &mut Vec<Item>,
+// ) -> Result<(), ProcessingError> {
+
+//     // combine both items into a single item,
+//     // and remove the original items.
+//     // The combined Item's payload is a MsgPack map with the keys
+//     // "replay_event" and "replay_recording".
+//     // The values are the original payloads of the items.
+//     let envelope = &mut state.envelope_mut();
+//     if let Some(replay_event_item) =
+//         envelope.take_item_by(|item| item.ty() == &ItemType::ReplayEvent)
+//     {
+//         if let Some(replay_recording_item) =
+//             envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
+//         {
+//             let mut data = Vec::new();
+//             let mut combined_item_payload = BTreeMap::new();
+
+//             combined_item_payload.insert("replay_event", replay_event_item.payload().to_vec());
+//             combined_item_payload
+//                 .insert("replay_recording", replay_recording_item.payload().to_vec());
+
+//             if let Err(e) = rmp_serde::encode::write(&mut data, &combined_item_payload) {
+//                 relay_log::error!(
+//                     "failed to serialize combined replay event and recording: {}",
+//                     e
+//                 );
+//                 // TODO: what to do here? Drop + emit outcome?
+//             }
+
+//             let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
+
+//             combined_item.set_payload(ContentType::MsgPack, data);
+//             envelope.add_item(combined_item);
+//         } else {
+//             envelope.add_item(replay_event_item)
+//         }
+//     }
+
+//     Ok(())
+// }
+
 /// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
@@ -1172,6 +1241,7 @@ struct ReplayRecordingNotChunkedKafkaMessage {
     retention_days: u16,
     version: Option<u8>,
     payload: Bytes,
+    replay_event: Option<Bytes>,
 }
 
 /// User report for an event wrapped up in a message ready for consumption in Kafka.

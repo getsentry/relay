@@ -113,8 +113,6 @@ pub enum ItemType {
     ReplayEvent,
     /// Replay Recording data.
     ReplayRecording,
-    /// Combined Replay metadata and Recording Payload
-    CombinedReplayEventAndRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
     /// A standalone span.
@@ -168,9 +166,6 @@ impl fmt::Display for ItemType {
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
-            Self::CombinedReplayEventAndRecording => {
-                write!(f, "combined_replay_event_and_recording")
-            }
             Self::CheckIn => write!(f, "check_in"),
             Self::Span => write!(f, "span"),
             Self::OtelSpan => write!(f, "otel_span"),
@@ -636,10 +631,7 @@ impl Item {
             } else {
                 DataCategory::Profile
             }),
-            ItemType::ReplayEvent
-            | ItemType::ReplayRecording
-            | ItemType::CombinedReplayEventAndRecording => Some(DataCategory::Replay),
-
+            ItemType::ReplayEvent | ItemType::ReplayRecording => Some(DataCategory::Replay),
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Span | ItemType::OtelSpan => Some(if indexed {
@@ -840,7 +832,6 @@ impl Item {
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
-            | ItemType::CombinedReplayEventAndRecording
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
@@ -875,7 +866,6 @@ impl Item {
             ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
-            ItemType::CombinedReplayEventAndRecording => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
             ItemType::Span => false,

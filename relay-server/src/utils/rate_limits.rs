@@ -108,7 +108,6 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Profile => None,
         ItemType::ReplayEvent => None,
         ItemType::ReplayRecording => None,
-        ItemType::CombinedReplayEventAndRecording => None,
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
         ItemType::Span => None,
