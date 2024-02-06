@@ -824,6 +824,10 @@
 <a href="#824" id="824">824</a>
 <a href="#825" id="825">825</a>
 <a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -1146,7 +1150,11 @@
         <span class="kw">let </span>url = std::env::var(<span class="string">&quot;RELAY_REDIS_URL&quot;</span>)
             .unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.to_owned());
 
-        <span class="kw">let </span>redis = RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap();
+        <span class="kw">let </span>opts = RedisConfigOptions {
+            max_connections: <span class="number">1</span>,
+            ..Default::default()
+        };
+        <span class="kw">let </span>redis = RedisPool::single(<span class="kw-2">&amp;</span>url, opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {
