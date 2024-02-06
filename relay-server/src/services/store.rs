@@ -935,7 +935,7 @@ impl StoreService {
                             segment_id: span.segment_id.unwrap_or_default(),
                             span_id: span.span_id,
                             sum: summary.sum,
-                            tags: summary.tags.clone(),
+                            tags: summary.tags,
                             trace_id: span.trace_id,
                         }),
                     ) {
@@ -1257,7 +1257,7 @@ struct SpanMeasurement {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct SpanMetricsSummary {
+struct SpanMetricsSummary<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     count: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1266,11 +1266,11 @@ struct SpanMetricsSummary {
     min: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sum: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tags: Option<BTreeMap<String, String>>,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    tags: Option<&'a RawValue>,
 }
 
-type SpanMetricsSummaries = Vec<Option<SpanMetricsSummary>>;
+type SpanMetricsSummaries<'a> = Vec<Option<SpanMetricsSummary<'a>>>;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SpanKafkaMessage<'a> {
@@ -1298,7 +1298,7 @@ struct SpanKafkaMessage<'a> {
         rename = "_metrics_summary",
         skip_serializing_if = "Option::is_none"
     )]
-    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries>>>,
+    metrics_summary: Option<BTreeMap<Cow<'a, str>, Option<SpanMetricsSummaries<'a>>>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_span_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1345,7 +1345,7 @@ struct MetricsSummaryKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sum: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    tags: Option<BTreeMap<String, String>>,
+    tags: Option<&'a RawValue>,
 }
 
 /// An enum over all possible ingest messages.
