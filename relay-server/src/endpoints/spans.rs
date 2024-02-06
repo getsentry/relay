@@ -25,29 +25,34 @@ where
     B::Data: Send + Into<Bytes>,
     B::Error: Into<axum::BoxError>,
 {
-    let trace = if content_type.as_ref().starts_with("application/json") {
+    let mut trace = None;
+    if content_type.as_ref().starts_with("application/json") {
         let json: Json<TracesData> = request.extract().await?;
-        json.0
-    } else {
+        trace = Some(json.0)
+    } else if content_type.as_ref().starts_with("application/x-protobuf") {
         let protobuf: Protobuf<TracesData> = request.extract().await?;
-        protobuf.0
-    };
+        trace = Some(protobuf.0)
+    }
 
-    let mut envelope = Envelope::from_request(None, meta);
-    for resource_span in trace.resource_spans {
-        for scope_span in resource_span.scope_spans {
-            for span in scope_span.spans {
-                let Ok(payload) = serde_json::to_vec(&span) else {
-                    continue;
-                };
-                let mut item = Item::new(ItemType::OtelSpan);
-                item.set_payload(ContentType::Json, payload);
-                envelope.add_item(item);
+    if let Some(trace) = trace {
+        let mut envelope = Envelope::from_request(None, meta);
+        for resource_span in trace.resource_spans {
+            for scope_span in resource_span.scope_spans {
+                for span in scope_span.spans {
+                    let Ok(payload) = serde_json::to_vec(&span) else {
+                        continue;
+                    };
+                    let mut item = Item::new(ItemType::OtelSpan);
+                    item.set_payload(ContentType::Json, payload);
+                    envelope.add_item(item);
+                }
             }
         }
+        common::handle_envelope(&state, envelope).await?;
+        Ok(StatusCode::ACCEPTED)
+    } else {
+        Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE)
     }
-    common::handle_envelope(&state, envelope).await?;
-    Ok(StatusCode::ACCEPTED)
 }
 
 pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
