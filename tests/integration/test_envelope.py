@@ -367,15 +367,11 @@ def test_ops_breakdowns(mini_sentry, relay_with_processing, transactions_consume
     }
 
 
-def test_span_attributes_exclusive_time(
-    mini_sentry, relay_with_processing, transactions_consumer
-):
+def test_span_exclusive_time(mini_sentry, relay_with_processing, transactions_consumer):
     events_consumer = transactions_consumer()
 
     relay = relay_with_processing()
-    config = mini_sentry.add_basic_project_config(42)
-
-    config["config"].setdefault("spanAttributes", ["exclusive-time"])
+    mini_sentry.add_basic_project_config(42)
 
     transaction_item = generate_transaction_item()
     transaction_item.update(
