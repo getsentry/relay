@@ -1088,6 +1088,12 @@ mod tests {
                     "version": "16.2"
                 }
             },
+            "measurements": {
+                "app_start_warm": {
+                    "value": 1.0,
+                    "unit": "millisecond"
+                }
+            },
             "spans": [
                 {
                     "op": "app.start.cold",
@@ -1141,7 +1147,10 @@ mod tests {
                     "span_id": "bd429c44b67a3eb2",
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976303.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "app_start_type": "cold"
+                    }
                 }
             ]
         }
@@ -1420,6 +1429,42 @@ mod tests {
             }
             assert_eq!(metric.tag("ttid"), Some("ttid"));
             assert_eq!(metric.tag("ttfd"), Some("ttfd"));
+        }
+    }
+
+    #[test]
+    fn test_extract_span_metrics_performance_score() {
+        let json = r#"
+            {
+                "op": "ui.interaction.click",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "exclusive_time": 2000.0,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "sentry_tags": {
+                    "browser.name": "Chrome",
+                    "op": "ui.interaction.click"
+                },
+                "measurements": {
+                    "score.total": {"value": 1.0},
+                    "score.inp": {"value": 1.0},
+                    "score.weight.inp": {"value": 1.0},
+                    "inp": {"value": 1.0}
+                }
+            }
+        "#;
+        let span = Annotated::from_json(json).unwrap();
+        let metrics = extract_span_metrics(span.value().unwrap());
+
+        for mri in [
+            "d:spans/webvital.inp@millisecond",
+            "d:spans/webvital.score.inp@ratio",
+            "d:spans/webvital.score.total@ratio",
+            "d:spans/webvital.score.weight.inp@ratio",
+        ] {
+            assert!(metrics.iter().any(|b| b.name == mri));
         }
     }
 }

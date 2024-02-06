@@ -1564,7 +1564,8 @@ def test_span_ingestion(
         },
     )
 
-    spans = list(spans_consumer.get_spans())
+    spans = list(spans_consumer.get_spans(timeout=10.0))
+
     for span in spans:
         span.pop("received", None)
 
@@ -1580,7 +1581,11 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "a342abb1214ca181",
-            "sentry_tags": {"category": "db", "op": "db.query"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "category": "db",
+                "op": "db.query",
+            },
             "span_id": "a342abb1214ca181",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "89143b0763095bd9c9955e8175d1fb23",
@@ -1594,6 +1599,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "segment_id": "bd429c44b67a3eb1",
             "sentry_tags": {
+                "browser.name": "Python Requests",
                 "category": "resource",
                 "description": "https://example.com/*/blah.js",
                 "domain": "example.com",
@@ -1613,7 +1619,7 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "cd429c44b67a3eb1",
-            "sentry_tags": {"op": "default"},
+            "sentry_tags": {"browser.name": "Python Requests", "op": "default"},
             "span_id": "cd429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
@@ -1627,7 +1633,10 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "d342abb1214ca182",
-            "sentry_tags": {"op": "default"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "default",
+            },
             "span_id": "d342abb1214ca182",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "89143b0763095bd9c9955e8175d1fb24",
@@ -1639,7 +1648,10 @@ def test_span_ingestion(
             "project_id": 42,
             "retention_days": 90,
             "segment_id": "ed429c44b67a3eb1",
-            "sentry_tags": {"op": "default"},
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "default",
+            },
             "span_id": "ed429c44b67a3eb1",
             "start_timestamp_ms": int(start.timestamp() * 1e3),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
@@ -1944,9 +1956,121 @@ def test_span_reject_invalid_timestamps(
             ),
         )
     )
-
     relay.send_envelope(project_id, envelope)
 
-    spans = list(spans_consumer.get_spans())
+    spans = list(spans_consumer.get_spans(timeout=10.0))
+
     assert len(spans) == 1
     assert spans[0]["description"] == "span with valid timestamps"
+
+
+def test_span_ingestion_with_performance_scores(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["performanceScore"] = {
+        "profiles": [
+            {
+                "name": "Desktop",
+                "scoreComponents": [
+                    {"measurement": "fcp", "weight": 0.15, "p10": 900, "p50": 1600},
+                    {"measurement": "lcp", "weight": 0.30, "p10": 1200, "p50": 2400},
+                    {"measurement": "fid", "weight": 0.30, "p10": 100, "p50": 300},
+                    {"measurement": "cls", "weight": 0.25, "p10": 0.1, "p50": 0.25},
+                    {"measurement": "ttfb", "weight": 0.0, "p10": 0.2, "p50": 0.4},
+                ],
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.browser.name",
+                    "value": "Python Requests",
+                },
+            },
+        ],
+    }
+    project_config["config"]["features"] = [
+        "organizations:performance-calculate-score-relay",
+        "organizations:standalone-span-ingestion",
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
+
+    duration = timedelta(milliseconds=500)
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - duration
+
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            type="span",
+            payload=PayloadRef(
+                bytes=json.dumps(
+                    {
+                        "op": "ui.interaction.click",
+                        "span_id": "bd429c44b67a3eb1",
+                        "segment_id": "968cff94913ebb07",
+                        "start_timestamp": start.timestamp(),
+                        "timestamp": end.timestamp() + 1,
+                        "exclusive_time": 345.0,  # The SDK knows that this span has a lower exclusive time
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "measurements": {
+                            "cls": {"value": 100},
+                            "fcp": {"value": 200},
+                            "fid": {"value": 300},
+                            "lcp": {"value": 400},
+                            "ttfb": {"value": 500},
+                        },
+                    },
+                ).encode()
+            ),
+        )
+    )
+    relay.send_envelope(project_id, envelope)
+
+    spans = list(spans_consumer.get_spans(timeout=10.0))
+
+    for span in spans:
+        span.pop("received", None)
+
+    spans.sort(key=lambda msg: msg["span_id"])  # endpoint might overtake envelope
+
+    assert spans == [
+        {
+            "duration_ms": 1500,
+            "exclusive_time_ms": 345.0,
+            "is_segment": True,
+            "project_id": 42,
+            "retention_days": 90,
+            "segment_id": "bd429c44b67a3eb1",
+            "sentry_tags": {
+                "browser.name": "Python Requests",
+                "op": "ui.interaction.click",
+            },
+            "span_id": "bd429c44b67a3eb1",
+            "start_timestamp_ms": int(start.timestamp() * 1e3),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "measurements": {
+                "score.fcp": {"value": 0.14999972769539766},
+                "score.fid": {"value": 0.14999999985},
+                "score.lcp": {"value": 0.29986141375718806},
+                "score.total": {"value": 0.5998611413025857},
+                "score.ttfb": {"value": 0.0},
+                "score.weight.cls": {"value": 0.25},
+                "score.weight.fcp": {"value": 0.15},
+                "score.weight.fid": {"value": 0.3},
+                "score.weight.lcp": {"value": 0.3},
+                "score.weight.ttfb": {"value": 0.0},
+                "cls": {"value": 100.0},
+                "fcp": {"value": 200.0},
+                "fid": {"value": 300.0},
+                "lcp": {"value": 400.0},
+                "ttfb": {"value": 500.0},
+                "score.cls": {"value": 0.0},
+            },
+        },
+    ]

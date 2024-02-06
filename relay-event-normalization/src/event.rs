@@ -139,7 +139,16 @@ pub fn normalize_event(event: &mut Annotated<Event>, config: &NormalizationConfi
     let _ = legacy::LegacyProcessor.process_event(event, meta, ProcessingState::root());
 
     if !is_renormalize {
+        // Check for required and non-empty values
+        let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
+
         normalize(event, meta, config);
+    }
+
+    if config.enable_trimming {
+        // Trim large strings and databags down
+        let _ =
+            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 }
 
@@ -152,9 +161,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     let mut transactions_processor =
         transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
-
-    // Check for required and non-empty values
-    let _ = schema::SchemaProcessor.process_event(event, meta, ProcessingState::root());
 
     // Process security reports first to ensure all props.
     normalize_security_report(event, config.client_ip, &config.user_agent);
@@ -235,12 +241,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
                 max_tag_value_size: config.max_tag_value_length,
             },
         );
-    }
-
-    if config.enable_trimming {
-        // Trim large strings and databags down
-        let _ =
-            trimming::TrimmingProcessor::new().process_event(event, meta, ProcessingState::root());
     }
 }
 
@@ -617,11 +617,11 @@ pub fn normalize_measurements(
     }
 }
 
-/// Computes performance score measurements.
+/// Computes performance score measurements for an event.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
-fn normalize_performance_score(
+pub fn normalize_performance_score(
     event: &mut Event,
     performance_score: Option<&PerformanceScoreConfig>,
 ) {
@@ -645,8 +645,8 @@ fn normalize_performance_score(
                     // a measurement with weight is missing.
                     break;
                 }
-                let mut score_total = 0.0;
-                let mut weight_total = 0.0;
+                let mut score_total = 0.0f64;
+                let mut weight_total = 0.0f64;
                 for component in &profile.score_components {
                     // Skip optional components if they are not present on the event.
                     if component.optional
