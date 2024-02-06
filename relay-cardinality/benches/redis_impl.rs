@@ -36,8 +36,8 @@ fn build_limiter(redis: RedisPool, reset_redis: bool) -> RedisSetLimiter {
 
 struct NoopRejections;
 
-impl Rejections for NoopRejections {
-    fn reject(&mut self, _entry_id: EntryId) {}
+impl<'a> Rejections<'a> for NoopRejections {
+    fn reject(&mut self, _limit_id: &'a str, _entry_id: EntryId) {}
 }
 
 #[derive(Debug)]

@@ -38,11 +38,6 @@ impl GlobalConfig {
             Ok(None)
         }
     }
-
-    /// Returns the [`Options::cardinality_limiter_mode`] option.
-    pub fn cardinality_limiter_mode(&self) -> CardinalityLimiterMode {
-        self.options.cardinality_limiter_mode
-    }
 }
 
 /// All options passed down from Sentry to Relay.
@@ -78,6 +73,16 @@ pub struct Options {
         skip_serializing_if = "is_default"
     )]
     pub cardinality_limiter_mode: CardinalityLimiterMode,
+
+    /// Sample rate for Cardinality Limiter Sentry errors.
+    ///
+    /// Rate needs to be between `0.0` and `1.0`.
+    /// If set to `1.0` all cardinality limiter rejections will be logged as a Sentry error.
+    #[serde(
+        rename = "relay.cardinality-limiter.error-sample-rate",
+        skip_serializing_if = "is_default"
+    )]
+    pub cardinality_limiter_error_sample_rate: f32,
 
     /// Kill switch for disabling the span usage metric.
     ///

@@ -9,8 +9,8 @@ use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
+    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
+    MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
     VALID_PLATFORMS,
 };
 use relay_protocol::{
@@ -22,13 +22,12 @@ use serde::{Deserialize, Serialize};
 use crate::{GeoIpLookup, StoreConfig};
 
 pub mod breakdowns;
+pub mod contexts;
 pub mod nel;
 pub mod request;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
-
-mod contexts;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
@@ -555,29 +554,6 @@ impl<'a> Processor for StoreNormalizeProcessor<'a> {
         crate::stacktrace::process_stacktrace(&mut stacktrace.0, meta);
         Ok(())
     }
-
-    fn process_context(
-        &mut self,
-        context: &mut Context,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        contexts::normalize_context(context);
-        Ok(())
-    }
-
-    fn process_contexts(
-        &mut self,
-        contexts: &mut Contexts,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
-        // construct.
-        // This processor does not run on renormalization anyway.
-        contexts.0.remove("reprocessing");
-        Ok(())
-    }
 }
 
 /// If the logger is longer than [`MaxChars::Logger`], it returns a String with
@@ -689,9 +665,9 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry, MetricSummary,
-        MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry, Tags, TraceId,
-        Values,
+        Context, ContextInner, Contexts, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry,
+        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry,
+        Tags, TraceId, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,

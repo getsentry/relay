@@ -3500,6 +3500,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3722,6 +3723,7 @@ dependencies = [
  "chrono",
  "console",
  "once_cell",
+ "relay-common",
  "relay-crash",
  "sentry",
  "sentry-core",
