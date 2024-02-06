@@ -19,3 +19,4 @@ relay-protocol = { path = "../relay-protocol" }
 serde.workspace = true
 serde_json.workspace = true
 serde_repr = "0.1.16"
+hex = "0.4.3"

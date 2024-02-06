@@ -63,10 +63,9 @@ impl OtelSpanExt for OtelSpan {
             ..
         } = self;
 
-        // TODO-neel-protobuf error handling
-        let span_id = String::from_utf8(span_id).unwrap();
-        let trace_id = String::from_utf8(trace_id).unwrap();
-        let parent_span_id = String::from_utf8(parent_span_id).unwrap();
+        let span_id = hex::encode(span_id);
+        let trace_id = hex::encode(trace_id);
+        let parent_span_id = hex::encode(parent_span_id);
 
         let segment_id = if parent_span_id.is_empty() {
             Annotated::new(SpanId(span_id.clone()))
@@ -245,7 +244,8 @@ mod tests {
             "events": [],
             "droppedEventsCount": 0,
             "status": {
-                "code": 0
+                "code": 0,
+                "message": "test"
             },
             "links": [],
             "droppedLinksCount": 0
@@ -300,6 +300,7 @@ mod tests {
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
     }
 
+    #[ignore = "not supported with the new otel structs"]
     #[test]
     fn parse_span_with_timestamps_as_strings() {
         let json = r#"{

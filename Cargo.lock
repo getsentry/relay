@@ -4112,6 +4112,7 @@ version = "24.1.2"
 dependencies = [
  "chrono",
  "enumset",
+ "hex",
  "once_cell",
  "opentelemetry-proto",
  "relay-event-schema",
