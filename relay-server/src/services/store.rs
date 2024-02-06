@@ -906,8 +906,8 @@ impl StoreService {
             let group = span
                 .sentry_tags
                 .as_ref()
-                .and_then(|sentry_tags| sentry_tags.get("group"))
-                .unwrap_or(&"");
+                .and_then(|sentry_tags| sentry_tags.get("group").cloned())
+                .unwrap_or_default();
 
             for (mri, summaries) in metrics_summary {
                 let Some(summaries) = summaries else {
@@ -925,7 +925,7 @@ impl StoreService {
                             count: summary.count.unwrap_or_default(),
                             duration_ms: span.duration_ms,
                             end_timestamp: span.end_timestamp,
-                            group,
+                            group: &group,
                             is_segment: span.is_segment,
                             max: summary.max.unwrap_or_default(),
                             mri,
@@ -1314,7 +1314,7 @@ struct SpanKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<&'a str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    sentry_tags: Option<BTreeMap<&'a str, &'a str>>,
+    sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
     #[serde(default)]
     start_timestamp_ms: u64,
