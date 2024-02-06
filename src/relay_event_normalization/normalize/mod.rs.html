@@ -2479,30 +2479,6 @@
 <a href="#2479" id="2479">2479</a>
 <a href="#2480" id="2480">2480</a>
 <a href="#2481" id="2481">2481</a>
-<a href="#2482" id="2482">2482</a>
-<a href="#2483" id="2483">2483</a>
-<a href="#2484" id="2484">2484</a>
-<a href="#2485" id="2485">2485</a>
-<a href="#2486" id="2486">2486</a>
-<a href="#2487" id="2487">2487</a>
-<a href="#2488" id="2488">2488</a>
-<a href="#2489" id="2489">2489</a>
-<a href="#2490" id="2490">2490</a>
-<a href="#2491" id="2491">2491</a>
-<a href="#2492" id="2492">2492</a>
-<a href="#2493" id="2493">2493</a>
-<a href="#2494" id="2494">2494</a>
-<a href="#2495" id="2495">2495</a>
-<a href="#2496" id="2496">2496</a>
-<a href="#2497" id="2497">2497</a>
-<a href="#2498" id="2498">2498</a>
-<a href="#2499" id="2499">2499</a>
-<a href="#2500" id="2500">2500</a>
-<a href="#2501" id="2501">2501</a>
-<a href="#2502" id="2502">2502</a>
-<a href="#2503" id="2503">2503</a>
-<a href="#2504" id="2504">2504</a>
-<a href="#2505" id="2505">2505</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -2514,8 +2490,8 @@
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 <span class="kw">use </span>relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
+    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
+    MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, User,
     VALID_PLATFORMS,
 };
 <span class="kw">use </span>relay_protocol::{
@@ -2527,13 +2503,12 @@
 <span class="kw">use crate</span>::{GeoIpLookup, StoreConfig};
 
 <span class="kw">pub mod </span>breakdowns;
+<span class="kw">pub mod </span>contexts;
 <span class="kw">pub mod </span>nel;
 <span class="kw">pub mod </span>request;
 <span class="kw">pub mod </span>span;
 <span class="kw">pub mod </span>user_agent;
 <span class="kw">pub mod </span>utils;
-
-<span class="kw">mod </span>contexts;
 
 <span class="doccomment">/// Defines a builtin measurement.
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
@@ -3060,29 +3035,6 @@
         <span class="kw">crate</span>::stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
         <span class="prelude-val">Ok</span>(())
     }
-
-    <span class="kw">fn </span>process_context(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        context: <span class="kw-2">&amp;mut </span>Context,
-        _meta: <span class="kw-2">&amp;mut </span>Meta,
-        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
-    ) -&gt; ProcessingResult {
-        contexts::normalize_context(context);
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>process_contexts(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        contexts: <span class="kw-2">&amp;mut </span>Contexts,
-        _meta: <span class="kw-2">&amp;mut </span>Meta,
-        _state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
-    ) -&gt; ProcessingResult {
-        <span class="comment">// Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
-        // construct.
-        // This processor does not run on renormalization anyway.
-        </span>contexts.<span class="number">0</span>.remove(<span class="string">&quot;reprocessing&quot;</span>);
-        <span class="prelude-val">Ok</span>(())
-    }
 }
 
 <span class="doccomment">/// If the logger is longer than [`MaxChars::Logger`], it returns a String with
@@ -3194,9 +3146,9 @@
     <span class="kw">use </span>relay_base_schema::spans::SpanStatus;
     <span class="kw">use </span>relay_event_schema::processor::process_value;
     <span class="kw">use </span>relay_event_schema::protocol::{
-        ContextInner, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry, MetricSummary,
-        MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry, Tags, TraceId,
-        Values,
+        Context, ContextInner, Contexts, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry,
+        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry,
+        Tags, TraceId, Values,
     };
     <span class="kw">use </span>relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,

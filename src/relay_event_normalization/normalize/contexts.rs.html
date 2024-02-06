@@ -728,7 +728,14 @@
 <a href="#728" id="728">728</a>
 <a href="#729" id="729">729</a>
 <a href="#730" id="730">730</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Computation and normalization of contexts from event data.
+
+</span><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
@@ -890,7 +897,9 @@
 }
 
 <span class="attr">#[allow(dead_code)]
-</span><span class="comment">// TODO use this to add a tag `android.api` to the message (not yet 100% decided)
+</span><span class="doccomment">/// Returns the API version of an Android description.
+///
+/// TODO use this to add a tag `android.api` to the message (not yet 100% decided)
 </span><span class="kw">pub fn </span>get_android_api_version(description: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(captures) = OS_ANDROID_REGEX.captures(description) {
         captures.name(<span class="string">&quot;api&quot;</span>).map(|m| m.as_str())
@@ -1000,7 +1009,8 @@
     }
 }
 
-<span class="kw">pub fn </span>normalize_context(context: <span class="kw-2">&amp;mut </span>Context) {
+<span class="doccomment">/// Normalizes the given context.
+</span><span class="kw">pub fn </span>normalize_context(context: <span class="kw-2">&amp;mut </span>Context) {
     <span class="kw">match </span>context {
         Context::Runtime(runtime) =&gt; normalize_runtime_context(runtime),
         Context::Os(os) =&gt; normalize_os_context(os),
