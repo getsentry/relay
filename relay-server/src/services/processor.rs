@@ -1249,10 +1249,9 @@ impl EnvelopeProcessorService {
     /// Processes replays.
     fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         replay::process(state, &self.inner.config)?;
-        // if_processing!(self.inner.config, {
-        //     // replay::process_replays_combine_items(state)?;
-        //     self.enforce_quotas(state)?;
-        // });
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(state)?;
+        });
         Ok(())
     }
 

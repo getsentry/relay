@@ -2,12 +2,12 @@ import json
 import uuid
 
 
-def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
+def generate_replay_sdk_event():
     return {
         "type": "replay_event",
-        "replay_id": replay_id,
+        "replay_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "replay_type": "session",
-        "event_id": replay_id,
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "segment_id": 0,
         "timestamp": 1597977777.6189718,
         "replay_start_timestamp": 1597976392.6542819,
@@ -29,7 +29,7 @@ def generate_replay_sdk_event(replay_id="d2132d31b39445f1938d7e21b6bf0ec4"):
         "request": {
             "url": None,
             "headers": {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+                "user-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
             },
         },
         "contexts": {
@@ -97,7 +97,7 @@ def test_replay_event_with_processing(
     # Assert the tags and requests objects were normalized to lists of doubles.
     assert parsed_replay["tags"] == [["transaction", replay["tags"]["transaction"]]]
     assert parsed_replay["request"] == {
-        "headers": [["User-Agent", replay["request"]["headers"]["User-Agent"]]]
+        "headers": [["User-Agent", replay["request"]["headers"]["user-Agent"]]]
     }
 
     # Assert contexts object was pulled out.

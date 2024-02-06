@@ -1,5 +1,4 @@
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-import msgpack
 from .test_replay_events import generate_replay_sdk_event
 import json
 

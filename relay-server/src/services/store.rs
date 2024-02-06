@@ -196,8 +196,6 @@ impl StoreService {
         let mut attachments = Vec::new();
         let mut replay_items: Vec<&Item> = Vec::new();
 
-        // if self.config
-
         for item in envelope.items() {
             match item.ty() {
                 ItemType::Attachment => {
@@ -276,7 +274,6 @@ impl StoreService {
             }
         }
 
-        println!("replay_items: {:?}", replay_items.len());
         if replay_items.len() == 2 {
             let combined_replay_kafka_message = Self::extract_combined_replay_kafka_message(
                 event_id.ok_or(StoreError::NoEventId)?,
@@ -455,7 +452,6 @@ impl StoreService {
                     key_id: scoping.key_id,
                     retention_days: retention,
                     received: UnixTimestamp::from_instant(start_time).as_secs(),
-                    version: Some(1),
                     payload: replay_recording_item.payload(),
                     replay_event: Some(replay_event_item.payload()),
                 }),
@@ -858,7 +854,6 @@ impl StoreService {
                     received: UnixTimestamp::from_instant(start_time).as_secs(),
                     retention_days: retention,
                     payload: item.payload(),
-                    version: None,
                     replay_event: None,
                 });
 
@@ -1062,49 +1057,6 @@ where
         .serialize(serializer)
 }
 
-// pub fn process_replays_combine_items(
-//     items: &mut Vec<Item>,
-// ) -> Result<(), ProcessingError> {
-
-//     // combine both items into a single item,
-//     // and remove the original items.
-//     // The combined Item's payload is a MsgPack map with the keys
-//     // "replay_event" and "replay_recording".
-//     // The values are the original payloads of the items.
-//     let envelope = &mut state.envelope_mut();
-//     if let Some(replay_event_item) =
-//         envelope.take_item_by(|item| item.ty() == &ItemType::ReplayEvent)
-//     {
-//         if let Some(replay_recording_item) =
-//             envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
-//         {
-//             let mut data = Vec::new();
-//             let mut combined_item_payload = BTreeMap::new();
-
-//             combined_item_payload.insert("replay_event", replay_event_item.payload().to_vec());
-//             combined_item_payload
-//                 .insert("replay_recording", replay_recording_item.payload().to_vec());
-
-//             if let Err(e) = rmp_serde::encode::write(&mut data, &combined_item_payload) {
-//                 relay_log::error!(
-//                     "failed to serialize combined replay event and recording: {}",
-//                     e
-//                 );
-//                 // TODO: what to do here? Drop + emit outcome?
-//             }
-
-//             let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
-
-//             combined_item.set_payload(ContentType::MsgPack, data);
-//             envelope.add_item(combined_item);
-//         } else {
-//             envelope.add_item(replay_event_item)
-//         }
-//     }
-
-//     Ok(())
-// }
-
 /// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
@@ -1239,7 +1191,6 @@ struct ReplayRecordingNotChunkedKafkaMessage {
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
-    version: Option<u8>,
     payload: Bytes,
     replay_event: Option<Bytes>,
 }

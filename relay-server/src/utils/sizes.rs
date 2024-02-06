@@ -56,8 +56,6 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
                 client_reports_size += item.len();
                 NO_LIMIT
             }
-            // The Combined Replay Envelope isn't generated on the client so its size does not need
-            // to be checked.
             ItemType::Profile => config.max_profile_size(),
             ItemType::CheckIn => config.max_check_in_size(),
             ItemType::UserReport => NO_LIMIT,
