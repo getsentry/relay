@@ -139,6 +139,9 @@ suite will create a virtualenv, build the Relay binary with processing enabled,
 and run a set of integration tests:
 
 ```bash
+# Make sure that kafka and redis are running
+sentry devservices up kafka redis
+
 # Create a new virtualenv, build Relay and run integration tests
 make test-integration
 
