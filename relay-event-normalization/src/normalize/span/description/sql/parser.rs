@@ -28,6 +28,25 @@ pub fn parse_query(
     db_system: Option<&str>,
     query: &str,
 ) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
+    match std::panic::catch_unwind(|| parse_query_inner(db_system, query)) {
+        Ok(res) => res,
+        Err(_) => {
+            relay_log::error!(
+                tags.db_system = db_system,
+                query = query,
+                "parse_query panicked",
+            );
+            Err(sqlparser::parser::ParserError::ParserError(
+                "panicked".to_string(),
+            ))
+        }
+    }
+}
+
+fn parse_query_inner(
+    db_system: Option<&str>,
+    query: &str,
+) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
     // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
     //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
     let dialect = db_system
