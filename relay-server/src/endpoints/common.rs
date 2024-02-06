@@ -357,6 +357,7 @@ pub async fn handle_envelope(
         .map_err(BadStoreRequest::EventRejected)?;
 
     let Some(mut managed_envelope) = checked.envelope else {
+        // All items have been removed from the envelope.
         return Err(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
@@ -370,6 +371,10 @@ pub async fn handle_envelope(
     queue_envelope(state, managed_envelope, buffer_guard)?;
 
     if checked.rate_limits.is_limited() {
+        // Even if some envelope items have been queued, there might be active rate limits on
+        // other items. Communicate these rate limits to the downstream (Relay or SDK).
+        //
+        // See `IntoResponse` implementation of `BadStoreRequest`.
         Err(BadStoreRequest::RateLimited(checked.rate_limits))
     } else {
         Ok(event_id)
