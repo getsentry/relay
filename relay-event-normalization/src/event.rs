@@ -775,7 +775,7 @@ fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
     let _ = processor::apply(contexts, |contexts, _meta| {
         // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
         // construct.
-        // This does not run on renormalization anyway.
+        // [`normalize`] does not run on renormalization anyway.
         contexts.0.remove("reprocessing");
 
         for annotated in &mut contexts.0.values_mut() {
