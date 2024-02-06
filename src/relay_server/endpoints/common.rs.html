@@ -448,6 +448,11 @@
 <a href="#448" id="448">448</a>
 <a href="#449" id="449">449</a>
 <a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -807,7 +812,8 @@
         </span>.map_err(BadStoreRequest::EventRejected)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>managed_envelope) = checked.envelope <span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(checked.rate_limits));
+        <span class="comment">// All items have been removed from the envelope.
+        </span><span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(checked.rate_limits));
     };
 
     <span class="kw">if let </span><span class="prelude-val">Err</span>(offender) =
@@ -820,7 +826,11 @@
     queue_envelope(state, managed_envelope, buffer_guard)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>checked.rate_limits.is_limited() {
-        <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(checked.rate_limits))
+        <span class="comment">// Even if some envelope items have been queued, there might be active rate limits on
+        // other items. Communicate these rate limits to the downstream (Relay or SDK).
+        //
+        // See `IntoResponse` implementation of `BadStoreRequest`.
+        </span><span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(checked.rate_limits))
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(event_id)
     }
