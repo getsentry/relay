@@ -86,7 +86,7 @@ local results = {
 --
 -- Returns the total amount of values added to the 'working set'.
 local function sadd(t, offset, max)
-    local working_set_cardinality = 0;
+    local working_set_cardinality = 0
     local any_modifications = false
 
     for i = 1, #KEYS do
