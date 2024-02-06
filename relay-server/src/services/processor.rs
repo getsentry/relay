@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
+use std::fmt::Debug;
 use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
@@ -68,7 +69,7 @@ use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::state::{
-    ProcessEvent, ProcessExtractedMetrics, ProcessSpan, ProcessState,
+    Container, ProcessEvent, ProcessExtractedMetrics, ProcessSpan, ProcessState,
 };
 use crate::services::project::ProjectState;
 use crate::services::project_cache::{AddMetricMeta, ProjectCache, UpdateRateLimits};
@@ -105,38 +106,71 @@ macro_rules! if_processing {
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
 
+#[derive(Clone, Copy, Debug)]
+pub struct TransactionGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct ErrorGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct SessionGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct StandaloneGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct ClientReportGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct ReplayGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct CheckInGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct SpanGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct MetricsGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct ForwardUnknownGroup;
+
+#[derive(Clone, Copy, Debug)]
+pub struct Ungrouped;
+
 /// Describes the groups of the processable items.
 #[derive(Clone, Copy, Debug)]
 pub enum ProcessingGroup {
     /// All the transaction related items.
     ///
     /// Includes transactions, related attachments, profiles.
-    Transaction,
+    Transaction(TransactionGroup),
     /// All the items which require (have or create) events.
     ///
     /// This includes: errors, NEL, security reports, user reports, some of the
     /// attachments.
-    Error,
+    Error(ErrorGroup),
     /// Session events.
-    Session,
+    Session(SessionGroup),
     /// Standalone items which can be sent alone without any event attached to it in the current
     /// envelope e.g. some attachments, user reports.
-    Standalone,
+    Standalone(StandaloneGroup),
     /// Outcomes.
-    ClientReport,
+    ClientReport(ClientReportGroup),
     /// Replays and ReplayRecordings.
-    Replay,
+    Replay(ReplayGroup),
     /// Crons.
-    CheckIn,
+    CheckIn(CheckInGroup),
     /// Spans.
-    Span,
+    Span(SpanGroup),
     /// Metrics.
-    Metrics,
+    Metrics(MetricsGroup),
     /// Unknown item types will be forwarded upstream (to processing Relay), where we will
     /// decide what to do with them.
-    ForwardUnknown,
+    ForwardUnknown(ForwardUnknownGroup),
     /// All the items in the envelope that could not be grouped.
-    Ungrouped,
+    Ungrouped(Ungrouped),
 }
 
 impl ProcessingGroup {
@@ -154,7 +188,7 @@ impl ProcessingGroup {
                 let items: SmallVec<[Item; 3]> = smallvec![item.clone()];
                 let mut envelope = Envelope::from_parts(headers, items);
                 envelope.set_event_id(EventId::new());
-                (ProcessingGroup::Error, envelope)
+                (ProcessingGroup::Error(ErrorGroup), envelope)
             });
         grouped_envelopes.extend(nel_envelopes);
 
@@ -167,7 +201,7 @@ impl ProcessingGroup {
         });
         if !replay_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Replay,
+                ProcessingGroup::Replay(ReplayGroup),
                 Envelope::from_parts(headers.clone(), replay_items),
             ))
         }
@@ -177,7 +211,7 @@ impl ProcessingGroup {
             .take_items_by(|item| matches!(item.ty(), &ItemType::Session | &ItemType::Sessions));
         if !session_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Session,
+                ProcessingGroup::Session(SessionGroup),
                 Envelope::from_parts(headers.clone(), session_items),
             ))
         }
@@ -187,7 +221,7 @@ impl ProcessingGroup {
             .take_items_by(|item| matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan));
         if !span_items.is_empty() {
             grouped_envelopes.push((
-                ProcessingGroup::Span,
+                ProcessingGroup::Span(SpanGroup),
                 Envelope::from_parts(headers.clone(), span_items),
             ))
         }
@@ -200,7 +234,7 @@ impl ProcessingGroup {
             let standalone_items = envelope.take_items_by(Item::requires_event);
             if !standalone_items.is_empty() {
                 grouped_envelopes.push((
-                    ProcessingGroup::Standalone,
+                    ProcessingGroup::Standalone(StandaloneGroup),
                     Envelope::from_parts(headers.clone(), standalone_items),
                 ))
             }
@@ -213,9 +247,9 @@ impl ProcessingGroup {
                 .iter()
                 .any(|item| matches!(item.ty(), &ItemType::Transaction | &ItemType::Profile))
             {
-                ProcessingGroup::Transaction
+                ProcessingGroup::Transaction(TransactionGroup)
             } else {
-                ProcessingGroup::Error
+                ProcessingGroup::Error(ErrorGroup)
             };
             grouped_envelopes.push((
                 group,
@@ -230,14 +264,14 @@ impl ProcessingGroup {
             let envelope = Envelope::from_parts(headers, items);
             let item_type = item.ty();
             let group = if matches!(item_type, &ItemType::CheckIn) {
-                ProcessingGroup::CheckIn
+                ProcessingGroup::CheckIn(CheckInGroup)
             } else if matches!(item.ty(), &ItemType::ClientReport) {
-                ProcessingGroup::ClientReport
+                ProcessingGroup::ClientReport(ClientReportGroup)
             } else if matches!(item_type, &ItemType::Unknown(_)) {
-                ProcessingGroup::ForwardUnknown
+                ProcessingGroup::ForwardUnknown(ForwardUnknownGroup)
             } else {
                 // Cannot group this item type.
-                ProcessingGroup::Ungrouped
+                ProcessingGroup::Ungrouped(Ungrouped)
             };
 
             (group, envelope)
@@ -398,9 +432,52 @@ impl ExtractedMetrics {
     }
 }
 
+#[derive(Debug)]
+struct EnvelopeContainer<G> {
+    /// The managed envelope before processing.
+    managed_envelope: ManagedEnvelope,
+
+    /// marker group
+    _group: G,
+}
+
+impl<G> EnvelopeContainer<G> {
+    fn new(managed_envelope: ManagedEnvelope, group: G) -> Self {
+        Self {
+            managed_envelope,
+            _group: group,
+        }
+    }
+}
+
+impl<G: Debug> Container for EnvelopeContainer<G> {
+    type Group = G;
+
+    /// Returns a reference to the contained [`Envelope`].
+    fn envelope(&self) -> &Envelope {
+        self.managed_envelope.envelope()
+    }
+
+    /// Returns a mutable reference to the contained [`Envelope`].
+    fn envelope_mut(&mut self) -> &mut Envelope {
+        self.managed_envelope.envelope_mut()
+    }
+    fn managed_envelope_mut(&mut self) -> &mut ManagedEnvelope {
+        &mut self.managed_envelope
+    }
+
+    fn managed_envelope(&self) -> &ManagedEnvelope {
+        &self.managed_envelope
+    }
+
+    fn into_managed_envelope(self) -> ManagedEnvelope {
+        self.managed_envelope
+    }
+}
+
 /// A state container for envelope processing.
 #[derive(Debug)]
-struct ProcessEnvelopeState<'a> {
+struct ProcessEnvelopeState<'a, G> {
     /// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -448,19 +525,44 @@ struct ProcessEnvelopeState<'a> {
     /// ID.
     project_id: ProjectId,
 
-    /// The managed envelope before processing.
-    managed_envelope: ManagedEnvelope,
-
     /// The ID of the profile in the envelope, if a valid profile exists.
     profile_id: Option<ProfileId>,
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
+
+    /// marker group
+    _group: G,
 }
 
-impl<'a> ProcessSpan for ProcessEnvelopeState<'a> {}
+impl<'a, G> ProcessEnvelopeState<'a, G> {
+    fn new(
+        project_state: Arc<ProjectState>,
+        sampling_project_state: Option<Arc<ProjectState>>,
+        project_id: ProjectId,
+        reservoir: ReservoirEvaluator<'a>,
+        group: G,
+    ) -> Self {
+        Self {
+            event: Annotated::empty(),
+            event_metrics_extracted: false,
+            metrics: Metrics::default(),
+            sample_rates: None,
+            sampling_result: SamplingResult::Pending,
+            extracted_metrics: Default::default(),
+            project_state,
+            sampling_project_state,
+            project_id,
+            profile_id: None,
+            reservoir,
+            _group: group,
+        }
+    }
+}
 
-impl<'a> ProcessExtractedMetrics for ProcessEnvelopeState<'a> {
+impl<'a, G> ProcessSpan for ProcessEnvelopeState<'a, G> {}
+
+impl<'a, G> ProcessExtractedMetrics for ProcessEnvelopeState<'a, G> {
     fn event_metrics_extracted(&self) -> bool {
         self.event_metrics_extracted
     }
@@ -470,30 +572,13 @@ impl<'a> ProcessExtractedMetrics for ProcessEnvelopeState<'a> {
     }
 }
 
-impl<'a> ProcessState for ProcessEnvelopeState<'a> {
-    fn managed_envelope_mut(&mut self) -> &mut ManagedEnvelope {
-        &mut self.managed_envelope
-    }
-
-    fn managed_envelope(&self) -> &ManagedEnvelope {
-        &self.managed_envelope
-    }
-
+impl<'a, G> ProcessState for ProcessEnvelopeState<'a, G> {
     fn project_state(&self) -> &Arc<ProjectState> {
         &self.project_state
     }
-    /// Returns a reference to the contained [`Envelope`].
-    fn envelope(&self) -> &Envelope {
-        self.managed_envelope.envelope()
-    }
-
-    /// Returns a mutable reference to the contained [`Envelope`].
-    fn envelope_mut(&mut self) -> &mut Envelope {
-        self.managed_envelope.envelope_mut()
-    }
 }
 
-impl<'a> ProcessEvent for ProcessEnvelopeState<'a> {
+impl<'a, G> ProcessEvent for ProcessEnvelopeState<'a, G> {
     /// Returns true if there is an event in the processing state.
     ///
     /// The event was previously removed from the Envelope. This returns false if there was an
@@ -525,9 +610,9 @@ impl<'a> ProcessEvent for ProcessEnvelopeState<'a> {
         self.event = Annotated::empty();
     }
 
-    fn reject_event(&mut self, outcome: Outcome) {
+    fn reject_event<Data: Container>(&mut self, data: &mut Data, outcome: Outcome) {
         self.remove_event();
-        self.managed_envelope.reject_event(outcome);
+        data.managed_envelope_mut().reject_event(outcome);
     }
 }
 
@@ -862,8 +947,12 @@ impl EnvelopeProcessorService {
 
     /// Normalize monitor check-ins and remove invalid ones.
     #[cfg(feature = "processing")]
-    fn process_check_ins(&self, state: &mut ProcessEnvelopeState) {
-        state.managed_envelope.retain_items(|item| {
+    fn process_check_ins<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) {
+        data.managed_envelope_mut().retain_items(|item| {
             if item.ty() != &ItemType::CheckIn {
                 return ItemAction::Keep;
             }
@@ -892,7 +981,13 @@ impl EnvelopeProcessorService {
     fn prepare_state(
         &self,
         message: ProcessEnvelope,
-    ) -> Result<ProcessEnvelopeState, ProcessingError> {
+    ) -> Result<
+        (
+            ProcessEnvelopeState<ProcessingGroup>,
+            EnvelopeContainer<ProcessingGroup>,
+        ),
+        ProcessingError,
+    > {
         let ProcessEnvelope {
             envelope: mut managed_envelope,
             project_state,
@@ -939,26 +1034,30 @@ impl EnvelopeProcessorService {
             reservoir.set_redis(org_id, redis_pool);
         }
 
-        Ok(ProcessEnvelopeState {
-            event: Annotated::empty(),
-            event_metrics_extracted: false,
-            metrics: Metrics::default(),
-            sample_rates: None,
-            sampling_result: SamplingResult::Pending,
-            extracted_metrics: Default::default(),
-            project_state,
-            sampling_project_state,
-            project_id,
-            managed_envelope,
-            profile_id: None,
-            reservoir,
-        })
+        let group = managed_envelope.group();
+        let container = EnvelopeContainer::new(managed_envelope, group);
+
+        Ok((
+            ProcessEnvelopeState::new(
+                project_state,
+                sampling_project_state,
+                project_id,
+                reservoir,
+                group,
+            ),
+            container,
+        ))
     }
 
     #[cfg(feature = "processing")]
-    fn enforce_quotas<State>(&self, state: &mut State) -> Result<(), ProcessingError>
+    fn enforce_quotas<State, Data>(
+        &self,
+        state: &mut State,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError>
     where
         State: ProcessState + ProcessExtractedMetrics + ProcessEvent,
+        Data: Container,
     {
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
@@ -986,9 +1085,9 @@ impl EnvelopeProcessorService {
             envelope_limiter.assume_event(category, state.event_metrics_extracted());
         }
 
-        let scoping = state.managed_envelope().scoping();
+        let scoping = data.managed_envelope().scoping();
         let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.enforce(state.envelope_mut(), &scoping)?
+            envelope_limiter.enforce(data.envelope_mut(), &scoping)?
         });
 
         if limits.is_limited() {
@@ -999,12 +1098,12 @@ impl EnvelopeProcessorService {
 
         if enforcement.event_active() {
             state.remove_event();
-            debug_assert!(state.envelope().is_empty());
+            debug_assert!(data.envelope().is_empty());
         }
 
         enforcement.track_outcomes(
-            state.envelope(),
-            &state.managed_envelope().scoping(),
+            data.envelope(),
+            &data.managed_envelope().scoping(),
             self.inner.outcome_aggregator.clone(),
         );
 
@@ -1016,7 +1115,11 @@ impl EnvelopeProcessorService {
     /// Caveats:
     ///  - This functionality is incomplete. At this point, extraction is implemented only for
     ///    transaction events.
-    fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn extract_metrics<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError> {
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
         // it is not present in the actual project config payload. Once transaction metric
@@ -1044,8 +1147,7 @@ impl EnvelopeProcessorService {
 
             match state.project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref tx_config)) if tx_config.is_enabled() => {
-                    let transaction_from_dsc = state
-                        .managed_envelope
+                    let transaction_from_dsc = data
                         .envelope()
                         .dsc()
                         .and_then(|dsc| dsc.transaction.as_deref());
@@ -1065,7 +1167,7 @@ impl EnvelopeProcessorService {
             }
 
             if state.event_metrics_extracted {
-                state.managed_envelope.set_event_metrics_extracted();
+                data.managed_envelope_mut().set_event_metrics_extracted();
             }
         }
 
@@ -1073,11 +1175,12 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn light_normalize_event(
+    fn light_normalize_event<G, Data: Container<Group = G>>(
         &self,
-        state: &mut ProcessEnvelopeState,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &Data,
     ) -> Result<(), ProcessingError> {
-        let request_meta = state.managed_envelope.envelope().meta();
+        let request_meta = data.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let transaction_aggregator_config = self
@@ -1094,7 +1197,7 @@ impl EnvelopeProcessorService {
                 ),
             };
             let event_validation_config = EventValidationConfig {
-                received_at: Some(state.managed_envelope.received_at()),
+                received_at: Some(data.managed_envelope().received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
             };
@@ -1150,123 +1253,148 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes the general errors, and the items which require or create the events.
-    fn process_errors(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_errors<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
-        report::process_user_reports(state);
+        report::process_user_reports(data);
 
         if_processing!(self.inner.config, {
-            unreal::expand(state, &self.inner.config)?;
+            unreal::expand(data, &self.inner.config)?;
         });
 
-        event::extract(state, &self.inner.config)?;
+        event::extract(state, data, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
-            unreal::process(state)?;
-            attachment::create_placeholders(state);
+            unreal::process(state, data)?;
+            attachment::create_placeholders(state, data);
         });
 
-        event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
-        event::filter(state)?;
-        dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+        event::finalize(state, data, &self.inner.config)?;
+        self.light_normalize_event(state, data)?;
+        event::filter(state, data)?;
+        dynamic_sampling::tag_error_with_sampling_decision(state, data, &self.inner.config);
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-            self.enforce_quotas(state)?;
+            event::store(
+                state,
+                data,
+                &self.inner.config,
+                self.inner.geoip_lookup.as_ref(),
+            )?;
+            self.enforce_quotas(state, data)?;
         });
 
         if state.has_event() {
             event::scrub(state)?;
-            event::serialize(state)?;
+            event::serialize(state, data)?;
         }
 
-        attachment::scrub(state);
+        attachment::scrub(state, data);
 
         Ok(())
     }
 
     /// Processes only transactions and transaction-related items.
-    fn process_transactions(
+    fn process_transactions<G, Data: Container<Group = G>>(
         &self,
-        state: &mut ProcessEnvelopeState,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
     ) -> Result<(), ProcessingError> {
-        profile::filter(state);
-        event::extract(state, &self.inner.config)?;
+        profile::filter(state, data);
+        event::extract(state, data, &self.inner.config)?;
         profile::transfer_id(state);
 
         if_processing!(self.inner.config, {
-            attachment::create_placeholders(state);
+            attachment::create_placeholders(state, data);
         });
 
-        event::finalize(state, &self.inner.config)?;
-        self.light_normalize_event(state)?;
-        dynamic_sampling::normalize(state);
-        event::filter(state)?;
-        dynamic_sampling::run(state, &self.inner.config);
+        event::finalize(state, data, &self.inner.config)?;
+        self.light_normalize_event(state, data)?;
+        dynamic_sampling::normalize(state, data);
+        event::filter(state, data)?;
+        dynamic_sampling::run(state, data, &self.inner.config);
 
         // We avoid extracting metrics if we are not sampling the event while in non-processing
         // relays, in order to synchronize rate limits on indexed and processed transactions.
         if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
-            self.extract_metrics(state)?;
+            self.extract_metrics(state, data)?;
         }
 
         dynamic_sampling::sample_envelope_items(
             state,
+            data,
             &self.inner.config,
             &self.inner.global_config.current(),
         );
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
-            self.enforce_quotas(state)?;
-            profile::process(state, &self.inner.config);
+            event::store(
+                state,
+                data,
+                &self.inner.config,
+                self.inner.geoip_lookup.as_ref(),
+            )?;
+            self.enforce_quotas(state, data)?;
+            profile::process(state, data, &self.inner.config);
         });
 
         if state.has_event() {
             event::scrub(state)?;
-            event::serialize(state)?;
+            event::serialize(state, data)?;
             if_processing!(self.inner.config, {
-                span::extract_from_event(state);
+                span::extract_from_event(state, data);
             });
         }
 
-        attachment::scrub(state);
+        attachment::scrub(state, data);
         Ok(())
     }
 
     /// Processes standalone items that require an event ID, but do not have an event on the same envelope.
-    fn process_standalone(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        profile::filter(state);
+    fn process_standalone<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError> {
+        profile::filter(state, data);
 
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, data)?;
         });
 
-        report::process_user_reports(state);
-        attachment::scrub(state);
+        report::process_user_reports(data);
+        attachment::scrub(state, data);
         Ok(())
     }
 
     /// Processes user sessions.
-    fn process_sessions(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        session::process(state, &self.inner.config);
+    fn process_sessions<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError> {
+        session::process(state, data, &self.inner.config);
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, data)?;
         });
         Ok(())
     }
 
     /// Processes user and client reports.
-    fn process_client_reports(
+    fn process_client_reports<G, Data: Container<Group = G>>(
         &self,
-        state: &mut ProcessEnvelopeState,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, data)?;
         });
 
         report::process_client_reports(
-            state,
+            data,
             &self.inner.config,
             self.inner.outcome_aggregator.clone(),
         );
@@ -1275,33 +1403,43 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes replays.
-    fn process_replays(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        replay::process(state, &self.inner.config)?;
+    fn process_replays<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError> {
+        replay::process(state, data, &self.inner.config)?;
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, data)?;
         });
         Ok(())
     }
 
     /// Processes cron check-ins.
-    fn process_checkins(&self, _state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_checkins<G, Data: Container<Group = G>>(
+        &self,
+        _state: &mut ProcessEnvelopeState<G>,
+        _data: &mut Data,
+    ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(_state)?;
-            self.process_check_ins(_state);
+            self.enforce_quotas(_state, _data)?;
+            self.process_check_ins(_state, _data);
         });
         Ok(())
     }
 
     /// Processes spans.
-    fn process_spans<State>(&self, state: &mut State) -> Result<(), ProcessingError>
-    where
-        State: ProcessState + ProcessSpan + ProcessExtractedMetrics + ProcessEvent,
-    {
-        span::filter(state);
+    fn process_spans<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError> {
+        span::filter(state, data);
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, data)?;
             span::process(
                 state,
+                data,
                 self.inner.config.clone(),
                 &self.inner.global_config.current(),
             );
@@ -1309,42 +1447,46 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    fn process_state(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+    fn process_state<G, Data: Container<Group = G>>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+        data: &mut Data,
+    ) -> Result<(), ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
-        let group = state.managed_envelope.group();
+        let group = data.managed_envelope().group();
 
         relay_log::trace!("Processing {group:?} group");
 
         match group {
-            ProcessingGroup::Error => self.process_errors(state)?,
-            ProcessingGroup::Transaction => self.process_transactions(state)?,
-            ProcessingGroup::Session => self.process_sessions(state)?,
-            ProcessingGroup::Standalone => self.process_standalone(state)?,
-            ProcessingGroup::ClientReport => self.process_client_reports(state)?,
-            ProcessingGroup::Replay => self.process_replays(state)?,
-            ProcessingGroup::CheckIn => self.process_checkins(state)?,
-            ProcessingGroup::Span => self.process_spans(state)?,
+            ProcessingGroup::Error(_) => self.process_errors(state, data)?,
+            ProcessingGroup::Transaction(_) => self.process_transactions(state, data)?,
+            ProcessingGroup::Session(_) => self.process_sessions(state, data)?,
+            ProcessingGroup::Standalone(_) => self.process_standalone(state, data)?,
+            ProcessingGroup::ClientReport(_) => self.process_client_reports(state, data)?,
+            ProcessingGroup::Replay(_) => self.process_replays(state, data)?,
+            ProcessingGroup::CheckIn(_) => self.process_checkins(state, data)?,
+            ProcessingGroup::Span(_) => self.process_spans(state, data)?,
             // Currently is not used.
-            ProcessingGroup::Metrics => {
+            ProcessingGroup::Metrics(_) => {
                 relay_log::error!(
                     tags.project = %state.project_id,
-                    items = ?state.envelope().items().next().map(Item::ty),
+                    items = ?data.envelope().items().next().map(Item::ty),
                     "received metrics in the process_state"
                 );
             }
             // Fallback to the legacy process_state implementation for Ungrouped events.
-            ProcessingGroup::Ungrouped => {
+            ProcessingGroup::Ungrouped(_) => {
                 relay_log::error!(
                     tags.project = %state.project_id,
-                    items = ?state.envelope().items().next().map(Item::ty),
+                    items = ?data.envelope().items().next().map(Item::ty),
                     "could not identify the processing group based on the envelope's items"
                 );
             }
             // Leave this group unchanged.
             //
             // This will later be forwarded to upstream.
-            ProcessingGroup::ForwardUnknown => (),
+            ProcessingGroup::ForwardUnknown(_) => (),
         }
 
         Ok(())
@@ -1354,10 +1496,13 @@ impl EnvelopeProcessorService {
         &self,
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
-        let mut state = self.prepare_state(message)?;
+        let (mut state, mut data) = self.prepare_state(message)?;
         let project_id = state.project_id;
-        let client = state.envelope().meta().client().map(str::to_owned);
-        let user_agent = state.envelope().meta().user_agent().map(str::to_owned);
+        let client = data.envelope().meta().client().map(str::to_owned);
+        let user_agent = data.envelope().meta().user_agent().map(str::to_owned);
+
+        dbg!(&state);
+        dbg!(&data);
 
         relay_log::with_scope(
             |scope| {
@@ -1370,29 +1515,29 @@ impl EnvelopeProcessorService {
                 }
             },
             || {
-                match self.process_state(&mut state) {
+                match self.process_state(&mut state, &mut data) {
                     Ok(()) => {
                         // The envelope could be modified or even emptied during processing, which
                         // requires recomputation of the context.
-                        state.managed_envelope.update();
+                        data.managed_envelope_mut().update();
 
                         let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
 
-                        state.extracted_metrics.send_metrics(
-                            state.managed_envelope.envelope(),
-                            self.inner.project_cache.clone(),
-                        );
+                        state
+                            .extracted_metrics
+                            .send_metrics(data.envelope(), self.inner.project_cache.clone());
 
-                        let envelope_response = if state.managed_envelope.envelope().is_empty() {
+                        let envelope_response = if data.envelope().is_empty() {
                             if !has_metrics {
                                 // Individual rate limits have already been issued
-                                state.managed_envelope.reject(Outcome::RateLimited(None));
+                                data.managed_envelope_mut()
+                                    .reject(Outcome::RateLimited(None));
                             } else {
-                                state.managed_envelope.accept();
+                                data.into_managed_envelope().accept();
                             }
                             None
                         } else {
-                            Some(state.managed_envelope)
+                            Some(data.into_managed_envelope())
                         };
 
                         Ok(ProcessEnvelopeResponse {
@@ -1401,7 +1546,7 @@ impl EnvelopeProcessorService {
                     }
                     Err(err) => {
                         if let Some(outcome) = err.to_outcome() {
-                            state.managed_envelope.reject(outcome);
+                            data.managed_envelope_mut().reject(outcome);
                         }
 
                         Err(err)
@@ -1663,7 +1808,7 @@ impl EnvelopeProcessorService {
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
-            ProcessingGroup::ClientReport,
+            ProcessingGroup::ClientReport(ClientReportGroup),
         );
         self.handle_submit_envelope(SubmitEnvelope { envelope });
     }
@@ -1957,7 +2102,7 @@ impl EnvelopeProcessorService {
                         envelope,
                         self.inner.outcome_aggregator.clone(),
                         self.inner.test_store.clone(),
-                        ProcessingGroup::Metrics,
+                        ProcessingGroup::Metrics(MetricsGroup),
                     );
                     envelope.set_partition_key(partition_key).scope(scoping);
 
@@ -2097,7 +2242,7 @@ impl EnvelopeProcessorService {
             envelope,
             self.inner.outcome_aggregator.clone(),
             self.inner.test_store.clone(),
-            ProcessingGroup::Metrics,
+            ProcessingGroup::Metrics(MetricsGroup),
         );
         self.handle_submit_envelope(SubmitEnvelope { envelope });
     }

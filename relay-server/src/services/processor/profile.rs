@@ -11,50 +11,51 @@ use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::state::Container;
 use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::ItemAction;
 
 /// Removes profiles from the envelope if they can not be parsed.
-pub fn filter(state: &mut ProcessEnvelopeState) {
-    let transaction_count: usize = state
-        .managed_envelope
+pub fn filter<G, Data: Container<Group = G>>(state: &mut ProcessEnvelopeState<G>, data: &mut Data) {
+    let transaction_count: usize = data
         .envelope()
         .items()
         .filter(|item| item.ty() == &ItemType::Transaction)
         .count();
     let mut profile_id = None;
-    state.managed_envelope.retain_items(|item| match item.ty() {
-        // First profile found in the envelope, we'll keep it if metadata are valid.
-        ItemType::Profile if profile_id.is_none() => {
-            // Drop profile without a transaction in the same envelope.
-            let profile_allowed = transaction_count > 0 || !item.sampled();
-            if !profile_allowed {
-                return ItemAction::DropSilently;
-            }
-
-            match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
-                Ok(id) => {
-                    profile_id = Some(id);
-                    ItemAction::Keep
+    data.managed_envelope_mut()
+        .retain_items(|item| match item.ty() {
+            // First profile found in the envelope, we'll keep it if metadata are valid.
+            ItemType::Profile if profile_id.is_none() => {
+                // Drop profile without a transaction in the same envelope.
+                let profile_allowed = transaction_count > 0 || !item.sampled();
+                if !profile_allowed {
+                    return ItemAction::DropSilently;
                 }
-                Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
-                ))),
+
+                match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
+                    Ok(id) => {
+                        profile_id = Some(id);
+                        ItemAction::Keep
+                    }
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
+                }
             }
-        }
-        // We found another profile, we'll drop it.
-        ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-        ))),
-        _ => ItemAction::Keep,
-    });
+            // We found another profile, we'll drop it.
+            ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+            ))),
+            _ => ItemAction::Keep,
+        });
     state.profile_id = profile_id;
 }
 
 /// Transfers the profile ID from the profile item to the transaction item.
 ///
 /// If profile processing happens at a later stage, we remove the context again.
-pub fn transfer_id(state: &mut ProcessEnvelopeState) {
+pub fn transfer_id<G>(state: &mut ProcessEnvelopeState<G>) {
     if let Some(event) = state.event.value_mut() {
         if event.ty.value() == Some(&EventType::Transaction) {
             let contexts = event.contexts.get_or_insert_with(Contexts::new);
@@ -70,24 +71,29 @@ pub fn transfer_id(state: &mut ProcessEnvelopeState) {
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 #[cfg(feature = "processing")]
-pub fn process(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn process<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+    config: &Config,
+) {
     let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
     let mut found_profile_id = None;
-    state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::Profile => {
-            if !profiling_enabled {
-                return ItemAction::DropSilently;
+    data.managed_envelope_mut()
+        .retain_items(|item| match item.ty() {
+            ItemType::Profile => {
+                if !profiling_enabled {
+                    return ItemAction::DropSilently;
+                }
+                // If we don't have an event at this stage, we need to drop the profile.
+                let Some(event) = state.event.value() else {
+                    return ItemAction::DropSilently;
+                };
+                let (profile_id, action) = expand_profile(item, event, config);
+                found_profile_id = profile_id;
+                action
             }
-            // If we don't have an event at this stage, we need to drop the profile.
-            let Some(event) = state.event.value() else {
-                return ItemAction::DropSilently;
-            };
-            let (profile_id, action) = expand_profile(item, event, config);
-            found_profile_id = profile_id;
-            action
-        }
-        _ => ItemAction::Keep,
-    });
+            _ => ItemAction::Keep,
+        });
     if found_profile_id.is_none() {
         // Remove profile context from event.
         if let Some(event) = state.event.value_mut() {

@@ -17,20 +17,24 @@ use relay_statsd::metric;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::state::ProcessState;
+use crate::services::processor::state::Container;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
 /// Removes replays if the feature flag is not enabled.
-pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn process<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let project_state = &state.project_state;
     let replays_enabled = project_state.has_feature(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
 
-    let meta = state.envelope().meta().clone();
+    let meta = data.envelope().meta().clone();
     let client_addr = meta.client_addr();
-    let event_id = state.envelope().event_id();
+    let event_id = data.envelope().event_id();
 
     let limit = config.max_replay_uncompressed_size();
     let project_config = project_state.config();
@@ -50,69 +54,73 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         client_hints: meta.client_hints().as_deref(),
     };
 
-    state.managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::ReplayEvent => {
-            if !replays_enabled {
-                return ItemAction::DropSilently;
-            }
+    data.managed_envelope_mut()
+        .retain_items(|item| match item.ty() {
+            ItemType::ReplayEvent => {
+                if !replays_enabled {
+                    return ItemAction::DropSilently;
+                }
 
-            match process_replay_event(&item.payload(), project_config, client_addr, user_agent) {
-                Ok(replay) => match replay.to_json() {
-                    Ok(json) => {
-                        item.set_payload(ContentType::Json, json);
-                        ItemAction::Keep
-                    }
+                match process_replay_event(&item.payload(), project_config, client_addr, user_agent)
+                {
+                    Ok(replay) => match replay.to_json() {
+                        Ok(json) => {
+                            item.set_payload(ContentType::Json, json);
+                            ItemAction::Keep
+                        }
+                        Err(error) => {
+                            relay_log::error!(
+                                error = &error as &dyn Error,
+                                "failed to serialize replay"
+                            );
+                            ItemAction::Keep
+                        }
+                    },
                     Err(error) => {
-                        relay_log::error!(
-                            error = &error as &dyn Error,
-                            "failed to serialize replay"
-                        );
+                        relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
+                        ItemAction::Drop(Outcome::Invalid(match error {
+                            ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
+                            ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
+                            ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
+                            ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
+                        }))
+                    }
+                }
+            }
+            ItemType::ReplayRecording => {
+                if !replays_enabled {
+                    return ItemAction::DropSilently;
+                }
+
+                // XXX: Processing is there just for data scrubbing. Skip the entire expensive
+                // processing step if we do not need to scrub.
+                if !scrubbing_enabled || scrubber.is_empty() {
+                    return ItemAction::Keep;
+                }
+
+                // Limit expansion of recordings to the max replay size. The payload is
+                // decompressed temporarily and then immediately re-compressed. However, to
+                // limit memory pressure, we use the replay limit as a good overall limit for
+                // allocations.
+                let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                    scrubber.process_recording(&item.payload())
+                });
+
+                match parsed_recording {
+                    Ok(recording) => {
+                        item.set_payload(ContentType::OctetStream, recording);
                         ItemAction::Keep
                     }
-                },
-                Err(error) => {
-                    relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
-                    ItemAction::Drop(Outcome::Invalid(match error {
-                        ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
-                        ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
-                        ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
-                        ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
-                    }))
+                    Err(e) => {
+                        relay_log::warn!("replay-recording-event: {e} {event_id:?}");
+                        ItemAction::Drop(Outcome::Invalid(
+                            DiscardReason::InvalidReplayRecordingEvent,
+                        ))
+                    }
                 }
             }
-        }
-        ItemType::ReplayRecording => {
-            if !replays_enabled {
-                return ItemAction::DropSilently;
-            }
-
-            // XXX: Processing is there just for data scrubbing. Skip the entire expensive
-            // processing step if we do not need to scrub.
-            if !scrubbing_enabled || scrubber.is_empty() {
-                return ItemAction::Keep;
-            }
-
-            // Limit expansion of recordings to the max replay size. The payload is
-            // decompressed temporarily and then immediately re-compressed. However, to
-            // limit memory pressure, we use the replay limit as a good overall limit for
-            // allocations.
-            let parsed_recording = metric!(timer(RelayTimers::ReplayRecordingProcessing), {
-                scrubber.process_recording(&item.payload())
-            });
-
-            match parsed_recording {
-                Ok(recording) => {
-                    item.set_payload(ContentType::OctetStream, recording);
-                    ItemAction::Keep
-                }
-                Err(e) => {
-                    relay_log::warn!("replay-recording-event: {e} {event_id:?}");
-                    ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
-                }
-            }
-        }
-        _ => ItemAction::Keep,
-    });
+            _ => ItemAction::Keep,
+        });
 
     Ok(())
 }

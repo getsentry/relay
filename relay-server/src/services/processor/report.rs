@@ -15,8 +15,8 @@ use relay_system::Addr;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{Outcome, TrackOutcome};
-use crate::services::processor::state::ProcessState;
-use crate::services::processor::{ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::state::Container;
+use crate::services::processor::MINIMUM_CLOCK_DRIFT;
 use crate::utils::ItemAction;
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -40,8 +40,8 @@ pub enum ClientReportField {
 /// At the moment client reports are primarily used to transfer outcomes from
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
-pub fn process_client_reports(
-    state: &mut ProcessEnvelopeState,
+pub fn process_client_reports<G, Data: Container<Group = G>>(
+    data: &mut Data,
     config: &Config,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
@@ -50,24 +50,25 @@ pub fn process_client_reports(
     if !config.emit_outcomes().any() || !config.emit_client_outcomes() {
         // if a processing relay has client outcomes disabled we drop them.
         if config.processing_enabled() {
-            state.managed_envelope.retain_items(|item| match item.ty() {
-                ItemType::ClientReport => ItemAction::DropSilently,
-                _ => ItemAction::Keep,
-            });
+            data.managed_envelope_mut()
+                .retain_items(|item| match item.ty() {
+                    ItemType::ClientReport => ItemAction::DropSilently,
+                    _ => ItemAction::Keep,
+                });
         }
         return;
     }
 
     let mut timestamp = None;
     let mut output_events = BTreeMap::new();
-    let received = state.managed_envelope.received_at();
+    let received = data.managed_envelope().received_at();
 
-    let clock_drift_processor = ClockDriftProcessor::new(state.envelope().sent_at(), received)
-        .at_least(MINIMUM_CLOCK_DRIFT);
+    let clock_drift_processor =
+        ClockDriftProcessor::new(data.envelope().sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
     // we're going through all client reports but we're effectively just merging
     // them into the first one.
-    state.managed_envelope.retain_items(|item| {
+    data.managed_envelope_mut().retain_items(|item| {
         if item.ty() != &ItemType::ClientReport {
             return ItemAction::Keep;
         };
@@ -174,7 +175,7 @@ pub fn process_client_reports(
             // now that the timestamp can be parsed, but just incase we fallback to UTC current
             // `DateTime`.
             timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
-            scoping: state.managed_envelope.scoping(),
+            scoping: data.managed_envelope().scoping(),
             outcome,
             event_id: None,
             remote_addr: None, // omitting the client address allows for better aggregation
@@ -189,8 +190,8 @@ pub fn process_client_reports(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports(state: &mut ProcessEnvelopeState) {
-    state.managed_envelope.retain_items(|item| {
+pub fn process_user_reports<G, Data: Container<Group = G>>(data: &mut Data) {
+    data.managed_envelope_mut().retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;
         };

@@ -14,7 +14,7 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;
-use crate::services::processor::state::{ProcessEvent, ProcessState};
+use crate::services::processor::state::{Container, ProcessEvent};
 use crate::services::processor::{profile, ProcessEnvelopeState};
 use crate::utils::{self, ItemAction, SamplingResult};
 
@@ -38,8 +38,11 @@ use crate::utils::{self, ItemAction, SamplingResult};
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-pub fn normalize(state: &mut ProcessEnvelopeState) {
-    if state.envelope().dsc().is_some() && state.sampling_project_state.is_some() {
+pub fn normalize<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+) {
+    if data.envelope().dsc().is_some() && state.sampling_project_state.is_some() {
         return;
     }
 
@@ -53,19 +56,23 @@ pub fn normalize(state: &mut ProcessEnvelopeState) {
     };
 
     if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
-        state.envelope_mut().set_dsc(dsc);
+        data.envelope_mut().set_dsc(dsc);
         state.sampling_project_state = Some(state.project_state.clone());
     }
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
+pub fn run<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &Data,
+    config: &Config,
+) {
     // Running dynamic sampling involves either:
     // - Tagging whether an incoming error has a sampled trace connected to it.
     // - Computing the actual sampling decision on an incoming transaction.
     match state.event_type().unwrap_or_default() {
         EventType::Default | EventType::Error => {
-            tag_error_with_sampling_decision(state, config);
+            tag_error_with_sampling_decision(state, data, config);
         }
         EventType::Transaction => {
             match state.project_state.config.transaction_metrics {
@@ -90,7 +97,7 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
                 sampling_config,
                 state.event.value(),
                 root_config,
-                state.envelope().dsc(),
+                data.envelope().dsc(),
             );
         }
         _ => {}
@@ -98,8 +105,9 @@ pub fn run(state: &mut ProcessEnvelopeState, config: &Config) {
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn sample_envelope_items(
-    state: &mut ProcessEnvelopeState,
+pub fn sample_envelope_items<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
     config: &Config,
     global_config: &GlobalConfig,
 ) {
@@ -113,7 +121,7 @@ pub fn sample_envelope_items(
 
             let matched_rules = sampling_match.into_matched_rules();
             let outcome = Outcome::FilteredSampling(matched_rules.clone());
-            state.managed_envelope.retain_items(|item| {
+            data.managed_envelope_mut().retain_items(|item| {
                 if unsampled_profiles_enabled && item.ty() == &ItemType::Profile {
                     item.set_sampled(false);
                     // Transfer metadata to the profile before the transaction gets dropped:
@@ -124,7 +132,7 @@ pub fn sample_envelope_items(
                 }
             });
             // The event is no longer in the envelope, so we need to handle it separately:
-            state.reject_event(outcome);
+            state.reject_event(data, outcome);
         }
     }
 }
@@ -201,11 +209,12 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config: &Config) {
-    let (Some(dsc), Some(event)) = (
-        state.managed_envelope.envelope().dsc(),
-        state.event.value_mut(),
-    ) else {
+pub fn tag_error_with_sampling_decision<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &Data,
+    config: &Config,
+) {
+    let (Some(dsc), Some(event)) = (data.envelope().dsc(), state.event.value_mut()) else {
         return;
     };
 
@@ -243,7 +252,10 @@ pub fn tag_error_with_sampling_decision(state: &mut ProcessEnvelopeState, config
 }
 
 /// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
-fn forward_unsampled_profiles(state: &ProcessEnvelopeState, global_config: &GlobalConfig) -> bool {
+fn forward_unsampled_profiles<G>(
+    state: &ProcessEnvelopeState<G>,
+    global_config: &GlobalConfig,
+) -> bool {
     let global_options = &global_config.options;
 
     if !global_options.unsampled_profiles_enabled {
@@ -283,7 +295,9 @@ mod tests {
 
     use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
-    use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
+    use crate::services::processor::{
+        EnvelopeContainer, ProcessEnvelope, ProcessingGroup, TransactionGroup,
+    };
     use crate::services::project::ProjectState;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
@@ -328,7 +342,7 @@ mod tests {
                 envelope,
                 outcome_aggregator,
                 test_store,
-                ProcessingGroup::Transaction,
+                ProcessingGroup::Transaction(TransactionGroup),
             ),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
@@ -437,7 +451,7 @@ mod tests {
         .unwrap();
 
         // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
-        let get_state = |version: Option<u16>| {
+        let get_state_and_data = |version: Option<u16>| {
             let event = Event {
                 id: Annotated::new(EventId::new()),
                 ty: Annotated::new(EventType::Transaction),
@@ -460,41 +474,40 @@ mod tests {
                     .into();
             }
 
-            ProcessEnvelopeState {
-                event: Annotated::from(event),
-                metrics: Default::default(),
-                sample_rates: None,
-                sampling_result: SamplingResult::Pending,
-                extracted_metrics: Default::default(),
-                project_state: Arc::new(project_state),
-                sampling_project_state: None,
-                project_id: ProjectId::new(42),
-                managed_envelope: ManagedEnvelope::new(
-                    new_envelope(false, "foo"),
-                    TestSemaphore::new(42).try_acquire().unwrap(),
-                    outcome_aggregator.clone(),
-                    test_store.clone(),
-                    ProcessingGroup::Ungrouped,
-                ),
-                profile_id: None,
-                event_metrics_extracted: false,
-                reservoir: dummy_reservoir(),
-            }
+            let managed_envelope = ManagedEnvelope::new(
+                new_envelope(false, "foo"),
+                TestSemaphore::new(42).try_acquire().unwrap(),
+                outcome_aggregator.clone(),
+                test_store.clone(),
+                ProcessingGroup::Transaction(TransactionGroup),
+            );
+
+            let group = managed_envelope.group();
+            let mut state = ProcessEnvelopeState::new(
+                Arc::new(project_state),
+                None,
+                ProjectId::new(42),
+                dummy_reservoir(),
+                group,
+            );
+            state.event = Annotated::from(event);
+
+            (state, EnvelopeContainer::new(managed_envelope, group))
         };
 
         // None represents no TransactionMetricsConfig, DS will not be run
-        let mut state = get_state(None);
-        run(&mut state, &config);
+        let (mut state, data) = get_state_and_data(None);
+        run(&mut state, &data, &config);
         assert!(state.sampling_result.should_keep());
 
         // Current version is 1, so it won't run DS if it's outdated
-        let mut state = get_state(Some(0));
-        run(&mut state, &config);
+        let (mut state, data) = get_state_and_data(Some(0));
+        run(&mut state, &data, &config);
         assert!(state.sampling_result.should_keep());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
-        let mut state = get_state(Some(1));
-        run(&mut state, &config);
+        let (mut state, data) = get_state_and_data(Some(1));
+        run(&mut state, &data, &config);
         assert!(state.sampling_result.should_drop());
     }
 

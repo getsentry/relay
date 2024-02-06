@@ -1136,7 +1136,7 @@ mod tests {
     use tokio::select;
     use uuid::Uuid;
 
-    use crate::services::processor::ProcessingGroup;
+    use crate::services::processor::{ProcessingGroup, Ungrouped};
     use crate::testutils::{empty_envelope, empty_envelope_with_dsn};
 
     use super::*;
@@ -1237,7 +1237,7 @@ mod tests {
                     empty_envelope(),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
-                    ProcessingGroup::Ungrouped,
+                    ProcessingGroup::Ungrouped(Ungrouped),
                 )
                 .unwrap();
             let message = ValidateEnvelope { envelope };
@@ -1335,7 +1335,7 @@ mod tests {
                     empty_envelope_with_dsn(dsn),
                     services.outcome_aggregator.clone(),
                     services.test_store.clone(),
-                    ProcessingGroup::Ungrouped,
+                    ProcessingGroup::Ungrouped(Ungrouped),
                 )
                 .unwrap();
 

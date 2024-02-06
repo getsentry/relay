@@ -29,7 +29,7 @@ use {
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
-use crate::services::processor::state::{ProcessEvent, ProcessState};
+use crate::services::processor::state::{Container, ProcessEvent};
 use crate::services::processor::{
     ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
 };
@@ -44,8 +44,12 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
-    let envelope = &mut state.envelope_mut();
+pub fn extract<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+    config: &Config,
+) -> Result<(), ProcessingError> {
+    let envelope = &mut data.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
@@ -137,9 +141,13 @@ pub fn extract(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
     Ok(())
 }
 
-pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
+pub fn finalize<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+    config: &Config,
+) -> Result<(), ProcessingError> {
     let is_transaction = state.event_type() == Some(EventType::Transaction);
-    let envelope = state.managed_envelope.envelope_mut();
+    let envelope = data.envelope_mut();
 
     let event = match state.event.value_mut() {
         Some(event) => event,
@@ -244,7 +252,7 @@ pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(),
         None => None,
     };
 
-    let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
+    let mut processor = ClockDriftProcessor::new(sent_at, data.managed_envelope().received_at())
         .at_least(MINIMUM_CLOCK_DRIFT);
     processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -253,7 +261,7 @@ pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(),
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
     // interested in the actual delay before this correction.
     if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-        let event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
+        let event_delay = data.managed_envelope().received_at() - timestamp.into_inner();
         if event_delay > SignedDuration::minutes(1) {
             let category = state.event_category().unwrap_or(DataCategory::Unknown);
             metric!(
@@ -266,7 +274,10 @@ pub fn finalize(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(),
     Ok(())
 }
 
-pub fn filter(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn filter<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+) -> Result<(), ProcessingError> {
     let event = match state.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
@@ -274,13 +285,12 @@ pub fn filter(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         None => return Ok(()),
     };
 
-    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let client_ip = data.envelope().meta().client_addr();
     let filter_settings = &state.project_state.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-            state
-                .managed_envelope
+            data.managed_envelope_mut()
                 .reject(Outcome::Filtered(err.clone()));
             ProcessingError::EventFiltered(err)
         })
@@ -290,7 +300,7 @@ pub fn filter(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>) -> Result<(), ProcessingError> {
     let event = &mut state.event;
     let config = &state.project_state.config;
 
@@ -318,7 +328,10 @@ pub fn scrub(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
     Ok(())
 }
 
-pub fn serialize(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+pub fn serialize<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    container: &mut Data,
+) -> Result<(), ProcessingError> {
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
         state
             .event
@@ -339,21 +352,21 @@ pub fn serialize(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError
         event_item.set_sample_rates(sample_rates);
     }
 
-    state.envelope_mut().add_item(event_item);
+    container.envelope_mut().add_item(event_item);
 
     Ok(())
 }
 
 #[cfg(feature = "processing")]
-pub fn store(
-    state: &mut ProcessEnvelopeState,
+pub fn store<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &Data,
     config: &Config,
     geoip_lookup: Option<&GeoIpLookup>,
 ) -> Result<(), ProcessingError> {
     let ProcessEnvelopeState {
         ref mut event,
         ref project_state,
-        ref managed_envelope,
         ..
     } = *state;
 
@@ -361,7 +374,7 @@ pub fn store(
         .get_public_key_config()
         .and_then(|k| Some(k.numeric_id?.to_string()));
 
-    let envelope = state.managed_envelope.envelope();
+    let envelope = data.envelope();
 
     if key_id.is_none() {
         relay_log::error!(
@@ -385,7 +398,7 @@ pub fn store(
         remove_other: Some(true),
         normalize_user_agent: Some(true),
         sent_at: envelope.sent_at(),
-        received_at: Some(managed_envelope.received_at()),
+        received_at: Some(data.managed_envelope().received_at()),
         breakdowns: project_state.config.breakdowns_v2.clone(),
         client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
         replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),

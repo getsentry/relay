@@ -23,14 +23,19 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::state::{
-    ProcessEvent, ProcessExtractedMetrics, ProcessSpan, ProcessState,
+    Container, ProcessEvent, ProcessExtractedMetrics, ProcessSpan, ProcessState,
 };
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils::ItemAction;
 
-pub fn process<State>(state: &mut State, config: Arc<Config>, global_config: &GlobalConfig)
-where
+pub fn process<State, Data>(
+    state: &mut State,
+    data: &mut Data,
+    config: Arc<Config>,
+    global_config: &GlobalConfig,
+) where
     State: ProcessState + ProcessSpan + ProcessExtractedMetrics,
+    Data: Container,
 {
     let project_state = state.project_state().clone();
     let span_metrics_extraction_config = match project_state.config.metric_extraction {
@@ -39,13 +44,13 @@ where
     };
     let normalize_span_config = get_normalize_span_config(
         config,
-        state.managed_envelope().received_at(),
+        data.managed_envelope().received_at(),
         global_config.measurements.as_ref(),
         project_state.config().measurements.as_ref(),
         project_state.config().performance_score.as_ref(),
     );
 
-    let meta = state.envelope().meta();
+    let meta = data.envelope().meta();
     let mut contexts = Contexts::new();
     let user_agent_info = RawUserAgentInfo {
         user_agent: meta.user_agent(),
@@ -58,8 +63,7 @@ where
         &user_agent_info,
     );
 
-    let mut extracted_metrics = Vec::new();
-    state.managed_envelope_mut().retain_items(|item| {
+    data.managed_envelope_mut().retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => {
                 match serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload()) {
@@ -95,7 +99,7 @@ where
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
             let metrics = extract_metrics(span, config, Some(&global_config.options));
-            extracted_metrics.extend(metrics);
+            state.extend_metrics(metrics);
             item.set_metrics_extracted(true);
         }
 
@@ -140,11 +144,12 @@ where
 
         ItemAction::Keep
     });
-
-    state.extend_metrics(extracted_metrics);
 }
 
-pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
+pub fn extract_from_event<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
         return;
@@ -155,7 +160,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!("Invalid span: {e}");
-                state.managed_envelope.track_outcome(
+                data.managed_envelope().track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -167,7 +172,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                state.managed_envelope.track_outcome(
+                data.managed_envelope().track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -179,7 +184,7 @@ pub fn extract_from_event(state: &mut ProcessEnvelopeState) {
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(state.event_metrics_extracted);
-        state.managed_envelope.envelope_mut().add_item(item);
+        data.envelope_mut().add_item(item);
     };
 
     let span_metrics_extraction_enabled = state

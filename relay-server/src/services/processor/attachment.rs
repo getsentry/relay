@@ -7,6 +7,7 @@ use relay_pii::PiiAttachmentsProcessor;
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType};
+use crate::services::processor::state::Container;
 use crate::services::processor::ProcessEnvelopeState;
 use crate::statsd::RelayTimers;
 
@@ -20,8 +21,11 @@ use {crate::utils, relay_event_schema::protocol::Event, relay_protocol::Annotate
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders(state: &mut ProcessEnvelopeState) {
-    let envelope = state.managed_envelope.envelope();
+pub fn create_placeholders<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &Data,
+) {
+    let envelope = data.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
     let apple_crash_report_attachment = envelope
@@ -43,8 +47,8 @@ pub fn create_placeholders(state: &mut ProcessEnvelopeState) {
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub(state: &mut ProcessEnvelopeState) {
-    let envelope = state.managed_envelope.envelope_mut();
+pub fn scrub<G, Data: Container<Group = G>>(state: &mut ProcessEnvelopeState<G>, data: &mut Data) {
+    let envelope = data.envelope_mut();
     if let Some(ref config) = state.project_state.config.pii_config {
         let minidump = envelope
             .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));

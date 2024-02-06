@@ -5,7 +5,7 @@
 use relay_config::Config;
 
 use crate::envelope::ItemType;
-use crate::services::processor::state::ProcessState;
+use crate::services::processor::state::Container;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError};
 use crate::utils;
 
@@ -21,8 +21,11 @@ use crate::utils;
 ///
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
-pub fn expand(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
-    let envelope = &mut state.envelope_mut();
+pub fn expand<G, Data: Container<Group = G>>(
+    data: &mut Data,
+    config: &Config,
+) -> Result<(), ProcessingError> {
+    let envelope = &mut data.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
         utils::expand_unreal_envelope(item, envelope, config)?;
@@ -35,7 +38,10 @@ pub fn expand(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), P
 ///
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
-pub fn process(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-    utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
+pub fn process<G, Data: Container<Group = G>>(
+    state: &mut ProcessEnvelopeState<G>,
+    data: &mut Data,
+) -> Result<(), ProcessingError> {
+    utils::process_unreal_envelope(&mut state.event, data.envelope_mut())
         .map_err(ProcessingError::InvalidUnrealReport)
 }
