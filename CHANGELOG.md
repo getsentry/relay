@@ -8,6 +8,7 @@
 - Obtain `span.domain` field from the span data's `url.scheme` and `server.address` properties when applicable. ([#2975](https://github.com/getsentry/relay/pull/2975))
 - Do not truncate simplified SQL expressions. ([#3003](https://github.com/getsentry/relay/pull/3003))
 - Add `app_start_type` as self time tag for app start spans. ([#3027](https://github.com/getsentry/relay/pull/3027))
+- Add `app_start_type` to duration. ([#3066](https://github.com/getsentry/relay/pull/3066))
 
 **Internal**:
 
