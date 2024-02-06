@@ -217,10 +217,10 @@ impl VisitorMut for NormalizeVisitor {
                 Self::simplify_table_alias(alias);
             }
             TableFactor::JsonTable { columns, alias, .. } => {
-                for col in columns {
-                    Self::scrub_name(&mut col.name);
-                    Self::simplify_table_alias(alias);
+                for column in columns {
+                    Self::scrub_name(&mut column.name);
                 }
+                Self::simplify_table_alias(alias);
             }
             TableFactor::Unpivot {
                 value,
