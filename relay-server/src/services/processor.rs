@@ -1386,11 +1386,11 @@ impl EnvelopeProcessorService {
     /// Processes user and client reports.
     fn process_client_reports<G, Data: Container<Group = G>>(
         &self,
-        state: &mut ProcessEnvelopeState<G>,
+        _state: &mut ProcessEnvelopeState<G>,
         data: &mut Data,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state, data)?;
+            self.enforce_quotas(_state, data)?;
         });
 
         report::process_client_reports(
