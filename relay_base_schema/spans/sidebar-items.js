@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["SpanAttribute","SpanStatus"],"struct":["ParseSpanStatusError"]};
+window.SIDEBAR_ITEMS = {"enum":["SpanStatus"],"struct":["ParseSpanStatusError"]};

@@ -192,19 +192,7 @@
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
-
-<span class="kw">use </span>relay_auth::PublicKey;
-<span class="kw">use </span>relay_base_schema::spans::SpanAttribute;
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_auth::PublicKey;
 <span class="kw">use </span>relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
@@ -271,9 +259,6 @@
     <span class="doccomment">/// Configuration for generic metrics extraction from all data categories.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;skip_metrics_extraction&quot;</span>)]
     </span><span class="kw">pub </span>metric_extraction: ErrorBoundary&lt;MetricExtractionConfig&gt;,
-    <span class="doccomment">/// The span attributes configuration.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
-    </span><span class="kw">pub </span>span_attributes: BTreeSet&lt;SpanAttribute&gt;,
     <span class="doccomment">/// Rules for applying metrics tags depending on the event&#39;s content.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
@@ -329,7 +314,6 @@
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: <span class="prelude-val">None</span>,
             metric_extraction: Default::default(),
-            span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
             features: Default::default(),
             tx_name_rules: Vec::new(),
@@ -378,8 +362,6 @@
     </span><span class="kw">pub </span>metric_extraction: ErrorBoundary&lt;MetricExtractionConfig&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
-    </span><span class="kw">pub </span>span_attributes: BTreeSet&lt;SpanAttribute&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
