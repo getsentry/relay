@@ -7,26 +7,16 @@ use crate::{
     limiter::{Entry, EntryId, Limiter, Rejections, Scoping},
     redis::{
         cache::{Cache, CacheOutcome},
+        quota::QuotaScoping,
         script::{CardinalityScript, Status},
     },
     statsd::{
         CardinalityLimiterCounters, CardinalityLimiterHistograms, CardinalityLimiterSets,
         CardinalityLimiterTimers,
     },
-    window::Slot,
-    CardinalityLimit, CardinalityScope, OrganizationId, Result, SlidingWindow,
+    CardinalityLimit, Result,
 };
-use relay_base_schema::metrics::MetricNamespace;
-use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-
-/// Key prefix used for Redis keys.
-const KEY_PREFIX: &str = "relay:cardinality";
-/// Redis key version.
-///
-/// The version is embedded in the key as a static segment, increment the version whenever there are
-/// breaking changes made to the keys or storage format in Redis.
-const KEY_VERSION: u32 = 1;
 
 /// Configuration options for the [`RedisSetLimiter`].
 pub struct RedisSetLimiterOptions {
@@ -85,7 +75,7 @@ impl RedisSetLimiter {
         // but since this is only used for cleanup, this is not an issue.
         let result = self
             .script
-            .invoke(con, limit, scope.window.window_seconds, hashes, keys)?;
+            .invoke(con, limit, scope.redis_key_ttl(), hashes, keys)?;
 
         metric!(
             histogram(CardinalityLimiterHistograms::RedisSetCardinality) = result.cardinality,
@@ -100,16 +90,16 @@ impl RedisSetLimiter {
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<E, R>(
+    fn check_cardinality_limits<'a, E, R>(
         &self,
         scoping: Scoping,
-        limits: &[CardinalityLimit],
+        limits: &'a [CardinalityLimit],
         entries: E,
         rejections: &mut R,
     ) -> Result<()>
     where
         E: IntoIterator<Item = Entry>,
-        R: Rejections,
+        R: Rejections<'a>,
     {
         let timestamp = UnixTimestamp::now();
         // Allows to fast forward time in tests.
@@ -134,7 +124,7 @@ impl Limiter for RedisSetLimiter {
                     }
                     CacheOutcome::Rejected => {
                         // Rejected, add it to the rejected list and move on.
-                        rejections.reject(entry.id);
+                        rejections.reject(state.id, entry.id);
                         state.cache_hit();
                         state.rejected();
                     }
@@ -166,7 +156,7 @@ impl Limiter for RedisSetLimiter {
             let mut cache = self.cache.update(state.scope, timestamp); // Acquire a write lock.
             for (entry, status) in results {
                 if status.is_rejected() {
-                    rejections.reject(entry.id);
+                    rejections.reject(state.id, entry.id);
                     state.rejected();
                 } else {
                     cache.accept(entry.hash);
@@ -177,54 +167,6 @@ impl Limiter for RedisSetLimiter {
         }
 
         Ok(())
-    }
-}
-
-/// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct QuotaScoping {
-    pub window: SlidingWindow,
-    pub namespace: Option<MetricNamespace>,
-    pub organization_id: Option<OrganizationId>,
-    pub project_id: Option<ProjectId>,
-}
-
-impl QuotaScoping {
-    /// Creates a new [`QuotaScoping`] from a [`Scoping`] and [`CardinalityLimit`].
-    ///
-    /// Returns `None` for limits with scope [`CardinalityScope::Unknown`].
-    pub fn new(scoping: Scoping, limit: &CardinalityLimit) -> Option<Self> {
-        let (organization_id, project_id) = match limit.scope {
-            CardinalityScope::Organization => (Some(scoping.organization_id), None),
-            // Invalid/unknown scope -> ignore the limit.
-            CardinalityScope::Unknown => return None,
-        };
-
-        Some(Self {
-            window: limit.window,
-            namespace: limit.namespace,
-            organization_id,
-            project_id,
-        })
-    }
-
-    /// Wether the scoping applies to the passed entry.
-    pub fn matches(&self, entry: &Entry) -> bool {
-        self.namespace.is_none() || self.namespace == Some(entry.namespace)
-    }
-
-    /// Returns all slots of the sliding window for a specific timestamp.
-    pub fn slots(&self, timestamp: UnixTimestamp) -> impl Iterator<Item = Slot> {
-        self.window.iter(timestamp)
-    }
-
-    /// Turns the scoping into a Redis key for the passed slot.
-    fn into_redis_key(self, slot: Slot) -> String {
-        let organization_id = self.organization_id.unwrap_or(0);
-        let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
-        let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
-
-        format!("{KEY_PREFIX}:{KEY_VERSION}:scope-{{{organization_id}-{project_id}-{namespace}}}-{slot}")
     }
 }
 
@@ -327,9 +269,9 @@ impl<'a> Drop for LimitState<'a> {
 #[derive(Clone, Copy, Debug)]
 struct RedisEntry {
     /// The correlating entry id.
-    id: EntryId,
+    pub id: EntryId,
     /// The entry hash.
-    hash: u32,
+    pub hash: u32,
 }
 
 impl RedisEntry {
@@ -369,6 +311,7 @@ mod tests {
     use relay_redis::{redis, RedisConfigOptions};
 
     use crate::limiter::EntryId;
+    use crate::redis::{KEY_PREFIX, KEY_VERSION};
     use crate::{CardinalityScope, SlidingWindow};
 
     use super::*;
@@ -377,7 +320,11 @@ mod tests {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        let redis = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
+        let opts = RedisConfigOptions {
+            max_connections: 1,
+            ..Default::default()
+        };
+        let redis = RedisPool::single(&url, opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {
@@ -403,8 +350,8 @@ mod tests {
     #[derive(Debug, Default, PartialEq, Eq)]
     struct Rejections(HashSet<EntryId>);
 
-    impl super::Rejections for Rejections {
-        fn reject(&mut self, entry_id: EntryId) {
+    impl<'a> super::Rejections<'a> for Rejections {
+        fn reject(&mut self, _limit_id: &'a str, entry_id: EntryId) {
             self.0.insert(entry_id);
         }
     }
@@ -522,6 +469,77 @@ mod tests {
         limit.limit = 6;
         let rejected3 = limiter.test_limits(scoping, &[limit], entries);
         assert_eq!(rejected3.len(), 0);
+    }
+
+    #[test]
+    fn test_limiter_org_based_time_shift() {
+        let mut limiter = build_limiter();
+
+        let granularity_seconds = 10_000;
+
+        let scoping1 = Scoping {
+            organization_id: granularity_seconds,
+            project_id: ProjectId::new(1),
+        };
+        let scoping2 = Scoping {
+            // Time shift relative to `scoping1` should be half the granularity.
+            organization_id: granularity_seconds / 2,
+            project_id: ProjectId::new(1),
+        };
+
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: granularity_seconds * 3,
+                granularity_seconds,
+            },
+            limit: 1,
+            scope: CardinalityScope::Organization,
+            namespace: Some(MetricNamespace::Custom),
+        }];
+
+        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
+        assert!(limiter.test_limits(scoping1, limits, entries1).is_empty());
+        assert!(limiter.test_limits(scoping2, limits, entries1).is_empty());
+
+        // Make sure `entries2` is not accepted.
+        let entries2 = [Entry::new(EntryId(1), MetricNamespace::Custom, 1)];
+        assert_eq!(limiter.test_limits(scoping1, limits, entries2).len(), 1);
+        assert_eq!(limiter.test_limits(scoping2, limits, entries2).len(), 1);
+
+        let mut scoping1_accept = None;
+        let mut scoping2_accept = None;
+
+        // Measure time required until `entries2` is accepted.
+        for i in 0..100 {
+            let offset = i * granularity_seconds / 10;
+
+            limiter.time_offset = Duration::from_secs(offset);
+
+            if scoping1_accept.is_none()
+                && limiter.test_limits(scoping1, limits, entries2).is_empty()
+            {
+                scoping1_accept = Some(offset as i64);
+            }
+
+            if scoping2_accept.is_none()
+                && limiter.test_limits(scoping2, limits, entries2).is_empty()
+            {
+                scoping2_accept = Some(offset as i64);
+            }
+
+            if scoping1_accept.is_some() && scoping2_accept.is_some() {
+                break;
+            }
+        }
+
+        let scoping1_accept = scoping1_accept.unwrap();
+        let scoping2_accept = scoping2_accept.unwrap();
+
+        let diff = (scoping1_accept - scoping2_accept).abs();
+        let expected = granularity_seconds as i64 / 2;
+        // Make sure they are perfectly offset.
+        assert_eq!(diff, expected);
     }
 
     #[test]

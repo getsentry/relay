@@ -5,7 +5,7 @@ use std::time::Duration;
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
 
-use crate::redis::QuotaScoping;
+use crate::redis::quota::QuotaScoping;
 use crate::statsd::{CardinalityLimiterCounters, CardinalityLimiterTimers};
 use crate::window::Slot;
 
@@ -57,7 +57,7 @@ impl Cache {
 
         inner.vacuum(timestamp);
 
-        let slot = scope.window.active_slot(timestamp);
+        let slot = scope.active_slot(timestamp);
         let cache = inner.cache.entry(scope).or_default();
 
         // If the slot is older, don't do anything and give up the lock early.
@@ -101,7 +101,7 @@ impl<'a> CacheRead<'a> {
             return CacheOutcome::Unknown;
         };
 
-        let slot = scope.window.active_slot(self.timestamp);
+        let slot = scope.active_slot(self.timestamp);
         cache.check(slot, hash, limit)
     }
 }
@@ -150,7 +150,7 @@ impl Inner {
 
         let expired = metric!(timer(CardinalityLimiterTimers::CacheVacuum), {
             self.cache
-                .drain_filter(|scope, cache| cache.current_slot < scope.window.active_slot(ts))
+                .drain_filter(|scope, cache| cache.current_slot < scope.active_slot(ts))
                 .count()
         });
         metric!(counter(CardinalityLimiterCounters::RedisCacheVacuum) += expired as i64);
@@ -198,25 +198,40 @@ impl ScopedCache {
 mod tests {
     use std::time::Duration;
 
-    use crate::SlidingWindow;
+    use relay_base_schema::project::ProjectId;
+
+    use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
 
     use super::*;
+
+    fn build_scoping(organization_id: OrganizationId, window: SlidingWindow) -> QuotaScoping {
+        QuotaScoping::new(
+            Scoping {
+                organization_id,
+                project_id: ProjectId::new(1),
+            },
+            &CardinalityLimit {
+                id: String::new(),
+                window,
+                limit: 100,
+                scope: CardinalityScope::Organization,
+                namespace: None,
+            },
+        )
+        .unwrap()
+    }
 
     #[test]
     fn test_cache() {
         let cache = Cache::new(Duration::from_secs(180));
 
-        let scope = QuotaScoping {
-            window: SlidingWindow {
-                window_seconds: 100,
-                granularity_seconds: 10,
-            },
-            namespace: None,
-            organization_id: None,
-            project_id: None,
+        let window = SlidingWindow {
+            window_seconds: 100,
+            granularity_seconds: 10,
         };
+        let scope = build_scoping(1, window);
         let now = UnixTimestamp::now();
-        let future = now + Duration::from_secs(scope.window.granularity_seconds + 1);
+        let future = now + Duration::from_secs(window.granularity_seconds + 1);
 
         {
             let cache = cache.read(now);
@@ -270,19 +285,13 @@ mod tests {
     fn test_cache_different_scopings() {
         let cache = Cache::new(Duration::from_secs(180));
 
-        let scope1 = QuotaScoping {
-            window: SlidingWindow {
-                window_seconds: 100,
-                granularity_seconds: 10,
-            },
-            namespace: None,
-            organization_id: None,
-            project_id: None,
+        let window = SlidingWindow {
+            window_seconds: 100,
+            granularity_seconds: 10,
         };
-        let scope2 = QuotaScoping {
-            organization_id: Some(100),
-            ..scope1
-        };
+        let scope1 = build_scoping(1, window);
+        let scope2 = build_scoping(2, window);
+
         let now = UnixTimestamp::now();
 
         {
@@ -314,19 +323,13 @@ mod tests {
         let vacuum_interval = Duration::from_secs(30);
         let cache = Cache::new(vacuum_interval);
 
-        let scope1 = QuotaScoping {
-            window: SlidingWindow {
-                window_seconds: vacuum_interval.as_secs() * 10,
-                granularity_seconds: vacuum_interval.as_secs() * 2,
-            },
-            namespace: None,
-            organization_id: None,
-            project_id: None,
+        let window = SlidingWindow {
+            window_seconds: vacuum_interval.as_secs() * 10,
+            granularity_seconds: vacuum_interval.as_secs() * 2,
         };
-        let scope2 = QuotaScoping {
-            organization_id: Some(100),
-            ..scope1
-        };
+        let scope1 = build_scoping(1, window);
+        let scope2 = build_scoping(2, window);
+
         let now = UnixTimestamp::now();
         let in_interval = now + Duration::from_secs(vacuum_interval.as_secs() - 1);
         let future = now + Duration::from_secs(vacuum_interval.as_secs() * 3);

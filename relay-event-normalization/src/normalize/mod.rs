@@ -9,9 +9,8 @@ use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, Level, MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext,
-    VALID_PLATFORMS,
+    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
+    MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
@@ -22,13 +21,12 @@ use serde::{Deserialize, Serialize};
 use crate::StoreConfig;
 
 pub mod breakdowns;
+pub mod contexts;
 pub mod nel;
 pub mod request;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
-
-mod contexts;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
@@ -528,29 +526,6 @@ impl Processor for StoreNormalizeProcessor {
         _state: &ProcessingState<'_>,
     ) -> ProcessingResult {
         crate::stacktrace::process_stacktrace(&mut stacktrace.0, meta);
-        Ok(())
-    }
-
-    fn process_context(
-        &mut self,
-        context: &mut Context,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        contexts::normalize_context(context);
-        Ok(())
-    }
-
-    fn process_contexts(
-        &mut self,
-        contexts: &mut Contexts,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
-        // construct.
-        // This processor does not run on renormalization anyway.
-        contexts.0.remove("reprocessing");
         Ok(())
     }
 }

@@ -230,7 +230,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
-    if event.ty.value() == Some(&EventType::Transaction) && !config.is_renormalize {
+    if event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
@@ -784,9 +784,17 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
     let _ = processor::apply(contexts, |contexts, _meta| {
+        // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
+        // construct.
+        // [`normalize`] does not run on renormalization anyway.
+        contexts.0.remove("reprocessing");
+
         for annotated in &mut contexts.0.values_mut() {
             if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
                 context.status.get_or_insert_with(|| SpanStatus::Unknown);
+            }
+            if let Some(context_inner) = annotated.value_mut() {
+                crate::normalize::contexts::normalize_context(&mut context_inner.0);
             }
         }
 
@@ -979,7 +987,7 @@ mod tests {
     use relay_event_schema::protocol::{
         Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
     };
-    use relay_protocol::{Annotated, SerializableAnnotated};
+    use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
 
     use super::*;
@@ -2444,6 +2452,38 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_normalization_removes_reprocessing_context() {
+        let json = r#"{
+            "contexts": {
+                "reprocessing": {}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+        normalize_event(&mut event, &NormalizationConfig::default());
+        assert!(!get_value!(event.contexts!).contains_key("reprocessing"));
+    }
+
+    #[test]
+    fn test_renormalization_does_not_remove_reprocessing_context() {
+        let json = r#"{
+            "contexts": {
+                "reprocessing": {}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
     }
 
     #[test]
