@@ -917,8 +917,8 @@ impl StoreService {
                     let Some(summary) = summary else {
                         continue;
                     };
-                    // Ignore immedate errors on produce.
-                    let _ = self.produce(
+                    // Ignore immediate errors on produce.
+                    if let Err(error) = self.produce(
                         KafkaTopic::MetricsSummaries,
                         scoping.organization_id,
                         KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
@@ -938,7 +938,12 @@ impl StoreService {
                             tags: summary.tags.clone().unwrap_or_default(),
                             trace_id: span.trace_id,
                         }),
-                    );
+                    ) {
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to push metrics summary to kafka",
+                        );
+                    }
                 }
             }
             span.metrics_summary = None;
