@@ -383,7 +383,7 @@ mod tests {
     scrub_sql_test!(
         strip_prefixes_mysql_generic,
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
-        r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
+        r#"SELECT foo, count(*) from table WHERE sku = %s"#
     );
 
     scrub_sql_test_with_dialect!(
@@ -581,7 +581,7 @@ mod tests {
     scrub_sql_test!(
         values_multi,
         "INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
-        "INSERT INTO a (..) VALUES (%s) ON CONFLICT DO NOTHING"
+        "INSERT INTO a (..) VALUES (%s)  ON CONFLICT DO NOTHING"
     );
 
     scrub_sql_test!(
@@ -876,10 +876,13 @@ mod tests {
     );
 
     scrub_sql_test_with_dialect!(
-        replace_into,
+        dont_fallback_to_regex,
         "mysql",
+        // sqlparser cannot parse REPLACE INTO. If we know that
+        // a query is MySQL, we should give up rather than try to scrub
+        // with regex
         r#"REPLACE INTO `foo` (`a`) VALUES ("abcd1234")"#,
-        "REPLACE INTO foo (..) VALUES (%s)"
+        "REPLACE INTO foo (a) VALUES (%s)"
     );
 
     scrub_sql_test!(

@@ -6,8 +6,8 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{
-    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, Expr, FunctionArg,
-    Ident, ObjectName, Query, Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint,
+    AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, Expr, Ident,
+    ObjectName, Query, Select, SelectItem, SetExpr, Statement, TableAlias, TableConstraint,
     TableFactor, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
@@ -198,41 +198,12 @@ impl VisitorMut for NormalizeVisitor {
                 Self::simplify_table_alias(alias);
             }
             TableFactor::Pivot {
-                value_column,
-                alias,
+                table_alias,
+                pivot_alias,
                 ..
             } => {
-                Self::simplify_compound_identifier(value_column);
-                Self::simplify_table_alias(alias);
-            }
-            TableFactor::Function {
-                name, args, alias, ..
-            } => {
-                Self::simplify_compound_identifier(&mut name.0);
-                for arg in args {
-                    if let FunctionArg::Named { name, .. } = arg {
-                        Self::scrub_name(name);
-                    }
-                }
-                Self::simplify_table_alias(alias);
-            }
-            TableFactor::JsonTable { columns, alias, .. } => {
-                for column in columns {
-                    Self::scrub_name(&mut column.name);
-                }
-                Self::simplify_table_alias(alias);
-            }
-            TableFactor::Unpivot {
-                value,
-                name,
-                columns,
-                alias,
-                ..
-            } => {
-                Self::scrub_name(value);
-                Self::scrub_name(name);
-                Self::simplify_compound_identifier(columns);
-                Self::simplify_table_alias(alias);
+                Self::simplify_table_alias(table_alias);
+                Self::simplify_table_alias(pivot_alias);
             }
         }
         ControlFlow::Continue(())
@@ -340,10 +311,8 @@ impl VisitorMut for NormalizeVisitor {
                 columns, source, ..
             } => {
                 *columns = vec![Self::ellipsis()];
-                if let Some(source) = source.as_mut() {
-                    if let SetExpr::Values(v) = &mut *source.body {
-                        v.rows = vec![vec![Expr::Value(Self::placeholder())]]
-                    }
+                if let SetExpr::Values(v) = &mut *source.body {
+                    v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                 }
             }
             // Simple lists of col = value assignments are collapsed to `..`.
@@ -381,93 +350,89 @@ impl VisitorMut for NormalizeVisitor {
             Statement::Close {
                 cursor: CloseCursor::Specific { name },
             } => Self::erase_name(name),
-            Statement::AlterTable {
-                name, operations, ..
-            } => {
+            Statement::AlterTable { name, operation } => {
                 Self::simplify_compound_identifier(&mut name.0);
-                for operation in operations {
-                    match operation {
-                        AlterTableOperation::AddConstraint(c) => match c {
-                            TableConstraint::Unique { name, columns, .. } => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
-                                for column in columns {
-                                    Self::scrub_name(column);
-                                }
+                match operation {
+                    AlterTableOperation::AddConstraint(c) => match c {
+                        TableConstraint::Unique { name, columns, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
                             }
-                            TableConstraint::ForeignKey {
-                                name,
-                                columns,
-                                referred_columns,
-                                ..
-                            } => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
-                                for column in columns {
-                                    Self::scrub_name(column);
-                                }
-                                for column in referred_columns {
-                                    Self::scrub_name(column);
-                                }
+                            for column in columns {
+                                Self::scrub_name(column);
                             }
-                            TableConstraint::Check { name, .. } => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
-                            }
-                            TableConstraint::Index { name, columns, .. } => {
-                                if let Some(name) = name {
-                                    Self::scrub_name(name);
-                                }
-                                for column in columns {
-                                    Self::scrub_name(column);
-                                }
-                            }
-                            TableConstraint::FulltextOrSpatial {
-                                opt_index_name,
-                                columns,
-                                ..
-                            } => {
-                                if let Some(name) = opt_index_name {
-                                    Self::scrub_name(name);
-                                }
-                                for column in columns {
-                                    Self::scrub_name(column);
-                                }
-                            }
-                        },
-                        AlterTableOperation::AddColumn { column_def, .. } => {
-                            let ColumnDef { name, .. } = column_def;
-                            Self::scrub_name(name);
                         }
-                        AlterTableOperation::DropConstraint { name, .. } => Self::scrub_name(name),
-                        AlterTableOperation::DropColumn { column_name, .. } => {
-                            Self::scrub_name(column_name)
-                        }
-                        AlterTableOperation::RenameColumn {
-                            old_column_name,
-                            new_column_name,
+                        TableConstraint::ForeignKey {
+                            name,
+                            columns,
+                            referred_columns,
+                            ..
                         } => {
-                            Self::scrub_name(old_column_name);
-                            Self::scrub_name(new_column_name);
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                            for column in referred_columns {
+                                Self::scrub_name(column);
+                            }
                         }
-                        AlterTableOperation::ChangeColumn {
-                            old_name, new_name, ..
+                        TableConstraint::Check { name, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                        }
+                        TableConstraint::Index { name, columns, .. } => {
+                            if let Some(name) = name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
+                        }
+                        TableConstraint::FulltextOrSpatial {
+                            opt_index_name,
+                            columns,
+                            ..
                         } => {
-                            Self::scrub_name(old_name);
-                            Self::scrub_name(new_name);
+                            if let Some(name) = opt_index_name {
+                                Self::scrub_name(name);
+                            }
+                            for column in columns {
+                                Self::scrub_name(column);
+                            }
                         }
-                        AlterTableOperation::RenameConstraint { old_name, new_name } => {
-                            Self::scrub_name(old_name);
-                            Self::scrub_name(new_name);
-                        }
-                        AlterTableOperation::AlterColumn { column_name, .. } => {
-                            Self::scrub_name(column_name);
-                        }
-                        _ => {}
+                    },
+                    AlterTableOperation::AddColumn { column_def, .. } => {
+                        let ColumnDef { name, .. } = column_def;
+                        Self::scrub_name(name);
                     }
+                    AlterTableOperation::DropConstraint { name, .. } => Self::scrub_name(name),
+                    AlterTableOperation::DropColumn { column_name, .. } => {
+                        Self::scrub_name(column_name)
+                    }
+                    AlterTableOperation::RenameColumn {
+                        old_column_name,
+                        new_column_name,
+                    } => {
+                        Self::scrub_name(old_column_name);
+                        Self::scrub_name(new_column_name);
+                    }
+                    AlterTableOperation::ChangeColumn {
+                        old_name, new_name, ..
+                    } => {
+                        Self::scrub_name(old_name);
+                        Self::scrub_name(new_name);
+                    }
+                    AlterTableOperation::RenameConstraint { old_name, new_name } => {
+                        Self::scrub_name(old_name);
+                        Self::scrub_name(new_name);
+                    }
+                    AlterTableOperation::AlterColumn { column_name, .. } => {
+                        Self::scrub_name(column_name);
+                    }
+                    _ => {}
                 }
             }
 
