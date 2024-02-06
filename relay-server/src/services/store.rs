@@ -1135,23 +1135,6 @@ struct ReplayRecordingChunkKafkaMessage {
     chunk_index: usize,
 }
 #[derive(Debug, Serialize)]
-struct CombinedReplayEventAndRecordingKafkaMessage {
-    /// Raw event payload.
-    payload: Bytes,
-    /// The event id.
-    replay_id: EventId,
-    /// The project id for the current event.
-    project_id: ProjectId,
-    /// The project id for the current event.
-    org_id: u64,
-    /// The timestamp of when the recording was Received by relay
-    received: u64,
-    version: u8,
-    // Number of days to retain.
-    retention_days: u16,
-}
-
-#[derive(Debug, Serialize)]
 struct ReplayRecordingChunkMeta {
     /// The attachment ID within the event.
     ///
