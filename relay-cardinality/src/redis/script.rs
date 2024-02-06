@@ -119,3 +119,68 @@ impl CardinalityScript {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use relay_redis::{RedisConfigOptions, RedisPool};
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn build_redis() -> RedisPool {
+        let url = std::env::var("RELAY_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+
+        let opts = RedisConfigOptions {
+            max_connections: 1,
+            ..Default::default()
+        };
+        RedisPool::single(&url, opts).unwrap()
+    }
+
+    fn keys(prefix: Uuid, keys: &[&str]) -> impl Iterator<Item = String> {
+        keys.iter()
+            .map(move |key| format!("{prefix}-{key}"))
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+
+    fn assert_ttls(connection: &mut Connection, prefix: Uuid) {
+        let keys = redis::cmd("KEYS")
+            .arg(format!("{prefix}-*"))
+            .query::<Vec<String>>(connection)
+            .unwrap();
+
+        for key in keys {
+            let ttl = redis::cmd("TTL")
+                .arg(&key)
+                .query::<i64>(connection)
+                .unwrap();
+
+            assert!(ttl >= 0, "Key {key} has no TTL");
+        }
+    }
+
+    #[test]
+    fn test_below_limit_perfect_cardinality_ttl() {
+        let redis = build_redis();
+        let mut client = redis.client().unwrap();
+        let mut connection = client.connection().unwrap();
+
+        let script = CardinalityScript::load();
+
+        let prefix = Uuid::new_v4();
+        let k1 = &["a", "b", "c"];
+        let k2 = &["b", "c", "d"];
+
+        script
+            .invoke(&mut connection, 50, 3600, 0..30, keys(prefix, k1))
+            .unwrap();
+
+        script
+            .invoke(&mut connection, 50, 3600, 0..30, keys(prefix, k2))
+            .unwrap();
+
+        assert_ttls(&mut connection, prefix);
+    }
+}
