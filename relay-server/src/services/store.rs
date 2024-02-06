@@ -922,20 +922,20 @@ impl StoreService {
                         KafkaTopic::MetricsSummaries,
                         scoping.organization_id,
                         KafkaMessage::MetricsSummary(MetricsSummaryKafkaMessage {
-                            count: summary.count.unwrap_or_default(),
+                            count: summary.count,
                             duration_ms: span.duration_ms,
                             end_timestamp: span.end_timestamp,
                             group: &group,
                             is_segment: span.is_segment,
-                            max: summary.max.unwrap_or_default(),
+                            max: summary.max,
                             mri,
-                            min: summary.min.unwrap_or_default(),
+                            min: summary.min,
                             project_id: span.project_id,
                             retention_days: span.retention_days,
                             segment_id: span.segment_id.unwrap_or_default(),
                             span_id: span.span_id,
-                            sum: summary.sum.unwrap_or_default(),
-                            tags: summary.tags.clone().unwrap_or_default(),
+                            sum: summary.sum,
+                            tags: summary.tags.clone(),
                             trace_id: span.trace_id,
                         }),
                     ) {
@@ -1325,21 +1325,27 @@ struct SpanKafkaMessage<'a> {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct MetricsSummaryKafkaMessage<'a> {
-    count: u64,
     duration_ms: u32,
     end_timestamp: f64,
     group: &'a str,
     is_segment: bool,
-    max: f64,
     mri: &'a str,
-    min: f64,
     project_id: u64,
     retention_days: u16,
     segment_id: &'a str,
     span_id: &'a str,
-    sum: f64,
-    tags: BTreeMap<String, String>,
     trace_id: &'a str,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sum: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tags: Option<BTreeMap<String, String>>,
 }
 
 /// An enum over all possible ingest messages.
