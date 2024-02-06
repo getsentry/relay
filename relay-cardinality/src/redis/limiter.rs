@@ -320,7 +320,11 @@ mod tests {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        let redis = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
+        let opts = RedisConfigOptions {
+            max_connections: 1,
+            ..Default::default()
+        };
+        let redis = RedisPool::single(&url, opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {

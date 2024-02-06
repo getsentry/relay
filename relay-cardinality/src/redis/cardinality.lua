@@ -86,20 +86,23 @@ local results = {
 --
 -- Returns the total amount of values added to the 'working set'.
 local function sadd(t, offset, max)
-    local added = 0;
+    local working_set_cardinality = 0
+    local any_modifications = false
 
     for i = 1, #KEYS do
         local is_working_set = i == 1
 
         for from, to in batches(#t, 7000, offset, max) do
             local r = redis.call('SADD', KEYS[i], unpack(t, from, to))
+
+            any_modifications = any_modifications or r > 0
             if is_working_set then
-                added = added + r
+                working_set_cardinality = working_set_cardinality + r
             end
         end
     end
 
-    return added
+    return working_set_cardinality, any_modifications
 end
 
 -- Bumps to expiry of all sets by the passed expiry
@@ -116,7 +119,7 @@ local budget = math.max(0, max_cardinality - current_cardinality)
 
 -- Fast Path: we have enough budget to fit all elements
 if budget >= num_hashes then
-    local added = sadd(ARGV, HASHES_OFFSET)
+    local added, any_modifications = sadd(ARGV, HASHES_OFFSET)
     -- New current cardinality is current + amount of keys that have been added to the set
     current_cardinality = current_cardinality + added
 
@@ -124,7 +127,7 @@ if budget >= num_hashes then
         table.insert(results, ACCEPTED)
     end
 
-    if added > 0 then
+    if any_modifications then
         bump_expiry()
     end
 
@@ -137,10 +140,10 @@ local offset = HASHES_OFFSET
 local needs_expiry_bumped = false
 while budget > 0 and offset < #ARGV do
     local len = math.min(#ARGV - offset, budget)
-    local added = sadd(ARGV, offset, len)
+    local added, any_modifications = sadd(ARGV, offset, len)
 
     current_cardinality = current_cardinality + added
-    needs_expiry_bumped = needs_expiry_bumped or added > 0
+    needs_expiry_bumped = needs_expiry_bumped or any_modifications
 
     for _ = 1, len do
         table.insert(results, ACCEPTED)
