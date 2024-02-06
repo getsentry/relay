@@ -1705,6 +1705,22 @@
 <a href="#1705" id="1705">1705</a>
 <a href="#1706" id="1706">1706</a>
 <a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2279,15 +2295,17 @@
     ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
     </span><span class="kw">fn </span>rate_limit_metrics(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        state: <span class="kw-2">&amp;</span>ProjectState,
         <span class="kw-2">mut </span>metrics: Vec&lt;Bucket&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     ) -&gt; Vec&lt;Bucket&gt; {
-        <span class="self">self</span>.filter_metrics(<span class="kw-2">&amp;mut </span>metrics);
+        <span class="self">Self</span>::filter_metrics(state, <span class="kw-2">&amp;mut </span>metrics);
+
         <span class="kw">if </span>metrics.is_empty() {
             <span class="kw">return </span>metrics;
         }
 
-        <span class="kw">let </span>(<span class="prelude-val">Some</span>(state), <span class="prelude-val">Some</span>(scoping)) = (<span class="kw-2">&amp;</span><span class="self">self</span>.state_value(), <span class="self">self</span>.scoping()) <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
             <span class="kw">return </span>metrics;
         };
 
@@ -2301,19 +2319,15 @@
         }
     }
 
-    <span class="doccomment">/// Remove metric buckets or tags that are not allowed to be ingested.
-    </span><span class="kw">fn </span>filter_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;) {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(state) = <span class="kw-2">&amp;</span><span class="self">self</span>.state_value() <span class="kw">else </span>{
-            <span class="kw">return</span>;
-        };
-
+    <span class="doccomment">/// Remove metric buckets that are not allowed to be ingested.
+    </span><span class="kw">fn </span>filter_metrics(state: <span class="kw-2">&amp;</span>ProjectState, metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;) {
         metrics.retain_mut(|bucket| {
             <span class="kw">let </span><span class="prelude-val">Ok</span>(mri) = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>bucket.name) <span class="kw">else </span>{
                 <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">&quot;dropping metrics with invalid MRI&quot;</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             };
 
-            <span class="kw">if </span>!is_metric_namespace_valid(state, <span class="kw-2">&amp;</span>mri) {
+            <span class="kw">if </span>!is_metric_namespace_valid(state, <span class="kw-2">&amp;</span>mri.namespace) {
                 <span class="macro">relay_log::trace!</span>(mri = bucket.name, <span class="string">&quot;dropping metric in disabled namespace&quot;</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             };
@@ -2355,7 +2369,7 @@
 
         <span class="comment">// Re-run feature flag checks since the project might not have been loaded when the buckets
         // were initially ingested, or feature flags have changed in the meanwhile.
-        </span><span class="self">self</span>.filter_metrics(<span class="kw-2">&amp;mut </span>buckets);
+        </span><span class="self">Self</span>::filter_metrics(<span class="kw-2">&amp;</span>project_state, <span class="kw-2">&amp;mut </span>buckets);
         <span class="kw">if </span>buckets.is_empty() {
             <span class="kw">return</span>;
         }
@@ -2402,14 +2416,16 @@
         buckets: Vec&lt;Bucket&gt;,
     ) {
         <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
-            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_metrics(buckets, outcome_aggregator.clone());
+            <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.state {
+                State::Cached(state) =&gt; {
+                    <span class="kw">let </span>state = Arc::clone(state);
 
-            <span class="kw">if </span>!buckets.is_empty() {
-                <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.state {
-                    State::Cached(state) =&gt; {
+                    <span class="kw">let </span>buckets =
+                        <span class="self">self</span>.rate_limit_metrics(<span class="kw-2">&amp;</span>state, buckets, outcome_aggregator.clone());
+
+                    <span class="kw">if </span>!buckets.is_empty() {
                         <span class="comment">// We can send metrics straight to the aggregator.
                         </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics straight to aggregator&quot;</span>);
-                        <span class="kw">let </span>state = state.clone();
 
                         <span class="comment">// TODO: When the state is present but expired, we should send buckets
                         // to the metrics buffer instead. In practice, the project state should be
@@ -2423,11 +2439,11 @@
                             outcome_aggregator,
                         );
                     }
-                    State::Pending(inner_agg) =&gt; {
-                        <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
-                        </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics to metrics-buffer&quot;</span>);
-                        inner_agg.merge_all(<span class="self">self</span>.project_key, buckets, <span class="prelude-val">None</span>);
-                    }
+                }
+                State::Pending(inner_agg) =&gt; {
+                    <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
+                    </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics to metrics-buffer&quot;</span>);
+                    inner_agg.merge_all(<span class="self">self</span>.project_key, buckets, <span class="prelude-val">None</span>);
                 }
             }
         } <span class="kw">else </span>{
@@ -2945,8 +2961,8 @@
     }
 }
 
-<span class="kw">fn </span>is_metric_namespace_valid(state: <span class="kw-2">&amp;</span>ProjectState, mri: <span class="kw-2">&amp;</span>MetricResourceIdentifier) -&gt; bool {
-    <span class="kw">match </span>mri.namespace {
+<span class="kw">fn </span>is_metric_namespace_valid(state: <span class="kw-2">&amp;</span>ProjectState, namespace: <span class="kw-2">&amp;</span>MetricNamespace) -&gt; bool {
+    <span class="kw">match </span>namespace {
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Spans =&gt; state.has_feature(Feature::SpanMetricsExtraction),
@@ -3110,7 +3126,11 @@
     </span><span class="kw">async fn </span>test_rate_limit_incoming_metrics() {
         <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()], addr);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(
+            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
+            <span class="macro">vec!</span>[create_transaction_metric()],
+            addr,
+        );
 
         <span class="macro">assert!</span>(metrics.len() == <span class="number">1</span>);
     }
@@ -3192,7 +3212,11 @@
            }]
         })));
 
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_metric()], addr);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(
+            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
+            <span class="macro">vec!</span>[create_transaction_metric()],
+            addr,
+        );
 
         <span class="macro">assert!</span>(metrics.is_empty());
     }
@@ -3211,7 +3235,11 @@
     </span><span class="kw">async fn </span>test_rate_limit_incoming_buckets() {
         <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;track-outcome&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>project = create_project(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()], addr);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(
+            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
+            <span class="macro">vec!</span>[create_transaction_bucket()],
+            addr,
+        );
 
         <span class="macro">assert!</span>(metrics.len() == <span class="number">1</span>);
     }
@@ -3229,7 +3257,11 @@
            }]
         })));
 
-        <span class="kw">let </span>metrics = project.rate_limit_metrics(<span class="macro">vec!</span>[create_transaction_bucket()], addr);
+        <span class="kw">let </span>metrics = project.rate_limit_metrics(
+            <span class="kw-2">&amp;</span>project.state_value().unwrap(),
+            <span class="macro">vec!</span>[create_transaction_bucket()],
+            addr,
+        );
 
         <span class="macro">assert!</span>(metrics.is_empty());
     }
