@@ -2821,8 +2821,6 @@
 <a href="#2821" id="2821">2821</a>
 <a href="#2822" id="2822">2822</a>
 <a href="#2823" id="2823">2823</a>
-<a href="#2824" id="2824">2824</a>
-<a href="#2825" id="2825">2825</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4665,16 +4663,14 @@
 
         <span class="kw">for </span>(scoping, message) <span class="kw">in </span>message.scopes {
             <span class="kw">let </span>ProjectMetrics {
-                <span class="kw-2">mut </span>buckets,
+                buckets,
                 project_state,
             } = message;
 
             <span class="kw">let </span>mode = project_state.get_extraction_mode();
             <span class="kw">let </span>limits = project_state.get_cardinality_limits();
 
-            <span class="kw">if </span>project_state.has_feature(Feature::CardinalityLimiter) {
-                buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets, mode);
-            }
+            <span class="kw">let </span>buckets = <span class="self">self</span>.cardinality_limit_buckets(scoping, limits, buckets, mode);
 
             <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_buckets_by_namespace(
                 scoping,
