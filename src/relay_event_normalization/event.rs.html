@@ -2475,6 +2475,47 @@
 <a href="#2475" id="2475">2475</a>
 <a href="#2476" id="2476">2476</a>
 <a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
+<a href="#2479" id="2479">2479</a>
+<a href="#2480" id="2480">2480</a>
+<a href="#2481" id="2481">2481</a>
+<a href="#2482" id="2482">2482</a>
+<a href="#2483" id="2483">2483</a>
+<a href="#2484" id="2484">2484</a>
+<a href="#2485" id="2485">2485</a>
+<a href="#2486" id="2486">2486</a>
+<a href="#2487" id="2487">2487</a>
+<a href="#2488" id="2488">2488</a>
+<a href="#2489" id="2489">2489</a>
+<a href="#2490" id="2490">2490</a>
+<a href="#2491" id="2491">2491</a>
+<a href="#2492" id="2492">2492</a>
+<a href="#2493" id="2493">2493</a>
+<a href="#2494" id="2494">2494</a>
+<a href="#2495" id="2495">2495</a>
+<a href="#2496" id="2496">2496</a>
+<a href="#2497" id="2497">2497</a>
+<a href="#2498" id="2498">2498</a>
+<a href="#2499" id="2499">2499</a>
+<a href="#2500" id="2500">2500</a>
+<a href="#2501" id="2501">2501</a>
+<a href="#2502" id="2502">2502</a>
+<a href="#2503" id="2503">2503</a>
+<a href="#2504" id="2504">2504</a>
+<a href="#2505" id="2505">2505</a>
+<a href="#2506" id="2506">2506</a>
+<a href="#2507" id="2507">2507</a>
+<a href="#2508" id="2508">2508</a>
+<a href="#2509" id="2509">2509</a>
+<a href="#2510" id="2510">2510</a>
+<a href="#2511" id="2511">2511</a>
+<a href="#2512" id="2512">2512</a>
+<a href="#2513" id="2513">2513</a>
+<a href="#2514" id="2514">2514</a>
+<a href="#2515" id="2515">2515</a>
+<a href="#2516" id="2516">2516</a>
+<a href="#2517" id="2517">2517</a>
+<a href="#2518" id="2518">2518</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2678,7 +2719,8 @@
     });
 
     <span class="comment">// Default required attributes, even if they have errors
-    </span>normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta);
+    </span>normalize_user(<span class="kw-2">&amp;mut </span>event.user);
+    normalize_logentry(<span class="kw-2">&amp;mut </span>event.logentry, meta);
     normalize_release_dist(event); <span class="comment">// dist is a tag extracted along with other metrics from transactions
     </span>normalize_event_tags(event); <span class="comment">// Tags are added to every metric
     </span>normalize_platform_and_level(event);
@@ -2842,6 +2884,16 @@
                 user.geo.set_value(<span class="prelude-val">Some</span>(geo));
             }
         }
+    }
+}
+
+<span class="kw">fn </span>normalize_user(user: <span class="kw-2">&amp;mut </span>Annotated&lt;User&gt;) {
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(user), <span class="kw">_</span>) = user <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    <span class="kw">if </span>!user.other.is_empty() {
+        <span class="kw">let </span>data = user.data.value_mut().get_or_insert_with(Object::new);
+        data.extend(std::mem::take(<span class="kw-2">&amp;mut </span>user.other));
     }
 }
 
@@ -4950,6 +5002,36 @@
             },
         );
         <span class="macro">assert!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).contains_key(<span class="string">&quot;reprocessing&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_user_data_moved() {
+        <span class="kw">let </span><span class="kw-2">mut </span>user = Annotated::new(User {
+            other: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(
+                    <span class="string">&quot;other&quot;</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_owned())),
+                );
+                map
+            },
+            ..User::default()
+        });
+
+        normalize_user(<span class="kw-2">&amp;mut </span>user);
+
+        <span class="kw">let </span>user = user.value().unwrap();
+
+        <span class="macro">assert_eq!</span>(user.data, {
+            <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+            map.insert(
+                <span class="string">&quot;other&quot;</span>.to_string(),
+                Annotated::new(Value::String(<span class="string">&quot;value&quot;</span>.to_owned())),
+            );
+            Annotated::new(map)
+        });
+
+        <span class="macro">assert_eq!</span>(user.other, Object::new());
     }
 }
 </code></pre></div></section></main></body></html>

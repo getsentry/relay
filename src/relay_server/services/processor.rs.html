@@ -3964,7 +3964,7 @@
         dynamic_sampling::tag_error_with_sampling_decision(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="self">self</span>.inner.geoip_lookup.as_ref())<span class="question-mark">?</span>;
+            event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
 
@@ -4010,7 +4010,7 @@
         );
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config, <span class="self">self</span>.inner.geoip_lookup.as_ref())<span class="question-mark">?</span>;
+            event::store(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
             profile::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
         });

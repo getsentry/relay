@@ -387,17 +387,17 @@
 /// other functionality such as inbound filters have run.
 ///
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
-</span><span class="kw">pub struct </span>StoreProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">pub struct </span>StoreProcessor {
     config: Arc&lt;StoreConfig&gt;,
-    normalize: normalize::StoreNormalizeProcessor&lt;<span class="lifetime">&#39;a</span>&gt;,
+    normalize: normalize::StoreNormalizeProcessor,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; StoreProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl </span>StoreProcessor {
     <span class="doccomment">/// Creates a new normalization processor.
-    </span><span class="kw">pub fn </span>new(config: StoreConfig, geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GeoIpLookup&gt;) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(config: StoreConfig) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>config = Arc::new(config);
         StoreProcessor {
-            normalize: normalize::StoreNormalizeProcessor::new(config.clone(), geoip_lookup),
+            normalize: normalize::StoreNormalizeProcessor::new(config.clone()),
             config,
         }
     }
@@ -408,7 +408,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Processor <span class="kw">for </span>StoreProcessor&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl </span>Processor <span class="kw">for </span>StoreProcessor {
     <span class="kw">fn </span>process_event(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         event: <span class="kw-2">&amp;mut </span>Event,
