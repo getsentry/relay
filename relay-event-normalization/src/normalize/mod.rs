@@ -9,7 +9,7 @@ use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
+    ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
     MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
