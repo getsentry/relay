@@ -2516,6 +2516,32 @@
 <a href="#2516" id="2516">2516</a>
 <a href="#2517" id="2517">2517</a>
 <a href="#2518" id="2518">2518</a>
+<a href="#2519" id="2519">2519</a>
+<a href="#2520" id="2520">2520</a>
+<a href="#2521" id="2521">2521</a>
+<a href="#2522" id="2522">2522</a>
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a>
+<a href="#2526" id="2526">2526</a>
+<a href="#2527" id="2527">2527</a>
+<a href="#2528" id="2528">2528</a>
+<a href="#2529" id="2529">2529</a>
+<a href="#2530" id="2530">2530</a>
+<a href="#2531" id="2531">2531</a>
+<a href="#2532" id="2532">2532</a>
+<a href="#2533" id="2533">2533</a>
+<a href="#2534" id="2534">2534</a>
+<a href="#2535" id="2535">2535</a>
+<a href="#2536" id="2536">2536</a>
+<a href="#2537" id="2537">2537</a>
+<a href="#2538" id="2538">2538</a>
+<a href="#2539" id="2539">2539</a>
+<a href="#2540" id="2540">2540</a>
+<a href="#2541" id="2541">2541</a>
+<a href="#2542" id="2542">2542</a>
+<a href="#2543" id="2543">2543</a>
+<a href="#2544" id="2544">2544</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -2530,9 +2556,8 @@
 };
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, MaxChars, ProcessingAction, ProcessingState, Processor};
 <span class="kw">use </span>relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
-    Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Headers, IpAddr, Level,
+    LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags, Timestamp, User,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -3033,35 +3058,62 @@
     }
 }
 
-<span class="doccomment">/// Process the last frame of the stacktrace of the first exception.
+<span class="doccomment">/// Normalizes all the stack traces in the given event.
 ///
-/// No additional frames/stacktraces are normalized as they aren&#39;t required for metric extraction.
+/// Normalized stack traces are `event.stacktrace`, `event.exceptions.stacktrace`, and
+/// `event.thread.stacktrace`. Raw stack traces are not normalized.
 </span><span class="kw">fn </span>normalize_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) {
-    <span class="kw">match </span>event.exceptions.value_mut() {
-        <span class="prelude-val">None </span>=&gt; (),
-        <span class="prelude-val">Some</span>(exception) =&gt; <span class="kw">match </span>exception.values.value_mut() {
-            <span class="prelude-val">None </span>=&gt; (),
-            <span class="prelude-val">Some</span>(exceptions) =&gt; <span class="kw">match </span>exceptions.first_mut() {
-                <span class="prelude-val">None </span>=&gt; (),
-                <span class="prelude-val">Some</span>(first) =&gt; normalize_last_stacktrace_frame(first),
-            },
-        },
-    };
+    normalize_event_stacktrace(event);
+    normalize_exception_stacktraces(event);
+    normalize_thread_stacktraces(event);
 }
 
-<span class="kw">fn </span>normalize_last_stacktrace_frame(exception: <span class="kw-2">&amp;mut </span>Annotated&lt;Exception&gt;) {
-    <span class="kw">let _ </span>= processor::apply(exception, |e, <span class="kw">_</span>| {
-        processor::apply(<span class="kw-2">&amp;mut </span>e.stacktrace, |s, <span class="kw">_</span>| <span class="kw">match </span>s.frames.value_mut() {
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="prelude-val">Some</span>(frames) =&gt; <span class="kw">match </span>frames.last_mut() {
-                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(()),
-                <span class="prelude-val">Some</span>(frame) =&gt; {
-                    stacktrace::process_non_raw_frame(frame);
-                    <span class="prelude-val">Ok</span>(())
-                }
-            },
-        })
-    });
+<span class="doccomment">/// Normalizes an event&#39;s stack trace, in `event.stacktrace`.
+</span><span class="kw">fn </span>normalize_event_stacktrace(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span>Annotated(<span class="prelude-val">Some</span>(stacktrace), meta) = <span class="kw-2">&amp;mut </span>event.stacktrace <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
+}
+
+<span class="doccomment">/// Normalizes the stack traces in an event&#39;s exceptions, in `event.exceptions.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.exceptions.raw_stacktraces` is not normalized.
+</span><span class="kw">fn </span>normalize_exception_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span><span class="prelude-val">Some</span>(event_exception) = event.exceptions.value_mut() <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    <span class="kw">let </span><span class="prelude-val">Some</span>(exceptions) = event_exception.values.value_mut() <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    <span class="kw">for </span>annotated_exception <span class="kw">in </span>exceptions {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(exception) = annotated_exception.value_mut() <span class="kw">else </span>{
+            <span class="kw">continue</span>;
+        };
+        <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(stacktrace), meta) = <span class="kw-2">&amp;mut </span>exception.stacktrace {
+            stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
+        }
+    }
+}
+
+<span class="doccomment">/// Normalizes the stack traces in an event&#39;s threads, in `event.threads.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.threads.raw_stacktraces`, is not normalized.
+</span><span class="kw">fn </span>normalize_thread_stacktraces(event: <span class="kw-2">&amp;mut </span>Event) {
+    <span class="kw">let </span><span class="prelude-val">Some</span>(event_threads) = event.threads.value_mut() <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    <span class="kw">let </span><span class="prelude-val">Some</span>(threads) = event_threads.values.value_mut() <span class="kw">else </span>{
+        <span class="kw">return</span>;
+    };
+    <span class="kw">for </span>annotated_thread <span class="kw">in </span>threads {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(thread) = annotated_thread.value_mut() <span class="kw">else </span>{
+            <span class="kw">continue</span>;
+        };
+        <span class="kw">if let </span>Annotated(<span class="prelude-val">Some</span>(stacktrace), meta) = <span class="kw-2">&amp;mut </span>thread.stacktrace {
+            stacktrace::process_stacktrace(<span class="kw-2">&amp;mut </span>stacktrace.<span class="number">0</span>, meta);
+        }
+    }
 }
 
 <span class="kw">fn </span>normalize_exceptions(event: <span class="kw-2">&amp;mut </span>Event) {
