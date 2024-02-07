@@ -10,7 +10,7 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
-    MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, VALID_PLATFORMS,
+    MetricSummaryMapping, NelContext, ReplayContext, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
@@ -518,16 +518,6 @@ impl Processor for StoreNormalizeProcessor {
 
         Ok(())
     }
-
-    fn process_stacktrace(
-        &mut self,
-        stacktrace: &mut Stacktrace,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        crate::stacktrace::process_stacktrace(&mut stacktrace.0, meta);
-        Ok(())
-    }
 }
 
 /// If the logger is longer than [`MaxChars::Logger`], it returns a String with
@@ -640,8 +630,8 @@ mod tests {
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
         Context, ContextInner, Contexts, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry,
-        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry,
-        Tags, TraceId, User, Values,
+        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, Stacktrace,
+        TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
