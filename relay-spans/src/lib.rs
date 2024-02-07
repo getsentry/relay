@@ -14,4 +14,3 @@ pub use opentelemetry_proto::tonic::trace::v1 as OtelTrace;
 mod otel_to_sentry_tags;
 mod span;
 mod status_codes;
-mod utils;

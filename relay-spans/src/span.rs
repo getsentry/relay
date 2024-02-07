@@ -183,7 +183,6 @@ impl OtelValueExt for OtelValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, Utc};
     use relay_protocol::{get_path, Annotated};
 
     #[test]
@@ -298,27 +297,5 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_span.to_sentry_span();
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
-    }
-
-    #[ignore = "not supported with the new otel structs"]
-    #[test]
-    fn parse_span_with_timestamps_as_strings() {
-        let json = r#"{
-            "traceId": "89143b0763095bd9c9955e8175d1fb23",
-            "spanId": "e342abb1214ca181",
-            "parentSpanId": "0c7a7dea069bf5a6",
-            "name": "middleware - fastify -> @fastify/multipart",
-            "kind": 1,
-            "startTimeUnixNano": "1697620454980000000",
-            "endTimeUnixNano": "1697620454980078800"
-        }"#;
-        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_span.to_sentry_span();
-        assert_eq!(
-            event_span.start_timestamp,
-            Annotated::new(Timestamp(
-                DateTime::<Utc>::from_timestamp(1697620454, 980000000).unwrap()
-            ))
-        );
     }
 }
