@@ -414,25 +414,6 @@ impl Processor for StoreNormalizeProcessor {
         Ok(())
     }
 
-    fn process_breadcrumb(
-        &mut self,
-        breadcrumb: &mut Breadcrumb,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        breadcrumb.process_child_values(self, state)?;
-
-        if breadcrumb.ty.value().is_empty() {
-            breadcrumb.ty.set_value(Some("default".to_string()));
-        }
-
-        if breadcrumb.level.value().is_none() {
-            breadcrumb.level.set_value(Some(Level::Info));
-        }
-
-        Ok(())
-    }
-
     fn process_debug_image(
         &mut self,
         image: &mut DebugImage,

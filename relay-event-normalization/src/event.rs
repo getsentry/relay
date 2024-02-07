@@ -12,9 +12,9 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
-    Timestamp, User,
+    AsPair, Breadcrumb, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception,
+    Headers, IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus,
+    Tags, Timestamp, User, Values,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -203,6 +203,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Default required attributes, even if they have errors
     normalize_user(&mut event.user);
     normalize_logentry(&mut event.logentry, meta);
+    normalize_breadcrumbs(event);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
     normalize_platform_and_level(event);
@@ -383,6 +384,28 @@ fn normalize_logentry(logentry: &mut Annotated<LogEntry>, _meta: &mut Meta) {
     let _ = processor::apply(logentry, |logentry, meta| {
         crate::logentry::normalize_logentry(logentry, meta)
     });
+}
+
+fn normalize_breadcrumbs(event: &mut Event) {
+    let Annotated(Some(breadcrumbs), _) = &mut event.breadcrumbs else {
+        return;
+    };
+    let Some(breadcrumbs) = breadcrumbs.values.value_mut() else {
+        return;
+    };
+
+    for annotated_breadcrumb in breadcrumbs {
+        let Annotated(Some(breadcrumb), _) = annotated_breadcrumb else {
+            continue;
+        };
+
+        if breadcrumb.ty.value().is_empty() {
+            breadcrumb.ty.set_value(Some("default".to_string()));
+        }
+        if breadcrumb.level.value().is_none() {
+            breadcrumb.level.set_value(Some(Level::Info));
+        }
+    }
 }
 
 /// Ensures that the `release` and `dist` fields match up.
