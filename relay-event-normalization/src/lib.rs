@@ -168,17 +168,17 @@ pub struct StoreConfig {
 /// other functionality such as inbound filters have run.
 ///
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
-pub struct StoreProcessor<'a> {
+pub struct StoreProcessor {
     config: Arc<StoreConfig>,
-    normalize: normalize::StoreNormalizeProcessor<'a>,
+    normalize: normalize::StoreNormalizeProcessor,
 }
 
-impl<'a> StoreProcessor<'a> {
+impl StoreProcessor {
     /// Creates a new normalization processor.
-    pub fn new(config: StoreConfig, geoip_lookup: Option<&'a GeoIpLookup>) -> Self {
+    pub fn new(config: StoreConfig) -> Self {
         let config = Arc::new(config);
         StoreProcessor {
-            normalize: normalize::StoreNormalizeProcessor::new(config.clone(), geoip_lookup),
+            normalize: normalize::StoreNormalizeProcessor::new(config.clone()),
             config,
         }
     }
@@ -189,7 +189,7 @@ impl<'a> StoreProcessor<'a> {
     }
 }
 
-impl<'a> Processor for StoreProcessor<'a> {
+impl Processor for StoreProcessor {
     fn process_event(
         &mut self,
         event: &mut Event,

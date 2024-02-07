@@ -30,7 +30,7 @@ fn test_reponse_context_pii() {
     let normalization_config = NormalizationConfig::default();
     normalize_event(&mut data, &normalization_config);
     let store_config = StoreConfig::default();
-    let mut store_processor = StoreProcessor::new(store_config, None);
+    let mut store_processor = StoreProcessor::new(store_config);
     processor::process_value(&mut data, &mut store_processor, ProcessingState::root()).unwrap();
 
     let mut ds_config = DataScrubbingConfig::default();

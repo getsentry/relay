@@ -1139,7 +1139,7 @@ impl EnvelopeProcessorService {
         dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            event::store(state, &self.inner.config)?;
             self.enforce_quotas(state)?;
         });
 
@@ -1185,7 +1185,7 @@ impl EnvelopeProcessorService {
         );
 
         if_processing!(self.inner.config, {
-            event::store(state, &self.inner.config, self.inner.geoip_lookup.as_ref())?;
+            event::store(state, &self.inner.config)?;
             self.enforce_quotas(state)?;
             profile::process(state, &self.inner.config);
         });
