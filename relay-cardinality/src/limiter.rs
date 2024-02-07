@@ -106,6 +106,10 @@ impl<T: Limiter> CardinalityLimiter<T> {
         limits: &'a [CardinalityLimit],
         items: Vec<I>,
     ) -> Result<CardinalityLimits<'a, I>, (Vec<I>, Error)> {
+        if limits.is_empty() {
+            return Ok(CardinalityLimits::new(items, Default::default()));
+        }
+
         metric!(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             let entries = items.iter().enumerate().filter_map(|(id, item)| {
                 Some(Entry::new(EntryId(id), item.namespace()?, item.to_hash()))
