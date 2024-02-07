@@ -2,19 +2,17 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use itertools::Itertools;
-use once_cell::sync::OnceCell;
-use regex::Regex;
 use relay_base_schema::metrics::{MetricResourceIdentifier, MetricUnit};
 use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
+    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Frame, Level,
     MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object, Remark, RemarkType,
-    RuleCondition, Value,
+    Annotated, Empty, Error, FromValue, IntoValue, Meta, Object, Remark, RemarkType, RuleCondition,
+    Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -448,40 +446,6 @@ impl Processor for StoreNormalizeProcessor {
         }
     }
 
-    fn process_exception(
-        &mut self,
-        exception: &mut Exception,
-        meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        exception.process_child_values(self, state)?;
-
-        static TYPE_VALUE_RE: OnceCell<Regex> = OnceCell::new();
-        let regex = TYPE_VALUE_RE.get_or_init(|| Regex::new(r"^(\w+):(.*)$").unwrap());
-
-        if exception.ty.value().is_empty() {
-            if let Some(value_str) = exception.value.value_mut() {
-                let new_values = regex
-                    .captures(value_str)
-                    .map(|cap| (cap[1].to_string(), cap[2].trim().to_string().into()));
-
-                if let Some((new_type, new_value)) = new_values {
-                    exception.ty.set_value(Some(new_type));
-                    *value_str = new_value;
-                }
-            }
-        }
-
-        if exception.ty.value().is_empty() && exception.value.value().is_empty() {
-            meta.add_error(Error::with(ErrorKind::MissingAttribute, |error| {
-                error.insert("attribute", "type or value");
-            }));
-            return Err(ProcessingAction::DeleteValueSoft);
-        }
-
-        Ok(())
-    }
-
     fn process_frame(
         &mut self,
         frame: &mut Frame,
@@ -639,12 +603,12 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Context, ContextInner, Contexts, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry,
-        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry,
-        Tags, TraceId, User, Values,
+        Context, ContextInner, Contexts, DebugMeta, Exception, Frame, Geo, IpAddr, LenientString,
+        LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId,
+        TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
-        assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
+        assert_annotated_snapshot, get_path, get_value, ErrorKind, FromValue, SerializableAnnotated,
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
@@ -714,79 +678,6 @@ mod tests {
         // If both is available, pick the smallest number.
         let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
         assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
-    }
-
-    #[test]
-    fn test_handles_type_in_value() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError: unauthorized".to_string().into()),
-            ..Exception::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-        assert_eq!(exception.value.as_str(), Some("unauthorized"));
-        assert_eq!(exception.ty.as_str(), Some("ValueError"));
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("ValueError:unauthorized".to_string().into()),
-            ..Exception::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-        assert_eq!(exception.value.as_str(), Some("unauthorized"));
-        assert_eq!(exception.ty.as_str(), Some("ValueError"));
-    }
-
-    #[test]
-    fn test_rejects_empty_exception_fields() {
-        let mut processor = StoreNormalizeProcessor::new(Arc::new(StoreConfig::default()));
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new("".to_string().into()),
-            ty: Annotated::new("".to_string()),
-            ..Default::default()
-        });
-
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        assert!(exception.value().is_none());
-        assert!(exception.meta().has_errors());
-    }
-
-    #[test]
-    fn test_json_value() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception {
-            value: Annotated::new(r#"{"unauthorized":true}"#.to_string().into()),
-            ..Exception::default()
-        });
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-        let exception = exception.value().unwrap();
-
-        // Don't split a json-serialized value on the colon
-        assert_eq!(exception.value.as_str(), Some(r#"{"unauthorized":true}"#));
-        assert_eq!(exception.ty.value(), None);
-    }
-
-    #[test]
-    fn test_exception_invalid() {
-        let mut processor = StoreNormalizeProcessor::default();
-
-        let mut exception = Annotated::new(Exception::default());
-        process_value(&mut exception, &mut processor, ProcessingState::root()).unwrap();
-
-        let expected = Error::with(ErrorKind::MissingAttribute, |error| {
-            error.insert("attribute", "type or value");
-        });
-
-        assert_eq!(
-            exception.meta().iter_errors().collect_tuple(),
-            Some((&expected,))
-        );
     }
 
     #[test]
