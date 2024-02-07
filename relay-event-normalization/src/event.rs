@@ -200,6 +200,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
+    normalize_user(&mut event.user);
     normalize_logentry(&mut event.logentry, meta);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
@@ -364,6 +365,16 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
                 user.geo.set_value(Some(geo));
             }
         }
+    }
+}
+
+fn normalize_user(user: &mut Annotated<User>) {
+    let Annotated(Some(user), _) = user else {
+        return;
+    };
+    if !user.other.is_empty() {
+        let data = user.data.value_mut().get_or_insert_with(Object::new);
+        data.extend(std::mem::take(&mut user.other));
     }
 }
 
@@ -2499,5 +2510,35 @@ mod tests {
             },
         );
         assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+    }
+
+    #[test]
+    fn test_user_data_moved() {
+        let mut user = Annotated::new(User {
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_owned())),
+                );
+                map
+            },
+            ..User::default()
+        });
+
+        normalize_user(&mut user);
+
+        let user = user.value().unwrap();
+
+        assert_eq!(user.data, {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_owned())),
+            );
+            Annotated::new(map)
+        });
+
+        assert_eq!(user.other, Object::new());
     }
 }

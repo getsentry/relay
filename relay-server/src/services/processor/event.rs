@@ -22,7 +22,7 @@ use serde_json::Value as SerdeValue;
 
 #[cfg(feature = "processing")]
 use {
-    relay_event_normalization::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_event_schema::protocol::IpAddr,
 };
 
@@ -344,11 +344,7 @@ pub fn serialize(state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError
 }
 
 #[cfg(feature = "processing")]
-pub fn store(
-    state: &mut ProcessEnvelopeState,
-    config: &Config,
-    geoip_lookup: Option<&GeoIpLookup>,
-) -> Result<(), ProcessingError> {
+pub fn store(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), ProcessingError> {
     let ProcessEnvelopeState {
         ref mut event,
         ref project_state,
@@ -391,7 +387,7 @@ pub fn store(
         client_hints: envelope.meta().client_hints().to_owned(),
     };
 
-    let mut store_processor = StoreProcessor::new(store_config, geoip_lookup);
+    let mut store_processor = StoreProcessor::new(store_config);
     metric!(timer(RelayTimers::EventProcessingProcess), {
         processor::process_value(event, &mut store_processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
