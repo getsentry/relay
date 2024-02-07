@@ -431,6 +431,10 @@
 <a href="#431" id="431">431</a>
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>hashbrown::HashSet;
@@ -539,6 +543,10 @@
         limits: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[CardinalityLimit],
         items: Vec&lt;I&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;CardinalityLimits&lt;<span class="lifetime">&#39;a</span>, I&gt;, (Vec&lt;I&gt;, Error)&gt; {
+        <span class="kw">if </span>limits.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(CardinalityLimits::new(items, Default::default()));
+        }
+
         <span class="macro">metric!</span>(timer(CardinalityLimiterTimers::CardinalityLimiter), {
             <span class="kw">let </span>entries = items.iter().enumerate().filter_map(|(id, item)| {
                 <span class="prelude-val">Some</span>(Entry::new(EntryId(id), item.namespace()<span class="question-mark">?</span>, item.to_hash()))
