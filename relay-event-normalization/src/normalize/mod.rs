@@ -9,7 +9,7 @@ use relay_event_schema::processor::{
     MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientSdkInfo, DebugImage, Event, EventId, EventType, Exception, Frame, Level,
+    Breadcrumb, ClientSdkInfo, Event, EventId, EventType, Exception, Frame, Level,
     MetricSummaryMapping, NelContext, ReplayContext, Stacktrace, TraceContext, VALID_PLATFORMS,
 };
 use relay_protocol::{
@@ -433,21 +433,6 @@ impl Processor for StoreNormalizeProcessor {
         Ok(())
     }
 
-    fn process_debug_image(
-        &mut self,
-        image: &mut DebugImage,
-        meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        match image {
-            DebugImage::Other(_) => {
-                meta.add_error(Error::invalid("unsupported debug image type"));
-                Err(ProcessingAction::DeleteValueSoft)
-            }
-            _ => Ok(()),
-        }
-    }
-
     fn process_exception(
         &mut self,
         exception: &mut Exception,
@@ -639,9 +624,9 @@ mod tests {
     use relay_base_schema::spans::SpanStatus;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        Context, ContextInner, Contexts, DebugMeta, Frame, Geo, IpAddr, LenientString, LogEntry,
-        MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId, TagEntry,
-        Tags, TraceId, User, Values,
+        Context, ContextInner, Contexts, DebugImage, DebugMeta, Frame, Geo, IpAddr, LenientString,
+        LogEntry, MetricSummary, MetricsSummary, PairList, RawStacktrace, Request, Span, SpanId,
+        TagEntry, Tags, TraceId, User, Values,
     };
     use relay_protocol::{
         assert_annotated_snapshot, get_path, get_value, FromValue, SerializableAnnotated,
