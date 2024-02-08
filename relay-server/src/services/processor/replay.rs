@@ -54,23 +54,19 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ReplayEvent => {
             if !replays_enabled {
-                println!("1");
                 return ItemAction::DropSilently;
             }
             if combined_envelope_items {
-                println!("2");
                 item.set_replay_combined_payload(true);
             }
 
             match process_replay_event(&item.payload(), project_config, client_addr, user_agent) {
                 Ok(replay) => match replay.to_json() {
                     Ok(json) => {
-                        println!("3");
                         item.set_payload(ContentType::Json, json);
                         ItemAction::Keep
                     }
                     Err(error) => {
-                        println!("4");
                         relay_log::error!(
                             error = &error as &dyn Error,
                             "failed to serialize replay"
@@ -79,7 +75,6 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
                     }
                 },
                 Err(error) => {
-                    println!("5");
                     relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
                     ItemAction::Drop(Outcome::Invalid(match error {
                         ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
@@ -92,18 +87,15 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         }
         ItemType::ReplayRecording => {
             if !replays_enabled {
-                println!("6");
                 return ItemAction::DropSilently;
             }
             if combined_envelope_items {
-                println!("7");
-                item.set_header("replay_combined_payload", true);
+                item.set_replay_combined_payload(true);
             }
 
             // XXX: Processing is there just for data scrubbing. Skip the entire expensive
             // processing step if we do not need to scrub.
             if !scrubbing_enabled || scrubber.is_empty() {
-                println!("8");
                 return ItemAction::Keep;
             }
 
@@ -117,12 +109,10 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
 
             match parsed_recording {
                 Ok(recording) => {
-                    println!("9");
                     item.set_payload(ContentType::OctetStream, recording);
                     ItemAction::Keep
                 }
                 Err(e) => {
-                    println!("10");
                     relay_log::warn!("replay-recording-event: {e} {event_id:?}");
                     ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
                 }
@@ -131,7 +121,6 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         _ => ItemAction::Keep,
     });
 
-    println!("100");
     Ok(())
 }
 
@@ -142,24 +131,17 @@ fn process_replay_event(
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
 ) -> Result<Annotated<Replay>, ReplayError> {
-    println!("30");
     let mut replay =
         Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
 
     if let Some(replay_value) = replay.value_mut() {
-        println!("31");
         replay::validate(replay_value)?;
-        println!("31.5");
         replay::normalize(replay_value, client_ip, user_agent);
-        println!("31.8");
     } else {
-        println!("32");
         return Err(ReplayError::NoContent);
     }
-    println!("32.5");
 
     if let Some(ref config) = config.pii_config {
-        println!("33");
         let mut processor = PiiProcessor::new(config.compiled());
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
@@ -170,11 +152,9 @@ fn process_replay_event(
         .pii_config()
         .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     if let Some(config) = pii_config {
-        println!("34");
         let mut processor = PiiProcessor::new(config.compiled());
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     }
-    println!("40");
     Ok(replay)
 }

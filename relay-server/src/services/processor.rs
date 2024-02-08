@@ -1311,7 +1311,6 @@ impl EnvelopeProcessorService {
             // This will later be forwarded to upstream.
             ProcessingGroup::ForwardUnknown => (),
         }
-
         Ok(())
     }
 
@@ -1365,7 +1364,6 @@ impl EnvelopeProcessorService {
                         })
                     }
                     Err(err) => {
-                        println!("error: {:?}", err);
                         if let Some(outcome) = err.to_outcome() {
                             state.managed_envelope.reject(outcome);
                         }

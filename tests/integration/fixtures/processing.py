@@ -410,7 +410,7 @@ class ReplayRecordingsConsumer(EventsConsumer):
         return v
 
     def get_not_chunked_replay(self):
-        message = self.poll()
+        message = self.poll(timeout=10)
         assert message is not None
         assert message.error() is None
 

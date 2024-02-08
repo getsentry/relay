@@ -13,7 +13,15 @@ def test_replay_combined_with_processing(
     replay_id = "515539018c9b4260a6f999572f1661ee"
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
-        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+        project_id,
+        extra={
+            "config": {
+                "features": [
+                    "organizations:session-replay",
+                    "organizations:session-replay-combined-envelope-items",
+                ]
+            }
+        },
     )
     replay_recordings_consumer = replay_recordings_consumer()
 
@@ -36,13 +44,13 @@ def test_replay_combined_with_processing(
 
     # the not-combined message will be produced first
     replay_recordings_consumer.get_not_chunked_replay()
-    # combined_replay_message = replay_recordings_consumer.get_not_chunked_replay()
+    combined_replay_message = replay_recordings_consumer.get_not_chunked_replay()
 
-    # assert combined_replay_message["type"] == "replay_recording_not_chunked"
-    # assert combined_replay_message["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"
+    assert combined_replay_message["type"] == "replay_recording_not_chunked"
+    assert combined_replay_message["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"
 
-    # assert combined_replay_message["payload"] == replay_recording_bytes
+    assert combined_replay_message["payload"] == replay_recording_bytes
 
-    # replay_event = json.loads(combined_replay_message["replay_event"])
+    replay_event = json.loads(combined_replay_message["replay_event"])
 
-    # assert replay_event["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"
+    assert replay_event["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"

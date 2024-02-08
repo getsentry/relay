@@ -172,8 +172,6 @@ impl StoreService {
         start_time: Instant,
         scoping: Scoping,
     ) -> Result<(), StoreError> {
-        println!("20");
-
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
@@ -199,7 +197,6 @@ impl StoreService {
 
         let mut replay_event = None;
         let mut replay_recording = None;
-        println!("HERE??????????");
 
         for item in envelope.items() {
             match item.ty() {
@@ -250,10 +247,11 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::ReplayRecording => {
+                    println!("0");
                     if item.replay_combined_payload() {
+                        println!("1");
                         replay_recording = Some(item);
                     }
-                    println!("HERE??????????2");
 
                     self.produce_replay_recording(event_id, scoping, item, start_time, retention)?;
                 }
@@ -284,6 +282,9 @@ impl StoreService {
                 _ => {}
             }
         }
+        println!("here?");
+        println!("event: {:?}", replay_event);
+        println!("rec: {:?}", replay_recording);
 
         if let (Some(replay_event), Some(replay_recording)) = (replay_event, replay_recording) {
             let combined_replay_kafka_message = Self::extract_combined_replay_kafka_message(

@@ -88,17 +88,11 @@ pub fn normalize(
     client_ip: Option<StdIpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
 ) {
-    println!("40");
     normalize_platform(replay);
-    println!("41");
     normalize_ip_address(replay, client_ip);
-    println!("42");
     normalize_user_agent(replay, user_agent);
-    println!("43");
     normalize_type(replay);
-    println!("44");
     normalize_array_fields(replay);
-    println!("45");
 }
 
 fn normalize_array_fields(replay: &mut Replay) {
@@ -127,7 +121,6 @@ fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
 }
 
 fn normalize_user_agent(replay: &mut Replay, default_user_agent: &RawUserAgentInfo<&str>) {
-    println!("50");
     let headers = match replay
         .request
         .value()
@@ -136,20 +129,14 @@ fn normalize_user_agent(replay: &mut Replay, default_user_agent: &RawUserAgentIn
         Some(headers) => headers,
         None => return,
     };
-    println!("51");
 
     let user_agent_info = RawUserAgentInfo::from_headers(headers);
-    println!("52");
     let user_agent_info = if user_agent_info.is_empty() {
-        println!("53");
         default_user_agent
     } else {
-        println!("54");
         &user_agent_info
     };
-    println!("55");
     let contexts = replay.contexts.get_or_insert_with(Contexts::new);
-    println!("56");
     user_agent::normalize_user_agent_info_generic(contexts, &replay.platform, user_agent_info);
 }
 

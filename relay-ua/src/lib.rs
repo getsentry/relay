@@ -34,6 +34,7 @@ pub fn init_parser() {
 ///
 /// Defaults to an empty user agent.
 pub fn parse_user_agent(user_agent: &str) -> UserAgent {
+    println!("parse_user_agent {:?}", user_agent);
     UA_PARSER.parse_user_agent(user_agent)
 }
 
