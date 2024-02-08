@@ -1006,7 +1006,8 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::{
-        Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
+        Contexts, Csp, DebugMeta, DeviceContext, Event, Headers, IpAddr, Measurements, Request,
+        Tags,
     };
     use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
@@ -2535,5 +2536,50 @@ mod tests {
         });
 
         assert_eq!(user.other, Object::new());
+    }
+
+    #[test]
+    fn test_other_debug_images_have_meta_errors() {
+        let mut event = Event {
+            debug_meta: Annotated::new(DebugMeta {
+                images: Annotated::new(vec![Annotated::new(
+                    DebugImage::Other(BTreeMap::default()),
+                )]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_debug_meta(&mut event);
+
+        let debug_image_meta = event
+            .debug_meta
+            .value()
+            .unwrap()
+            .images
+            .value()
+            .unwrap()
+            .first()
+            .unwrap()
+            .meta();
+        assert_debug_snapshot!(debug_image_meta, @r#"
+        Meta {
+            remarks: [],
+            errors: [
+                Error {
+                    kind: InvalidData,
+                    data: {
+                        "reason": String(
+                            "unsupported debug image type",
+                        ),
+                    },
+                },
+            ],
+            original_length: None,
+            original_value: Some(
+                Object(
+                    {},
+                ),
+            ),
+        }"#);
     }
 }
