@@ -27,10 +27,7 @@ def metrics_by_namespace(metrics_consumer, count, timeout=None):
 
 def add_project_config(mini_sentry, project_id, cardinality_limits=None):
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = [
-        "organizations:custom-metrics",
-        "organizations:relay-cardinality-limiter",
-    ]
+    project_config["config"]["features"] = ["organizations:custom-metrics"]
     project_config["config"]["metrics"] = {
         "cardinalityLimits": cardinality_limits or []
     }

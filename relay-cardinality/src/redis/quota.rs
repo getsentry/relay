@@ -23,6 +23,7 @@ impl QuotaScoping {
     pub fn new(scoping: Scoping, limit: &CardinalityLimit) -> Option<Self> {
         let (organization_id, project_id) = match limit.scope {
             CardinalityScope::Organization => (Some(scoping.organization_id), None),
+            CardinalityScope::Project => (Some(scoping.organization_id), Some(scoping.project_id)),
             // Invalid/unknown scope -> ignore the limit.
             CardinalityScope::Unknown => return None,
         };

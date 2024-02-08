@@ -320,7 +320,11 @@ mod tests {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-        let redis = RedisPool::single(&url, RedisConfigOptions::default()).unwrap();
+        let opts = RedisConfigOptions {
+            max_connections: 1,
+            ..Default::default()
+        };
+        let redis = RedisPool::single(&url, opts).unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {
@@ -738,6 +742,43 @@ mod tests {
             assert!(!rejected.contains(&EntryId(4)));
             assert!(!rejected.contains(&EntryId(5)));
         }
+    }
+
+    #[test]
+    fn test_project_limit() {
+        let limiter = build_limiter();
+
+        let scoping1 = new_scoping(&limiter);
+        let scoping2 = Scoping {
+            project_id: ProjectId::new(2),
+            ..scoping1
+        };
+
+        let limits = &[CardinalityLimit {
+            id: "limit".to_owned(),
+            window: SlidingWindow {
+                window_seconds: 3600,
+                granularity_seconds: 360,
+            },
+            limit: 1,
+            scope: CardinalityScope::Project,
+            namespace: None,
+        }];
+
+        let entries1 = [Entry::new(EntryId(0), MetricNamespace::Custom, 0)];
+        let entries2 = [Entry::new(EntryId(0), MetricNamespace::Custom, 1)];
+
+        // Accept different entries for different scopes.
+        let rejected = limiter.test_limits(scoping1, limits, entries1);
+        assert_eq!(rejected.len(), 0);
+        let rejected = limiter.test_limits(scoping2, limits, entries2);
+        assert_eq!(rejected.len(), 0);
+
+        // Make sure the other entry is not accepted.
+        let rejected = limiter.test_limits(scoping1, limits, entries2);
+        assert_eq!(rejected.len(), 1);
+        let rejected = limiter.test_limits(scoping2, limits, entries1);
+        assert_eq!(rejected.len(), 1);
     }
 
     #[test]

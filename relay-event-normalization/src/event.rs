@@ -12,9 +12,8 @@ use relay_base_schema::metrics::{
 };
 use relay_event_schema::processor::{self, MaxChars, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
-    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, Level, LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags,
-    Timestamp, User,
+    AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Headers, IpAddr, Level,
+    LogEntry, Measurement, Measurements, NelContext, Request, SpanStatus, Tags, Timestamp, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -201,6 +200,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     });
 
     // Default required attributes, even if they have errors
+    normalize_user(&mut event.user);
     normalize_logentry(&mut event.logentry, meta);
     normalize_release_dist(event); // dist is a tag extracted along with other metrics from transactions
     normalize_event_tags(event); // Tags are added to every metric
@@ -229,7 +229,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // Some contexts need to be normalized before metrics extraction takes place.
     normalize_contexts(&mut event.contexts);
 
-    if event.ty.value() == Some(&EventType::Transaction) && !config.is_renormalize {
+    if event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
     }
@@ -365,6 +365,16 @@ pub fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
                 user.geo.set_value(Some(geo));
             }
         }
+    }
+}
+
+fn normalize_user(user: &mut Annotated<User>) {
+    let Annotated(Some(user), _) = user else {
+        return;
+    };
+    if !user.other.is_empty() {
+        let data = user.data.value_mut().get_or_insert_with(Object::new);
+        data.extend(std::mem::take(&mut user.other));
     }
 }
 
@@ -504,35 +514,62 @@ fn normalize_device_class(event: &mut Event) {
     }
 }
 
-/// Process the last frame of the stacktrace of the first exception.
+/// Normalizes all the stack traces in the given event.
 ///
-/// No additional frames/stacktraces are normalized as they aren't required for metric extraction.
+/// Normalized stack traces are `event.stacktrace`, `event.exceptions.stacktrace`, and
+/// `event.thread.stacktrace`. Raw stack traces are not normalized.
 fn normalize_stacktraces(event: &mut Event) {
-    match event.exceptions.value_mut() {
-        None => (),
-        Some(exception) => match exception.values.value_mut() {
-            None => (),
-            Some(exceptions) => match exceptions.first_mut() {
-                None => (),
-                Some(first) => normalize_last_stacktrace_frame(first),
-            },
-        },
-    };
+    normalize_event_stacktrace(event);
+    normalize_exception_stacktraces(event);
+    normalize_thread_stacktraces(event);
 }
 
-fn normalize_last_stacktrace_frame(exception: &mut Annotated<Exception>) {
-    let _ = processor::apply(exception, |e, _| {
-        processor::apply(&mut e.stacktrace, |s, _| match s.frames.value_mut() {
-            None => Ok(()),
-            Some(frames) => match frames.last_mut() {
-                None => Ok(()),
-                Some(frame) => {
-                    stacktrace::process_non_raw_frame(frame);
-                    Ok(())
-                }
-            },
-        })
-    });
+/// Normalizes an event's stack trace, in `event.stacktrace`.
+fn normalize_event_stacktrace(event: &mut Event) {
+    let Annotated(Some(stacktrace), meta) = &mut event.stacktrace else {
+        return;
+    };
+    stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+}
+
+/// Normalizes the stack traces in an event's exceptions, in `event.exceptions.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.exceptions.raw_stacktraces` is not normalized.
+fn normalize_exception_stacktraces(event: &mut Event) {
+    let Some(event_exception) = event.exceptions.value_mut() else {
+        return;
+    };
+    let Some(exceptions) = event_exception.values.value_mut() else {
+        return;
+    };
+    for annotated_exception in exceptions {
+        let Some(exception) = annotated_exception.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut exception.stacktrace {
+            stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
+}
+
+/// Normalizes the stack traces in an event's threads, in `event.threads.stacktraces`.
+///
+/// Note: the raw stack traces, in `event.threads.raw_stacktraces`, is not normalized.
+fn normalize_thread_stacktraces(event: &mut Event) {
+    let Some(event_threads) = event.threads.value_mut() else {
+        return;
+    };
+    let Some(threads) = event_threads.values.value_mut() else {
+        return;
+    };
+    for annotated_thread in threads {
+        let Some(thread) = annotated_thread.value_mut() else {
+            continue;
+        };
+        if let Annotated(Some(stacktrace), meta) = &mut thread.stacktrace {
+            stacktrace::process_stacktrace(&mut stacktrace.0, meta);
+        }
+    }
 }
 
 fn normalize_exceptions(event: &mut Event) {
@@ -773,9 +810,17 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Annotated<Contexts>) {
     let _ = processor::apply(contexts, |contexts, _meta| {
+        // Reprocessing context sent from SDKs must not be accepted, it is a Sentry-internal
+        // construct.
+        // [`normalize`] does not run on renormalization anyway.
+        contexts.0.remove("reprocessing");
+
         for annotated in &mut contexts.0.values_mut() {
             if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
                 context.status.get_or_insert_with(|| SpanStatus::Unknown);
+            }
+            if let Some(context_inner) = annotated.value_mut() {
+                crate::normalize::contexts::normalize_context(&mut context_inner.0);
             }
         }
 
@@ -968,7 +1013,7 @@ mod tests {
     use relay_event_schema::protocol::{
         Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurements, Request, Tags,
     };
-    use relay_protocol::{Annotated, SerializableAnnotated};
+    use relay_protocol::{get_value, Annotated, SerializableAnnotated};
     use serde_json::json;
 
     use super::*;
@@ -2433,5 +2478,67 @@ mod tests {
           },
         }
         "###);
+    }
+
+    #[test]
+    fn test_normalization_removes_reprocessing_context() {
+        let json = r#"{
+            "contexts": {
+                "reprocessing": {}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+        normalize_event(&mut event, &NormalizationConfig::default());
+        assert!(!get_value!(event.contexts!).contains_key("reprocessing"));
+    }
+
+    #[test]
+    fn test_renormalization_does_not_remove_reprocessing_context() {
+        let json = r#"{
+            "contexts": {
+                "reprocessing": {}
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                is_renormalize: true,
+                ..Default::default()
+            },
+        );
+        assert!(get_value!(event.contexts!).contains_key("reprocessing"));
+    }
+
+    #[test]
+    fn test_user_data_moved() {
+        let mut user = Annotated::new(User {
+            other: {
+                let mut map = Object::new();
+                map.insert(
+                    "other".to_string(),
+                    Annotated::new(Value::String("value".to_owned())),
+                );
+                map
+            },
+            ..User::default()
+        });
+
+        normalize_user(&mut user);
+
+        let user = user.value().unwrap();
+
+        assert_eq!(user.data, {
+            let mut map = Object::new();
+            map.insert(
+                "other".to_string(),
+                Annotated::new(Value::String("value".to_owned())),
+            );
+            Annotated::new(map)
+        });
+
+        assert_eq!(user.other, Object::new());
     }
 }
