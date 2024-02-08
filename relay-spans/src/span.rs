@@ -1,14 +1,14 @@
 use std::str::FromStr;
 
 use chrono::{TimeZone, Utc};
+use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use relay_event_schema::protocol::{Span as EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
 use relay_protocol::{Annotated, Object, Value};
 
 use crate::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
+use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
-use crate::OtelCommon::any_value::Value as OtelValue;
-use crate::OtelTrace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -41,142 +41,127 @@ fn convert_from_otel_to_sentry_status(
     SpanStatus::Unknown
 }
 
-/// Extension trait for OtelSpan.
-pub trait OtelSpanExt {
-    /// Transform an OtelSpan to an Sentry span.
-    fn to_sentry_span(self) -> EventSpan;
+fn otel_value_to_i64(value: OtelValue) -> Option<i64> {
+    match value {
+        OtelValue::IntValue(v) => Some(v),
+        _ => None,
+    }
 }
 
-impl OtelSpanExt for OtelSpan {
-    fn to_sentry_span(self) -> EventSpan {
-        let mut exclusive_time_ms = 0f64;
-        let mut data: Object<Value> = Object::new();
-        let start_timestamp = Utc.timestamp_nanos(self.start_time_unix_nano as i64);
-        let end_timestamp = Utc.timestamp_nanos(self.end_time_unix_nano as i64);
-        let OtelSpan {
-            trace_id,
-            span_id,
-            parent_span_id,
-            name,
-            attributes,
-            status,
-            ..
-        } = self;
+fn otel_value_to_string(value: OtelValue) -> Option<String> {
+    match value {
+        OtelValue::StringValue(v) => Some(v),
+        OtelValue::BoolValue(v) => Some(v.to_string()),
+        OtelValue::IntValue(v) => Some(v.to_string()),
+        OtelValue::DoubleValue(v) => Some(v.to_string()),
+        OtelValue::BytesValue(v) => match String::from_utf8(v) {
+            Ok(v) => Some(v),
+            Err(_) => None,
+        },
+        _ => None,
+    }
+}
 
-        let span_id = hex::encode(span_id);
-        let trace_id = hex::encode(trace_id);
-        let parent_span_id = hex::encode(parent_span_id);
+/// Transform an OtelSpan to an Sentry span.
+pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
+    let mut exclusive_time_ms = 0f64;
+    let mut data: Object<Value> = Object::new();
+    let start_timestamp = Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64);
+    let end_timestamp = Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64);
+    let OtelSpan {
+        trace_id,
+        span_id,
+        parent_span_id,
+        name,
+        attributes,
+        status,
+        ..
+    } = otel_span;
 
-        let segment_id = if parent_span_id.is_empty() {
-            Annotated::new(SpanId(span_id.clone()))
-        } else {
-            Annotated::empty()
-        };
+    let span_id = hex::encode(span_id);
+    let trace_id = hex::encode(trace_id);
+    let parent_span_id = hex::encode(parent_span_id);
 
-        let mut op = None;
-        let mut http_status_code = None;
-        let mut grpc_status_code = None;
-        for attribute in attributes.into_iter() {
-            if let Some(value) = attribute.value.and_then(|v| v.value) {
-                let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str())
-                {
-                    key.to_string()
-                } else {
-                    attribute.key
+    let segment_id = if parent_span_id.is_empty() {
+        Annotated::new(SpanId(span_id.clone()))
+    } else {
+        Annotated::empty()
+    };
+
+    let mut op = None;
+    let mut http_status_code = None;
+    let mut grpc_status_code = None;
+    for attribute in attributes.into_iter() {
+        if let Some(value) = attribute.value.and_then(|v| v.value) {
+            let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
+                key.to_string()
+            } else {
+                attribute.key
+            };
+            if key == "sentry.op" {
+                op = otel_value_to_string(value);
+            } else if key.contains("exclusive_time_ns") {
+                let value = match value {
+                    OtelValue::IntValue(v) => v as f64,
+                    OtelValue::DoubleValue(v) => v,
+                    OtelValue::StringValue(v) => v.parse::<f64>().unwrap_or_default(),
+                    _ => 0f64,
                 };
-                if key == "sentry.op" {
-                    op = value.to_string();
-                } else if key.contains("exclusive_time_ns") {
-                    let value = match value {
-                        OtelValue::IntValue(v) => v as f64,
-                        OtelValue::DoubleValue(v) => v,
-                        OtelValue::StringValue(v) => v.parse::<f64>().unwrap_or_default(),
-                        _ => 0f64,
-                    };
-                    exclusive_time_ms = value / 1e6f64;
-                } else if key == "http.status_code" {
-                    http_status_code = value.to_i64();
-                } else if key == "rpc.grpc.status_code" {
-                    grpc_status_code = value.to_i64();
-                } else {
-                    match value {
-                        OtelValue::ArrayValue(_) => {}
-                        OtelValue::BoolValue(v) => {
+                exclusive_time_ms = value / 1e6f64;
+            } else if key == "http.status_code" {
+                http_status_code = otel_value_to_i64(value);
+            } else if key == "rpc.grpc.status_code" {
+                grpc_status_code = otel_value_to_i64(value);
+            } else {
+                match value {
+                    OtelValue::ArrayValue(_) => {}
+                    OtelValue::BoolValue(v) => {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                    OtelValue::BytesValue(v) => {
+                        if let Ok(v) = String::from_utf8(v) {
                             data.insert(key, Annotated::new(v.into()));
                         }
-                        OtelValue::BytesValue(v) => {
-                            if let Ok(v) = String::from_utf8(v) {
-                                data.insert(key, Annotated::new(v.into()));
-                            }
-                        }
-                        OtelValue::DoubleValue(v) => {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::IntValue(v) => {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                        OtelValue::KvlistValue(_) => {}
-                        OtelValue::StringValue(v) => {
-                            data.insert(key, Annotated::new(v.into()));
-                        }
-                    };
-                }
+                    }
+                    OtelValue::DoubleValue(v) => {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                    OtelValue::IntValue(v) => {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                    OtelValue::KvlistValue(_) => {}
+                    OtelValue::StringValue(v) => {
+                        data.insert(key, Annotated::new(v.into()));
+                    }
+                };
             }
         }
-        if exclusive_time_ms == 0f64 {
-            exclusive_time_ms =
-                (self.end_time_unix_nano - self.start_time_unix_nano) as f64 / 1e6f64;
-        }
-
-        let is_segment = parent_span_id.is_empty().into();
-
-        EventSpan {
-            op: op.into(),
-            data: data.into(),
-            description: name.into(),
-            exclusive_time: exclusive_time_ms.into(),
-            parent_span_id: SpanId(parent_span_id).into(),
-            segment_id,
-            span_id: Annotated::new(SpanId(span_id)),
-            start_timestamp: Timestamp(start_timestamp).into(),
-            status: Annotated::new(convert_from_otel_to_sentry_status(
-                status.map(|s| s.code),
-                http_status_code,
-                grpc_status_code,
-            )),
-            timestamp: Timestamp(end_timestamp).into(),
-            trace_id: TraceId(trace_id).into(),
-            is_segment,
-            ..Default::default()
-        }
     }
-}
-
-trait OtelValueExt {
-    fn to_i64(&self) -> Option<i64>;
-    fn to_string(&self) -> Option<String>;
-}
-
-impl OtelValueExt for OtelValue {
-    fn to_i64(&self) -> Option<i64> {
-        match self {
-            OtelValue::IntValue(v) => Some(*v),
-            _ => None,
-        }
+    if exclusive_time_ms == 0f64 {
+        exclusive_time_ms =
+            (otel_span.end_time_unix_nano - otel_span.start_time_unix_nano) as f64 / 1e6f64;
     }
 
-    fn to_string(&self) -> Option<String> {
-        match self {
-            OtelValue::StringValue(v) => Some(v.clone()),
-            OtelValue::BoolValue(v) => Some(v.to_string()),
-            OtelValue::IntValue(v) => Some(v.to_string()),
-            OtelValue::DoubleValue(v) => Some(v.to_string()),
-            OtelValue::BytesValue(v) => match String::from_utf8(v.clone()) {
-                Ok(v) => Some(v),
-                Err(_) => None,
-            },
-            _ => None,
-        }
+    let is_segment = parent_span_id.is_empty().into();
+
+    EventSpan {
+        op: op.into(),
+        data: data.into(),
+        description: name.into(),
+        exclusive_time: exclusive_time_ms.into(),
+        parent_span_id: SpanId(parent_span_id).into(),
+        segment_id,
+        span_id: Annotated::new(SpanId(span_id)),
+        start_timestamp: Timestamp(start_timestamp).into(),
+        status: Annotated::new(convert_from_otel_to_sentry_status(
+            status.map(|s| s.code),
+            http_status_code,
+            grpc_status_code,
+        )),
+        timestamp: Timestamp(end_timestamp).into(),
+        trace_id: TraceId(trace_id).into(),
+        is_segment,
+        ..Default::default()
     }
 }
 
@@ -250,7 +235,7 @@ mod tests {
             "droppedLinksCount": 0
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_span.to_sentry_span();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         assert_eq!(event_span.exclusive_time, Annotated::new(1000.0));
         let annotated_span: Annotated<EventSpan> = Annotated::new(event_span);
         assert_eq!(
@@ -279,7 +264,7 @@ mod tests {
             ]
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_span.to_sentry_span();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         assert_eq!(event_span.exclusive_time, Annotated::new(3200.0));
     }
 
@@ -295,7 +280,7 @@ mod tests {
             "endTimeUnixNano": 1697620454980078800
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
-        let event_span: EventSpan = otel_span.to_sentry_span();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
         assert_eq!(event_span.exclusive_time, Annotated::new(0.0788));
     }
 }

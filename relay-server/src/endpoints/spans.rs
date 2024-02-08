@@ -7,7 +7,7 @@ use axum_extra::protobuf::Protobuf;
 use bytes::Bytes;
 
 use relay_config::Config;
-use relay_spans::OtelTrace::TracesData;
+use relay_spans::otel_trace::TracesData;
 
 use crate::endpoints::common;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};

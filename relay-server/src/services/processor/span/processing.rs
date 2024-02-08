@@ -17,7 +17,7 @@ use relay_event_schema::protocol::{BrowserContext, Contexts, Event, Span};
 use relay_metrics::{aggregator::AggregatorConfig, MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Object};
-use relay_spans::{OtelSpanExt, OtelTrace::Span as OtelSpan};
+use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::generic::extract_metrics;
@@ -60,7 +60,7 @@ pub fn process(
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(otel_span.to_sentry_span()),
+                Ok(otel_span) => Annotated::new(otel_to_sentry_span(otel_span)),
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));

@@ -13,7 +13,7 @@ publish = false
 chrono.workspace = true
 enumset = "1.0.4"
 once_cell.workspace = true
-opentelemetry-proto = { git = "https://github.com/open-telemetry/opentelemetry-rust", features = ["gen-tonic", "with-serde", "trace"] }
+opentelemetry-proto = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14", features = ["gen-tonic", "with-serde", "trace"] }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-protocol = { path = "../relay-protocol" }
 serde.workspace = true

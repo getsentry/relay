@@ -2897,7 +2897,7 @@ dependencies = [
 [[package]]
 name = "opentelemetry"
 version = "0.21.0"
-source = "git+https://github.com/open-telemetry/opentelemetry-rust#dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14"
+source = "git+https://github.com/open-telemetry/opentelemetry-rust?rev=dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14#dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -2912,7 +2912,7 @@ dependencies = [
 [[package]]
 name = "opentelemetry-proto"
 version = "0.4.0"
-source = "git+https://github.com/open-telemetry/opentelemetry-rust#dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14"
+source = "git+https://github.com/open-telemetry/opentelemetry-rust?rev=dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14#dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14"
 dependencies = [
  "hex",
  "opentelemetry",
@@ -2925,7 +2925,7 @@ dependencies = [
 [[package]]
 name = "opentelemetry_sdk"
 version = "0.21.2"
-source = "git+https://github.com/open-telemetry/opentelemetry-rust#dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14"
+source = "git+https://github.com/open-telemetry/opentelemetry-rust?rev=dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14#dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14"
 dependencies = [
  "async-trait",
  "crossbeam-channel",
