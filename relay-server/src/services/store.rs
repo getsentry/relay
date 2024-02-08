@@ -172,6 +172,8 @@ impl StoreService {
         start_time: Instant,
         scoping: Scoping,
     ) -> Result<(), StoreError> {
+        println!("20");
+
         let retention = envelope.retention();
         let client = envelope.meta().client();
         let event_id = envelope.event_id();
@@ -194,7 +196,10 @@ impl StoreService {
         };
 
         let mut attachments = Vec::new();
-        let mut replay_items: Vec<&Item> = Vec::new();
+
+        let mut replay_event = None;
+        let mut replay_recording = None;
+        println!("HERE??????????");
 
         for item in envelope.items() {
             match item.ty() {
@@ -245,8 +250,12 @@ impl StoreService {
                     item,
                 )?,
                 ItemType::ReplayRecording => {
+                    if item.replay_combined_payload() {
+                        replay_recording = Some(item);
+                    }
+                    println!("HERE??????????2");
+
                     self.produce_replay_recording(event_id, scoping, item, start_time, retention)?;
-                    replay_items.push(item);
                 }
                 ItemType::ReplayEvent => {
                     self.produce_replay_event(
@@ -257,7 +266,9 @@ impl StoreService {
                         retention,
                         item,
                     )?;
-                    replay_items.push(item);
+                    if item.replay_combined_payload() {
+                        replay_event = Some(item);
+                    }
                 }
                 ItemType::CheckIn => self.produce_check_in(
                     scoping.organization_id,
@@ -274,25 +285,24 @@ impl StoreService {
             }
         }
 
-        if replay_items.len() == 2 {
+        if let (Some(replay_event), Some(replay_recording)) = (replay_event, replay_recording) {
             let combined_replay_kafka_message = Self::extract_combined_replay_kafka_message(
                 event_id.ok_or(StoreError::NoEventId)?,
-                replay_items,
+                replay_event,
+                replay_recording,
                 scoping,
                 start_time,
                 retention,
             );
-            if let Some(combined_replay_kafka_message) = combined_replay_kafka_message {
-                self.produce(
-                    KafkaTopic::ReplayRecordings,
-                    scoping.organization_id,
-                    combined_replay_kafka_message,
-                )?;
-                metric!(
-                    counter(RelayCounters::ProcessingMessageProduced) += 1,
-                    event_type = "replay_recording_combined"
-                );
-            }
+            self.produce(
+                KafkaTopic::ReplayRecordings,
+                scoping.organization_id,
+                KafkaMessage::ReplayRecordingNotChunked(combined_replay_kafka_message),
+            )?;
+            metric!(
+                counter(RelayCounters::ProcessingMessageProduced) += 1,
+                event_type = "replay_recording_combined"
+            );
         }
 
         if event_item.is_none() && attachments.is_empty() {
@@ -427,37 +437,22 @@ impl StoreService {
 
     fn extract_combined_replay_kafka_message(
         event_id: EventId,
-        replay_items: Vec<&Item>,
+        replay_event: &Item,
+        replay_recording: &Item,
         scoping: Scoping,
         start_time: Instant,
         retention: u16,
-    ) -> Option<KafkaMessage> {
-        let mut replay_event_item = None;
-        let mut replay_recording_item = None;
-
-        for item in replay_items {
-            match item.ty() {
-                ItemType::ReplayEvent => replay_event_item = Some(item),
-                ItemType::ReplayRecording => replay_recording_item = Some(item),
-                _ => {}
-            }
-        }
-
-        match (replay_event_item, replay_recording_item) {
-            (Some(replay_event_item), Some(replay_recording_item)) => Some(
-                KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
-                    replay_id: event_id,
-                    project_id: scoping.project_id,
-                    org_id: scoping.organization_id,
-                    key_id: scoping.key_id,
-                    retention_days: retention,
-                    received: UnixTimestamp::from_instant(start_time).as_secs(),
-                    payload: replay_recording_item.payload(),
-                    replay_event: Some(replay_event_item.payload()),
-                }),
-            ),
-            _ => None,
-        }
+    ) -> ReplayRecordingNotChunkedKafkaMessage {
+        return ReplayRecordingNotChunkedKafkaMessage {
+            replay_id: event_id,
+            project_id: scoping.project_id,
+            org_id: scoping.organization_id,
+            key_id: scoping.key_id,
+            retention_days: retention,
+            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: replay_recording.payload(),
+            replay_event: Some(replay_event.payload()),
+        };
     }
 
     fn produce(

@@ -48,20 +48,29 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         user_agent: meta.user_agent(),
         client_hints: meta.client_hints().as_deref(),
     };
+    let combined_envelope_items =
+        project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
 
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ReplayEvent => {
             if !replays_enabled {
+                println!("1");
                 return ItemAction::DropSilently;
+            }
+            if combined_envelope_items {
+                println!("2");
+                item.set_replay_combined_payload(true);
             }
 
             match process_replay_event(&item.payload(), project_config, client_addr, user_agent) {
                 Ok(replay) => match replay.to_json() {
                     Ok(json) => {
+                        println!("3");
                         item.set_payload(ContentType::Json, json);
                         ItemAction::Keep
                     }
                     Err(error) => {
+                        println!("4");
                         relay_log::error!(
                             error = &error as &dyn Error,
                             "failed to serialize replay"
@@ -70,6 +79,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
                     }
                 },
                 Err(error) => {
+                    println!("5");
                     relay_log::warn!(error = &error as &dyn Error, "invalid replay event");
                     ItemAction::Drop(Outcome::Invalid(match error {
                         ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
@@ -82,12 +92,18 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         }
         ItemType::ReplayRecording => {
             if !replays_enabled {
+                println!("6");
                 return ItemAction::DropSilently;
+            }
+            if combined_envelope_items {
+                println!("7");
+                item.set_header("replay_combined_payload", true);
             }
 
             // XXX: Processing is there just for data scrubbing. Skip the entire expensive
             // processing step if we do not need to scrub.
             if !scrubbing_enabled || scrubber.is_empty() {
+                println!("8");
                 return ItemAction::Keep;
             }
 
@@ -101,10 +117,12 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
 
             match parsed_recording {
                 Ok(recording) => {
+                    println!("9");
                     item.set_payload(ContentType::OctetStream, recording);
                     ItemAction::Keep
                 }
                 Err(e) => {
+                    println!("10");
                     relay_log::warn!("replay-recording-event: {e} {event_id:?}");
                     ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent))
                 }
@@ -148,6 +166,6 @@ fn process_replay_event(
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     }
-
+    println!("11");
     Ok(replay)
 }

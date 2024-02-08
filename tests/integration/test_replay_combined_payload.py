@@ -8,7 +8,7 @@ def test_replay_combined_with_processing(
 ):
     replay_recording_bytes = b"{}\n[]"
     relay = relay_with_processing()
-    replay_recordings_consumer = replay_recordings_consumer(timeout=10)
+    replay_recordings_consumer = replay_recordings_consumer()
 
     mini_sentry.add_basic_project_config(
         42,
@@ -16,14 +16,15 @@ def test_replay_combined_with_processing(
             "config": {
                 "features": [
                     "organizations:session-replay",
+                    "organizations:session-replay-combined-envelope-items",
                 ]
             }
         },
     )
 
-    replay_id = "515539018c9b4260a6f999572f1661ee"
+    replay_id = "d2132d31b39445f1938d7e21b6bf0ec4"
 
-    replay_event = generate_replay_sdk_event(replay_id=replay_id)
+    replay_event = generate_replay_sdk_event()
 
     envelope = Envelope(headers=[["event_id", replay_id]])
     envelope.add_item(
@@ -38,10 +39,10 @@ def test_replay_combined_with_processing(
     combined_replay_message = replay_recordings_consumer.get_not_chunked_replay()
 
     assert combined_replay_message["type"] == "replay_recording_not_chunked"
-    assert combined_replay_message["replay_id"] == "515539018c9b4260a6f999572f1661ee"
+    assert combined_replay_message["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"
 
     assert combined_replay_message["payload"] == replay_recording_bytes
 
     replay_event = json.loads(combined_replay_message["replay_event"])
 
-    assert replay_event["replay_id"] == "515539018c9b4260a6f999572f1661ee"
+    assert replay_event["replay_id"] == "d2132d31b39445f1938d7e21b6bf0ec4"

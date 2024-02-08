@@ -489,6 +489,11 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     rate_limited: bool,
 
+    /// Indicates that this item should be combined into one payload with othe replay item.
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    replay_combined_payload: bool,
+
     /// Contains the amount of events this item was generated and aggregated from.
     ///
     /// A [metrics buckets](`ItemType::MetricBuckets`) item contains metrics extracted and
@@ -576,6 +581,7 @@ impl Item {
                 filename: None,
                 routing_hint: None,
                 rate_limited: false,
+                replay_combined_payload: false,
                 source_quantities: None,
                 sample_rates: None,
                 other: BTreeMap::new(),
@@ -737,6 +743,16 @@ impl Item {
     /// Sets new source quantities.
     pub fn set_source_quantities(&mut self, source_quantities: SourceQuantities) {
         self.headers.source_quantities = Some(source_quantities);
+    }
+
+    /// Returns the contained source quantities.
+    pub fn replay_combined_payload(&self) -> bool {
+        self.headers.replay_combined_payload
+    }
+
+    /// Sets new source quantities.
+    pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
+        self.headers.replay_combined_payload = combined_payload;
     }
 
     /// Sets sample rates for this item.
