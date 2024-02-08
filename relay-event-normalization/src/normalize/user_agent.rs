@@ -46,17 +46,21 @@ pub fn normalize_user_agent_info_generic(
     platform: &Annotated<String>,
     user_agent_info: &RawUserAgentInfo<&str>,
 ) {
+    println!("60");
     if !contexts.contains::<BrowserContext>() {
         if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
+            println!("62");
             contexts.add(browser_context);
         }
     }
+    println!("61");
 
     if !contexts.contains::<DeviceContext>() {
         if let Some(device_context) = DeviceContext::from_hints_or_ua(user_agent_info) {
             contexts.add(device_context);
         }
     }
+    println!("62");
 
     // avoid conflicts with OS-context sent by a serverside SDK by using `contexts.client_os`
     // instead of `contexts.os`. This is then preferred by the UI to show alongside device and
@@ -68,9 +72,11 @@ pub fn normalize_user_agent_info_generic(
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
     };
+    println!("63");
 
     if !contexts.contains_key(os_context_key) {
         if let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
+            println!("64");
             contexts.insert(os_context_key.to_owned(), Context::Os(Box::new(os_context)));
         }
     }

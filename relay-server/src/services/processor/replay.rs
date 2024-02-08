@@ -131,6 +131,7 @@ pub fn process(state: &mut ProcessEnvelopeState, config: &Config) -> Result<(), 
         _ => ItemAction::Keep,
     });
 
+    println!("100");
     Ok(())
 }
 
@@ -141,17 +142,24 @@ fn process_replay_event(
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
 ) -> Result<Annotated<Replay>, ReplayError> {
+    println!("30");
     let mut replay =
         Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
 
     if let Some(replay_value) = replay.value_mut() {
+        println!("31");
         replay::validate(replay_value)?;
+        println!("31.5");
         replay::normalize(replay_value, client_ip, user_agent);
+        println!("31.8");
     } else {
+        println!("32");
         return Err(ReplayError::NoContent);
     }
+    println!("32.5");
 
     if let Some(ref config) = config.pii_config {
+        println!("33");
         let mut processor = PiiProcessor::new(config.compiled());
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
@@ -162,10 +170,11 @@ fn process_replay_event(
         .pii_config()
         .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     if let Some(config) = pii_config {
+        println!("34");
         let mut processor = PiiProcessor::new(config.compiled());
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     }
-    println!("11");
+    println!("40");
     Ok(replay)
 }
